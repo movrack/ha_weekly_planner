@@ -142,7 +142,8 @@ const num = (v: unknown): number | null => (typeof v === "number" && Number.isFi
 /** Known temperature of a thermostat preset (`preset_temperatures` or `<preset>_temp`), else null. */
 export function presetTemperature(hass: HomeAssistant, entityId: string, preset: string): number | null {
   const a = hass.states[entityId]?.attributes ?? {};
-  return num(a.preset_temperatures?.[preset]) ?? num(a[`${preset}_temp`]) ?? num(a[`${preset}_temperature`]);
+  return num(a.preset_temperatures?.[preset]) ?? num(a.preset_temperatures?.[`${preset}_temp`])
+    ?? num(a[`${preset}_temp`]) ?? num(a[`${preset}_temperature`]);
 }
 
 /** Temperature a mode sets on a thermostat, null when unknown or not a temperature. */
