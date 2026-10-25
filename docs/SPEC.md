@@ -1,6 +1,6 @@
 # Weekly Planner — spécification v1
 
-> Statut : **brouillon 0.3** (relecture n° 1 intégrée, questions § 16 tranchées).
+> Statut : **brouillon 0.4** (relectures n° 1 et 2 intégrées, questions § 16 bis en cours).
 > Dépôt : `ha_Weekly_planner` · domaine HA : `weekly_planner` · cible : Home Assistant ≥ 2026.10.
 > Les cases `[ ]` / `[x]` suivent l'avancement. Critère de fin de la v1 : **tout fonctionne** (§ 13).
 
@@ -30,7 +30,8 @@ programmer, jour par jour, des **plages horaires** qui appliquent une action à 
 - **Mode** : consigne nommée, colorée, partagée par **type d'entité** (valeur commune + exceptions par entité).
 - **État par défaut** : ce que l'entité reçoit à la fin d'une plage (mode/consigne, état d'avant, ou rien).
 - **Dérogation** : changement d'une entité, pendant un segment, vers un état **différent** de l'état voulu, qui ne vient pas de Weekly Planner.
-- **Segment** : période continue pendant laquelle l'état voulu d'une entité ne change pas. Chaque segment a un identifiant.
+- **Segment** : occurrence d'une plage gagnante pour une entité (ou intervalle hors plage), identifiée par (programme, plage, date) — voir § 5.1.
+- **Cible effective** : ce que l'entité doit avoir maintenant, dérogations comprises (§ 5.1).
 - **Pilote** : ce qui commande réellement l'entité ; pour un thermostat virtuel (Versatile Thermostat), on compare à son état **demandé** (`requested_state`).
 
 ## 3. Périmètre v1
@@ -81,13 +82,24 @@ Résolution pour une entité *E* :
 4. État voulu = action de la plage gagnante pour *E* ; sinon **état par défaut** (§ 5.4).
 5. Prochaine transition = plus proche début/fin de plage parmi les programmes concernés ; heures solaires recalculées à minuit local et à chaque modification.
 
-Un seul minuteur `async_track_point_in_time` sur la prochaine transition globale ; à chaque réveil, recalcul
-complet (idempotent, rattrape un réveil en retard). Chaque segment reçoit un identifiant ; toute action
-(appel, essai, attente) porte l'identifiant du segment qui l'a créée et **est abandonnée dès que ce segment est
-périmé** (une seule tâche en vol par entité).
+**Identité d'un segment** = (programme gagnant, plage, date d'occurrence) — ou (« défaut », programme) hors plage.
+Elle ne dépend **pas** de la valeur de la consigne : deux plages contiguës au même mode, ou une plage dont le défaut
+est identique, forment deux segments ; la fin de plage s'exécute donc toujours et efface un réglage manuel.
+Modifier la valeur d'un mode ne change pas l'identité du segment (la dérogation en cours est conservée).
+
+**Cible effective** d'une entité (ce que vérification, alerte et détection de dérogation utilisent), dans l'ordre :
+dérogation volontaire en cours (§ 5.9) → dérogation externe (état constaté) → « non réappliqué » (§ 5.5 : pas de
+cible tant que la prochaine transition n'a pas eu lieu) → état voulu du planning.
+
+**Réveils** : une file unique de réveils typés (transition de plage, échéance de dérogation volontaire, fin
+d'anti-rebond, essai espacé, délai d'alerte, fin de stabilisation, minuit solaire) ; un seul
+`async_track_point_in_time` armé sur le plus proche ; à chaque réveil, recalcul complet (idempotent, rattrape un
+réveil en retard). Toute action (appel, essai, attente) porte l'identité du segment qui l'a créée et **est
+abandonnée dès que ce segment est périmé** (une seule tâche en vol par entité).
 
 ### 5.2 Début et fin de plage
-- **Début** : mémoriser l'« état hors plage » de l'entité si elle n'est dans aucune plage (§ 5.4), puis appliquer la consigne.
+- **Début** : mémoriser l'« état hors plage » de l'entité si elle n'est dans aucune plage (§ 5.4) — l'état réel,
+  sauf si une dérogation volontaire est en cours : on mémorise alors la cible du planning — puis appliquer la consigne.
 - **Fin** : appliquer l'état par défaut, **même si une dérogation a eu lieu pendant la plage**.
 - Exemple de référence : volet, plage 20:00 → 08:00 « Fermé », défaut « Favori ». 20:00 il ferme ; 21:00 la
   télécommande l'ouvre à moitié → il reste à moitié ; 08:00 il passe en favori.
@@ -104,11 +116,13 @@ N'est **jamais** une dérogation :
   **fenêtre de grâce** après notre appel (réglable par entité ; par défaut 60 s, 6 min pour une intégration
   cloud à scrutation : Evohome) ;
 - un changement de contexte Weekly Planner (`context.id` ou `parent_id` dans l'ensemble des contextes émis) ;
-- un changement Adaptive Lighting (contexte `:al:`) sur une lumière dont la consigne est « Automatique » ;
+- un changement Adaptive Lighting (contexte `:al:`) sur une lumière dont la consigne est « Automatique », ou sur
+  une lumière en consigne fixe pendant la grâce qui suit une réaffirmation du contrôle manuel (§ 6.1) ;
 - pour un Versatile Thermostat : tout changement de `current_state` (fenêtre, sécurité, délestage) tant que
   `requested_state` reste égal à l'état voulu.
 
-Effet : *E* est marquée « en dérogation » jusqu'à la fin du segment ; rien n'est réappliqué ; la carte l'affiche
+Effet : *E* est marquée « en dérogation » jusqu'à la **prochaine transition de son gagnant** (fin de la plage en
+cours, ou début de la prochaine plage si on est hors plage) ; rien n'est réappliqué ; la carte l'affiche
 (⚠️ + « Reprendre ») ; le marquage est **persisté** et l'emporte sur `reappliquer` au redémarrage.
 Service `weekly_planner.resume` / bouton « Reprendre » : efface la dérogation et réapplique l'état voulu.
 
@@ -130,7 +144,11 @@ Service `weekly_planner.resume` / bouton « Reprendre » : efface la dérogation
 - Au démarrage de HA (après une **stabilisation** de 30 s pendant laquelle les entités se chargent), à l'activation
   du programme, ou quand on modifie la plage en cours / ses entités : si `reappliquer = oui`, l'état voulu courant
   est appliqué aux entités **sans dérogation persistée** ; sinon on attend la prochaine transition.
-- Les **actions ponctuelles ne sont jamais réappliquées** (pas de script relancé au redémarrage).
+- Les **actions ponctuelles ne sont jamais réappliquées** (pas de script relancé au redémarrage). Une plage
+  ponctuelle à **consigne d'état** reste la cible jusqu'à la prochaine transition (le défaut n'est pas réappliqué
+  par-dessus au redémarrage).
+- Au démarrage, la première valeur connue d'une condition (ou sa dernière valeur persistée) **ne passe pas** par
+  l'anti-rebond.
 - Fin de plage manquée pendant l'arrêt : **toujours rattrapée** (la fin s'exécute toujours, cf. § 5.2).
 - Désactivation d'un programme pendant une plage : l'état par défaut est appliqué (comme une fin de plage).
 
@@ -161,29 +179,42 @@ Service `weekly_planner.resume` / bouton « Reprendre » : efface la dérogation
 - Appels de service avec un `Context` dont l'identifiant reste un ULID valide (horodatage + aléa), mémorisé dans
   l'ensemble « contextes émis » (10 min) ; les appels d'un même segment partagent un `parent_id`.
 - Ordre : d'abord le mode de fonctionnement (`hvac_mode`, `turn_on`), puis la valeur, après confirmation (≤ 30 s).
-- Vérification sur l'état **demandé** du pilote (VT : `requested_state`) après la fenêtre de grâce ; si différent :
+- Vérification de la **cible effective** sur l'état **demandé** du pilote (VT : `requested_state`) après la fenêtre de grâce ; si différent :
   nouvel essai, puis essais espacés (1, 2, 5, 10, 15 min…) **tant que le segment est le même**.
 - Entité `unavailable`/`unknown` : action en attente ; au retour de l'entité, état voulu **recalculé** et appliqué.
 - Notification persistante si l'état voulu n'est pas atteint après X min (option, 30 par défaut) ; retirée quand il l'est.
 - Journal de bord : une entrée par **décision** (début, fin, dérogation, échec définitif, reprise), pas par essai ;
   traductions côté carte quand c'est possible.
-- Avant d'agir sur un Versatile Thermostat : s'il est **verrouillé** (`is_locked`), l'action échoue tout de suite
-  avec une alerte claire (pas d'essais).
+- Nos contextes ne portent **jamais** de `user_id` (même pour « Déroger… »).
+- Versatile Thermostat verrouillé : lire `lock_manager` ; si le verrou bloque les automatisations
+  (`lock_automations`), l'action échoue tout de suite avec une alerte claire (pas d'essais) ; un verrou limité aux
+  utilisateurs n'empêche rien.
 
 ### 5.9 Dérogation volontaire depuis la carte (« Déroger… »)
-- Modale : entité(s) du programme, consigne (ou mode), durée : **jusqu'à la fin de la plage** · **pendant X h/min** ·
-  **jusqu'à HH:MM** (au plus 7 jours).
-- Le moteur applique la consigne, marque l'entité en dérogation avec une échéance (persistée) ; à l'échéance, il
-  applique l'**état voulu** du moment (plage en cours ou défaut). « Reprendre » l'annule avant terme.
-- Les transitions qui tombent pendant la dérogation ne sont pas appliquées à cette entité ; si la dérogation est
-  « jusqu'à la fin de la plage », elle se termine à cette fin comme une dérogation externe.
+- Modale : entité(s) du programme (consignes d'état seulement, pas d'actions ponctuelles), consigne (ou mode),
+  durée : **jusqu'à la fin de la plage** (= prochaine transition du gagnant ; libellé « jusqu'au prochain
+  changement » hors plage) · **pendant X h/min** · **jusqu'à HH:MM** (dans le futur, au plus 7 jours ; une heure
+  inexistante au changement d'heure est avancée comme en § 5.7).
+- Le moteur applique la consigne, marque l'entité en dérogation volontaire avec une échéance (persistée) ; à
+  l'échéance, il applique la cible du planning du moment (plage en cours ou défaut), **même si `reappliquer = non`** ;
+  échéance tombée pendant un arrêt de HA : appliquée au démarrage. « Reprendre » l'annule avant terme.
+- Les transitions de plage qui tombent pendant la dérogation volontaire ne sont pas appliquées à cette entité.
+- Droits : comme l'édition (§ 9) — les consignes sensibles restent réservées aux administrateurs.
 - Service équivalent : `weekly_planner.override` (entity_id, consigne, `duree` ou `jusqu_a`).
 
 ### 5.10 Profils (semaines types)
 - Un programme a un ou plusieurs **profils** (« Hiver », « Été », « Télétravail »…), chacun avec ses 7 jours de plages ;
   entités, défauts, conditions et priorité sont communs au programme.
 - Entité `select.weekly_planner_<programme>_profil` : change le profil actif (carte, automatisation, service).
-- Changer de profil = modification : la plage en cours du nouveau profil est appliquée si `reappliquer`, sinon le défaut.
+  Options = noms des profils (uniques dans le programme ; renommer avertit que les automatisations qui utilisent
+  l'ancien nom sont à mettre à jour).
+- Au moins un profil ; le profil actif ne peut pas être supprimé.
+- Le profil actif est un **état d'exécution** (stockage runtime), hors `revision` : le changer n'invalide pas une
+  édition ouverte.
+- Changer de profil = modification (§ 5.5) : si `reappliquer`, l'état voulu du nouveau profil est appliqué aux
+  entités sans dérogation ; sinon on attend la prochaine transition.
+- Les profils inactifs comptent pour « utilisé par… », l'interdiction de supprimer un mode et la validation ;
+  `preview` et les conflits portent sur le profil actif (option « tous les profils » dans la carte).
 - La carte : sélecteur de profil dans l'en-tête du programme ; copie d'un profil, d'un jour vers un autre profil.
 
 ## 6. Types d'entités et consignes (D13, D19)
@@ -207,11 +238,18 @@ Les choix sont **lus sur l'entité** (`preset_modes`, `hvac_modes`, `effect_list
 ### 6.1 Lumière « Automatique »
 Au choix dans la consigne : activer un **switch Adaptive Lighting** (il couvre toute sa zone : avertissement si
 d'autres lumières en dépendent), ou lancer un **script / une automatisation** (ex. animation de couleurs).
-Fin de plage : le défaut s'applique ; le switch Adaptive Lighting retrouve l'état qu'il avait au début.
-Lumière déjà sous Adaptive Lighting avec une **consigne fixe** : au début de plage,
-`adaptive_lighting.set_manual_control` (`manual_control: true`) sur cette seule lumière, puis la consigne ; à la fin,
-`manual_control: false` et le défaut. Si le service n'existe pas : couper le switch AL de la zone au début et le
-rétablir à la fin (la carte prévient que toute la zone est concernée).
+« Automatique » allume la lumière si elle est éteinte. Fin de plage : le défaut s'applique ; le switch Adaptive
+Lighting retrouve l'état qu'il avait au début (état persisté, restauré aussi au déchargement / à la désinstallation).
+
+Lumière couverte par un switch Adaptive Lighting et **consigne fixe** (plage ou défaut) — règle suivie **par segment** :
+- au début du segment : `adaptive_lighting.set_manual_control` (`lights: [E]`, `manual_control: true`), puis la consigne ;
+- AL oublie ce marquage (redémarrage, rechargement d'AL, bascule d'un switch AL, extinction de la lumière,
+  `autoreset`) : Weekly Planner le **réaffirme** au démarrage, à chaque changement d'état d'un switch AL concerné et
+  après chaque allumage de *E*, indépendamment de `reappliquer` et des dérogations ;
+- `manual_control: false` seulement si le segment suivant est « Automatique » ou si plus rien ne pilote *E* ; sinon
+  la consigne suivante est envoyée directement (pas de double changement).
+Pas de « repli » qui couperait le switch de toute une zone. Une lumière hors de toute zone AL, ou AL non installé :
+aucune action AL.
 
 ### 6.2 Versatile Thermostat (pilote)
 - Presets `eco`, `comfort`, `boost`, `frost` (+ `none`) ; Weekly Planner pilote l'entité VT, jamais ses sous-jacents.
@@ -246,6 +284,8 @@ racine
                                                 actions{ par_type{type: mode_id} | par_entite{entity_id: consigne} }
 runtime (`weekly_planner.runtime`) : par entité → segment courant, dérogation (origine, échéance), état hors plage, action en attente
 journal (`weekly_planner.journal`) : segments réellement décidés (début, fin, consigne, raison), 14 jours glissants
+(runtime et journal sont versionnés et migrés comme le stockage principal ; runtime contient aussi le profil actif
+de chaque programme et l'état des switchs AL modifiés)
 ```
 - `debut`/`fin` : `{"heure": "HH:MM"}` (fin jusqu'à `24:00`) ou `{"soleil": "sunset", "decalage": 15, "au_plus_tot": "18:00", "au_plus_tard": "21:00"}`.
 - `consigne` : `{"genre": "preset|temperature|hvac_mode|etat|position|inclinaison|luminosite|couleur|effet|auto|scene|script|action|avancee", ...}`.
@@ -262,8 +302,14 @@ journal (`weekly_planner.journal`) : segments réellement décidés (début, fin
 `entites_en_derogation`, `conflits`, `alertes`) ; `switch.weekly_planner_vacances` ; appareil « Weekly Planner »
 (`integration_type: service`).
 
-**Services** (`weekly_planner.*`) : `resume` (entité ou programme), `override` (§ 5.9), `apply_now` (programme),
-`skip_next`, `reload` (admin). Tous respectent `admin_only` sauf `resume` et `override`.
+**Services** (`weekly_planner.*`) :
+- `resume` (entité ou programme) : efface dérogations externes et volontaires, applique la cible du planning ;
+- `override` (§ 5.9) ;
+- `apply_now` (programme) : applique l'état voulu à ses entités **sans dérogation**, quel que soit `reappliquer` ;
+- `skip_next` (programme) : la prochaine transition du programme n'est pas appliquée (persisté, une seule fois,
+  annulable ; visible dans la carte) ;
+- `reload` (admin).
+Avec `admin_only`, `resume` reste ouvert à tous ; `override` suit la question § 16.
 Entité `select.weekly_planner_<programme>_profil` (§ 5.10).
 
 **API websocket** : `get` · `subscribe` · `program/create|update|delete|duplicate` · `mode/create|update|delete` ·
@@ -291,7 +337,8 @@ même entité au même moment ; entité aussi visée par un `switch.schedule_*` 
 - En-tête : titre, pastille Vacances si active, alertes.
 - Une ligne par programme : nom, interrupteur, profil actif, **mode actuel** + « jusqu'à 17:00 → Confort », ⚠️ dérogation
   (« Reprendre », échéance) ou conflit ; bouton « Déroger… » (modale § 5.9).
-- Barre du jour avec trait « maintenant » (heure du **serveur**), semaine repliable en barres fines ; légende.
+- Barre du jour avec trait « maintenant » (heure du **serveur**), semaine repliable en barres fines ; légende ;
+  plage à heure solaire affichée à l'heure calculée du jour avec ☀️ ; plage ignorée ce jour-là barrée.
 - Toucher une barre → modale **Jour** en lecture (graphique + liste) avec bouton « Modifier ». ✏️ → configuration.
 
 ### 10.3 Configuration (modales, plein écran sur téléphone)
@@ -324,7 +371,8 @@ en mode YAML ; garde `customElements.get()` avant `define`. **Prototype de faisa
 
 - **Versatile Thermostat** : § 6.2. Fenêtre ouverte : VT gère, pas de dérogation, la consigne de fin est envoyée au VT.
 - **Evohome piloté directement** : option « dérogation permanente » (preset `permanent` puis consigne), proposée si
-  l'entité a ce preset ; fenêtre de grâce 6 min. Evohome **sous un VT** : le programme interne Evohome de la zone
+  l'entité a ce preset ; fenêtre de grâce 6 min. Quand l'entité quitte Weekly Planner (retrait, suppression du
+  programme, désinstallation), elle est remise en suivi de programme Evohome (preset `none`). Evohome **sous un VT** : le programme interne Evohome de la zone
   doit être vide ou plat, sinon il reprend la main au point de bascule suivant (documenté, vérifié par `check`).
 - **Adaptive Lighting** : § 6.1 et § 5.3.
 - **Pilotes concurrents** : § 9.
@@ -336,6 +384,11 @@ en mode YAML ; garde `customElements.get()` avant `define`. **Prototype de faisa
 - Dev : `dev/docker-compose.yml` (`ghcr.io/home-assistant/home-assistant:2026.10.x`), entités `demo` + `template` par
   type (dont un thermostat « lent » qui confirme après 2 min et un volet qui bouge 90 s), montage de l'intégration.
 - Python des tests aligné sur HA (3.14, via `uv`) ; `pytest-homeassistant-custom-component` aligné 2026.10 ; temps simulé.
+- Versatile Thermostat et Adaptive Lighting : simulés dans pytest par des entités et services factices reproduisant
+  les attributs utilisés (`requested_state`, `lock_manager`, `set_manual_control`…) ; installés à version figée
+  (VT 10.6.1, AL 1.32.0) dans l'instance Docker ; versions minimales indiquées dans le README.
+- `manifest.json` : `after_dependencies` = `frontend`, `lovelace`, `logbook`, `repairs`, `adaptive_lighting`,
+  `versatile_thermostat` (à confirmer par hassfest au prototype).
 - `scripts/deploy_prod.sh` : copie de l'intégration vers `/config/custom_components/weekly_planner` de la prod
   (sauvegarde HA avant, vérification après) tant que le dépôt est privé.
 - CI : `hacs/action`, `hassfest`, pytest, build + lint de la carte, test Playwright de la carte sur l'instance Docker.
@@ -345,10 +398,11 @@ en mode YAML ; garde `customElements.get()` avant `define`. **Prototype de faisa
 
 ## 13. Définition de « fini » (v1)
 
-1. **Tests automatiques verts** : scénarios S1–S38 (§ 14.9), chacun relié à une tâche.
+1. **Tests automatiques verts** : scénarios S1–S44 (§ 14.9), chacun relié à une tâche.
 2. **Test réel en prod** (copie par script) ≥ 3 jours sur le banc d'essai, procédure écrite (`docs/test-reel.md`) :
-   début, fin, dérogation à la main, redémarrage de HA (avec accord), entité rendue injoignable (désactivation
-   temporaire de l'entité), entrées du journal de bord vérifiées une à une.
+   début, fin, dérogation à la main, « Déroger… » avec échéance, changement de profil, redémarrage de HA (avec
+   accord), entité rendue injoignable (désactivation temporaire de l'entité), entrées du journal de bord vérifiées
+   une à une.
 3. **Vérification visuelle** selon `docs/controle-visuel.md` (420 px et ≥ 1400 px, clair/sombre, chaque modale, glisser,
    copie, modes, graphique, clavier) ; zéro erreur console ; temps de rendu mesuré.
 4. CI verte ; puis, après passage en public, installation propre via HACS (dépôt personnalisé) et désinstallation propre.
@@ -415,7 +469,8 @@ en mode YAML ; garde `customElements.get()` avant `define`. **Prototype de faisa
 ### 14.8 Revue
 - [x] Relecture « avocat du diable » n° 1 (35 points) intégrée dans cette version
 - [x] Questions § 16 tranchées
-- [ ] Relecture n° 2 avant le développement
+- [x] Relecture n° 2 (24 points) intégrée — questions produit en § 16 bis
+- [ ] Questions § 16 bis tranchées
 
 ### 14.9 Scénarios de test (automatiques)
 - [ ] S1 plage simple : début applique, fin applique le défaut
@@ -456,6 +511,12 @@ en mode YAML ; garde `customElements.get()` avant `define`. **Prototype de faisa
 - [ ] S36 changement de profil en pleine plage
 - [ ] S37 lumière sous Adaptive Lighting avec consigne fixe : pas de réajustement, rendue à AL à la fin
 - [ ] S38 activation / redémarrage hors plage : défaut appliqué (et pas appliqué si `reappliquer = non`)
+- [ ] S39 plages contiguës au même mode / défaut identique : la fin efface un réglage manuel
+- [ ] S40 cible effective : « Déroger… » ne déclenche ni essais ni alerte ; `reappliquer = non` non plus
+- [ ] S41 AL oublie le contrôle manuel (bascule du switch de zone, redémarrage) : réaffirmé, pas de fausse dérogation
+- [ ] S42 `skip_next` et `apply_now`
+- [ ] S43 retrait d'une entité Evohome : remise en suivi de programme
+- [ ] S44 échéance de dérogation volontaire tombée pendant un arrêt de HA
 
 ## 15. v2 (hors périmètre)
 - Import des programmes `scheduler-component` (`.storage/scheduler.storage`, version 3) — nécessite plages ponctuelles et défaut « rien » (présents en v1).
@@ -469,5 +530,13 @@ en mode YAML ; garde `customElements.get()` avant `define`. **Prototype de faisa
 - Q-E « Automatique » = switch Adaptive Lighting **ou** script / automatisation (§ 6.1).
 - Q-F `admin_only` **désactivé** par défaut ; droits par rôle / utilisateur / profil en v2.
 - Q-G Lumière sous Adaptive Lighting + consigne fixe : `adaptive_lighting.set_manual_control` sur la lumière pendant
-  la plage, rendue à AL à la fin ; repli : couper puis rétablir le switch de zone (§ 6.1).
+  la plage, réaffirmé quand AL l'oublie, rendue à AL à la fin (§ 6.1). Le repli « couper le switch de zone » est
+  abandonné (relecture n° 2 : il remet à zéro toute la zone).
 - Q-H Toucher une barre de jour : modale de lecture (graphique + liste) puis « Modifier ».
+
+## 16 bis. Questions produit (relecture n° 2)
+- Q-I Vacances, désactivation du programme ou changement de profil pendant une dérogation volontaire : annulée ou conservée ?
+- Q-J Programme désactivé : libère-t-il ses entités (son défaut ne s'applique plus) ? Défaut pendant Vacances quand plusieurs programmes visent l'entité ?
+- Q-K Réglage à la main pendant une dérogation volontaire : garde l'échéance, ou devient une dérogation externe ?
+- Q-L Plage ponctuelle d'un programme moins prioritaire pendant une plage plus prioritaire ou une dérogation : exécutée ou sautée ?
+- Q-M Avec `admin_only`, un non-admin peut-il utiliser « Déroger… » et changer de profil ?
