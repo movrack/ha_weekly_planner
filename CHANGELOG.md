@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-10-25
+
+### Fixed
+- Chart: preset temperatures read from Versatile Thermostat `preset_temperatures`; no made-up level when unknown.
+- Chart: the planned line uses the legend colour.
+- Journal: a new target within the same segment (default or slot edited) is recorded.
+
+### Changed
+- The card header button that lists all schedules uses a calendar icon; the gear stays for the schedule settings.
+
 ## [0.3.2] - 2026-10-25
 
 ### Added

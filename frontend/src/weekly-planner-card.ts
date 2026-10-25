@@ -291,8 +291,8 @@ export class WeeklyPlannerCard extends LitElement {
           ? html`<div class="head">
               <h1>${this._config.title ?? ""}</h1>
               ${data?.vacation ? html`<span class="chip"><ha-icon icon="mdi:bag-suitcase"></ha-icon> ${t(lang, "vacation")}</span>` : nothing}
-              ${admin ? html`<button class="gear" aria-label=${t(lang, "settings")} @click=${() => (this._dialog = { kind: "admin" })}>
-                <ha-icon icon="mdi:cog"></ha-icon></button>` : nothing}
+              ${admin ? html`<button class="gear" aria-label=${t(lang, "all_programs")} @click=${() => (this._dialog = { kind: "admin" })}>
+                <ha-icon icon="mdi:calendar-edit"></ha-icon></button>` : nothing}
             </div>`
           : nothing}
         ${this._error ? html`<div class="error">${t(lang, "error", { message: this._error })}</div>` : nothing}
@@ -321,7 +321,7 @@ export class WeeklyPlannerCard extends LitElement {
           .defaultTypes=${this._config.filter?.types ?? []} @closed=${close}></wp-program-editor>`;
       case "admin": {
         const lang = this._lang;
-        return html`<wp-dialog open heading=${t(lang, "settings")} @closed=${close}>
+        return html`<wp-dialog open heading=${t(lang, "all_programs")} @closed=${close}>
           <div class="adm">
             ${this._data.programs.map((p) => html`<button class="admrow" @click=${() => (this._dialog = { kind: "program", program: p })}>
               <ha-icon icon=${p.icon ?? "mdi:calendar-clock"}></ha-icon><span>${p.name}</span><ha-icon icon="mdi:chevron-right"></ha-icon></button>`)}
