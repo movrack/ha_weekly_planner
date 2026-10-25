@@ -69,11 +69,23 @@ export function spillover(previousDay: Slot[]): { slot: Slot; end: number }[] {
   return result;
 }
 
-/** "08:00" today, "lun. 08:00" another day (server zone). */
+/** Spoken-style clock: "22 h" / "22 h 30" in French, "10 pm" / "10:30 pm" elsewhere (Intl). */
+export function fmtClock(language: string, minutes: number): string {
+  const m = ((Math.round(minutes) % DAY) + DAY) % DAY;
+  const h = Math.floor(m / 60);
+  const min = m % 60;
+  if (language.toLowerCase().startsWith("fr")) return min ? `${h} h ${String(min).padStart(2, "0")}` : `${h} h`;
+  const date = new Date(Date.UTC(2000, 0, 1, h, min));
+  const opts: Intl.DateTimeFormatOptions = { timeZone: "UTC", hour: "numeric" };
+  if (min) opts.minute = "2-digit";
+  return new Intl.DateTimeFormat(language, opts).format(date).replace(/\s?(AM|PM)/, (_, x: string) => ` ${x.toLowerCase()}`);
+}
+
+/** "22 h" today, "lun. 22 h" another day (server zone). */
 export function formatWhen(iso: string, timeZone: string, language: string, now = new Date()): string {
   const date = new Date(iso);
   const sameDay = localDateIso(date, timeZone) === localDateIso(now, timeZone);
-  const opts: Intl.DateTimeFormatOptions = { timeZone, hour: "2-digit", minute: "2-digit" };
-  if (!sameDay) opts.weekday = "short";
-  return new Intl.DateTimeFormat(language, opts).format(date);
+  const clock = fmtClock(language, localMinutes(date, timeZone));
+  if (sameDay) return clock;
+  return `${new Intl.DateTimeFormat(language, { timeZone, weekday: "short" }).format(date)} ${clock}`;
 }

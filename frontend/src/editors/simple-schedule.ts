@@ -8,8 +8,8 @@ import "../components/dialog";
 import { confirmAction } from "../components/confirm";
 import { SwipeTracker } from "../components/gestures";
 import { strings, t } from "../i18n";
-import { activeProfile, mainType, newId } from "../planner";
-import { DAY, clockToMinutes, localWeekday, minutesToClock, nominal } from "../time";
+import { activeProfile, describeSp, mainType, modeEffect, newId } from "../planner";
+import { DAY, clockToMinutes, fmtClock, localWeekday, minutesToClock, nominal } from "../time";
 import type { HomeAssistant, PlannerData, Profile, Program, Slot, TimeSpec } from "../types";
 import { findOverlap, sortSlots, specMinutes } from "./day-editor";
 import { editorStyles, langOf } from "./setpoint-editor";
@@ -30,10 +30,17 @@ export class WpSimpleSchedule extends LitElement {
   @state() private _error = "";
   @state() private _conflict = false;
   @state() private _saving = false;
+  @state() private _saved = false;
+  private _closeTimer?: number;
   private _swipe = new SwipeTracker(60);
 
   private get _lang() { return langOf(this.hass); }
   private _tr(key: K, vars?: Record<string, string>) { return t(this._lang, key, vars); }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    window.clearTimeout(this._closeTimer);
+  }
 
   willUpdate(): void {
     if (this._p || !this.hass || !this.data || !this.program) return;
@@ -130,7 +137,8 @@ export class WpSimpleSchedule extends LitElement {
   }
 
   private async _remove(slot: Slot): Promise<void> {
-    const text = this._tr("ss_confirm_remove", { time: this._sentenceTime(slot) });
+    const sun = !("time" in slot.start) || Boolean(slot.end && !("time" in slot.end));
+    const text = sun ? this._tr("ss_confirm_remove_sun") : this._tr("ss_confirm_remove", { time: this._sentenceTime(slot) });
     if (await confirmAction(this, text, this._tr("ss_remove"))) {
       this._setDay(this._day, this._slots.filter((s) => s.id !== slot.id));
     }
@@ -140,7 +148,11 @@ export class WpSimpleSchedule extends LitElement {
     const targets = (kind === "weekdays" ? [0, 1, 2, 3, 4] : kind === "weekend" ? [5, 6] : [0, 1, 2, 3, 4, 5, 6])
       .filter((d) => d !== this._day);
     if (!targets.length) return;
-    if (!(await confirmAction(this, this._tr("ss_copy_confirm"), this._tr("ss_copy_do")))) return;
+    const names = strings(this._lang).days.map((n) => (this._lang.startsWith("fr") ? n.toLowerCase() : n));
+    const question = targets.length === 6
+      ? this._tr("ss_copy_confirm_all", { n: String(targets.length) })
+      : this._tr("ss_copy_confirm", { days: targets.map((d) => names[d]).join(", ") });
+    if (!(await confirmAction(this, question, this._tr("ss_copy_do")))) return;
     const source = this._slots;
     const id = this._profile.id;
     const clones = () => source.map((s) => ({ ...structuredClone(s), id: newId() }));
@@ -179,7 +191,8 @@ export class WpSimpleSchedule extends LitElement {
     this._saving = true;
     try {
       await this.hass.callWS({ type: "weekly_planner/program/save", program: structuredClone(this._p) });
-      this.renderRoot.querySelector<HTMLElement & { close(): void }>("wp-dialog")?.close();
+      this._saved = true;
+      this._closeTimer = window.setTimeout(() => this._closeDialog(), 1500);
     } catch (err) {
       const e = err as { code?: string; message?: string };
       this._conflict = e?.code === "conflict";
@@ -190,6 +203,10 @@ export class WpSimpleSchedule extends LitElement {
     } finally {
       this._saving = false;
     }
+  }
+
+  private _closeDialog(): void {
+    this.renderRoot.querySelector<HTMLElement & { close(): void }>("wp-dialog")?.close();
   }
 
   private _reload(): void {
@@ -204,41 +221,56 @@ export class WpSimpleSchedule extends LitElement {
     return this._tr(`ss_${side}_${ev}` as K);
   }
 
+  /** "8 h 30 à 22 h" (fixed times only; sun-based times use their own words). */
   private _sentenceTime(slot: Slot): string {
     const side = (spec: TimeSpec | null | undefined, kind: "from" | "to"): string =>
-      !spec ? "" : "time" in spec ? spec.time : this._sunText(kind, spec.sun);
-    return slot.end
-      ? `${side(slot.start, "from")} ${side(slot.end, "to")}`.trim()
-      : `${this._tr("ss_at")} ${side(slot.start, "from")}`;
+      !spec ? "" : "time" in spec ? fmtClock(this._lang, clockToMinutes(spec.time)) : this._sunText(kind, spec.sun);
+    return slot.end ? `${side(slot.start, "from")} ${this._tr("ss_to")} ${side(slot.end, "to")}` : side(slot.start, "from");
   }
 
-  private _timeControl(slot: Slot, which: "start" | "end", word: string) {
+  private _timeInput(slot: Slot, which: "start" | "end", word: string) {
     const spec = slot[which];
     if (!spec) return nothing;
     const m = nominal(spec) ?? 0;
-    const shown = m >= DAY ? "00:00" : spec && "time" in spec ? spec.time : "";
-    const label = (k: K) => this._tr(k, { when: word });
-    return html`
-      <div class="tc">
-        <span class="word">${word}</span>
-        <button class="btn step" aria-label=${label("ss_earlier_aria")} @click=${() => this._shift(slot, which, -MOVE)}>
-          <ha-icon icon="mdi:minus"></ha-icon> ${this._tr("ss_earlier")}</button>
-        <input type="time" step="900" .value=${shown} aria-label=${word}
-          @change=${(e: Event) => this._fromInput(slot, which, e)} />
-        <button class="btn step" aria-label=${label("ss_later_aria")} @click=${() => this._shift(slot, which, MOVE)}>
-          <ha-icon icon="mdi:plus"></ha-icon> ${this._tr("ss_later")}</button>
-      </div>`;
+    const shown = m >= DAY ? "00:00" : "time" in spec ? spec.time : "";
+    return html`<span class="w">${word}</span>
+      <input type="time" step="900" .value=${shown} aria-label=${word} @change=${(e: Event) => this._fromInput(slot, which, e)} />`;
+  }
+
+  private _steps(slot: Slot, which: "start" | "end", label: string) {
+    if (!slot[which]) return nothing;
+    const aria = (k: K) => this._tr(k, { when: label });
+    return html`<div class="steps"><span class="lbl">${label}</span>
+      <button class="btn step" aria-label=${aria("ss_earlier_aria")} @click=${() => this._shift(slot, which, -MOVE)}>
+        <ha-icon icon="mdi:minus"></ha-icon><span>${this._tr("ss_earlier")}</span></button>
+      <button class="btn step" aria-label=${aria("ss_later_aria")} @click=${() => this._shift(slot, which, MOVE)}>
+        <ha-icon icon="mdi:plus"></ha-icon><span>${this._tr("ss_later")}</span></button></div>`;
+  }
+
+  /** Entity the period's mode is read on (first entity of the main type). */
+  private get _firstEntity(): string {
+    const type = mainType(this._p!);
+    const ids = this._p!.entities.map((e) => e.entity_id);
+    return ids.find((id) => id.split(".")[0] === type) ?? ids[0] ?? "";
   }
 
   private _modeControl(slot: Slot) {
     const modes = this._modes;
     const current = this._mode(slot);
+    const eid = this._firstEntity;
     const custom = !current && Object.keys(slot.actions.by_entity).length > 0;
-    if (custom) return html`<span class="muted">${this._tr("ss_custom")}</span>`;
+    if (custom) {
+      const [id, sp] = Object.entries(slot.actions.by_entity)[0];
+      const more = Object.keys(slot.actions.by_entity).length - 1;
+      return html`<strong class="custom">${describeSp(this._lang, this.data.modes, id, sp)}${more > 0 ? ` +${more}` : ""}</strong>`;
+    }
     return html`
       <select aria-label=${this._tr("slot_action")} @change=${(e: Event) => this._setMode(slot, (e.target as HTMLSelectElement).value)}>
         ${current ? nothing : html`<option value="" selected>${this._tr("ss_pick_mode")}</option>`}
-        ${modes.map((m) => html`<option value=${m.id} ?selected=${m.id === current}>${m.name}</option>`)}
+        ${modes.map((m) => {
+          const effect = eid ? modeEffect(this.hass, this._lang, m, eid) : "";
+          return html`<option value=${m.id} ?selected=${m.id === current}>${effect ? `${m.name} (${effect})` : m.name}</option>`;
+        })}
       </select>`;
   }
 
@@ -255,13 +287,20 @@ export class WpSimpleSchedule extends LitElement {
           ? html`<div class="sentence">
               <strong>${this._sentenceTime(slot)}</strong>
               <p class="hint"><ha-icon icon="mdi:weather-sunny"></ha-icon> ${this._tr("ss_sun_note")}</p>
+              <div class="sent"><span class="w">:</span><div class="grow">${this._modeControl(slot)}</div></div>
             </div>`
           : html`
-            ${this._timeControl(slot, "start", this._tr(slot.end ? "ss_from" : "ss_at"))}
-            ${slot.end ? this._timeControl(slot, "end", this._tr("ss_to")) : nothing}
+            <div class="sent">
+              ${slot.end
+                ? html`${this._timeInput(slot, "start", this._tr("ss_from"))}
+                  <span class="grp">${this._timeInput(slot, "end", this._tr("ss_to"))}<span class="w">:</span></span>`
+                : html`<span class="grp">${this._timeInput(slot, "start", this._tr("ss_at"))}<span class="w">:</span></span>`}
+              <div class="mode">${this._modeControl(slot)}</div>
+            </div>
             ${next ? html`<p class="hint"><ha-icon icon="mdi:weather-night"></ha-icon> ${this._tr("ss_next_day")}</p>` : nothing}
-            ${e === DAY ? html`<p class="hint">${this._tr("ss_midnight")}</p>` : nothing}`}
-        <div class="tc"><span class="word">:</span><div class="grow">${this._modeControl(slot)}</div></div>
+            ${e === DAY ? html`<p class="hint">${this._tr("ss_midnight")}</p>` : nothing}
+            ${this._steps(slot, "start", this._tr("ss_start_lbl"))}
+            ${this._steps(slot, "end", this._tr("ss_end_lbl"))}`}
         <div class="actions">
           <button class="btn danger" ?disabled=${!this._canEdit} @click=${() => void this._remove(slot)}>
             <ha-icon icon="mdi:delete"></ha-icon> ${this._tr("ss_remove")}</button>
@@ -291,7 +330,7 @@ export class WpSimpleSchedule extends LitElement {
           @pointerup=${(e: PointerEvent) => { const dir = this._swipe.up(e); if (dir) this._go(this._day + dir); }}
           @pointercancel=${() => this._swipe.cancel()}>
           <h3>${s.days[this._day]}${this._day === today ? html` <span class="badge">${s.today}</span>` : nothing}</h3>
-          <p class="muted small">${this._tr("ss_season", { name: this._profile.name })}</p>
+          ${this._p.profiles.length > 1 ? html`<p class="muted small">${this._tr("ss_season", { name: this._profile.name })}</p>` : nothing}
           ${slots.length === 0 ? html`<p class="muted">${this._tr("ss_empty")}</p>` : nothing}
           ${slots.map((slot) => this._renderSlot(slot))}
           <button class="btn" ?disabled=${!editable} @click=${() => this._add()}>
@@ -305,8 +344,9 @@ export class WpSimpleSchedule extends LitElement {
         </div>
         ${this._error ? html`<p class="error" role="alert">${this._error}
           ${this._conflict ? html`<button class="btn" @click=${() => this._reload()}>${this._tr("ss_reload")}</button>` : nothing}</p>` : nothing}
-        <button slot="footer" class="btn" @click=${() => this.renderRoot.querySelector<HTMLElement & { close(): void }>("wp-dialog")?.close()}>${s.cancel}</button>
-        <button slot="footer" class="btn primary" ?disabled=${!editable || this._saving} @click=${() => void this._save()}>${s.save}</button>
+        ${this._saved ? html`<p class="saved" role="status"><ha-icon icon="mdi:check-circle"></ha-icon> ${this._tr("ss_saved")}</p>` : nothing}
+        <button slot="footer" class="btn" @click=${() => this._closeDialog()}>${s.cancel}</button>
+        <button slot="footer" class="btn primary save" ?disabled=${!editable || this._saving || this._saved} @click=${() => void this._save()}>${s.save}</button>
       </wp-dialog>`;
   }
 
@@ -314,13 +354,14 @@ export class WpSimpleSchedule extends LitElement {
     editorStyles,
     css`
       :host { display: contents; }
-      .days { display: flex; gap: 2px; margin-bottom: 8px; }
+      .days { display: grid; grid-template-columns: repeat(7, minmax(48px, 1fr)); gap: 6px; margin-bottom: 8px; }
       .day {
-        flex: 1; min-width: 0; min-height: 48px; padding: 0; border-radius: 12px; border: 1px solid var(--divider-color);
+        min-width: 48px; min-height: 48px; padding: 0; border-radius: 12px; border: 1px solid var(--secondary-text-color);
         background: none; color: var(--primary-text-color); cursor: pointer; font-size: 14px;
       }
       .day.today { font-weight: 700; text-decoration: underline; }
       .day.on { background: var(--primary-color); border-color: var(--primary-color); color: var(--text-primary-color, #fff); }
+      @media (max-width: 480px) { .days { grid-template-columns: repeat(4, 1fr); } }
       .body { touch-action: pan-y; min-height: 40vh; }
       h3 { margin: 8px 0 0; font-size: 20px; font-weight: 600; }
       h4 { margin: 20px 0 8px; font-size: 15px; font-weight: 500; }
@@ -330,16 +371,26 @@ export class WpSimpleSchedule extends LitElement {
         padding: 2px 10px; font-size: 13px; font-weight: 600; vertical-align: middle;
       }
       .slot { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
-      .tc { display: flex; align-items: center; gap: 6px; }
-      .tc .word { flex: 0 0 28px; font-size: 16px; }
-      .tc input[type="time"] {
-        flex: 0 0 104px; width: 104px; min-height: 48px; font-size: 20px; font-weight: 600; text-align: center; padding: 4px;
-      }
-      .tc .grow select { font-size: 16px; }
-      .btn.step { flex: 1; min-width: 0; padding: 0 6px; font-size: 14px; gap: 2px; --mdc-icon-size: 16px; }
+      .sent { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+      .grp { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+      .sent .w { font-size: 16px; }
+      .sent input[type="time"] { flex: 0 0 104px; width: 104px; min-height: 48px; font-size: 20px; font-weight: 600; text-align: center; padding: 4px; }
+      .sent .mode { flex: 1 1 150px; min-width: 0; }
+      .sent select { font-size: 16px; }
+      .custom { font-size: 18px; }
+      .steps { display: flex; align-items: center; gap: 8px; }
+      .steps .lbl { flex: 0 0 44px; font-size: 14px; opacity: 0.8; }
+      .btn.step { flex: 1; min-width: 0; padding: 0 8px; font-size: 14px; gap: 2px; --mdc-icon-size: 16px; white-space: nowrap; }
+      .btn.step span { white-space: nowrap; }
+      .btn { border-color: var(--secondary-text-color); }
+      .btn.primary { border-color: var(--primary-color); }
+      .btn.danger { border-color: var(--error-color, #db4437); }
+      .muted, .hint { color: var(--primary-text-color); opacity: 0.8; }
       .sentence { font-size: 16px; }
-      .actions { display: flex; justify-content: flex-start; }
-      @media (max-width: 400px) { .tc .word { flex-basis: 22px; } .tc input[type="time"] { flex-basis: 96px; width: 96px; font-size: 18px; } }
+      .actions { display: flex; justify-content: flex-start; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--divider-color); }
+      .saved { display: flex; align-items: center; gap: 8px; font-size: 16px; color: var(--success-color, #43a047); --mdc-icon-size: 22px; }
+      @media (max-width: 600px) { .btn.save { flex: 1 1 100%; order: -1; } }
+      @media (max-width: 400px) { .sent input[type="time"] { flex-basis: 96px; width: 96px; font-size: 18px; } }
     `,
   ];
 }

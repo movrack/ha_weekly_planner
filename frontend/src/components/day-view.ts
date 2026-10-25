@@ -9,7 +9,7 @@ import { SwipeTracker, displayName } from "./gestures";
 import { addDaysIso, weekdayOf } from "./chart";
 import type { BarSpan } from "./day-bar";
 import { strings, t } from "../i18n";
-import { activeProfile, entityDomain, slotColor, slotLabel } from "../planner";
+import { activeProfile, entityDomain, presetLabel, slotColor, slotLabel } from "../planner";
 import { formatClock, localDateIso, localMinutes, nominal, spillover, DAY } from "../time";
 import type { HomeAssistant, Mode, PlannerData, PreviewSlot, Program, Setpoint, Slot } from "../types";
 
@@ -112,7 +112,7 @@ export class WpDayView extends LitElement {
     if (!sp) return "–";
     switch (sp.kind) {
       case "temperature": return `${sp.temperature} °C`;
-      case "preset": return String(sp.preset);
+      case "preset": return presetLabel(this._lang, String(sp.preset));
       case "position": return `${sp.position} %`;
       case "open": return s.sp_open;
       case "close": return s.sp_close;

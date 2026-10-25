@@ -136,3 +136,38 @@ export function describeSp(lang: string, modes: Mode[], entityId: string, sp: Se
 export function stepTemperature(base: number, dir: 1 | -1, min = 7, max = 35): number {
   return Math.min(max, Math.max(min, Math.round((base + dir * 0.5) * 2) / 2));
 }
+
+const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+/** Known temperature of a thermostat preset (`preset_temperatures` or `<preset>_temp`), else null. */
+export function presetTemperature(hass: HomeAssistant, entityId: string, preset: string): number | null {
+  const a = hass.states[entityId]?.attributes ?? {};
+  return num(a.preset_temperatures?.[preset]) ?? num(a[`${preset}_temp`]) ?? num(a[`${preset}_temperature`]);
+}
+
+/** Temperature a mode sets on a thermostat, null when unknown or not a temperature. */
+export function modeTemperature(hass: HomeAssistant, mode: Mode, entityId: string): number | null {
+  const sp = modeSetpoint(mode, entityId) as Record<string, unknown>;
+  if (sp.kind === "temperature") return num(sp.temperature);
+  if (sp.kind === "preset") return presetTemperature(hass, entityId, String(sp.preset));
+  return null;
+}
+
+/** Plain effect of a mode on an entity: "16 °C", "30 %"… (empty when there is nothing to say). */
+export function modeEffect(hass: HomeAssistant, lang: string, mode: Mode, entityId: string): string {
+  const sp = modeSetpoint(mode, entityId) as Record<string, unknown>;
+  const temp = modeTemperature(hass, mode, entityId);
+  if (temp !== null) return fmtTemp(lang, temp);
+  if (sp.kind === "position" && num(sp.position) !== null) return `${sp.position} %`;
+  if (sp.kind === "on" && num(sp.brightness) !== null) return `${sp.brightness} %`;
+  return "";
+}
+
+/** Frost-protection mode of a thermostat: preset `frost` or a value of 10 °C or less. */
+export function isFrostMode(hass: HomeAssistant, mode: Mode, entityId: string): boolean {
+  if (entityDomain(entityId) !== "climate") return false;
+  const sp = modeSetpoint(mode, entityId) as Record<string, unknown>;
+  if (sp.kind === "preset" && sp.preset === "frost") return true;
+  const temp = modeTemperature(hass, mode, entityId);
+  return temp !== null && temp <= 10;
+}

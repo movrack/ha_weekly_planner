@@ -176,17 +176,21 @@ export class WeeklyPlannerCard extends LitElement {
     const canAdvanced = this._config.show_advanced !== false;
     const open = canAdvanced && this._advanced;
 
+    // One program and no configured title: the program's name is the title (no generic "Programs").
+    const single = Boolean(data) && programs.length === 1 && this._config.title === undefined;
     return html`
       <ha-card>
-        <div class="head">
-          <h1>${this._config.title ?? s.title}</h1>
-          ${data?.vacation ? html`<span class="chip warn"><ha-icon icon="mdi:bag-suitcase"></ha-icon> ${s.vacation}</span>` : nothing}
-        </div>
+        ${!single || data?.vacation
+          ? html`<div class="head">
+              ${single ? html`<span class="grow"></span>` : html`<h1>${this._config.title ?? s.title}</h1>`}
+              ${data?.vacation ? html`<span class="chip warn"><ha-icon icon="mdi:bag-suitcase"></ha-icon> ${s.vacation}</span>` : nothing}
+            </div>`
+          : nothing}
         ${this._error ? html`<div class="error">${t(lang, "error", { message: this._error })}</div>` : nothing}
         ${data?.read_only ? html`<div class="error">${s.read_only}</div>` : nothing}
         ${!data ? html`<div class="empty">…</div>` : nothing}
         ${data && !programs.length ? html`<div class="empty">${s.no_program}</div>` : nothing}
-        ${programs.map((program) => this._renderProgram(program, today, nowMin, open))}
+        ${programs.map((program) => this._renderProgram(program, today, nowMin, open, single))}
         ${open && programs.length && !this._config.program
           ? html`<button class="link" @click=${() => (this._showWeek = !this._showWeek)}>
               ${this._showWeek ? s.hide_week : s.show_week}</button>`
@@ -206,11 +210,11 @@ export class WeeklyPlannerCard extends LitElement {
     `;
   }
 
-  private _renderProgram(program: Program, today: number, nowMin: number, open: boolean) {
+  private _renderProgram(program: Program, today: number, nowMin: number, open: boolean, single = false) {
     const data = this._data!;
     return html`
       <section class="program ${program.enabled ? "" : "off"}">
-        <h2 class="ptitle">${program.name}</h2>
+        <h2 class="ptitle ${single ? "big" : ""}">${program.name}</h2>
         <wp-simple-controls .hass=${this.hass} .data=${data} .program=${program}
           @simple-schedule=${() => (this._dialog = { kind: "simple", program })}></wp-simple-controls>
         ${open ? this._renderAdvanced(program, today, nowMin) : nothing}
@@ -233,10 +237,11 @@ export class WeeklyPlannerCard extends LitElement {
           <div class="name">
             ${program.profiles.length > 1 ? html`<span class="chip">${profile.name}</span>` : nothing}
           </div>
-          <label class="switch" title=${program.enabled ? "On" : "Off"}>
-            <input type="checkbox" .checked=${program.enabled} aria-label=${program.name}
+          <label class="switch">
+            <span class="switch-label">${s.sm_active}</span>
+            <input type="checkbox" .checked=${program.enabled} aria-label=${s.sm_active}
               @change=${(e: Event) => this._toggle(program, (e.target as HTMLInputElement).checked)} />
-            <span></span>
+            <span class="track"></span>
           </label>
         </div>
         <div class="state">
@@ -253,8 +258,8 @@ export class WeeklyPlannerCard extends LitElement {
           ${status?.skip_next ? html`<span class="chip">${s.skip_planned}</span>` : nothing}
         </div>
         ${overridden.length
-          ? html`<div class="warn-row"><ha-icon icon="mdi:alert"></ha-icon> ${overridden.length > 1 ? `${overridden.length} × ` : ""}${this._overrideText(overridden[0].entity_id)}
-              <button class="small" @click=${() => this._resume(program)}>${s.resume}</button></div>`
+          ? html`<div class="warn-row"><ha-icon icon="mdi:hand-back-right"></ha-icon> ${overridden.length > 1 ? `${overridden.length} × ` : ""}${this._overrideText(overridden[0].entity_id)}
+              ${program.enabled ? nothing : html`<button class="small" @click=${() => this._resume(program)}>${s.resume}</button>`}</div>`
           : nothing}
         ${(data.warnings?.[program.id] ?? []).length && data.can_edit
           ? html`<details class="warnings"><summary><ha-icon icon="mdi:alert"></ha-icon> ${(data.warnings?.[program.id] ?? []).length}</summary>
@@ -338,12 +343,14 @@ export class WeeklyPlannerCard extends LitElement {
     .head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; min-height: 48px; }
     h1 { flex: 1; min-width: 0; margin: 0; font-size: 20px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .ptitle { margin: 0 0 4px; font-size: 18px; font-weight: 500; overflow-wrap: anywhere; }
+    .ptitle.big { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+    .grow { flex: 1; }
     .advanced { margin-top: 12px; padding-top: 8px; border-top: 1px dashed var(--divider-color); }
     .adv-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
     button.more {
       display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 48px; margin-top: 8px;
-      border: none; background: none; color: var(--primary-color); font: inherit; font-size: 14px; font-weight: 500;
-      cursor: pointer; --mdc-icon-size: 22px;
+      border: 1px solid var(--primary-color); border-radius: 24px; background: none; color: var(--primary-color);
+      font: inherit; font-size: 15px; font-weight: 500; cursor: pointer; --mdc-icon-size: 22px; margin-top: 12px;
     }
     .program { padding: 12px 0; border-top: 1px solid var(--divider-color); }
     .program:first-of-type { border-top: none; }
@@ -360,7 +367,7 @@ export class WeeklyPlannerCard extends LitElement {
       background: repeating-linear-gradient(135deg, var(--warning-color, #ff9800) 0 6px, #e68900 6px 12px);
     }
     .pill.neutral { background: var(--secondary-background-color); color: var(--primary-text-color); text-shadow: none; }
-    .muted { color: var(--secondary-text-color); font-size: 14px; }
+    .muted { color: var(--primary-text-color); opacity: 0.8; font-size: 14px; }
     .chip {
       display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 14px;
       font-size: 14px; padding: 2px 10px; border-radius: 12px; background: var(--secondary-background-color);
@@ -375,7 +382,7 @@ export class WeeklyPlannerCard extends LitElement {
       display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 8px;
       background: none; border: none; padding: 8px 0; min-height: 48px; cursor: pointer; color: inherit; font: inherit;
     }
-    .day span { font-size: 14px; color: var(--secondary-text-color); text-align: left; }
+    .day span { font-size: 14px; opacity: 0.85; text-align: left; }
     .day span.today { color: var(--primary-color); font-weight: 600; }
     .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
     button.small, button.ghost {
@@ -387,22 +394,21 @@ export class WeeklyPlannerCard extends LitElement {
     button.link {
       border: none; background: none; color: var(--primary-color); cursor: pointer; padding: 0; min-height: 48px; font: inherit; font-size: 14px;
     }
-    .empty { color: var(--secondary-text-color); padding: 16px 0; text-align: center; }
+    .empty { color: var(--primary-text-color); opacity: 0.8; padding: 16px 0; text-align: center; }
     .error { color: var(--error-color, #db4437); font-size: 14px; margin-bottom: 8px; }
-    .switch { position: relative; width: 48px; height: 48px; flex: none; display: flex; align-items: center; }
-    .switch span { inset: auto !important; position: relative !important; width: 40px; height: 22px; }
-    .switch input { opacity: 0; width: 0; height: 0; }
-    .switch span {
-      position: absolute; inset: 0; border-radius: 11px; background: var(--disabled-color, #bdbdbd);
-      transition: background 0.2s; cursor: pointer;
+    .switch { position: relative; min-height: 48px; flex: none; display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; }
+    .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .switch .track {
+      position: relative; width: 40px; height: 22px; border-radius: 11px; background: var(--disabled-color, #bdbdbd);
+      transition: background 0.2s; flex: none;
     }
-    .switch span::before {
+    .switch .track::before {
       content: ""; position: absolute; width: 18px; height: 18px; left: 2px; top: 2px; border-radius: 50%;
       background: #fff; transition: transform 0.2s;
     }
-    .switch input:checked + span { background: var(--primary-color); }
-    .switch input:checked + span::before { transform: translateX(18px); }
-    .switch input:focus-visible + span { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+    .switch input:checked + .track { background: var(--primary-color); }
+    .switch input:checked + .track::before { transform: translateX(18px); }
+    .switch input:focus-visible + .track { outline: 2px solid var(--primary-color); outline-offset: 2px; }
   `;
 }
 

@@ -5,7 +5,7 @@ import { LitElement, css, html, nothing } from "lit";
 import type { TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { strings, t } from "../i18n";
-import { entityDomain, friendlyName } from "../planner";
+import { entityDomain, friendlyName, presetLabel } from "../planner";
 import type { Condition, HassEntity, HomeAssistant, Setpoint } from "../types";
 
 export type K = Parameters<typeof t>[1];
@@ -84,7 +84,7 @@ export function describeSetpoint(lang: string, sp?: Setpoint | null): string {
   const x = sp as Record<string, any>;
   const label = (k: string) => t(lang, `sp_${k}` as K);
   switch (sp.kind) {
-    case "preset": return `${x.preset}${x.hvac_mode ? ` · ${x.hvac_mode}` : ""}`;
+    case "preset": return `${presetLabel(lang, String(x.preset))}${x.hvac_mode ? ` · ${x.hvac_mode}` : ""}`;
     case "temperature": return `${x.temperature} °C${x.hvac_mode ? ` · ${x.hvac_mode}` : ""}`;
     case "hvac_mode": return `${label("hvac_mode")} ${x.hvac_mode}`;
     case "position": return `${label("position")} ${x.position} %`;
