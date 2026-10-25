@@ -96,7 +96,7 @@ export class WpDayView extends LitElement {
   // ---- content ----
 
   private _modeSetpoint(mode: Mode | undefined, entityId: string): Setpoint | null {
-    return mode ? mode.exceptions[entityId] ?? mode.value : null;
+    return mode ? mode.exceptions?.[entityId] ?? mode.value : null;
   }
 
   private _setpointText(sp: Setpoint | null): string {

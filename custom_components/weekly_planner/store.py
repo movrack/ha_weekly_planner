@@ -69,6 +69,8 @@ MODE_NAMES_FR = {
 def empty_config(language: str = "en") -> dict[str, Any]:
     """Fresh configuration with the starting modes named in the instance language."""
     modes = deepcopy(DEFAULT_MODES)
+    for mode in modes:
+        mode.setdefault("exceptions", {})
     if language.startswith("fr"):
         for mode in modes:
             mode["name"] = MODE_NAMES_FR.get(mode["id"], mode["name"])
@@ -117,6 +119,8 @@ class PlannerStore:
             self.read_only = True
             raise ConfigStoreError("configuration file unreadable")
         self.config = data if data is not None else empty_config(self.hass.config.language)
+        for mode in self.config["modes"]:
+            mode.setdefault("exceptions", {})
         self.runtime = await self._runtime.async_load() or self.runtime
         self.journal = (await self._journal.async_load() or {}).get("segments", [])
 

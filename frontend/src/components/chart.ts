@@ -197,7 +197,7 @@ export class WpChart extends LitElement {
 
   private _modeSetpoint(modeId: string | undefined, entityId: string): Setpoint | null {
     const mode = this.data.modes.find((m: Mode) => m.id === modeId);
-    return mode ? mode.exceptions[entityId] ?? mode.value : null;
+    return mode ? mode.exceptions?.[entityId] ?? mode.value : null;
   }
 
   private _slotSetpoint(slot: Slot): Setpoint | null {

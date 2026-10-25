@@ -1453,8 +1453,9 @@ let q = class extends O {
   }
   // ---- values ----
   _modeSetpoint(e, t) {
-    const i = this.data.modes.find((s) => s.id === e);
-    return i ? i.exceptions[t] ?? i.value : null;
+    var s;
+    const i = this.data.modes.find((r) => r.id === e);
+    return i ? ((s = i.exceptions) == null ? void 0 : s[t]) ?? i.value : null;
   }
   _slotSetpoint(e) {
     return e.actions.by_entity[this.entityId] ?? this._modeSetpoint(e.actions.by_type[k(this.entityId)], this.entityId);
@@ -1859,7 +1860,8 @@ let J = class extends O {
   }
   // ---- content ----
   _modeSetpoint(e, t) {
-    return e ? e.exceptions[t] ?? e.value : null;
+    var i;
+    return e ? ((i = e.exceptions) == null ? void 0 : i[t]) ?? e.value : null;
   }
   _setpointText(e) {
     const t = B(this._lang);
