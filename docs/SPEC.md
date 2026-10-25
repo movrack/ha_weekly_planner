@@ -202,6 +202,8 @@ Service `weekly_planner.resume` / bouton « Reprendre » : efface la dérogation
   l'échéance, il applique la cible du planning du moment (plage en cours ou défaut), **même si `reappliquer = non`** ;
   échéance tombée pendant un arrêt de HA : appliquée au démarrage. « Reprendre » l'annule avant terme.
 - Les transitions de plage qui tombent pendant la dérogation volontaire ne sont pas appliquées à cette entité.
+- Vacances, désactivation du programme ou changement de profil **annulent** la dérogation volontaire : l'entité reçoit
+  aussitôt le nouvel état (défaut ou profil).
 - Droits : comme l'édition (§ 9) — les consignes sensibles restent réservées aux administrateurs.
 - Service équivalent : `weekly_planner.override` (entity_id, consigne, `duree` ou `jusqu_a`).
 
@@ -538,7 +540,7 @@ en mode YAML ; garde `customElements.get()` avant `define`. **Prototype de faisa
 - Q-H Toucher une barre de jour : modale de lecture (graphique + liste) puis « Modifier ».
 
 ## 16 bis. Questions produit (relecture n° 2)
-- Q-I Vacances, désactivation du programme ou changement de profil pendant une dérogation volontaire : annulée ou conservée ?
+- Q-I ✅ Vacances, désactivation ou changement de profil annulent la dérogation volontaire.
 - Q-J ✅ Un programme désactivé libère ses entités (son défaut ne vaut que pour sa propre désactivation) ; Vacances : défaut du plus prioritaire, une fois.
 - Q-K Réglage à la main pendant une dérogation volontaire : garde l'échéance, ou devient une dérogation externe ?
 - Q-L Plage ponctuelle d'un programme moins prioritaire pendant une plage plus prioritaire ou une dérogation : exécutée ou sautée ?
