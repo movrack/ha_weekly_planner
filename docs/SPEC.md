@@ -1,6 +1,6 @@
 # Weekly Planner — spécification v1
 
-> Statut : **brouillon 0.2** (relecture critique intégrée, questions ouvertes en § 16).
+> Statut : **brouillon 0.3** (relecture n° 1 intégrée, questions § 16 tranchées).
 > Dépôt : `ha_Weekly_planner` · domaine HA : `weekly_planner` · cible : Home Assistant ≥ 2026.10.
 > Les cases `[ ]` / `[x]` suivent l'avancement. Critère de fin de la v1 : **tout fonctionne** (§ 13).
 
@@ -170,6 +170,22 @@ Service `weekly_planner.resume` / bouton « Reprendre » : efface la dérogation
 - Avant d'agir sur un Versatile Thermostat : s'il est **verrouillé** (`is_locked`), l'action échoue tout de suite
   avec une alerte claire (pas d'essais).
 
+### 5.9 Dérogation volontaire depuis la carte (« Déroger… »)
+- Modale : entité(s) du programme, consigne (ou mode), durée : **jusqu'à la fin de la plage** · **pendant X h/min** ·
+  **jusqu'à HH:MM** (au plus 7 jours).
+- Le moteur applique la consigne, marque l'entité en dérogation avec une échéance (persistée) ; à l'échéance, il
+  applique l'**état voulu** du moment (plage en cours ou défaut). « Reprendre » l'annule avant terme.
+- Les transitions qui tombent pendant la dérogation ne sont pas appliquées à cette entité ; si la dérogation est
+  « jusqu'à la fin de la plage », elle se termine à cette fin comme une dérogation externe.
+- Service équivalent : `weekly_planner.override` (entity_id, consigne, `duree` ou `jusqu_a`).
+
+### 5.10 Profils (semaines types)
+- Un programme a un ou plusieurs **profils** (« Hiver », « Été », « Télétravail »…), chacun avec ses 7 jours de plages ;
+  entités, défauts, conditions et priorité sont communs au programme.
+- Entité `select.weekly_planner_<programme>_profil` : change le profil actif (carte, automatisation, service).
+- Changer de profil = modification : la plage en cours du nouveau profil est appliquée si `reappliquer`, sinon le défaut.
+- La carte : sélecteur de profil dans l'en-tête du programme ; copie d'un profil, d'un jour vers un autre profil.
+
 ## 6. Types d'entités et consignes (D13, D19)
 
 | Type | Consignes proposées | Tolérance (dérogation / vérification) |
@@ -192,7 +208,10 @@ Les choix sont **lus sur l'entité** (`preset_modes`, `hvac_modes`, `effect_list
 Au choix dans la consigne : activer un **switch Adaptive Lighting** (il couvre toute sa zone : avertissement si
 d'autres lumières en dépendent), ou lancer un **script / une automatisation** (ex. animation de couleurs).
 Fin de plage : le défaut s'applique ; le switch Adaptive Lighting retrouve l'état qu'il avait au début.
-Lumière déjà sous Adaptive Lighting avec une consigne fixe : voir § 16 (Q-G).
+Lumière déjà sous Adaptive Lighting avec une **consigne fixe** : au début de plage,
+`adaptive_lighting.set_manual_control` (`manual_control: true`) sur cette seule lumière, puis la consigne ; à la fin,
+`manual_control: false` et le défaut. Si le service n'existe pas : couper le switch AL de la zone au début et le
+rétablir à la fin (la carte prévient que toute la zone est concernée).
 
 ### 6.2 Versatile Thermostat (pilote)
 - Presets `eco`, `comfort`, `boost`, `frost` (+ `none`) ; Weekly Planner pilote l'entité VT, jamais ses sous-jacents.
@@ -222,9 +241,10 @@ racine
 └─ programmes[]    : id, revision, cree_le, nom, icone, priorite, actif, reappliquer, type_principal,
                      entites[]   : entity_id, type, defaut{genre: mode|consigne|etat_avant|rien, valeur}, grace_s?
                      conditions[]: entity_id, attribut?, op, valeur
-                     jours[0..6] : plages[] : id, debut, fin?, conditions[],
-                                              actions{ par_type{type: mode_id} | par_entite{entity_id: consigne} }
-runtime (`weekly_planner.runtime`) : par entité → segment courant, dérogation, état hors plage, action en attente
+                     profil_actif, profils[] : id, nom,
+                       jours[0..6] : plages[] : id, debut, fin?, conditions[],
+                                                actions{ par_type{type: mode_id} | par_entite{entity_id: consigne} }
+runtime (`weekly_planner.runtime`) : par entité → segment courant, dérogation (origine, échéance), état hors plage, action en attente
 journal (`weekly_planner.journal`) : segments réellement décidés (début, fin, consigne, raison), 14 jours glissants
 ```
 - `debut`/`fin` : `{"heure": "HH:MM"}` (fin jusqu'à `24:00`) ou `{"soleil": "sunset", "decalage": 15, "au_plus_tot": "18:00", "au_plus_tard": "21:00"}`.
@@ -242,8 +262,9 @@ journal (`weekly_planner.journal`) : segments réellement décidés (début, fin
 `entites_en_derogation`, `conflits`, `alertes`) ; `switch.weekly_planner_vacances` ; appareil « Weekly Planner »
 (`integration_type: service`).
 
-**Services** (`weekly_planner.*`) : `resume` (entité ou programme), `apply_now` (programme), `skip_next`, `reload`
-(admin). Tous respectent `admin_only` sauf `resume`.
+**Services** (`weekly_planner.*`) : `resume` (entité ou programme), `override` (§ 5.9), `apply_now` (programme),
+`skip_next`, `reload` (admin). Tous respectent `admin_only` sauf `resume` et `override`.
+Entité `select.weekly_planner_<programme>_profil` (§ 5.10).
 
 **API websocket** : `get` · `subscribe` · `program/create|update|delete|duplicate` · `mode/create|update|delete` ·
 `preview` (timeline d'un jour à venir : heures solaires résolues, plages ignorées, conflits) · `journal` (passé réel,
@@ -268,8 +289,8 @@ même entité au même moment ; entité aussi visée par un `switch.schedule_*` 
 
 ### 10.2 Consultation (par défaut)
 - En-tête : titre, pastille Vacances si active, alertes.
-- Une ligne par programme : nom, interrupteur, **mode actuel** + « jusqu'à 17:00 → Confort », ⚠️ dérogation
-  (« Reprendre ») ou conflit.
+- Une ligne par programme : nom, interrupteur, profil actif, **mode actuel** + « jusqu'à 17:00 → Confort », ⚠️ dérogation
+  (« Reprendre », échéance) ou conflit ; bouton « Déroger… » (modale § 5.9).
 - Barre du jour avec trait « maintenant » (heure du **serveur**), semaine repliable en barres fines ; légende.
 - Toucher une barre → modale **Jour** en lecture (graphique + liste) avec bouton « Modifier ». ✏️ → configuration.
 
@@ -324,7 +345,7 @@ en mode YAML ; garde `customElements.get()` avant `define`. **Prototype de faisa
 
 ## 13. Définition de « fini » (v1)
 
-1. **Tests automatiques verts** : scénarios S1–S34 (§ 14.9), chacun relié à une tâche.
+1. **Tests automatiques verts** : scénarios S1–S38 (§ 14.9), chacun relié à une tâche.
 2. **Test réel en prod** (copie par script) ≥ 3 jours sur le banc d'essai, procédure écrite (`docs/test-reel.md`) :
    début, fin, dérogation à la main, redémarrage de HA (avec accord), entité rendue injoignable (désactivation
    temporaire de l'entité), entrées du journal de bord vérifiées une à une.
@@ -352,6 +373,10 @@ en mode YAML ; garde `customElements.get()` avant `define`. **Prototype de faisa
 - [ ] Conditions : dernière valeur connue, anti-rebond (S30)
 - [ ] Journal de bord, journal des segments, notifications (S31)
 - [ ] Renommage / suppression d'entités, alertes Réparations (S32)
+- [ ] Dérogation volontaire avec échéance + service `override` (S35)
+- [ ] Profils + `select` du profil actif (S36)
+- [ ] Adaptive Lighting : contrôle manuel pendant une consigne fixe, repli switch (S37)
+- [ ] Activation / redémarrage hors plage : défaut appliqué (S38)
 
 ### 14.3 Intégration HA
 - [ ] Config flow (instance unique) + options flow
@@ -389,7 +414,7 @@ en mode YAML ; garde `customElements.get()` avant `define`. **Prototype de faisa
 
 ### 14.8 Revue
 - [x] Relecture « avocat du diable » n° 1 (35 points) intégrée dans cette version
-- [ ] Questions § 16 tranchées
+- [x] Questions § 16 tranchées
 - [ ] Relecture n° 2 avant le développement
 
 ### 14.9 Scénarios de test (automatiques)
@@ -427,16 +452,22 @@ en mode YAML ; garde `customElements.get()` avant `define`. **Prototype de faisa
 - [ ] S32 renommage et suppression d'entité
 - [ ] S33 ressource Lovelace : création, mise à jour de version, retrait à la désinstallation
 - [ ] S34 `revision` : écriture concurrente refusée
+- [ ] S35 « Déroger… » : durée, jusqu'à HH:MM, fin de plage, « Reprendre » avant terme, redémarrage pendant
+- [ ] S36 changement de profil en pleine plage
+- [ ] S37 lumière sous Adaptive Lighting avec consigne fixe : pas de réajustement, rendue à AL à la fin
+- [ ] S38 activation / redémarrage hors plage : défaut appliqué (et pas appliqué si `reappliquer = non`)
 
 ## 15. v2 (hors périmètre)
 - Import des programmes `scheduler-component` (`.storage/scheduler.storage`, version 3) — nécessite plages ponctuelles et défaut « rien » (présents en v1).
 - Import des automatisations HA à déclencheur horaire / solaire (conversion assistée ; l'automatisation d'origine est désactivée, pas supprimée).
+- Droits par rôle / utilisateur / profil.
 
-## 16. Questions ouvertes (à trancher avec l'utilisateur)
-- Q-B Programme activé (ou HA redémarré) **entre deux plages** : appliquer l'état par défaut tout de suite ?
-- Q-C Dérogation : seulement « jusqu'à la fin de la plage », ou aussi une durée (« pendant 2 h ») comme Tado ?
-- Q-D Profils saisonniers (hiver / été) à bascule unique ?
-- Q-E Vitrine : quel système « automatique » de changement de couleur (script, automatisation…) ?
-- Q-F `admin_only` désactivé ou activé par défaut ?
-- Q-G Lumière sous Adaptive Lighting avec une consigne fixe : couper son switch pendant la plage, ou ignorer AL ?
-- Q-H Toucher une barre de jour : ouvrir la lecture (graphique) puis « Modifier », ou directement l'éditeur ?
+## 16. Questions tranchées (relecture n° 1)
+- Q-B Programme activé / HA redémarré **hors plage** : l'état par défaut est appliqué tout de suite (si `reappliquer`).
+- Q-C Dérogation depuis la carte : bouton « Déroger… » (§ 5.9). Dérogation externe : jusqu'à la fin de la plage.
+- Q-D Profils par programme (§ 5.10).
+- Q-E « Automatique » = switch Adaptive Lighting **ou** script / automatisation (§ 6.1).
+- Q-F `admin_only` **désactivé** par défaut ; droits par rôle / utilisateur / profil en v2.
+- Q-G Lumière sous Adaptive Lighting + consigne fixe : `adaptive_lighting.set_manual_control` sur la lumière pendant
+  la plage, rendue à AL à la fin ; repli : couper puis rétablir le switch de zone (§ 6.1).
+- Q-H Toucher une barre de jour : modale de lecture (graphique + liste) puis « Modifier ».
