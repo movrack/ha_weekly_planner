@@ -5,13 +5,13 @@ import { LitElement, css, html, nothing } from "lit";
 import type { TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "./dialog";
-import { t } from "../i18n";
-import { strings } from "../i18n";
+import { strings, t } from "../i18n";
 import {
-  activeProfile, applicable, describeSp, entityDomain, fmtNum, fmtTemp, friendlyName, mainType, modeSetpoint,
-  slotMode, stepTemperature,
+  activeProfile, applicable, describeSp, entityDomain, fmtNum, fmtTemp, friendlyName, isFrostMode, mainType,
+  modeEffect, modeSetpoint, slotMode, stepTemperature,
 } from "../planner";
-import { formatWhen, localMinutes } from "../time";
+import { confirmAction } from "./confirm";
+import { fmtClock, formatWhen, localMinutes } from "../time";
 import { modeTypeOf, langOf } from "../editors/setpoint-editor";
 import type { K } from "../editors/setpoint-editor";
 import type { HomeAssistant, Mode, PlannerData, Program, Setpoint } from "../types";
@@ -79,15 +79,12 @@ export class WpSimpleControls extends LitElement {
 
   /* ------------------------------------------------------------------ commands */
 
-  private async _send(entities: string[], setpoint: Setpoint, timing: Timing = {}, endIso?: string): Promise<void> {
+  private async _send(entities: string[], setpoint: Setpoint, timing: Timing = {}): Promise<void> {
     try {
       this._error = "";
       await this.hass.callService("weekly_planner", "override", { entity_id: entities, setpoint, ...timing });
-      const time = endIso ? formatWhen(endIso, this._tz, this._lang, new Date()) : this._next;
-      this._say(this._tr("sm_done", {
-        what: describeSp(this._lang, this.data.modes, entities[0], setpoint),
-        until: time ? this._tr("sm_until_part", { time }) : "",
-      }));
+      // The state sentence already says until when: the banner only confirms (4 s).
+      this._say(this._tr("sm_done", { what: describeSp(this._lang, this.data.modes, entities[0], setpoint) }));
     } catch (err) {
       this._error = t(this._lang, "error", { message: (err as { message?: string })?.message ?? String(err) });
     }
@@ -177,28 +174,40 @@ export class WpSimpleControls extends LitElement {
     }
   }
 
-  private async _applyDuration(timing: Timing, endIso: string): Promise<void> {
+  private async _applyDuration(timing: Timing): Promise<void> {
     this._durationOpen = false;
     for (const e of this.program.entities) {
       const o = this.data.entities[e.entity_id]?.override;
-      if (o?.origin === "voluntary" && o.setpoint) await this._send([e.entity_id], o.setpoint, timing, endIso);
+      if (o?.origin === "voluntary" && o.setpoint) await this._send([e.entity_id], o.setpoint, timing);
     }
   }
 
-  /** The four duration choices, with their end (server time zone). */
-  private _choices(): { label: string; timing: Timing; end: string }[] {
+  /** The duration choices with their end (server time zone); the default one is the next schedule change. */
+  private _choices(): { label: string; timing: Timing; end: string; current: boolean }[] {
     const now = new Date();
+    const lang = this._lang;
     const nowMin = localMinutes(now, this._tz);
     const start = now.getTime() - now.getSeconds() * 1000 - now.getMilliseconds();
     const at = (minutes: number) => new Date(start + minutes * 60_000).toISOString();
-    const hours = (h: number) => ({ label: this._tr(h === 1 ? "sm_1h" : "sm_2h"), timing: { duration: { hours: h } }, end: new Date(now.getTime() + h * 3_600_000).toISOString() });
-    const tonight = at(nowMin < 1320 ? 1320 - nowMin : 1440 - nowMin);
+    const hours = (h: number) => ({ label: this._tr(h === 1 ? "sm_1h" : "sm_2h"), timing: { duration: { hours: h } } as Timing, end: new Date(now.getTime() + h * 3_600_000).toISOString() });
+    const list: { label: string; timing: Timing; end: string }[] = [hours(1), hours(2)];
+    if (nowMin < 1320) {
+      const tonight = at(1320 - nowMin);
+      list.push({ label: this._tr("sm_tonight", { time: fmtClock(lang, 1320) }), timing: { until: tonight }, end: tonight });
+    }
     const midnight = at(1440 - nowMin);
-    return [
-      hours(1), hours(2),
-      { label: this._tr("sm_tonight"), timing: { until: tonight }, end: tonight },
-      { label: this._tr("sm_all_day"), timing: { until: midnight }, end: midnight },
-    ];
+    list.push({ label: this._tr("sm_all_day"), timing: { until: midnight }, end: midnight });
+    const next = this._status?.next_change;
+    if (next) {
+      list.push({ label: this._tr("sm_next_slot", { time: formatWhen(next, this._tz, lang, now) }), timing: {}, end: next });
+    }
+    // The current choice: the one that ends when the override ends (the default is the next change).
+    const ov = this.program.entities.map((e) => this.data.entities[e.entity_id]?.override)
+      .find((o) => o?.origin === "voluntary");
+    const target = ov?.until ? new Date(ov.until).getTime() : null;
+    let currentIdx = -1;
+    if (target !== null) currentIdx = list.findIndex((c) => Math.abs(new Date(c.end).getTime() - target) < 90_000);
+    return list.map((c, i) => ({ ...c, current: i === currentIdx }));
   }
 
   /* ------------------------------------------------------------------ rendering */
@@ -216,7 +225,9 @@ export class WpSimpleControls extends LitElement {
         if (st.state === "off") return this._tr("sm_climate_off", { current });
         const wanted = this._pending[eid] ?? a.temperature;
         const target = typeof wanted === "number" ? fmtTemp(lang, wanted) : "—";
-        const until = next ? this._tr("sm_until_part", { time: next }) : "";
+        const ov = this.data.entities[eid]?.override;
+        const end = ov?.origin === "voluntary" && ov.until ? formatWhen(ov.until, this._tz, lang, new Date()) : next;
+        const until = end ? this._tr("sm_until_part", { time: end }) : "";
         const heating = a.hvac_action === "heating" ? ` · ${this._tr("sm_heating")}` : "";
         return this._tr("sm_climate", { current, target, until }) + heating;
       }
@@ -260,9 +271,19 @@ export class WpSimpleControls extends LitElement {
     if (!modes.length) return nothing;
     const active = this._activeModeId(eid);
     return html`<div class="modes" role="group" aria-label=${this._tr("sm_mode")}>
-      ${modes.map((m) => html`<button class="seg ${m.id === active ? "on" : ""}" aria-pressed=${m.id === active}
-        @click=${() => this._send([eid], modeSetpoint(m, eid))}>${m.name}</button>`)}
+      ${modes.map((m) => {
+        const on = m.id === active;
+        const effect = modeEffect(this.hass, this._lang, m, eid);
+        return html`<button class="seg ${on ? "on" : ""}" aria-pressed=${on} @click=${() => void this._chooseMode(eid, m)}>
+          ${on ? html`<ha-icon icon="mdi:check"></ha-icon>` : nothing}<span>${effect ? `${m.name} · ${effect}` : m.name}</span></button>`;
+      })}
     </div>`;
+  }
+
+  private async _chooseMode(eid: string, mode: Mode): Promise<void> {
+    if (isFrostMode(this.hass, mode, eid)
+      && !(await confirmAction(this, this._tr("sm_frost_confirm"), this._tr("sm_frost_do")))) return;
+    void this._send([eid], modeSetpoint(mode, eid));
   }
 
   private _controls(eid: string): TemplateResult | typeof nothing {
@@ -306,14 +327,15 @@ export class WpSimpleControls extends LitElement {
       .map((e) => this.data.entities[e.entity_id]?.override)
       .filter((o): o is NonNullable<typeof o> => Boolean(o));
     if (!active.length) return nothing;
-    const voluntary = active.find((o) => o.origin === "voluntary");
-    const until = voluntary?.until
-      ? formatWhen(voluntary.until, this._tz, this._lang, new Date())
-      : this._next;
-    return html`<div class="until">
-      <span>${until ? this._tr("sm_until_line", { time: until }) : this._tr("sm_until_open")}</span>
-      ${voluntary ? html`<button class="text" @click=${() => (this._durationOpen = true)}>${this._tr("sm_change_duration")}</button>` : nothing}
-      <button class="text" @click=${() => this._resume()}><ha-icon icon="mdi:calendar-refresh"></ha-icon> ${this._tr("sm_resume")}</button>
+    const voluntary = active.some((o) => o.origin === "voluntary");
+    const hint = this._tr(mainType(this.program) === "climate" ? "sm_resume_hint_temp" : "sm_resume_hint");
+    return html`<div class="actions">
+      ${voluntary ? html`<button class="outline" @click=${() => (this._durationOpen = true)}>
+        <ha-icon icon="mdi:clock-edit-outline"></ha-icon> ${this._tr("sm_change_duration")}</button>` : nothing}
+      <div class="with-hint">
+        <button class="outline" @click=${() => this._resume()}><ha-icon icon="mdi:undo-variant"></ha-icon> ${this._tr("sm_resume")}</button>
+        <span class="hint">${hint}</span>
+      </div>
     </div>`;
   }
 
@@ -327,7 +349,7 @@ export class WpSimpleControls extends LitElement {
       ${!this.program.enabled ? html`<p class="sentence muted">${this._tr("sm_disabled")}</p>` : html`
         ${this._block(first, false)}
         ${others.length
-          ? html`<button class="text more" aria-expanded=${this._expanded}
+          ? html`<button class="outline more" aria-expanded=${this._expanded}
               @click=${() => (this._expanded = !this._expanded)}>
               <ha-icon icon=${this._expanded ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
               ${this._expanded ? this._tr("sm_hide_others")
@@ -338,13 +360,17 @@ export class WpSimpleControls extends LitElement {
         ${this._error ? html`<div class="err">${this._error}</div>` : nothing}
         ${this._overrideLine()}`}
       ${this.data.can_edit
-        ? html`<button class="text" @click=${() => this.dispatchEvent(new CustomEvent("simple-schedule", { detail: { program: this.program }, bubbles: true, composed: true }))}>
+        ? html`<button class="outline sched" @click=${() => this.dispatchEvent(new CustomEvent("simple-schedule", { detail: { program: this.program }, bubbles: true, composed: true }))}>
             <ha-icon icon="mdi:calendar-clock"></ha-icon> ${strings(lang).sm_change_schedule}</button>`
         : nothing}
       ${this._durationOpen
         ? html`<wp-dialog open heading=${this._tr("sm_duration_title")}
             @closed=${(e: Event) => { e.stopPropagation(); this._durationOpen = false; }}>
-            <div class="choices">${this._choices().map((c) => html`<button class="seg wide" @click=${() => this._applyDuration(c.timing, c.end)}>${c.label}</button>`)}</div>
+            <div class="choices">${this._choices().map((c) => html`<button class="seg wide ${c.current ? "on" : ""}"
+              aria-pressed=${c.current} @click=${() => this._applyDuration(c.timing)}>
+              ${c.current ? html`<ha-icon icon="mdi:check"></ha-icon>` : nothing}<span>${c.label}</span>
+              ${c.current ? html`<span class="sr">(${this._tr("sm_current")})</span>` : nothing}</button>`)}</div>
+            <button slot="footer" class="outline close" @click=${(e: Event) => (e.currentTarget as HTMLElement).closest<HTMLElement & { close(): void }>("wp-dialog")?.close()}>${strings(lang).close}</button>
           </wp-dialog>`
         : nothing}
     `;
@@ -354,9 +380,9 @@ export class WpSimpleControls extends LitElement {
     :host { display: block; color: var(--primary-text-color); }
     * { box-sizing: border-box; }
     .device + .device { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--divider-color); }
-    .dname { font-size: 14px; font-weight: 500; color: var(--secondary-text-color); }
+    .dname { font-size: 14px; font-weight: 500; opacity: 0.8; }
     .sentence { font-size: 16px; line-height: 1.4; margin: 4px 0 12px; }
-    .muted { color: var(--secondary-text-color); }
+    .muted { opacity: 0.8; }
     .pair { display: flex; gap: 8px; margin-bottom: 8px; }
     button { font: inherit; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     button:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
@@ -369,16 +395,22 @@ export class WpSimpleControls extends LitElement {
     button.big:active { filter: brightness(0.9); }
     .modes, .choices { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }
     button.seg {
-      flex: 1 1 96px; min-height: 48px; padding: 0 12px; border-radius: 24px; font-size: 14px; font-weight: 500;
-      border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); cursor: pointer;
+      flex: 1 1 96px; min-height: 48px; padding: 4px 12px; border-radius: 24px; font-size: 14px; font-weight: 500;
+      border: 1px solid var(--secondary-text-color); background: none; color: var(--primary-text-color); cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px; --mdc-icon-size: 20px;
     }
-    button.seg.on { background: var(--primary-color); border-color: var(--primary-color); color: var(--text-primary-color, #fff); }
+    button.seg.on { background: var(--primary-color); border: 2px solid var(--primary-color); color: var(--text-primary-color, #fff); font-weight: 700; }
     button.seg.wide { flex: 1 1 100%; min-height: 56px; font-size: 16px; }
-    button.text {
-      display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 8px; border: none;
-      background: none; color: var(--primary-color); font-size: 14px; font-weight: 500; cursor: pointer; --mdc-icon-size: 20px;
+    button.outline {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 4px 16px;
+      border: 1px solid var(--primary-color); border-radius: 24px; background: none; color: var(--primary-color);
+      font-size: 15px; font-weight: 500; cursor: pointer; --mdc-icon-size: 22px;
     }
-    .until { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; font-size: 14px; color: var(--secondary-text-color); }
+    button.outline.more, button.outline.sched { width: 100%; margin-top: 12px; }
+    .actions { display: flex; flex-direction: column; align-items: stretch; gap: 12px; margin-top: 12px; }
+    .with-hint { display: flex; flex-direction: column; gap: 4px; }
+    .hint { font-size: 14px; opacity: 0.8; text-align: center; }
+    .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     .live { min-height: 0; }
     .done {
       display: flex; align-items: center; gap: 8px; font-size: 16px; padding: 10px 12px; margin: 4px 0;

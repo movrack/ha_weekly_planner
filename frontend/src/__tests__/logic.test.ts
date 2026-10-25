@@ -51,3 +51,12 @@ describe("labels and filters", () => {
     expect(filterPrograms(data, {}).map((x) => x.id)).toEqual(["a", "b"]);
   });
 });
+
+describe("spoken clock", () => {
+  it("writes 22 h / 22 h 30 in French", async () => {
+    const { fmtClock } = await import("../time");
+    expect(fmtClock("fr", 22 * 60)).toBe("22 h");
+    expect(fmtClock("fr", 8 * 60 + 30)).toBe("8 h 30");
+    expect(fmtClock("en", 22 * 60)).toMatch(/^10\s?pm$/);
+  });
+});
