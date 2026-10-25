@@ -150,10 +150,11 @@ async def test_evohome_released_on_removal(hass, hass_storage, freezer):  # S43
     ents = [{"entity_id": CLIMATE, "default": {"kind": "mode", "value": "climate_eco"}, "force_permanent": True}]
     engine = await setup(hass, hass_storage, freezer, [program(entities=ents)], local(26, 9, 0))
     assert ("set_preset_mode", {"preset_mode": "permanent"}) in climate.calls
+    await hass.async_block_till_done()  # let the start-up apply finish first
     engine.store.programs.clear()
     await engine.async_config_changed()
     await hass.async_block_till_done()
-    assert climate.calls[-1] == ("set_preset_mode", {"preset_mode": "none"})
+    assert climate.calls[-1] == ("set_preset_mode", {"preset_mode": "none"}), climate.calls
 
 
 async def test_adaptive_lighting_manual_control(hass, hass_storage, freezer):  # S37 / S41

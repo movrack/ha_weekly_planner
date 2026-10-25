@@ -266,19 +266,24 @@ class PlannerEngine:
         return guarded
 
     @callback
-    def _guard_permanent(self, entity_id: str, new: State | None) -> None:
+    def _guard_permanent(self, entity_id: str, new: State | None, context: Context | None = None) -> None:
         """Put a guarded climate back in permanent override if it left it (never fight 'off')."""
+        if self.is_ours(context):
+            return  # our own change, e.g. handing the zone back to its schedule
         if new is None or new.state in UNAVAILABLE or new.state == "off":
             return
-        if new.attributes.get("preset_mode") in ("permanent", None):
-            return
+        if new.attributes.get("preset_mode") not in ("none", "temporary"):
+            return  # only an Evohome-style fallback to its schedule is undone
         if entity_id not in self.permanent_guarded():
             return
         self._log(entity_id, "permanent_restored", {})
         self.hass.async_create_task(self.hass.services.async_call(
             "climate", "set_preset_mode", {"entity_id": entity_id, "preset_mode": "permanent"},
             blocking=False, context=self.new_context()))
-        # no runtime entry for a guarded underlying: releasing it would reset its schedule
+        if entity_id in self.managed_entities():
+            # remembered so the zone gets its schedule back when it leaves the planner (S43);
+            # never for a Versatile Thermostat underlying, which has no runtime entry
+            self.rt(entity_id)["permanent_set"] = True
 
     def _adaptive_switches(self) -> list[str]:
         return [s.entity_id for s in self.hass.states.async_all("switch")
@@ -312,7 +317,7 @@ class PlannerEngine:
         if entity_id.startswith("switch.adaptive_lighting_"):
             self.hass.async_create_task(self._async_reaffirm_adaptive())
         if entity_id.startswith("climate."):
-            self._guard_permanent(entity_id, new)
+            self._guard_permanent(entity_id, new, event.context)
         if entity_id in self.managed_entities():
             self._check_entity_change(entity_id, old, new, event.context)
 
