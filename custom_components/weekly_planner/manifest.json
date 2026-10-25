@@ -2,8 +2,12 @@
   "domain": "weekly_planner",
   "name": "Weekly Planner",
   "after_dependencies": [
+    "adaptive_lighting",
     "frontend",
-    "lovelace"
+    "logbook",
+    "lovelace",
+    "repairs",
+    "versatile_thermostat"
   ],
   "codeowners": [
     "@movrack"

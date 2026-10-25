@@ -100,5 +100,11 @@
       "name": "Recharger",
       "description": "Recharge Weekly Planner."
     }
+  },
+  "issues": {
+    "missing_entities": {
+      "title": "Weekly Planner : entités supprimées",
+      "description": "Des programmes utilisent des entités qui n'existent plus : {details}. Modifiez ces programmes dans la carte Weekly Planner."
+    }
   }
 }

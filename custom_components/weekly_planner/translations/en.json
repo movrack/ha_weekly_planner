@@ -100,5 +100,11 @@
       "name": "Reload",
       "description": "Reload Weekly Planner."
     }
+  },
+  "issues": {
+    "missing_entities": {
+      "title": "Weekly Planner: entities removed",
+      "description": "Some programs use entities that no longer exist: {details}. Edit these programs in the Weekly Planner card."
+    }
   }
 }

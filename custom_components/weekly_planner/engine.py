@@ -56,7 +56,8 @@ class PlannerEngine:
         self.options = options
         self.conditions = ConditionTracker(timedelta(minutes=options.get("debounce_min", 2)))
         self._contexts: deque[tuple[datetime, str]] = deque()
-        self._unsubs: list[CALLBACK_TYPE] = []
+        self._unsubs: list[CALLBACK_TYPE] = []  # state listeners, rebuilt on config changes
+        self._static_unsubs: list[CALLBACK_TYPE] = []  # lifecycle listeners
         self._timer: CALLBACK_TYPE | None = None
         self._tasks: dict[str, asyncio.Task] = {}
         self._ready = False
@@ -65,30 +66,37 @@ class PlannerEngine:
     # ------------------------------------------------------------------ lifecycle
 
     async def async_start(self) -> None:
+        from .registry import async_track_registry
+
         self.conditions.restore(self.store.runtime.get("conditions", {}))
         self._subscribe()
+        self._static_unsubs.append(async_track_registry(self.hass, self))
         if self.hass.is_running:
             self._schedule_startup()
         else:
-            self._unsubs.append(
+            self._static_unsubs.append(
                 self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, lambda _e: self._schedule_startup())
             )
 
     @callback
     def _schedule_startup(self) -> None:
-        self._unsubs.append(
+        self._static_unsubs.append(
             async_track_point_in_utc_time(self.hass, self._async_startup, dt_util.utcnow() + STABILIZATION)
         )
 
     async def _async_startup(self, _now: datetime | None = None) -> None:
+        from .registry import async_check_missing
+
         self._ready = True
+        async_check_missing(self.hass, self)
         self._observe_all_conditions(initial=True)
         await self.async_recompute("startup")
 
     async def async_stop(self) -> None:
-        for unsub in self._unsubs:
+        for unsub in self._unsubs + self._static_unsubs:
             unsub()
         self._unsubs.clear()
+        self._static_unsubs.clear()
         if self._timer:
             self._timer()
             self._timer = None
@@ -539,7 +547,8 @@ class PlannerEngine:
         rt["retry_at"] = rt["grace_until"]
         rt["attempt"] = 0
         self._schedule_notify(entity_id)
-        self._log(entity_id, "applied", {"setpoint": setpoint, "reason": reason})
+        if reason != "retry":  # one logbook entry per decision, not per attempt
+            self._log(entity_id, "applied", {"setpoint": setpoint, "reason": reason})
         self._persist()
         self._arm_timer()
 
