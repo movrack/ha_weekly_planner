@@ -5230,7 +5230,7 @@ let et = class extends P {
     const e = H(k(t)), s = this.data.modes.filter((n) => {
       if (n.type !== e) return !1;
       const o = wt(n, t);
-      return !un.includes(o.kind) && Ai(this.hass, t, o);
+      return !((k(t) === "cover" ? ["open", "close"] : ["on", "off"]).includes(o.kind) && !("brightness" in o) && !("percentage" in o)) && !un.includes(o.kind) && Ai(this.hass, t, o);
     });
     if (!s.length) return h;
     const i = this._activeModeId(t);
@@ -5250,8 +5250,8 @@ let et = class extends P {
     return e === "climate" ? l`<div class="pair">
         ${this._holdButton("mdi:minus", this._tr("sm_cooler"), () => this._step(t, -1))}
         ${this._holdButton("mdi:plus", this._tr("sm_warmer"), () => this._step(t, 1))}</div>` : e === "cover" ? l`<div class="pair">
-        ${this._simple(t, "mdi:blinds-open", this._tr("sm_open"), { kind: "open" })}
-        ${this._simple(t, "mdi:blinds-closed", this._tr("sm_close"), { kind: "close" })}</div>` : e === "light" ? l`<div class="pair">
+        ${this._simple(t, "mdi:window-shutter-open", this._tr("sm_open"), { kind: "open" })}
+        ${this._simple(t, "mdi:window-shutter", this._tr("sm_close"), { kind: "close" })}</div>` : e === "light" ? l`<div class="pair">
         ${this._simple(t, "mdi:lightbulb-on", this._tr("sm_on"), { kind: "on" })}
         ${this._simple(t, "mdi:lightbulb-off", this._tr("sm_off"), { kind: "off" })}</div>
         <div class="pair">

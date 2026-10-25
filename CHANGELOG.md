@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-25
+
+### Fixed
+- Simple mode no longer repeats the big buttons as modes (Open / Opened, Close / Closed, On / Off).
+- Cover buttons use shutter icons.
+
 ## [0.2.1] - 2026-10-25
 
 ### Fixed
