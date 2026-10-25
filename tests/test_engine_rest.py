@@ -121,3 +121,27 @@ async def test_refused_setpoint_not_retried(hass, hass_storage, freezer):
     assert count >= 1
     await tick(hass, freezer, timedelta(minutes=20))
     assert len(calls) == count  # no retry loop
+
+
+async def test_permanent_guard_on_vt_underlying(hass, hass_storage, freezer):  # spec § 11
+    calls = []
+
+    async def set_preset(call):
+        calls.append(dict(call.data))
+        st = hass.states.get(call.data["entity_id"])
+        hass.states.async_set(call.data["entity_id"], st.state,
+                              {**st.attributes, "preset_mode": call.data["preset_mode"]}, context=call.context)
+
+    FakeClimate(hass)
+    hass.services.async_register("climate", "set_preset_mode", set_preset)
+    hass.states.async_set(CLIMATE, "heat", {"preset_mode": "eco", "preset_modes": ["eco", "comfort"],
+                                            "vtherm_over_climate": {"underlying_entities": ["climate.evohome"]}})
+    hass.states.async_set("climate.evohome", "heat", {"preset_mode": "permanent",
+                                                      "preset_modes": ["none", "temporary", "permanent"]})
+    ents = [{"entity_id": CLIMATE, "default": {"kind": "mode", "value": "climate_eco"}, "force_permanent": True}]
+    await setup(hass, hass_storage, freezer, [program(entities=ents)], local(26, 7, 0))
+    hass.states.async_set("climate.evohome", "heat", {"preset_mode": "temporary",
+                                                      "preset_modes": ["none", "temporary", "permanent"]})
+    await hass.async_block_till_done()
+    assert {"entity_id": "climate.evohome", "preset_mode": "permanent"} in calls
+    assert hass.states.get("climate.evohome").attributes["preset_mode"] == "permanent"
