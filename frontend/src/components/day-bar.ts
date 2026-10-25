@@ -19,6 +19,8 @@ export class WpDayBar extends LitElement {
   @property({ type: Number }) now: number | null = null;
   @property({ type: Boolean }) thin = false;
   @property({ type: Boolean, attribute: "show-hours" }) showHours = false;
+  /** Small hour marks inside the bar: every 3 h, stronger at 6, 12 and 18 h. */
+  @property({ type: Boolean }) notches = false;
 
   @state() private _width = 0;
   private _ro?: ResizeObserver;
@@ -58,6 +60,8 @@ export class WpDayBar extends LitElement {
             title=${s.label}
           >${this._fits(s) ? html`<span>${s.sun ? html`<ha-icon icon="mdi:weather-sunny"></ha-icon>` : nothing}${s.label}</span>` : nothing}</div>`,
         )}
+        ${this.notches ? [0, 3, 6, 9, 12, 15, 18, 21, 24].map((h) => html`<i class="tick ${h % 6 === 0 && h % 24 !== 0 ? "strong" : ""}"
+          style="left:${h === 24 ? "calc(100% - 1px)" : pct(h * 60)}"></i>`) : nothing}
         ${this.now !== null ? html`<div class="now" style="left:${pct(this.now)}"></div>` : nothing}
       </div>
       ${this.showHours
@@ -86,6 +90,13 @@ export class WpDayBar extends LitElement {
       color: #fff; font-size: 11px; font-weight: 600; white-space: nowrap;
       text-shadow: 0 0 2px rgba(0, 0, 0, 0.6); padding: 0 6px; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
     }
+    .tick {
+      position: absolute; bottom: 0; width: 1px; height: 5px; pointer-events: none;
+      background: rgba(255, 255, 255, 0.85); box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.45);
+    }
+    .tick.strong { height: 9px; width: 2px; margin-left: -1px; }
+    .bar.thin .tick { height: 3px; }
+    .bar.thin .tick.strong { height: 5px; }
     .now {
       position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px;
       background: var(--primary-text-color); box-shadow: 0 0 0 1px var(--card-background-color);

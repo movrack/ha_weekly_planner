@@ -227,7 +227,7 @@ export class WeeklyPlannerCard extends LitElement {
           ${paused ? html`<ha-icon class="pause" icon="mdi:pause-circle-outline" title=${t(lang, "paused")}></ha-icon>` : nothing}
           ${opts.button ? html`<button class="hours" aria-label=${t(lang, "hours")} title=${t(lang, "hours")} @click=${open}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>` : nothing}
         </div>
-        <wp-day-bar show-hours .spans=${this._spans(entityId, programs)} .now=${localMinutes(this._now, this._tz)}
+        <wp-day-bar show-hours notches .spans=${this._spans(entityId, programs)} .now=${localMinutes(this._now, this._tz)}
           @click=${open}></wp-day-bar>
         ${override ? html`<div class="manual"><ha-icon icon="mdi:hand-back-right"></ha-icon><span>${sub}</span>
           <button class="x" aria-label=${t(lang, "cancel_manual")} @click=${() => void this._cancelOverride(entityId)}>
@@ -251,11 +251,12 @@ export class WeeklyPlannerCard extends LitElement {
       <button class="weekbtn" aria-expanded=${open} @click=${toggle}>
         <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>${t(lang, "week")}</button>
       ${open ? html`<div class="week">
+        <div class="scale" aria-hidden="true">${[0, 6, 12, 18, 24].map((h) => html`<span style="left:${h / 24 * 100}%">${h} h</span>`)}</div>
         ${[1, 2, 3, 4, 5, 6].map((o) => {
           const weekday = localWeekday(this._dateAt(o), this._tz);
           return html`<button class="wday" aria-label=${days[weekday]} @click=${() => this._open(scope, { weekday, offset: o })}>
             <span class="wname">${days[weekday]}</span>
-            <wp-day-bar .spans=${this._spans(entityId, programs, o)}></wp-day-bar></button>`;
+            <wp-day-bar notches .spans=${this._spans(entityId, programs, o)}></wp-day-bar></button>`;
         })}
       </div>` : nothing}`;
   }
@@ -347,19 +348,26 @@ export class WeeklyPlannerCard extends LitElement {
     .gear:hover, .x:hover { background: var(--secondary-background-color); }
     .block { padding: 8px 0; border-top: 1px solid var(--divider-color); }
     .block:first-of-type, .head + .block { border-top: none; }
-    .line { display: flex; align-items: center; gap: 10px; min-height: 48px; }
-    .dev { --mdc-icon-size: 26px; flex: none; color: var(--secondary-text-color); }
+    .line { display: flex; align-items: flex-start; gap: 10px; min-height: 28px; }
+    .dev { --mdc-icon-size: 26px; flex: none; color: var(--secondary-text-color); margin-top: -1px; }
     .info { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 0; }
     .name { font-size: 17px; font-weight: 600; }
     .now { font-size: 15px; display: flex; flex-wrap: wrap; column-gap: 6px; color: var(--primary-text-color); }
     .nw { white-space: nowrap; }
     .when { opacity: 0.8; }
-    .pause { --mdc-icon-size: 20px; color: var(--secondary-text-color); flex: none; }
+    .pause { --mdc-icon-size: 20px; color: var(--secondary-text-color); flex: none; margin-top: 2px; }
+    .name, .now { line-height: 24px; }
     button.hours {
-      flex: none; width: 48px; height: 48px; padding: 0; border-radius: 24px; border: 1px solid var(--primary-color);
-      background: none; color: var(--primary-color); cursor: pointer; --mdc-icon-size: 24px;
+      flex: none; width: 48px; height: 48px; padding: 0; border-radius: 24px; border: none;
+      background: none; color: var(--primary-text-color); cursor: pointer; --mdc-icon-size: 24px;
       display: inline-flex; align-items: center; justify-content: center;
     }
+    button.hours:hover { background: var(--secondary-background-color); }
+    .line button.hours { margin: -12px 0; }
+    .scale { position: relative; height: 18px; margin-left: 44px; font-size: 12px; color: var(--secondary-text-color); }
+    .scale span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+    .scale span:first-child { transform: none; }
+    .scale span:last-child { transform: translateX(-100%); }
     wp-day-bar { cursor: pointer; margin-top: 2px; }
     .weekbtn {
       display: inline-flex; align-items: center; gap: 4px; min-height: 48px; padding: 0 8px 0 0; border: none;
