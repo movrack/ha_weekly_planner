@@ -1,6 +1,6 @@
 # Weekly Planner — spécification v1
 
-> Statut : **brouillon 0.4** (relectures n° 1 et 2 intégrées, questions § 16 bis en cours).
+> Statut : **0.5 — prête pour le développement** (relectures n° 1 et 2 intégrées, toutes les questions tranchées).
 > Dépôt : `ha_Weekly_planner` · domaine HA : `weekly_planner` · cible : Home Assistant ≥ 2026.10.
 > Les cases `[ ]` / `[x]` suivent l'avancement. Critère de fin de la v1 : **tout fonctionne** (§ 13).
 
@@ -317,7 +317,8 @@ de chaque programme et l'état des switchs AL modifiés)
 - `skip_next` (programme) : la prochaine transition du programme n'est pas appliquée (persisté, une seule fois,
   annulable ; visible dans la carte) ;
 - `reload` (admin).
-Avec `admin_only`, `resume` reste ouvert à tous ; `override` suit la question § 16.
+Avec `admin_only`, restent ouverts aux non-admins : lecture, switchs, `resume`, `override` (« Déroger… ») et
+changement de profil ; seules l'édition des programmes et des modes est fermée (à revoir en v2 avec les rôles).
 Entité `select.weekly_planner_<programme>_profil` (§ 5.10).
 
 **API websocket** : `get` · `subscribe` · `program/create|update|delete|duplicate` · `mode/create|update|delete` ·
@@ -478,7 +479,7 @@ en mode YAML ; garde `customElements.get()` avant `define`. **Prototype de faisa
 - [x] Relecture « avocat du diable » n° 1 (35 points) intégrée dans cette version
 - [x] Questions § 16 tranchées
 - [x] Relecture n° 2 (24 points) intégrée — questions produit en § 16 bis
-- [ ] Questions § 16 bis tranchées
+- [x] Questions § 16 bis tranchées
 
 ### 14.9 Scénarios de test (automatiques)
 - [ ] S1 plage simple : début applique, fin applique le défaut
@@ -547,4 +548,4 @@ en mode YAML ; garde `customElements.get()` avant `define`. **Prototype de faisa
 - Q-J ✅ Un programme désactivé libère ses entités (son défaut ne vaut que pour sa propre désactivation) ; Vacances : défaut du plus prioritaire, une fois.
 - Q-K ✅ Le réglage à la main l'emporte et remplace la dérogation volontaire (devient externe, échéance oubliée).
 - Q-L ✅ Sautée (priorité et dérogation l'emportent).
-- Q-M Avec `admin_only`, un non-admin peut-il utiliser « Déroger… » et changer de profil ?
+- Q-M ✅ Oui : avec `admin_only`, un non-admin garde lecture, switchs, Reprendre, Déroger…, profil ; à revoir en v2 (rôles).
