@@ -68,3 +68,12 @@ export function spillover(previousDay: Slot[]): { slot: Slot; end: number }[] {
   }
   return result;
 }
+
+/** "08:00" today, "lun. 08:00" another day (server zone). */
+export function formatWhen(iso: string, timeZone: string, language: string, now = new Date()): string {
+  const date = new Date(iso);
+  const sameDay = localDateIso(date, timeZone) === localDateIso(now, timeZone);
+  const opts: Intl.DateTimeFormatOptions = { timeZone, hour: "2-digit", minute: "2-digit" };
+  if (!sameDay) opts.weekday = "short";
+  return new Intl.DateTimeFormat(language, opts).format(date);
+}

@@ -39,13 +39,12 @@ script:
         target: {entity_id: input_number.slow_cover_position}
         data: {value: "{{ position }}"}
 
-cover:
-  - platform: template
-    covers:
-      slow_shutter:
-        friendly_name: Slow shutter
+template:
+  - cover:
+      - name: Slow shutter
+        unique_id: slow_shutter
         device_class: shutter
-        position_template: "{{ states('input_number.slow_cover_position') | int(0) }}"
+        position: "{{ states('input_number.slow_cover_position') | int(0) }}"
         open_cover:
           - action: script.slow_cover_move
             data: {position: 100}

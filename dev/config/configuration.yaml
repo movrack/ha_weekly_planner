@@ -1,5 +1,20 @@
 # Development instance: demo entities for every supported type.
-default_config:
+# Explicit list instead of default_config (Bluetooth crashes on macOS).
+config:
+frontend:
+history:
+logbook:
+recorder:
+sun:
+person:
+search:
+system_health:
+input_boolean:
+input_number:
+input_select:
+automation:
+script:
+scene:
 
 homeassistant:
   name: Weekly Planner dev

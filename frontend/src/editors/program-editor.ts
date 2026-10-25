@@ -2,6 +2,7 @@
 
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { keyed } from "lit/directives/keyed.js";
 import "../components/day-bar";
 import "../components/dialog";
 import { strings, t } from "../i18n";
@@ -188,8 +189,13 @@ export class WpProgramEditor extends LitElement {
   private _addEntity(entityId: string): void {
     if (!entityId || this._p.entities.some((e) => e.entity_id === entityId)) return;
     const type = modeTypeOf(entityDomain(entityId));
+    // propose a sensible default: the "eco"/"off"/"closed" mode of the type when there is one
+    const modes = this.data.modes.filter((m) => m.type === type);
+    const preferred = modes.find((m) => /eco|off|closed/.test(m.id)) ?? modes[0];
+    const def = preferred ? { kind: "mode" as const, value: preferred.id } : { kind: "none" as const };
+    this._pickerKey += 1;
     this._patch({
-      entities: [...this._p.entities, { entity_id: entityId, default: { kind: "none" }, force_permanent: false }],
+      entities: [...this._p.entities, { entity_id: entityId, default: def, force_permanent: false }],
       main_type: this._p.main_type || type,
     });
   }
@@ -338,14 +344,16 @@ export class WpProgramEditor extends LitElement {
     `;
   }
 
+  private _pickerKey = 0;
+
   private _renderEntities() {
     const p = this._p;
     return html`
       ${p.entities.length === 0 ? html`<p class="muted">${this._tr("pe_no_entity")}</p>` : nothing}
       ${p.entities.map((e, i) => this._renderEntity(e, i))}
-      <wp-entity-picker .hass=${this.hass} .value=${""} .label=${this._tr("pe_add_entity")}
+      ${keyed(this._pickerKey, html`<wp-entity-picker .hass=${this.hass} .value=${""} .label=${this._tr("pe_add_entity")}
         .domains=${SUPPORTED_DOMAINS} .exclude=${p.entities.map((x) => x.entity_id)}
-        @wp-change=${(ev: CustomEvent) => { ev.stopPropagation(); this._addEntity(ev.detail); }}></wp-entity-picker>
+        @wp-change=${(ev: CustomEvent) => { ev.stopPropagation(); this._addEntity(ev.detail); }}></wp-entity-picker>`)}
     `;
   }
 

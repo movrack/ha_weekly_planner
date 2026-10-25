@@ -15,7 +15,7 @@ from .const import CONF_ADMIN_ONLY, DOMAIN
 from .engine import PlannerEngine
 from .resolver import active_profile, occurrences_around
 from .store import new_id
-from .validation import MODE, ProgramError, admin_required, check_program
+from .validation import MODE, ProgramError, admin_required, check_program, unsupported_presets
 
 
 def _engine(hass: HomeAssistant) -> PlannerEngine | None:
@@ -109,6 +109,9 @@ async def ws_program_save(hass, connection, msg) -> None:
         program = check_program(program, engine.store.modes)
     except vol.Invalid as err:
         connection.send_error(msg["id"], "invalid", str(err))
+        return
+    if problems := unsupported_presets(program, engine.store.modes, hass.states.get):
+        connection.send_error(msg["id"], "unsupported_preset", "; ".join(problems))
         return
     if admin_required(program, engine.store.modes) and not connection.user.is_admin:
         connection.send_error(msg["id"], "unauthorized", "Scripts and actions are reserved to administrators")

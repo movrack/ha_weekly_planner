@@ -13,7 +13,7 @@ import { t, strings } from "./i18n";
 import {
   activeProfile, filterPrograms, slotColor, slotLabel, slotMode, subscribePlanner,
 } from "./planner";
-import { formatClock, localMinutes, localWeekday, nominal, spillover, DAY } from "./time";
+import { formatClock, formatWhen, localMinutes, localWeekday, nominal, spillover, DAY } from "./time";
 import type { CardConfig, HomeAssistant, PlannerData, PreviewSlot, Program } from "./types";
 
 type Dialog =
@@ -194,7 +194,8 @@ export class WeeklyPlannerCard extends LitElement {
     const s = strings(lang);
     const data = this._data!;
     const { status, mode, overridden } = this._summary(program);
-    const next = status?.next_change ? formatClock(status.next_change, this._tz, lang) : null;
+    const next = status?.next_change ? formatWhen(status.next_change, this._tz, lang, this._now) : null;
+    const fallback = this._defaultMode(program);
     const showWeek = this._showWeek || Boolean(this._config.program);
     const profile = activeProfile(program, data);
     return html`
@@ -213,7 +214,9 @@ export class WeeklyPlannerCard extends LitElement {
         <div class="state">
           ${mode
             ? html`<span class="pill" style="--c:${mode.color}">${mode.name}</span>`
-            : html`<span class="pill neutral">${program.enabled ? s.off_slot : "—"}</span>`}
+            : fallback && program.enabled && !data.vacation
+              ? html`<span class="pill" style="--c:${fallback.color}">${fallback.name}</span>`
+              : html`<span class="pill neutral">${program.enabled ? s.off_slot : "—"}</span>`}
           <span class="muted">${next ? t(lang, "until", { time: next }) : s.no_change}</span>
           ${status?.skip_next ? html`<span class="chip">${s.skip_planned}</span>` : nothing}
         </div>
@@ -239,6 +242,13 @@ export class WeeklyPlannerCard extends LitElement {
         </div>
       </section>
     `;
+  }
+
+  /** Mode applied outside slots (default of the first entity), to show instead of "outside slots". */
+  private _defaultMode(program: Program) {
+    const def = program.entities[0]?.default;
+    if (def?.kind !== "mode" || typeof def.value !== "string") return undefined;
+    return this._data!.modes.find((m) => m.id === def.value);
   }
 
   private _overrideText(entityId: string): string {

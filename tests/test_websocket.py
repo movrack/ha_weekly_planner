@@ -70,3 +70,14 @@ async def test_delete_applies_default(hass, hass_storage, freezer, hass_ws_clien
     assert (await ws.receive_json())["success"]
     await hass.async_block_till_done()
     assert climate.preset == "eco" and not engine.store.programs
+
+
+async def test_unsupported_preset_refused(hass, hass_storage, freezer, hass_ws_client):
+    hass.states.async_set(CLIMATE, "heat", {"preset_modes": ["home", "eco", "away"]})
+    await setup(hass, hass_storage, freezer, [], None)
+    ws = await _client(hass, hass_ws_client)
+    prog = program()  # its slot uses the "comfort" preset
+    prog.pop("id")
+    await ws.send_json_auto_id({"type": f"{DOMAIN}/program/save", "program": prog})
+    res = await ws.receive_json()
+    assert res["error"]["code"] == "unsupported_preset" and "comfort" in res["error"]["message"]

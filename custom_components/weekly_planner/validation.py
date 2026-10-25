@@ -145,3 +145,27 @@ def admin_required(program: dict, modes: dict[str, dict]) -> bool:
                     return True
     return any(needs_admin(e.get("default", {}).get("value")) for e in program["entities"]
                if isinstance(e.get("default", {}).get("value"), dict))
+
+
+def unsupported_presets(program: dict, modes: dict[str, dict], get_state) -> list[str]:
+    """Presets the program would send to an entity that does not offer them (spec § 6)."""
+    from .resolver import default_of, slot_setpoint
+
+    problems: set[str] = set()
+
+    def check(entity_id: str, setpoint: dict | None) -> None:
+        if not setpoint or setpoint.get("kind") != "preset":
+            return
+        state = get_state(entity_id)
+        offered = (state.attributes.get("preset_modes") or []) if state else None
+        if offered is not None and setpoint["preset"] not in offered:
+            problems.add(f"{entity_id}: {setpoint['preset']}")
+
+    for entity in program["entities"]:
+        eid = entity["entity_id"]
+        check(eid, default_of(program, eid, modes)[1])
+        for profile in program["profiles"]:
+            for day in profile["days"]:
+                for slot in day:
+                    check(eid, slot_setpoint(slot, eid, modes))
+    return sorted(problems)
