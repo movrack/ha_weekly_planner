@@ -37,6 +37,8 @@ def describe_setpoint(setpoint: dict | None) -> str:
     if not setpoint:
         return "—"
     kind = setpoint.get("kind")
+    if kind == "service":
+        return str(setpoint.get("service"))
     for key in ("preset", "temperature", "position", "hvac_mode", "option", "value", "scene", "script"):
         if key in setpoint:
             value = setpoint[key]
