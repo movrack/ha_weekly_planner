@@ -22,5 +22,83 @@
         }
       }
     }
+  },
+  "entity": {
+    "switch": {
+      "vacation": {
+        "name": "Vacances"
+      }
+    },
+    "select": {
+      "profile": {
+        "name": "Profil {program}"
+      }
+    }
+  },
+  "services": {
+    "resume": {
+      "name": "Reprendre le programme",
+      "description": "Annule les dérogations et applique de nouveau le programme.",
+      "fields": {
+        "entity_id": {
+          "name": "Entités",
+          "description": "Entités à reprendre."
+        },
+        "program_id": {
+          "name": "Programme",
+          "description": "Reprendre toutes les entités de ce programme."
+        }
+      }
+    },
+    "override": {
+      "name": "Déroger",
+      "description": "Applique une consigne pendant un temps, puis revient au programme.",
+      "fields": {
+        "entity_id": {
+          "name": "Entités",
+          "description": "Entités concernées."
+        },
+        "setpoint": {
+          "name": "Consigne",
+          "description": "Ce qu'il faut appliquer, par exemple un preset ou une température."
+        },
+        "duration": {
+          "name": "Durée",
+          "description": "Durée de la dérogation."
+        },
+        "until": {
+          "name": "Jusqu'à",
+          "description": "Fin de la dérogation."
+        }
+      }
+    },
+    "apply_now": {
+      "name": "Appliquer maintenant",
+      "description": "Applique tout de suite ce que le programme demande à ses entités.",
+      "fields": {
+        "program_id": {
+          "name": "Programme",
+          "description": "Programme à appliquer."
+        }
+      }
+    },
+    "skip_next": {
+      "name": "Sauter le prochain changement",
+      "description": "N'applique pas le prochain changement d'un programme.",
+      "fields": {
+        "program_id": {
+          "name": "Programme",
+          "description": "Programme concerné."
+        },
+        "cancel": {
+          "name": "Annuler",
+          "description": "Annule un saut en attente."
+        }
+      }
+    },
+    "reload": {
+      "name": "Recharger",
+      "description": "Recharge Weekly Planner."
+    }
   }
 }

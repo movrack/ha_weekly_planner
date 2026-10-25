@@ -22,5 +22,83 @@
         }
       }
     }
+  },
+  "entity": {
+    "switch": {
+      "vacation": {
+        "name": "Vacation"
+      }
+    },
+    "select": {
+      "profile": {
+        "name": "{program} profile"
+      }
+    }
+  },
+  "services": {
+    "resume": {
+      "name": "Resume schedule",
+      "description": "Cancel overrides and apply the schedule again.",
+      "fields": {
+        "entity_id": {
+          "name": "Entities",
+          "description": "Entities to resume."
+        },
+        "program_id": {
+          "name": "Program",
+          "description": "Resume every entity of this program."
+        }
+      }
+    },
+    "override": {
+      "name": "Override",
+      "description": "Apply a setpoint for a while, then return to the schedule.",
+      "fields": {
+        "entity_id": {
+          "name": "Entities",
+          "description": "Entities to override."
+        },
+        "setpoint": {
+          "name": "Setpoint",
+          "description": "What to apply, for example a preset or a temperature."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "How long the override lasts."
+        },
+        "until": {
+          "name": "Until",
+          "description": "When the override ends."
+        }
+      }
+    },
+    "apply_now": {
+      "name": "Apply now",
+      "description": "Apply what the program wants right now to its entities.",
+      "fields": {
+        "program_id": {
+          "name": "Program",
+          "description": "Program to apply."
+        }
+      }
+    },
+    "skip_next": {
+      "name": "Skip next change",
+      "description": "Do not apply the next change of a program.",
+      "fields": {
+        "program_id": {
+          "name": "Program",
+          "description": "Program concerned."
+        },
+        "cancel": {
+          "name": "Cancel",
+          "description": "Cancel a pending skip."
+        }
+      }
+    },
+    "reload": {
+      "name": "Reload",
+      "description": "Reload Weekly Planner."
+    }
   }
 }

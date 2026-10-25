@@ -1,0 +1,48 @@
+resume:
+  fields:
+    entity_id:
+      selector:
+        entity:
+          multiple: true
+    program_id:
+      selector:
+        text:
+
+override:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          multiple: true
+    setpoint:
+      required: true
+      example: '{"kind": "preset", "preset": "boost"}'
+      selector:
+        object:
+    duration:
+      selector:
+        duration:
+    until:
+      selector:
+        datetime:
+
+apply_now:
+  fields:
+    program_id:
+      required: true
+      selector:
+        text:
+
+skip_next:
+  fields:
+    program_id:
+      required: true
+      selector:
+        text:
+    cancel:
+      default: false
+      selector:
+        boolean:
+
+reload:

@@ -216,3 +216,40 @@ def matches(state: Any, setpoint: dict | None) -> bool | None:
     if domain == "input_select" and kind == "option":
         return value == setpoint["option"]
     return None
+
+
+def snapshot(state: Any) -> dict | None:
+    """Setpoint reproducing the current state (used for the "previous state" default)."""
+    if state is None or state.state in ("unavailable", "unknown"):
+        return None
+    value, attrs = requested(state)
+    domain = state.entity_id.split(".", 1)[0]
+    if domain == "climate":
+        if value == "off":
+            return {"kind": "off"}
+        preset = attrs.get("preset_mode")
+        if preset and preset not in ("none", "temporary", "permanent"):
+            return {"kind": "preset", "preset": preset, "hvac_mode": value}
+        if attrs.get("temperature") is not None:
+            return {"kind": "temperature", "temperature": attrs["temperature"], "hvac_mode": value}
+        return {"kind": "hvac_mode", "hvac_mode": value}
+    if domain == "cover":
+        if attrs.get("current_position") is not None:
+            return {"kind": "position", "position": attrs["current_position"]}
+        return {"kind": "open" if value == "open" else "close"}
+    if domain in ("light", "switch", "input_boolean", "fan", "media_player"):
+        if value == "off":
+            return {"kind": "off"}
+        setpoint: dict[str, Any] = {"kind": "on"}
+        if domain == "light" and attrs.get("brightness") is not None:
+            setpoint["brightness"] = round(attrs["brightness"] * 100 / 255)
+        if domain == "fan" and attrs.get("percentage") is not None:
+            setpoint["percentage"] = attrs["percentage"]
+        return setpoint
+    if domain == "water_heater":
+        return {"kind": "water_heater", "operation_mode": value, "temperature": attrs.get("temperature")}
+    if domain == "input_number":
+        return {"kind": "value", "value": float(value)}
+    if domain == "input_select":
+        return {"kind": "option", "option": value}
+    return None
