@@ -1,30 +1,32 @@
-// The card: a clear read view of programs (spec § 10.2); editing happens in dialogs.
+// The card: a planner. One compact line per device (or per schedule) with its day bar; every
+// change of the schedule happens in the schedule screen. No immediate controls.
 
 import { LitElement, css, html, nothing } from "lit";
+import { keyed } from "lit/directives/keyed.js";
 import { customElement, property, state } from "lit/decorators.js";
 import "./components/day-bar";
 import "./components/dialog";
-import "./components/day-view";
+import "./components/schedule-dialog";
 import "./editors/program-editor";
-import "./editors/override-dialog";
-import "./editors/modes-editor";
-import "./editors/simple-schedule";
-import "./components/simple-controls";
 import type { BarSpan } from "./components/day-bar";
-import { t, strings } from "./i18n";
-import {
-  activeProfile, describeSp, filterPrograms, slotColor, slotLabel, slotMode, subscribePlanner,
-} from "./planner";
+import { scopeKey } from "./components/schedule-dialog";
+import type { Scope } from "./components/schedule-dialog";
+import { actColor, actText, nb, readAct, stateText } from "./actions";
+import { t } from "./i18n";
+import { activeProfile, entityDomain, filterPrograms, friendlyName, subscribePlanner } from "./planner";
 import { formatWhen, localDateIso, localMinutes, localWeekday, nominal, spillover, DAY } from "./time";
-import type { CardConfig, HomeAssistant, PlannerData, PreviewSlot, Program } from "./types";
+import type { CardConfig, HomeAssistant, PlannerData, PreviewSlot, Program, Slot } from "./types";
 
 type Dialog =
-  | { kind: "day"; program: Program; day: number }
+  | { kind: "schedule"; scope: Scope }
   | { kind: "program"; program?: Program }
-  | { kind: "override"; program: Program }
-  | { kind: "modes" }
-  | { kind: "simple"; program: Program }
+  | { kind: "admin" }
   | null;
+
+const ICONS: Record<string, string> = {
+  climate: "mdi:thermostat", cover: "mdi:window-shutter", light: "mdi:lightbulb",
+  switch: "mdi:power-plug", input_boolean: "mdi:toggle-switch", fan: "mdi:fan",
+};
 
 @customElement("weekly-planner-card")
 export class WeeklyPlannerCard extends LitElement {
@@ -33,12 +35,11 @@ export class WeeklyPlannerCard extends LitElement {
   @state() private _data?: PlannerData;
   @state() private _error?: string;
   @state() private _dialog: Dialog = null;
-  @state() private _showWeek = false;
-  @state() private _advanced = false;
   @state() private _preview: Record<string, PreviewSlot[]> = {};
   @state() private _now = new Date();
   private _unsub?: () => void;
   private _clock?: number;
+  private _previewKey = "";
 
   static getConfigElement() {
     return document.createElement("weekly-planner-card-editor");
@@ -49,12 +50,11 @@ export class WeeklyPlannerCard extends LitElement {
   }
 
   setConfig(config: CardConfig): void {
-    this._config = { show_week: false, show_chart: true, ...config };
-    this._showWeek = Boolean(this._config.show_week);
+    this._config = { show_chart: true, display: "device", ...config };
   }
 
   getCardSize(): number {
-    return 3 + (this._data?.programs.length ?? 1) * 2;
+    return 2 + (this._data?.programs.length ?? 1) * 2;
   }
 
   getGridOptions() {
@@ -78,7 +78,7 @@ export class WeeklyPlannerCard extends LitElement {
       this._unsub = subscribePlanner(this.hass, (data) => {
         this._data = data;
         this._error = undefined;
-        this._loadPreviews();
+        void this._loadPreviews();
       });
     }
   }
@@ -91,227 +91,186 @@ export class WeeklyPlannerCard extends LitElement {
     return this.hass.config.time_zone;
   }
 
-  /** Resolved slots (sun times, ignored slots) for the next occurrence of each weekday. */
+  /** Resolved slots of today (sun times), reloaded only when a program changes. */
   private async _loadPreviews(): Promise<void> {
     if (!this._data) return;
+    const date = localDateIso(new Date(), this._tz);
+    const programs = filterPrograms(this._data, this._config);
+    const key = `${date}|${programs.map((p) => `${p.id}:${p.revision}`).join(",")}`;
+    if (key === this._previewKey) return;
+    this._previewKey = key;
     const previews: Record<string, PreviewSlot[]> = {};
-    const base = new Date();
-    const jobs: Promise<void>[] = [];
-    for (const p of filterPrograms(this._data, this._config)) {
-      for (let offset = 0; offset < 7; offset++) {
-        const when = new Date(base.getTime() + offset * 86_400_000);
-        const date = localDateIso(when, this._tz);
-        const weekday = localWeekday(when, this._tz);
-        jobs.push(
-          this.hass
-            .callWS<{ slots: PreviewSlot[] }>({ type: "weekly_planner/preview", program_id: p.id, date })
-            .then((res) => { previews[`${p.id}|${weekday}`] = res.slots; })
-            .catch(() => undefined),
-        );
-      }
-    }
-    await Promise.all(jobs);
+    await Promise.all(programs.map((p) =>
+      this.hass.callWS<{ slots: PreviewSlot[] }>({ type: "weekly_planner/preview", program_id: p.id, date })
+        .then((res) => { previews[p.id] = res.slots; })
+        .catch(() => undefined)));
     this._preview = previews;
   }
 
-  /** Spans of a program for a weekday (0 = Monday); today uses resolved sun times. */
-  private _spans(program: Program, day: number, today: boolean): BarSpan[] {
-    const data = this._data!;
-    const profile = activeProfile(program, data);
-    const label = (s: any) => slotLabel(s, program, data.modes, this._lang);
-    const spans: BarSpan[] = [];
-    for (const { slot, end } of spillover(profile.days[(day + 6) % 7])) {
-      spans.push({ start: 0, end, color: slotColor(slot, program, data.modes), label: label(slot) });
-    }
-    const resolved = this._preview[`${program.id}|${day}`];
-    for (const slot of profile.days[day]) {
-      const r = resolved?.find((x) => x.slot_id === slot.id);
-      let start = nominal(slot.start);
-      let end = nominal(slot.end ?? null);
-      if (r) {
-        start = localMinutes(r.start, this._tz);
-        end = r.end ? localMinutes(r.end, this._tz) : null;
+  /* ---- blocks ---- */
+
+  /** Entities shown in "device" mode, in program order. */
+  private _entities(programs: Program[]): string[] {
+    const types = this._config.filter?.types;
+    const seen = new Set<string>();
+    for (const p of programs) {
+      for (const e of p.entities) {
+        if (!types?.length || types.includes(entityDomain(e.entity_id))) seen.add(e.entity_id);
       }
-      if (start === null) continue; // sun slot on another day: shown when resolved
-      const stop = end === null ? start + 10 : end > start ? end : DAY;
-      spans.push({
-        start, end: stop, color: slotColor(slot, program, data.modes), label: label(slot),
-        sun: "sun" in slot.start || Boolean(slot.end && "sun" in slot.end), ignored: r?.ignored ?? null,
-      });
+    }
+    return [...seen];
+  }
+
+  private _programsOf(entityId: string): Program[] {
+    return this._data!.programs.filter((p) => p.entities.some((e) => e.entity_id === entityId))
+      .sort((a, b) => a.priority - b.priority);
+  }
+
+  /** Spans of today for a device, from every program that schedules it. */
+  private _spans(entityId: string, programs: Program[]): BarSpan[] {
+    const data = this._data!;
+    const lang = this._lang;
+    const today = localWeekday(this._now, this._tz);
+    const spans: BarSpan[] = [];
+    const of = (slot: Slot) => readAct(slot, entityId, data.modes);
+    for (const program of [...programs].reverse()) {
+      if (!program.enabled) continue;
+      const profile = activeProfile(program, data);
+      const mk = (slot: Slot, start: number, end: number, extra: Partial<BarSpan> = {}): BarSpan => {
+        const act = of(slot)!;
+        return { start, end, color: actColor(data.modes, entityId, act), label: actText(this.hass, lang, data.modes, entityId, act), ...extra };
+      };
+      for (const { slot, end } of spillover(profile.days[(today + 6) % 7])) {
+        if (of(slot)) spans.push(mk(slot, 0, end));
+      }
+      const resolved = this._preview[program.id];
+      for (const slot of profile.days[today]) {
+        if (!of(slot)) continue;
+        const r = resolved?.find((x) => x.slot_id === slot.id);
+        let start = nominal(slot.start);
+        let end = nominal(slot.end ?? null);
+        if (r) {
+          start = localMinutes(r.start, this._tz);
+          end = r.end ? localMinutes(r.end, this._tz) : null;
+        }
+        if (start === null) continue;
+        spans.push(mk(slot, start, end === null ? start + 10 : end > start ? end : DAY,
+          { sun: "sun" in slot.start || Boolean(slot.end && "sun" in slot.end), ignored: r?.ignored ?? null }));
+      }
     }
     return spans;
   }
 
-  private _summary(program: Program) {
+  private _next(entityId: string, programs: Program[]) {
     const data = this._data!;
-    const status = data.status[program.id];
-    const profile = activeProfile(program, data);
-    const slotId = status ? Object.values(status.current_slots)[0] : undefined;
-    const slot = slotId ? profile.days.flat().find((s) => s.id === slotId) : undefined;
-    const mode = slot ? slotMode(slot, program, data.modes) : undefined;
-    const overridden = program.entities.filter((e) => data.entities[e.entity_id]?.override);
-    return { status, slot, mode, overridden };
+    for (const p of programs) {
+      if (!p.enabled) continue;
+      const n = data.status[p.id]?.next_actions?.[entityId];
+      if (n) return n;
+    }
+    return undefined;
   }
 
-  private async _toggle(program: Program, enabled: boolean): Promise<void> {
+  /* ---- actions ---- */
+
+  private async _cancelOverride(entityId: string): Promise<void> {
     try {
-      await this.hass.callWS({ type: "weekly_planner/program/set_enabled", program_id: program.id, enabled });
-    } catch (err: any) {
-      this._error = err?.message ?? String(err);
+      await this.hass.callService("weekly_planner", "resume", { entity_id: [entityId] });
+    } catch (err) {
+      this._error = (err as { message?: string })?.message ?? String(err);
     }
   }
 
-  private async _resume(program: Program): Promise<void> {
-    await this.hass.callService("weekly_planner", "resume", { program_id: program.id });
+  private _open(scope: Scope): void {
+    this._dialog = { kind: "schedule", scope };
+  }
+
+  /* ---- render ---- */
+
+  private _line(entityId: string, programs: Program[], opts: { name: boolean; button: Scope | null; open: Scope }) {
+    const lang = this._lang;
+    const data = this._data!;
+    const next = this._next(entityId, programs);
+    const paused = programs.length > 0 && programs.every((p) => !p.enabled);
+    const override = data.entities[entityId]?.override;
+    const icon = this.hass.states[entityId]?.attributes.icon ?? ICONS[entityDomain(entityId)] ?? "mdi:calendar-clock";
+    const open = () => this._open(opts.open);
+    const sub = override
+      ? override.origin === "voluntary" && override.until
+        ? t(lang, "overridden_until", { time: nb(formatWhen(override.until, this._tz, lang, this._now)) })
+        : t(lang, "overridden")
+      : "";
+    return html`
+      <div class="block">
+        <div class="line">
+          <ha-icon class="dev" icon=${icon}></ha-icon>
+          <div class="info">
+            ${opts.name ? html`<span class="name">${friendlyName(this.hass, entityId)}</span>` : nothing}
+            <span class="now">
+              <span class="nw">${stateText(this.hass, lang, entityId)}</span>
+              ${next ? html`<span class="nw">→ ${actText(this.hass, lang, data.modes, entityId, next.setpoint)}
+                <span class="when">${nb(formatWhen(next.at, this._tz, lang, this._now))}</span></span>` : nothing}
+            </span>
+          </div>
+          ${paused ? html`<ha-icon class="pause" icon="mdi:pause-circle-outline" title=${t(lang, "paused")}></ha-icon>` : nothing}
+          ${opts.button ? html`<button class="hours" @click=${open}>${t(lang, "hours")}</button>` : nothing}
+        </div>
+        <wp-day-bar .spans=${this._spans(entityId, programs)} .now=${localMinutes(this._now, this._tz)}
+          @click=${open}></wp-day-bar>
+        ${override ? html`<div class="manual"><ha-icon icon="mdi:hand-back-right"></ha-icon><span>${sub}</span>
+          <button class="x" aria-label=${t(lang, "cancel_manual")} @click=${() => void this._cancelOverride(entityId)}>
+            <ha-icon icon="mdi:close"></ha-icon></button></div>` : nothing}
+      </div>`;
+  }
+
+  private _byDevice(programs: Program[]) {
+    return this._entities(programs).map((eid) => {
+      const scope: Scope = { kind: "device", entityId: eid };
+      return this._line(eid, this._programsOf(eid), { name: true, button: scope, open: scope });
+    });
+  }
+
+  private _bySchedule(programs: Program[]) {
+    const lang = this._lang;
+    return programs.map((p) => {
+      const scope: Scope = { kind: "program", programId: p.id };
+      return html`
+      <section class="prog">
+        <div class="phead">
+          <ha-icon icon=${p.icon ?? "mdi:calendar-clock"}></ha-icon>
+          <h2>${p.name}</h2>
+          ${p.enabled ? nothing : html`<ha-icon class="pause" icon="mdi:pause-circle-outline" title=${t(lang, "paused")}></ha-icon>`}
+          <button class="hours" @click=${() => this._open(scope)}>${t(lang, "hours")}</button>
+        </div>
+        ${p.entities.map((e) => this._line(e.entity_id, [p], { name: p.entities.length > 1, button: null, open: scope }))}
+      </section>`;
+    });
   }
 
   render() {
     if (!this._config || !this.hass) return nothing;
     const lang = this._lang;
-    const s = strings(lang);
     const data = this._data;
     const programs = data ? filterPrograms(data, this._config) : [];
-    const today = localWeekday(this._now, this._tz);
-    const nowMin = localMinutes(this._now, this._tz);
-    const canAdvanced = this._config.show_advanced !== false;
-    const open = canAdvanced && this._advanced;
-
-    // One program and no configured title: the program's name is the title (no generic "Programs").
-    const single = Boolean(data) && programs.length === 1 && this._config.title === undefined;
+    const admin = Boolean(data) && Boolean(this.hass.user?.is_admin) && Boolean(data?.can_edit);
+    const showTitle = this._config.title !== undefined && this._config.title !== "";
     return html`
       <ha-card>
-        ${!single || data?.vacation
+        ${showTitle || admin || data?.vacation
           ? html`<div class="head">
-              ${single ? html`<span class="grow"></span>` : html`<h1>${this._config.title ?? s.title}</h1>`}
-              ${data?.vacation ? html`<span class="chip warn"><ha-icon icon="mdi:bag-suitcase"></ha-icon> ${s.vacation}</span>` : nothing}
+              <h1>${this._config.title ?? ""}</h1>
+              ${data?.vacation ? html`<span class="chip"><ha-icon icon="mdi:bag-suitcase"></ha-icon> ${t(lang, "vacation")}</span>` : nothing}
+              ${admin ? html`<button class="gear" aria-label=${t(lang, "settings")} @click=${() => (this._dialog = { kind: "admin" })}>
+                <ha-icon icon="mdi:cog"></ha-icon></button>` : nothing}
             </div>`
           : nothing}
         ${this._error ? html`<div class="error">${t(lang, "error", { message: this._error })}</div>` : nothing}
-        ${data?.read_only ? html`<div class="error">${s.read_only}</div>` : nothing}
+        ${data?.read_only ? html`<div class="error">${t(lang, "read_only")}</div>` : nothing}
         ${!data ? html`<div class="empty">…</div>` : nothing}
-        ${data && !programs.length ? html`<div class="empty">${s.no_program}</div>` : nothing}
-        ${programs.map((program) => this._renderProgram(program, today, nowMin, open, single))}
-        ${open && programs.length && !this._config.program
-          ? html`<button class="link" @click=${() => (this._showWeek = !this._showWeek)}>
-              ${this._showWeek ? s.hide_week : s.show_week}</button>`
-          : nothing}
-        ${open && data?.can_edit && !this._config.program
-          ? html`<div class="adv-actions">
-              <button class="small" @click=${() => (this._dialog = { kind: "modes" })}>${s.modes}</button>
-              <button class="small" @click=${() => (this._dialog = { kind: "program" })}><ha-icon icon="mdi:plus"></ha-icon> ${s.new_program}</button>
-            </div>`
-          : nothing}
-        ${canAdvanced && programs.length
-          ? html`<button class="more" aria-expanded=${open} @click=${() => (this._advanced = !this._advanced)}>
-              <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon> ${open ? s.sm_less : s.sm_more}</button>`
-          : nothing}
+        ${data && !programs.length ? html`<div class="empty">${t(lang, "no_program")}</div>` : nothing}
+        ${data ? (this._config.display === "schedule" ? this._bySchedule(programs) : this._byDevice(programs)) : nothing}
       </ha-card>
-      ${this._renderDialog()}
-    `;
-  }
-
-  private _renderProgram(program: Program, today: number, nowMin: number, open: boolean, single = false) {
-    const data = this._data!;
-    return html`
-      <section class="program ${program.enabled ? "" : "off"}">
-        <h2 class="ptitle ${single ? "big" : ""}">${program.name}</h2>
-        <wp-simple-controls .hass=${this.hass} .data=${data} .program=${program}
-          @simple-schedule=${() => (this._dialog = { kind: "simple", program })}></wp-simple-controls>
-        ${open ? this._renderAdvanced(program, today, nowMin) : nothing}
-      </section>
-    `;
-  }
-
-  private _renderAdvanced(program: Program, today: number, nowMin: number) {
-    const lang = this._lang;
-    const s = strings(lang);
-    const data = this._data!;
-    const { status, slot, mode, overridden } = this._summary(program);
-    const next = status?.next_change ? formatWhen(status.next_change, this._tz, lang, this._now) : null;
-    const fallback = this._defaultMode(program);
-    const showWeek = this._showWeek || Boolean(this._config.program);
-    const profile = activeProfile(program, data);
-    return html`
-      <div class="advanced">
-        <div class="row">
-          <div class="name">
-            ${program.profiles.length > 1 ? html`<span class="chip">${profile.name}</span>` : nothing}
-          </div>
-          <label class="switch">
-            <span class="switch-label">${s.sm_active}</span>
-            <input type="checkbox" .checked=${program.enabled} aria-label=${s.sm_active}
-              @change=${(e: Event) => this._toggle(program, (e.target as HTMLInputElement).checked)} />
-            <span class="track"></span>
-          </label>
-        </div>
-        <div class="state">
-          ${this._effective(program)
-            ? html`<span class="pill override">${this._effective(program)}</span>`
-            : mode
-            ? html`<span class="pill" style="--c:${mode.color}">${mode.name}</span>`
-            : slot
-              ? html`<span class="pill" style="--c:${slotColor(slot, program, data.modes)}">${slotLabel(slot, program, data.modes, lang)}</span>`
-              : fallback && program.enabled && !data.vacation
-              ? html`<span class="pill" style="--c:${fallback.color}">${fallback.name}</span>`
-              : html`<span class="pill neutral">${program.enabled ? s.off_slot : "—"}</span>`}
-          <span class="muted">${next ? t(lang, "until", { time: next }) : s.no_change}</span>
-          ${status?.skip_next ? html`<span class="chip">${s.skip_planned}</span>` : nothing}
-        </div>
-        ${overridden.length
-          ? html`<div class="warn-row"><ha-icon icon="mdi:hand-back-right"></ha-icon> ${overridden.length > 1 ? `${overridden.length} × ` : ""}${this._overrideText(overridden[0].entity_id)}
-              ${program.enabled ? nothing : html`<button class="small" @click=${() => this._resume(program)}>${s.resume}</button>`}</div>`
-          : nothing}
-        ${(data.warnings?.[program.id] ?? []).length && data.can_edit
-          ? html`<details class="warnings"><summary><ha-icon icon="mdi:alert"></ha-icon> ${(data.warnings?.[program.id] ?? []).length}</summary>
-              ${(data.warnings?.[program.id] ?? []).map((w) => html`<div>${this._warning(w)}</div>`)}</details>`
-          : nothing}
-        <wp-day-bar .spans=${this._spans(program, today, true)} .now=${nowMin} show-hours
-          @click=${() => (this._dialog = { kind: "day", program, day: today })}></wp-day-bar>
-        ${showWeek
-          ? html`<div class="week">${[0, 1, 2, 3, 4, 5, 6].map(
-              (d) => html`<button class="day" @click=${() => (this._dialog = { kind: "day", program, day: d })}>
-                <span class=${d === today ? "today" : ""}>${s.days_short[d]}</span>
-                <wp-day-bar thin .spans=${this._spans(program, d, d === today)}
-                  .now=${d === today ? nowMin : null}></wp-day-bar></button>`,
-            )}</div>`
-          : nothing}
-        <div class="actions">
-          <button class="small" @click=${() => (this._dialog = { kind: "override", program })}>${s.override}</button>
-          ${data.can_edit
-            ? html`<button class="small ghost" @click=${() => (this._dialog = { kind: "program", program })}><ha-icon icon="mdi:pencil"></ha-icon> ${s.edit}</button>`
-            : nothing}
-        </div>
-      </div>
-    `;
-  }
-
-  private _warning(w: { entity_id: string; code: string; detail: string }): string {
-    const name = this.hass.states[w.entity_id]?.attributes.friendly_name ?? w.entity_id;
-    const key = `warn_${w.code}` as any;
-    const text = (strings(this._lang) as any)[key] as string | undefined;
-    return text ? t(this._lang, key, { entity: name, detail: w.detail }) : `${name}: ${w.code}`;
-  }
-
-  /** Setpoint of a voluntary override on the program's first entity, shown instead of the plan. */
-  private _effective(program: Program): string | undefined {
-    const first = program.entities[0]?.entity_id;
-    const o = first ? this._data!.entities[first]?.override : undefined;
-    return o?.origin === "voluntary" && o.setpoint ? describeSp(this._lang, this._data!.modes, first, o.setpoint) : undefined;
-  }
-
-  /** Mode applied outside slots (default of the first entity), to show instead of "outside slots". */
-  private _defaultMode(program: Program) {
-    const def = program.entities[0]?.default;
-    if (def?.kind !== "mode" || typeof def.value !== "string") return undefined;
-    return this._data!.modes.find((m) => m.id === def.value);
-  }
-
-  private _overrideText(entityId: string): string {
-    const o = this._data!.entities[entityId]?.override;
-    if (o?.origin === "voluntary" && o.until) {
-      return t(this._lang, "overridden_until", { time: formatWhen(o.until, this._tz, this._lang, this._now) });
-    }
-    return t(this._lang, "overridden");
+      ${this._renderDialog()}`;
   }
 
   private _renderDialog() {
@@ -319,96 +278,69 @@ export class WeeklyPlannerCard extends LitElement {
     if (!d || !this._data) return nothing;
     const close = () => (this._dialog = null);
     switch (d.kind) {
-      case "day":
-        return html`<wp-day-view .hass=${this.hass} .data=${this._data} .program=${d.program} .day=${d.day}
-          .showChart=${this._config.show_chart !== false}
-          @closed=${close}
-          @edit-day=${(e: CustomEvent) => (this._dialog = { kind: "program", program: d.program, ...e.detail })}></wp-day-view>`;
+      case "schedule":
+        return keyed(scopeKey(d.scope), html`<wp-schedule .hass=${this.hass} .data=${this._data} .scope=${d.scope}
+          .chart=${this._config.show_chart !== false} @closed=${close}
+          @open-settings=${(e: CustomEvent<{ programId: string }>) => {
+            const program = this._data!.programs.find((p) => p.id === e.detail.programId);
+            if (program) this._dialog = { kind: "program", program };
+          }}></wp-schedule>`);
       case "program":
         return html`<wp-program-editor .hass=${this.hass} .data=${this._data} .program=${d.program}
           .defaultTypes=${this._config.filter?.types ?? []} @closed=${close}></wp-program-editor>`;
-      case "override":
-        return html`<wp-override-dialog .hass=${this.hass} .data=${this._data} .program=${d.program}
-          @closed=${close}></wp-override-dialog>`;
-      case "simple":
-        return html`<wp-simple-schedule .hass=${this.hass} .data=${this._data} .program=${d.program}
-          @closed=${close}></wp-simple-schedule>`;
-      case "modes":
-        return html`<wp-modes-editor .hass=${this.hass} .data=${this._data} @closed=${close}></wp-modes-editor>`;
+      case "admin": {
+        const lang = this._lang;
+        return html`<wp-dialog open heading=${t(lang, "settings")} @closed=${close}>
+          <div class="adm">
+            ${this._data.programs.map((p) => html`<button class="admrow" @click=${() => (this._dialog = { kind: "program", program: p })}>
+              <ha-icon icon=${p.icon ?? "mdi:calendar-clock"}></ha-icon><span>${p.name}</span><ha-icon icon="mdi:chevron-right"></ha-icon></button>`)}
+            <button class="admrow add" @click=${() => (this._dialog = { kind: "program" })}>
+              <ha-icon icon="mdi:plus"></ha-icon><span>${t(lang, "new_program")}</span></button>
+          </div></wp-dialog>`;
+      }
     }
   }
 
   static styles = css`
-    ha-card { padding: 16px; }
-    .head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; min-height: 48px; }
+    ha-card { padding: 8px 16px 12px; }
+    .head { display: flex; align-items: center; gap: 8px; min-height: 48px; }
     h1 { flex: 1; min-width: 0; margin: 0; font-size: 20px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .ptitle { margin: 0 0 4px; font-size: 18px; font-weight: 500; overflow-wrap: anywhere; }
-    .ptitle.big { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
-    .grow { flex: 1; }
-    .advanced { margin-top: 12px; padding-top: 8px; border-top: 1px dashed var(--divider-color); }
-    .adv-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-    button.more {
-      display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 48px; margin-top: 8px;
-      border: 1px solid var(--primary-color); border-radius: 24px; background: none; color: var(--primary-color);
-      font: inherit; font-size: 15px; font-weight: 500; cursor: pointer; --mdc-icon-size: 22px; margin-top: 12px;
+    .chip { display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 14px; font-size: 14px; padding: 2px 10px; border-radius: 12px; background: var(--warning-color, #ff9800); color: #fff; }
+    .gear, .x {
+      border: none; background: none; color: inherit; width: 48px; height: 48px; border-radius: 24px; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; --mdc-icon-size: 22px; flex: none;
     }
-    .program { padding: 12px 0; border-top: 1px solid var(--divider-color); }
-    .program:first-of-type { border-top: none; }
-    .program.off { opacity: 0.55; }
-    .row { display: flex; align-items: center; gap: 8px; }
-    .name { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; }
-    .title { font-size: 16px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .state { display: flex; align-items: center; gap: 8px; margin: 6px 0 10px; flex-wrap: wrap; }
-    .pill {
-      background: var(--c); color: #fff; border-radius: 12px; padding: 2px 10px; font-size: 14px;
-      font-weight: 600; text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+    .gear:hover, .x:hover { background: var(--secondary-background-color); }
+    .block { padding: 8px 0; border-top: 1px solid var(--divider-color); }
+    .block:first-of-type, .head + .block { border-top: none; }
+    .line { display: flex; align-items: center; gap: 10px; min-height: 48px; }
+    .dev { --mdc-icon-size: 26px; flex: none; color: var(--secondary-text-color); }
+    .info { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 0; }
+    .name { font-size: 17px; font-weight: 600; }
+    .now { font-size: 15px; display: flex; flex-wrap: wrap; column-gap: 6px; color: var(--primary-text-color); }
+    .nw { white-space: nowrap; }
+    .when { opacity: 0.8; }
+    .pause { --mdc-icon-size: 20px; color: var(--secondary-text-color); flex: none; }
+    button.hours {
+      flex: none; min-height: 48px; padding: 0 14px; border-radius: 24px; border: 1px solid var(--primary-color);
+      background: none; color: var(--primary-color); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
     }
-    .pill.override {
-      background: repeating-linear-gradient(135deg, var(--warning-color, #ff9800) 0 6px, #e68900 6px 12px);
-    }
-    .pill.neutral { background: var(--secondary-background-color); color: var(--primary-text-color); text-shadow: none; }
-    .muted { color: var(--primary-text-color); opacity: 0.8; font-size: 14px; }
-    .chip {
-      display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 14px;
-      font-size: 14px; padding: 2px 10px; border-radius: 12px; background: var(--secondary-background-color);
-    }
-    .chip.warn { background: var(--warning-color, #ff9800); color: #fff; }
-    .warnings { font-size: 14px; color: var(--secondary-text-color); margin-bottom: 8px; }
-    .warnings summary { cursor: pointer; display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 20px; }
-    .warn-row { --mdc-icon-size: 20px; display: flex; align-items: center; gap: 8px; font-size: 14px; margin-bottom: 8px; }
-    wp-day-bar { cursor: pointer; }
-    .week { display: grid; gap: 4px; margin-top: 8px; }
-    .day {
-      display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 8px;
-      background: none; border: none; padding: 8px 0; min-height: 48px; cursor: pointer; color: inherit; font: inherit;
-    }
-    .day span { font-size: 14px; opacity: 0.85; text-align: left; }
-    .day span.today { color: var(--primary-color); font-weight: 600; }
-    .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
-    button.small, button.ghost {
-      display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 20px;
-      border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color);
-      border-radius: 24px; padding: 4px 16px; font: inherit; font-size: 14px; cursor: pointer; min-height: 48px;
-    }
-    button.ghost { border-color: transparent; color: var(--primary-color); }
-    button.link {
-      border: none; background: none; color: var(--primary-color); cursor: pointer; padding: 0; min-height: 48px; font: inherit; font-size: 14px;
-    }
+    wp-day-bar { cursor: pointer; margin-top: 2px; }
+    .manual { display: flex; align-items: center; gap: 8px; font-size: 14px; --mdc-icon-size: 20px; margin-top: 2px; }
+    .manual span { flex: 1; min-width: 0; }
+    .prog { padding: 8px 0 4px; border-top: 1px solid var(--divider-color); }
+    .prog:first-of-type, .head + .prog { border-top: none; }
+    .prog .block { border-top: none; padding: 2px 0 4px; }
+    .phead { display: flex; align-items: center; gap: 10px; min-height: 48px; --mdc-icon-size: 24px; }
+    .phead h2 { flex: 1; min-width: 0; margin: 0; font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
     .empty { color: var(--primary-text-color); opacity: 0.8; padding: 16px 0; text-align: center; }
-    .error { color: var(--error-color, #db4437); font-size: 14px; margin-bottom: 8px; }
-    .switch { position: relative; min-height: 48px; flex: none; display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; }
-    .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
-    .switch .track {
-      position: relative; width: 40px; height: 22px; border-radius: 11px; background: var(--disabled-color, #bdbdbd);
-      transition: background 0.2s; flex: none;
+    .error { color: var(--error-color, #db4437); font-size: 14px; margin: 8px 0; }
+    .adm { display: flex; flex-direction: column; gap: 8px; }
+    .admrow {
+      display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 12px; border-radius: 12px; font: inherit; font-size: 16px;
+      border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); cursor: pointer; text-align: left;
     }
-    .switch .track::before {
-      content: ""; position: absolute; width: 18px; height: 18px; left: 2px; top: 2px; border-radius: 50%;
-      background: #fff; transition: transform 0.2s;
-    }
-    .switch input:checked + .track { background: var(--primary-color); }
-    .switch input:checked + .track::before { transform: translateX(18px); }
-    .switch input:focus-visible + .track { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+    .admrow span { flex: 1; }
+    .admrow.add { border-style: dashed; color: var(--primary-color); }
   `;
 }
-
