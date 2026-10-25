@@ -5,7 +5,7 @@
 import { LitElement, css, html, nothing, svg } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { strings, t } from "../i18n";
-import { activeProfile, entityDomain, friendlyName, slotColor, slotLabel } from "../planner";
+import { activeProfile, entityDomain, friendlyName, presetTemperature, slotColor, slotLabel } from "../planner";
 import { localMinutes, localWeekday, nominal, spillover } from "../time";
 import type { HomeAssistant, Mode, PlannerData, PreviewSlot, Program, Setpoint, Slot } from "../types";
 
@@ -231,16 +231,8 @@ export class WpChart extends LitElement {
   }
 
   private _presetTemperature(preset: string): number | null {
-    const a = this.hass.states[this.entityId]?.attributes ?? {};
-    const direct = num(a.preset_temperatures?.[preset]) ?? num(a[`${preset}_temp`]) ?? num(a[`${preset}_temperature`]);
-    if (direct !== null) return direct;
-    // No temperature known: one level per preset between the thermostat limits.
-    const modes: string[] = Array.isArray(a.preset_modes) ? a.preset_modes : [];
-    const idx = modes.indexOf(preset);
-    if (idx < 0) return null;
-    const lo = num(a.min_temp) ?? 5;
-    const hi = num(a.max_temp) ?? 30;
-    return lo + ((idx + 1) / (modes.length + 1)) * (hi - lo);
+    // Unknown preset temperature: no point rather than a made-up level.
+    return presetTemperature(this.hass, this.entityId, preset);
   }
 
   private _live(point: HistPoint): { applied: number | null; measured: number | null } {
@@ -578,7 +570,7 @@ export class WpChart extends LitElement {
           const prev = model.planned[i - 1];
           return p.v === null ? nothing : svg`
             ${prev && prev.v !== null ? svg`<line class="riser" x1=${x(p.s)} x2=${x(p.s)} y1=${y(prev.v)} y2=${y(p.v)}></line>` : nothing}
-            <line class="plan" x1=${x(p.s)} x2=${x(p.e)} y1=${y(p.v)} y2=${y(p.v)} style="stroke:${p.color}"></line>`;
+            <line class="plan" x1=${x(p.s)} x2=${x(p.e)} y1=${y(p.v)} y2=${y(p.v)} style="stroke:${this.simple ? "var(--primary-color)" : p.color}"></line>`;
         })}
         ${this.simple ? nothing : svg`<path class="applied" d=${this._path(model.applied, model, x, y, true)}></path>`}
         <path class="measured" d=${this._path(model.measured, model, x, y, false)}></path>
