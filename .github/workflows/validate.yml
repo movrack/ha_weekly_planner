@@ -31,3 +31,20 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --group test --python 3.14
       - run: uv run --group test pytest -q
+
+  card:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
+      - run: npm run build
+      - name: Bundle is up to date
+        run: git diff --exit-code -- ../custom_components/weekly_planner/frontend/weekly-planner-card.js

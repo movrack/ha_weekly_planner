@@ -9,7 +9,7 @@ import { t } from "../i18n";
 import { strings } from "../i18n";
 import {
   activeProfile, applicable, describeSp, entityDomain, fmtNum, fmtTemp, friendlyName, mainType, modeSetpoint,
-  slotMode,
+  slotMode, stepTemperature,
 } from "../planner";
 import { formatWhen, localMinutes } from "../time";
 import { modeTypeOf, langOf } from "../editors/setpoint-editor";
@@ -118,7 +118,7 @@ export class WpSimpleControls extends LitElement {
     const base = this._pending[eid] ?? Number(a.temperature ?? a.current_temperature ?? 20);
     const min = Number(a.min_temp ?? 7);
     const max = Number(a.max_temp ?? 35);
-    const next = Math.min(max, Math.max(min, Math.round((base + dir * 0.5) * 2) / 2));
+    const next = stepTemperature(base, dir, min, max);
     if (next === base) return;
     window.clearTimeout(this._clear.get(eid));
     this._pending = { ...this._pending, [eid]: next };

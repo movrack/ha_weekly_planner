@@ -131,3 +131,8 @@ export function describeSp(lang: string, modes: Mode[], entityId: string, sp: Se
     default: return describeSetpoint(lang, sp);
   }
 }
+
+/** Next target temperature for the warmer/colder buttons: ±0.5 °C, rounded to 0.5, clamped. */
+export function stepTemperature(base: number, dir: 1 | -1, min = 7, max = 35): number {
+  return Math.min(max, Math.max(min, Math.round((base + dir * 0.5) * 2) / 2));
+}
