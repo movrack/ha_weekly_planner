@@ -103,6 +103,8 @@ export class WpChart extends LitElement {
   @property({ attribute: false }) program!: Program;
   @property({ attribute: "entity-id" }) entityId = "";
   @property() date = "";
+  /** Two lines only (planned and measured); no applied curve, no zones. */
+  @property({ type: Boolean }) simple = false;
   /** Resolved slots of the day (null when the preview failed: nominal times are used). */
   @property({ attribute: false }) slots: PreviewSlot[] | null = null;
 
@@ -512,11 +514,11 @@ export class WpChart extends LitElement {
     const item = (cls: string, label: string) => html`<span class="key"><i class=${cls}></i>${label}</span>`;
     return html`<div class="legend">
       ${item("planned", s.planned)}
-      ${model.applied.some((p) => p.v !== null) ? item("applied", s.applied) : nothing}
+      ${!this.simple && model.applied.some((p) => p.v !== null) ? item("applied", s.applied) : nothing}
       ${model.measured.some((p) => p.v !== null) ? item("measured", s.measured) : nothing}
-      ${model.win.length ? item("zone win", s.window_open) : nothing}
-      ${model.heat.length ? item("zone heat", s.heating) : nothing}
-      ${model.over.length ? item("zone over", s.overridden) : nothing}
+      ${!this.simple && model.win.length ? item("zone win", s.window_open) : nothing}
+      ${!this.simple && model.heat.length ? item("zone heat", s.heating) : nothing}
+      ${!this.simple && model.over.length ? item("zone over", s.overridden) : nothing}
     </div>`;
   }
 
@@ -542,7 +544,7 @@ export class WpChart extends LitElement {
       const rows: [string, string][] = [];
       rows.push([s.planned, `${this._fmt(seg?.v ?? null, model.unit)}${seg?.label ? " · " + seg.label : ""}`]);
       if (c <= model.pastEnd) {
-        if (model.applied.some((p) => p.v !== null)) rows.push([s.applied, this._fmt(this._valueAt(model.applied, c), model.unit)]);
+        if (!this.simple && model.applied.some((p) => p.v !== null)) rows.push([s.applied, this._fmt(this._valueAt(model.applied, c), model.unit)]);
         if (model.measured.some((p) => p.v !== null)) rows.push([s.measured, this._fmt(this._valueAt(model.measured, c), model.unit)]);
       }
       const flags: string[] = [];
@@ -571,14 +573,14 @@ export class WpChart extends LitElement {
           <text class="ylab" x=${PAD.l - 4} y=${y(v) + 3} text-anchor="end">${Number(v.toFixed(model.unit === "°C" ? 1 : 0))}</text>`)}
         ${ticksX.map((m) => svg`<text class="xlab" x=${x(m)} y=${H - 6}
           text-anchor=${m === 0 ? "start" : "middle"}>${Math.floor(localMinutes(new Date(startMs + m * 60_000), this._tz) / 60)}h</text>`)}
-        ${zone(model.win, "win")}${zone(model.heat, "heat")}${zone(model.over, "over")}
+        ${this.simple ? nothing : svg`${zone(model.win, "win")}${zone(model.heat, "heat")}${zone(model.over, "over")}`}
         ${model.planned.map((p, i) => {
           const prev = model.planned[i - 1];
           return p.v === null ? nothing : svg`
             ${prev && prev.v !== null ? svg`<line class="riser" x1=${x(p.s)} x2=${x(p.s)} y1=${y(prev.v)} y2=${y(p.v)}></line>` : nothing}
             <line class="plan" x1=${x(p.s)} x2=${x(p.e)} y1=${y(p.v)} y2=${y(p.v)} style="stroke:${p.color}"></line>`;
         })}
-        <path class="applied" d=${this._path(model.applied, model, x, y, true)}></path>
+        ${this.simple ? nothing : svg`<path class="applied" d=${this._path(model.applied, model, x, y, true)}></path>`}
         <path class="measured" d=${this._path(model.measured, model, x, y, false)}></path>
         ${nowLine}${line}
         <rect class="hit" x=${PAD.l} y=${PAD.t} width=${W - PAD.l - PAD.r} height=${H - PAD.t - PAD.b}></rect>
