@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-25
+
+### Fixed
+- Simple mode highlights the mode the device is actually in, also outside slots.
+- Versatile Thermostat preset temperatures (`preset_temperatures.<preset>_temp`) shown on the mode selector.
+
 ## [0.1.0] - 2026-10-25
 
 First test release, installed by copy on the author's instance before the public release.

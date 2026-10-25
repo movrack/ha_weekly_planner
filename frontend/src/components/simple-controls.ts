@@ -255,6 +255,21 @@ export class WpSimpleControls extends LitElement {
       const key = JSON.stringify(o.setpoint ?? null);
       return this.data.modes.find((m) => JSON.stringify(modeSetpoint(m, eid)) === key)?.id;
     }
+    // the mode the device is actually in (Versatile Thermostat: what it was asked for)
+    const st = this.hass.states[eid];
+    if (st) {
+      const req = st.attributes.requested_state;
+      const preset = req?.preset ?? st.attributes.preset_mode;
+      const temp = Number(req?.target_temperature ?? st.attributes.temperature);
+      const byState = this.data.modes.find((m) => {
+        const sp = modeSetpoint(m, eid) as Record<string, unknown>;
+        if (m.type !== modeTypeOf(entityDomain(eid))) return false;
+        if (sp.kind === "preset") return sp.preset === preset;
+        if (sp.kind === "temperature") return (!preset || preset === "none") && Number(sp.temperature) === temp;
+        return false;
+      });
+      if (byState) return byState.id;
+    }
     const status = this._status;
     const slotId = status ? Object.values(status.current_slots)[0] : undefined;
     const slot = slotId ? activeProfile(this.program, this.data).days.flat().find((s) => s.id === slotId) : undefined;
