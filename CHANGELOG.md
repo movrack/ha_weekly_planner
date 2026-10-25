@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-25
+
+### Added
+- Any Home Assistant entity can be scheduled: other than climate, cover, light, switch and fan, the actions are the services accepting the entity (e.g. a vacuum: clean area, start, return to base), with their inputs.
+- Service actions run once at their start time (no end, no default, never re-applied); failures other than a refused value are retried after 1, 2, 5, 10 and 15 minutes.
+- The "Devices" tab accepts entities of any domain.
+
+### Changed
+- Hour notches in every day bar and one hour scale above the week list.
+- The schedule button of each line has no border and its icon sits on the first line.
+
 ## [0.4.1] - 2026-10-25
 
 ### Changed
