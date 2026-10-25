@@ -53,8 +53,21 @@ async def websocket(token: str, messages: list[dict]) -> list[dict]:
     return results
 
 
+def ensure_integration(token: str) -> None:
+    entries = call("GET", "/api/config/config_entries/entry", token=token)
+    if not any(e["domain"] == "weekly_planner" for e in entries):
+        flow = call("POST", "/api/config/config_entries/flow", {"handler": "weekly_planner"}, token)
+        call("POST", f"/api/config/config_entries/flow/{flow['flow_id']}", {}, token)
+
+
 def main() -> None:
     steps = {s["step"]: s["done"] for s in call("GET", "/api/onboarding")}
+    if all(steps.values()):
+        # Already onboarded: reuse the token saved by the first run.
+        token = open("dev/config/.dev_token").read().strip()
+        ensure_integration(token)
+        print(token)
+        return
     if not steps.get("user"):
         code = call("POST", "/api/onboarding/users", {
             "client_id": CLIENT_ID, "name": "Dev", "username": "dev", "password": "dev",
@@ -75,10 +88,7 @@ def main() -> None:
         if not steps.get(step):
             call("POST", path, payload, access)
 
-    entries = call("GET", "/api/config/config_entries/entry", token=access)
-    if not any(e["domain"] == "weekly_planner" for e in entries):
-        flow = call("POST", "/api/config/config_entries/flow", {"handler": "weekly_planner"}, access)
-        call("POST", f"/api/config/config_entries/flow/{flow['flow_id']}", {}, access)
+    ensure_integration(access)
 
     long_lived = asyncio.run(websocket(access, [
         {"type": "auth/long_lived_access_token", "client_name": "dev-scripts", "lifespan": 365},

@@ -1,6 +1,6 @@
 # Weekly Planner — spécification v1
 
-> Statut : **0.5 — prête pour le développement** (relectures n° 1 et 2 intégrées, toutes les questions tranchées).
+> Statut : **0.5 — en développement (v0.1.0 en préparation)** (relectures n° 1 et 2 intégrées, toutes les questions tranchées).
 > Dépôt : `ha_Weekly_planner` · domaine HA : `weekly_planner` · cible : Home Assistant ≥ 2026.10.
 > Les cases `[ ]` / `[x]` suivent l'avancement. Critère de fin de la v1 : **tout fonctionne** (§ 13).
 
@@ -419,55 +419,55 @@ en mode YAML ; garde `customElements.get()` avant `define`. **Prototype de faisa
 ## 14. Tâches
 
 ### 14.1 Socle
-- [ ] Squelette du dépôt (arborescence § 12, `hacs.json`, `manifest.json`, `brand/`, README minimal)
-- [ ] Environnement Docker + entités de démonstration (dont thermostat lent, volet lent)
-- [ ] Python 3.14 (`uv`) + dépendances de test
-- [ ] CI : hacs/action, hassfest, pytest, build carte
-- [ ] **Prototype** : carte embarquée chargée comme ressource sur HA 2026.10 (S33)
+- [x] Squelette du dépôt (arborescence § 12, `hacs.json`, `manifest.json`, `brand/`, README minimal)
+- [x] Environnement de dev + entités de démonstration (instance HA locale en Python, Docker Desktop ne télécharge plus d'images ; `scripts/dev_ha.sh`, `scripts/dev_onboard.py`)
+- [x] Python 3.14 (`uv`) + dépendances de test
+- [x] CI : hacs/action, hassfest, pytest, build carte
+- [x] **Prototype** : carte embarquée chargée comme ressource sur HA 2026.10 (S33)
 
 ### 14.2 Moteur
-- [ ] Modèle + `Store` versionné + robustesse + migration (S20, S28)
-- [ ] Plages d'un jour : fixes, soleil + bornes, minuit, `24:00`, DST, plages ignorées (S2, S3, S4, S26, S27)
-- [ ] Résolution par entité : priorités, conditions, Vacances, défauts, état hors plage (S9, S10, S11, S12, S16, S24)
-- [ ] Minuteur unique + recalcul + segments + abandon des actions périmées (S1, S21)
-- [ ] Exécution : ordre, confirmation, grâce, essais espacés, entités injoignables (S13, S14, S22)
-- [ ] Dérogation : règles § 5.3, persistance, `resume` (S5, S6, S15, S23, S25)
-- [ ] Redémarrage / activation / modification, stabilisation, rattrapage des fins (S7, S8, S29)
-- [ ] Conditions : dernière valeur connue, anti-rebond (S30)
-- [ ] Journal de bord, journal des segments, notifications (S31)
-- [ ] Renommage / suppression d'entités, alertes Réparations (S32)
-- [ ] Dérogation volontaire avec échéance + service `override` (S35)
-- [ ] Profils + `select` du profil actif (S36)
-- [ ] Adaptive Lighting : contrôle manuel pendant une consigne fixe, repli switch (S37)
-- [ ] Activation / redémarrage hors plage : défaut appliqué (S38)
+- [x] Modèle + `Store` versionné + robustesse + migration (S20, S28)
+- [x] Plages d'un jour : fixes, soleil + bornes, minuit, `24:00`, DST, plages ignorées (S2, S3, S4, S26, S27)
+- [x] Résolution par entité : priorités, conditions, Vacances, défauts, état hors plage (S9, S10, S11, S12, S16, S24)
+- [x] Minuteur unique + recalcul + segments + abandon des actions périmées (S1, S21)
+- [x] Exécution : ordre, confirmation, grâce, essais espacés, entités injoignables (S13, S14, S22)
+- [x] Dérogation : règles § 5.3, persistance, `resume` (S5, S6, S15, S23, S25)
+- [x] Redémarrage / activation / modification, stabilisation, rattrapage des fins (S7, S8, S29)
+- [x] Conditions : dernière valeur connue, anti-rebond (S30)
+- [x] Journal de bord, journal des segments, notifications (S31)
+- [x] Renommage / suppression d'entités, alertes Réparations (S32)
+- [x] Dérogation volontaire avec échéance + service `override` (S35)
+- [x] Profils + `select` du profil actif (S36)
+- [x] Adaptive Lighting : contrôle manuel pendant une consigne fixe, repli switch (S37)
+- [x] Activation / redémarrage hors plage : défaut appliqué (S38)
 
 ### 14.3 Intégration HA
-- [ ] Config flow (instance unique) + options flow
-- [ ] Switchs (programmes, Vacances) + appareil
-- [ ] Services + API websocket + droits (S19, S34)
-- [ ] Détection des pilotes concurrents et contrôles VT (`check`)
-- [ ] Traductions fr / en
-- [ ] Désinstallation propre (S33)
+- [x] Config flow (instance unique) + options flow
+- [x] Switchs (programmes, Vacances) + appareil
+- [x] Services + API websocket + droits (S19, S34)
+- [x] Détection des pilotes concurrents et contrôles VT (`check`)
+- [x] Traductions fr / en
+- [x] Désinstallation propre (S33)
 
 ### 14.4 Carte
-- [ ] Outillage Lit/TS + bundle + ressource + cache-busting
-- [ ] Éditeur visuel de la carte
-- [ ] Vue consultation
-- [ ] Modale Programme
-- [ ] Modale Jour (glisser + loupe + ±5 min, liste, copie)
-- [ ] Modale Plage
-- [ ] Modes
-- [ ] Graphique 24 h
+- [x] Outillage Lit/TS + bundle + ressource + cache-busting
+- [x] Éditeur visuel de la carte
+- [x] Vue consultation
+- [x] Modale Programme
+- [x] Modale Jour (glisser + loupe + ±5 min, liste, copie)
+- [x] Modale Plage
+- [x] Modes
+- [x] Graphique 24 h
 - [ ] Responsive, thèmes, clavier, fr/en, mesure de rendu
 
 ### 14.5 Compatibilité
-- [ ] Versatile Thermostat (requested_state, verrou, avertissements, fenêtre)
-- [ ] Evohome (dérogation permanente, grâce 6 min)
-- [ ] Adaptive Lighting (Automatique, contextes, switch de zone)
+- [x] Versatile Thermostat (requested_state, verrou, avertissements, fenêtre)
+- [x] Evohome (dérogation permanente, grâce 6 min)
+- [x] Adaptive Lighting (Automatique, contextes, switch de zone)
 
 ### 14.6 Documentation et publication
-- [ ] README en / fr, captures, CHANGELOG, `docs/test-reel.md`, `docs/controle-visuel.md`
-- [ ] `scripts/deploy_prod.sh`
+- [x] README en / fr, captures, CHANGELOG, `docs/test-reel.md`, `docs/controle-visuel.md`
+- [x] `scripts/deploy_prod.sh`
 - [ ] Release `0.1.0` (prod par copie), puis `1.0.0` sur `main`
 - [ ] Dépôt public, installation HACS vérifiée, demande d'inclusion HACS par défaut
 
@@ -482,50 +482,50 @@ en mode YAML ; garde `customElements.get()` avant `define`. **Prototype de faisa
 - [x] Questions § 16 bis tranchées
 
 ### 14.9 Scénarios de test (automatiques)
-- [ ] S1 plage simple : début applique, fin applique le défaut
-- [ ] S2 plage passant minuit ; dimanche → lundi
-- [ ] S3 heure solaire + décalage + bornes (été / hiver)
-- [ ] S4 DST : 02:30 inexistante, 02:30 ambiguë, plage dans l'heure sautée
-- [ ] S5 dérogation pendant la plage : rien réappliqué, fin appliquée
-- [ ] S6 dérogation puis redémarrage : dérogation conservée
-- [ ] S7 redémarrage en cours de plage, `reappliquer` oui / non
-- [ ] S8 fin de plage manquée pendant l'arrêt → rattrapée
-- [ ] S9 deux programmes, priorités, reprise de la main
-- [ ] S10 condition de programme qui bascule en pleine plage
-- [ ] S11 condition de plage
-- [ ] S12 Vacances on / off
-- [ ] S13 entité injoignable puis revenue (dans et hors plage) ; notification après délai, retirée ensuite
-- [ ] S14 thermostat cloud lent (confirmation à 2 min, rafraîchissement 5 min) : pas de fausse dérogation
-- [ ] S15 Adaptive Lighting : pas de fausse dérogation
-- [ ] S16 défaut « état d'avant » avec deux programmes qui se croisent
-- [ ] S17 modification d'un mode utilisé par plusieurs programmes
-- [ ] S18 suppression d'un programme en pleine plage
-- [ ] S19 `admin_only` ; actions sensibles refusées aux non-admins
-- [ ] S20 migration du stockage n → n+1 ; sauvegarde
-- [ ] S21 plage courte + action lente : l'essai périmé n'est pas renvoyé
-- [ ] S22 VT verrouillé : échec immédiat et alerte
-- [ ] S23 VT fenêtre ouverte : pas de dérogation, vérification sur `requested_state`
-- [ ] S24 défaut « rien » et plage ponctuelle
-- [ ] S25 volet lent : pas de fausse dérogation pendant le mouvement
-- [ ] S26 plage solaire vide un jour donné (ignorée, signalée)
-- [ ] S27 fin `24:00`, refus de `00:00 → 00:00`, chevauchement entre jours
-- [ ] S28 stockage corrompu : lecture seule + alerte
-- [ ] S29 actions ponctuelles jamais réappliquées
-- [ ] S30 condition sur entité indisponible ; anti-rebond
-- [ ] S31 journal des segments utilisé pour le passé du graphique
-- [ ] S32 renommage et suppression d'entité
-- [ ] S33 ressource Lovelace : création, mise à jour de version, retrait à la désinstallation
-- [ ] S34 `revision` : écriture concurrente refusée
-- [ ] S35 « Déroger… » : durée, jusqu'à HH:MM, fin de plage, « Reprendre » avant terme, redémarrage pendant
-- [ ] S36 changement de profil en pleine plage
-- [ ] S37 lumière sous Adaptive Lighting avec consigne fixe : pas de réajustement, rendue à AL à la fin
-- [ ] S38 activation / redémarrage hors plage : défaut appliqué (et pas appliqué si `reappliquer = non`)
-- [ ] S39 plages contiguës au même mode / défaut identique : la fin efface un réglage manuel
-- [ ] S40 cible effective : « Déroger… » ne déclenche ni essais ni alerte ; `reappliquer = non` non plus
-- [ ] S41 AL oublie le contrôle manuel (bascule du switch de zone, redémarrage) : réaffirmé, pas de fausse dérogation
-- [ ] S42 `skip_next` et `apply_now`
-- [ ] S43 retrait d'une entité Evohome : remise en suivi de programme
-- [ ] S44 échéance de dérogation volontaire tombée pendant un arrêt de HA
+- [x] S1 plage simple : début applique, fin applique le défaut
+- [x] S2 plage passant minuit ; dimanche → lundi
+- [x] S3 heure solaire + décalage + bornes (été / hiver)
+- [x] S4 DST : 02:30 inexistante, 02:30 ambiguë, plage dans l'heure sautée
+- [x] S5 dérogation pendant la plage : rien réappliqué, fin appliquée
+- [x] S6 dérogation puis redémarrage : dérogation conservée
+- [x] S7 redémarrage en cours de plage, `reappliquer` oui / non
+- [x] S8 fin de plage manquée pendant l'arrêt → rattrapée
+- [x] S9 deux programmes, priorités, reprise de la main
+- [x] S10 condition de programme qui bascule en pleine plage
+- [x] S11 condition de plage
+- [x] S12 Vacances on / off
+- [x] S13 entité injoignable puis revenue (dans et hors plage) ; notification après délai, retirée ensuite
+- [x] S14 thermostat cloud lent (confirmation à 2 min, rafraîchissement 5 min) : pas de fausse dérogation
+- [x] S15 Adaptive Lighting : pas de fausse dérogation
+- [x] S16 défaut « état d'avant » avec deux programmes qui se croisent
+- [x] S17 modification d'un mode utilisé par plusieurs programmes
+- [x] S18 suppression d'un programme en pleine plage
+- [x] S19 `admin_only` ; actions sensibles refusées aux non-admins
+- [x] S20 migration du stockage n → n+1 ; sauvegarde
+- [x] S21 plage courte + action lente : l'essai périmé n'est pas renvoyé
+- [x] S22 VT verrouillé : échec immédiat et alerte
+- [x] S23 VT fenêtre ouverte : pas de dérogation, vérification sur `requested_state`
+- [x] S24 défaut « rien » et plage ponctuelle
+- [x] S25 volet lent : pas de fausse dérogation pendant le mouvement
+- [x] S26 plage solaire vide un jour donné (ignorée, signalée)
+- [x] S27 fin `24:00`, refus de `00:00 → 00:00`, chevauchement entre jours
+- [x] S28 stockage corrompu : lecture seule + alerte
+- [x] S29 actions ponctuelles jamais réappliquées
+- [x] S30 condition sur entité indisponible ; anti-rebond
+- [x] S31 journal des segments utilisé pour le passé du graphique
+- [x] S32 renommage et suppression d'entité
+- [x] S33 ressource Lovelace : création, mise à jour de version, retrait à la désinstallation
+- [x] S34 `revision` : écriture concurrente refusée
+- [x] S35 « Déroger… » : durée, jusqu'à HH:MM, fin de plage, « Reprendre » avant terme, redémarrage pendant
+- [x] S36 changement de profil en pleine plage
+- [x] S37 lumière sous Adaptive Lighting avec consigne fixe : pas de réajustement, rendue à AL à la fin
+- [x] S38 activation / redémarrage hors plage : défaut appliqué (et pas appliqué si `reappliquer = non`)
+- [x] S39 plages contiguës au même mode / défaut identique : la fin efface un réglage manuel
+- [x] S40 cible effective : « Déroger… » ne déclenche ni essais ni alerte ; `reappliquer = non` non plus
+- [x] S41 AL oublie le contrôle manuel (bascule du switch de zone, redémarrage) : réaffirmé, pas de fausse dérogation
+- [x] S42 `skip_next` et `apply_now`
+- [x] S43 retrait d'une entité Evohome : remise en suivi de programme
+- [x] S44 échéance de dérogation volontaire tombée pendant un arrêt de HA
 
 ## 15. v2 (hors périmètre)
 - Import des programmes `scheduler-component` (`.storage/scheduler.storage`, version 3) — nécessite plages ponctuelles et défaut « rien » (présents en v1).
