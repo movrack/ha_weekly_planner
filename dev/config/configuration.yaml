@@ -14,7 +14,7 @@ input_number:
 input_select:
 automation:
 script:
-scene:
+scene: !include scenes.yaml
 
 homeassistant:
   name: Weekly Planner dev
