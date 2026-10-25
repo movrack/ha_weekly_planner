@@ -135,6 +135,9 @@ export class WpSchedule extends LitElement {
     this._group = group ? structuredClone(group) : null;
     this._act = act;
     this._error = "";
+    // Show the top of the opened row, not the bottom of its form.
+    void this.updateComplete.then(() => requestAnimationFrame(() =>
+      this.renderRoot.querySelector<HTMLElement>(".editor")?.scrollIntoView({ block: "start" })));
   }
 
   private _cancel(): void {
@@ -214,7 +217,7 @@ export class WpSchedule extends LitElement {
   private async _deleteRow(): Promise<void> {
     const program = this._programs.find((p) => p.id === this._programId);
     if (!program || this._open === "new") return;
-    if (!(await confirmAction(this, t(this._lang, "w_confirm_slot"), t(this._lang, "delete")))) return;
+    if (!(await confirmAction(this, t(this._lang, "w_confirm_slot"), t(this._lang, "yes"), t(this._lang, "no")))) return;
     const profile = activeProfile(program, this.data);
     const include = this._include(program);
     const groups = groupSlots(profile, include, this._minutes)
@@ -238,7 +241,7 @@ export class WpSchedule extends LitElement {
   }
 
   private async _setEnabled(enabled: boolean, input: HTMLInputElement): Promise<void> {
-    if (!enabled && !(await confirmAction(this, t(this._lang, "confirm_pause", { name: this._title }), t(this._lang, "pause_do")))) {
+    if (!enabled && !(await confirmAction(this, t(this._lang, "confirm_pause", { name: this._title }), t(this._lang, "yes"), t(this._lang, "no")))) {
       input.checked = true;
       return;
     }
@@ -252,7 +255,7 @@ export class WpSchedule extends LitElement {
   }
 
   private async _deleteAll(): Promise<void> {
-    if (!(await confirmAction(this, t(this._lang, "confirm_delete_schedule", { name: this._title }), t(this._lang, "delete")))) return;
+    if (!(await confirmAction(this, t(this._lang, "confirm_delete_schedule", { name: this._title }), t(this._lang, "yes"), t(this._lang, "no")))) return;
     try {
       for (const program of this._programs) {
         const eid = this.scope.kind === "device" ? this.scope.entityId : null;
@@ -294,7 +297,7 @@ export class WpSchedule extends LitElement {
     return slot.end ? `${start}–${specText(lang, slot.end)}` : start;
   }
 
-  private _rowText(program: Program, group: SlotGroup): { text: string; color: string } {
+  private _rowText(program: Program, group: SlotGroup): { text: string; days: string; color: string } {
     const lang = this._lang;
     const ids = this._entities.filter((e) => program.entities.some((x) => x.entity_id === e));
     const withAct = ids.map((e) => ({ e, act: readAct(group.slot, e, this.data.modes) })).filter((x) => x.act);
@@ -303,7 +306,8 @@ export class WpSchedule extends LitElement {
     const more = withAct.length > 1 ? ` +${withAct.length - 1}` : "";
     const days = daysText(lang, strings(lang).days_short, group.days);
     return {
-      text: [`${what}${more}`, this._when(group.slot), days].filter(Boolean).join(" · "),
+      text: [`${what}${more}`, this._when(group.slot)].filter(Boolean).join(" · "),
+      days,
       color: first ? actColor(this.data.modes, first.e, first.act) : "var(--disabled-text-color)",
     };
   }
@@ -311,10 +315,10 @@ export class WpSchedule extends LitElement {
   private _renderRow(row: { program: Program; group: SlotGroup; key: string }) {
     const { program, group, key } = row;
     if (this._open === key && this._group) return this._renderEditor(program, key);
-    const { text, color } = this._rowText(program, group);
+    const { text, days, color } = this._rowText(program, group);
     return html`<button class="row" aria-expanded="false" @click=${() => this._expand(key, program, group)}>
       <span class="dot" style="background:${color}"></span>
-      <span class="txt">${text}${this._programs.length > 1 ? html`<small>${program.name}</small>` : nothing}</span>
+      <span class="txt"><span class="l1">${text}</span><span class="l2">${days}</span>${this._programs.length > 1 ? html`<small>${program.name}</small>` : nothing}</span>
       <ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
   }
 
@@ -355,11 +359,11 @@ export class WpSchedule extends LitElement {
             <button class="btn" @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
           </div></div>`;
       }
-      const text = act.special === "none" ? t(lang, "rest_none") : act.special === "previous" ? t(lang, "rest_previous")
+      const text = act.special === "none" ? t(lang, "rest_none_short") : act.special === "previous" ? t(lang, "rest_previous_short")
         : actText(this.hass, lang, this.data.modes, eid, act);
       return html`<button class="row rest" aria-expanded="false" @click=${() => this._expand(key, program, null, act)}>
         <ha-icon icon="mdi:update"></ha-icon>
-        <span class="txt">${label} <b>${text}</b></span><ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
+        <span class="txt">${label} · <b>${text}</b></span><ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
     });
   }
 
@@ -406,12 +410,13 @@ export class WpSchedule extends LitElement {
         </div>
         ${this._open !== null ? nothing : html`${this._renderChart()}
         <label class="switch">
-          <span>${t(lang, "schedule_on")}</span>
+          <span class="grow">${t(lang, "schedule_on")}</span>
+          <span class="state">${this._enabled ? t(lang, "running") : t(lang, "stopped")}</span>
           <input type="checkbox" .checked=${this._enabled} ?disabled=${!this._canEdit}
             @change=${(e: Event) => void this._setEnabled((e.target as HTMLInputElement).checked, e.target as HTMLInputElement)} />
           <span class="track"></span>
         </label>
-        <button class="btn danger alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteAll()}>
+        <button class="btn danger-line alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteAll()}>
           <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete_schedule")}</button>`}
       </wp-dialog>`;
   }
@@ -425,6 +430,9 @@ export class WpSchedule extends LitElement {
       cursor: pointer; width: 100%; --mdc-icon-size: 22px;
     }
     .row .txt { flex: 1; min-width: 0; overflow-wrap: anywhere; line-height: 1.3; }
+    .row .txt .l1, .row .txt .l2 { display: block; }
+    .row .txt .l2 { color: var(--secondary-text-color); font-size: 14px; }
+    .row.rest .txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15px; }
     .row .txt small { display: block; color: var(--secondary-text-color); font-size: 12px; }
     .row.add { border-style: dashed; color: var(--primary-color); font-weight: 500; }
     .row.rest { background: var(--secondary-background-color); }
@@ -434,8 +442,8 @@ export class WpSchedule extends LitElement {
     .editor h4 { margin: 0 0 8px; font-size: 15px; }
     .btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
     .btns .btn { flex: 1 1 120px; }
-    .btn.alone { width: 100%; margin-top: 16px; }
-    .editor .btn.alone { margin-top: 12px; }
+    .btn.alone { width: 100%; margin-top: 32px; }
+    .editor { scroll-margin-top: 8px; }
     .btn.danger-line { color: var(--error-color, #db4437); border-color: var(--error-color, #db4437); }
     .btn.danger { background: var(--error-color, #db4437); border-color: var(--error-color, #db4437); color: #fff; }
     .err { color: var(--error-color, #db4437); margin: 8px 0; }
@@ -449,6 +457,7 @@ export class WpSchedule extends LitElement {
     }
     .gear:hover { background: var(--secondary-background-color); }
     .switch { position: relative; min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; margin-top: 12px; font-size: 16px; }
+    .switch .state { font-size: 14px; color: var(--secondary-text-color); }
     .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
     .switch .track { position: relative; width: 44px; height: 24px; border-radius: 12px; background: var(--disabled-color, #bdbdbd); transition: background 0.2s; flex: none; }
     .switch .track::before { content: ""; position: absolute; width: 20px; height: 20px; left: 2px; top: 2px; border-radius: 50%; background: #fff; transition: transform 0.2s; }

@@ -41,7 +41,9 @@ export class WpDayBar extends LitElement {
 
   /** A label is only drawn when its span is at least 60 px wide (never cut off). */
   private _fits(s: BarSpan): boolean {
-    return !this.thin && this._width > 0 && ((s.end - s.start) / DAY) * this._width >= 60;
+    // Never under the "now" line: a label cut by it is dropped.
+    const cut = this.now !== null && this.now >= s.start - 20 && this.now <= s.end + 20;
+    return !this.thin && !cut && this._width > 0 && ((s.end - s.start) / DAY) * this._width >= 60;
   }
 
   render() {
@@ -59,7 +61,7 @@ export class WpDayBar extends LitElement {
         ${this.now !== null ? html`<div class="now" style="left:${pct(this.now)}"></div>` : nothing}
       </div>
       ${this.showHours
-        ? html`<div class="hours">${[0, 6, 12, 18, 24].map((h) => html`<span style="left:${pct(h * 60)}">${h}h</span>`)}</div>`
+        ? html`<div class="hours">${[0, 12, 24].map((h) => html`<span style="left:${pct(h * 60)}">${h} h</span>`)}</div>`
         : nothing}
     `;
   }
@@ -88,7 +90,7 @@ export class WpDayBar extends LitElement {
       position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px;
       background: var(--primary-text-color); box-shadow: 0 0 0 1px var(--card-background-color);
     }
-    .hours { position: relative; height: 16px; font-size: 10px; color: var(--secondary-text-color); }
+    .hours { position: relative; height: 20px; font-size: 12px; color: var(--secondary-text-color); }
     .hours span { position: absolute; transform: translateX(-50%); top: 2px; }
     .hours span:first-child { transform: none; }
     .hours span:last-child { transform: translateX(-100%); }

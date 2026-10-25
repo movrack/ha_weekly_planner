@@ -120,14 +120,14 @@ export class WpDialog extends LitElement {
       border-radius: var(--ha-card-border-radius, 16px); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
     }
     .panel.wide { width: min(880px, calc(100vw - 32px)); }
-    header { display: flex; align-items: center; gap: 8px; padding: 16px 16px 8px 20px; }
+    header { display: flex; align-items: center; gap: 12px; padding: 16px 16px 8px 20px; }
     header { touch-action: none; }
     h2 {
       flex: 1; min-width: 0; margin: 0; font-size: 20px; font-weight: 500;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .content { padding: 8px 20px 16px; overflow-y: auto; }
-    footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 8px 16px 16px; }
+    footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 8px 20px 20px; }
     footer:empty { display: none; }
     button.icon {
       border: none; background: none; color: inherit; --mdc-icon-size: 24px; width: 48px; height: 48px;

@@ -215,7 +215,7 @@ export class WeeklyPlannerCard extends LitElement {
           ${paused ? html`<ha-icon class="pause" icon="mdi:pause-circle-outline" title=${t(lang, "paused")}></ha-icon>` : nothing}
           ${opts.button ? html`<button class="hours" @click=${open}>${t(lang, "hours")}</button>` : nothing}
         </div>
-        <wp-day-bar .spans=${this._spans(entityId, programs)} .now=${localMinutes(this._now, this._tz)}
+        <wp-day-bar show-hours .spans=${this._spans(entityId, programs)} .now=${localMinutes(this._now, this._tz)}
           @click=${open}></wp-day-bar>
         ${override ? html`<div class="manual"><ha-icon icon="mdi:hand-back-right"></ha-icon><span>${sub}</span>
           <button class="x" aria-label=${t(lang, "cancel_manual")} @click=${() => void this._cancelOverride(entityId)}>

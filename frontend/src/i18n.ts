@@ -397,9 +397,9 @@ const en = {
   rest_previous: "Previous state",
   rest_of_time: "The rest of the time",
   all_days_text: "Every day",
-  weekend: "Wknd",
-  all_days: "All",
-  weekdays: "Mon–Fri",
+  weekend: "Weekend",
+  all_days: "Every day",
+  weekdays: "Weekdays",
   minus15: "15 minutes earlier",
   plus15: "15 minutes later",
   start: "Start",
@@ -429,6 +429,13 @@ const en = {
   ce_display: "Display",
   ce_display_device: "By device",
   ce_display_schedule: "By schedule",
+  yes: "Yes",
+  no: "No",
+  running: "On",
+  stopped: "Off",
+  rest_none_short: "None",
+  rest_previous_short: "Before",
+  add_param: "+ {name}",
 };
 
 const fr: typeof en = {
@@ -828,9 +835,9 @@ const fr: typeof en = {
   rest_previous: "État d'avant",
   rest_of_time: "Le reste du temps",
   all_days_text: "Tous les jours",
-  weekend: "W-E",
-  all_days: "Tous",
-  weekdays: "Lun–Ven",
+  weekend: "Week-end",
+  all_days: "Tous les jours",
+  weekdays: "Semaine",
   minus15: "15 minutes plus tôt",
   plus15: "15 minutes plus tard",
   start: "Début",
@@ -860,6 +867,13 @@ const fr: typeof en = {
   ce_display: "Affichage",
   ce_display_device: "Par appareil",
   ce_display_schedule: "Par horaire",
+  yes: "Oui",
+  no: "Non",
+  running: "En marche",
+  stopped: "À l'arrêt",
+  rest_none_short: "Rien",
+  rest_previous_short: "Avant",
+  add_param: "+ {name}",
 };
 
 export type Strings = typeof en;
