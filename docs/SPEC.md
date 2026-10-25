@@ -376,6 +376,41 @@ Lit + TypeScript, bundle `custom_components/weekly_planner/frontend/weekly-plann
 `async_register_static_paths` ; **ressource Lovelace** (mode storage) avec `?v=<hash>` ; `add_extra_js_url` seulement
 en mode YAML ; garde `customElements.get()` avant `define`. **Prototype de faisabilité** sur HA 2026.10 avant le reste.
 
+### 10.7 Mode simple et « Plus d'options » (revue d'ergonomie n° 1, décisions Q-N1 à Q-N4)
+Persona de référence : une personne âgée qui ne connaît pas Home Assistant (« Mamy doit pouvoir régler
+son chauffage »). Écran de référence : Galaxy S22, 360 × 780 px.
+- **Par défaut, la carte est en mode simple.** Par programme : titre clair (nom du programme), une
+  phrase d'état, et les commandes du **type principal** :
+  | Type | Phrase d'état | Commandes |
+  |---|---|---|
+  | Thermostat | « Il fait 19,2 °C · voulu 20,5 °C jusqu'à 22:00 » (+ « chauffe » si `hvac_action`) | **Moins chaud / Plus chaud** (±0,5 °C par appui, appui maintenu = répétition) + **sélecteur de mode** (Éco, Confort, Boost…) |
+  | Volet | « Ouvert à 30 % · fermeture prévue à 19:00 » | Ouvrir / Fermer + sélecteur (Favori…) |
+  | Lumière | « Allumée à 60 % · s'éteint à 23:00 » | Allumer / Éteindre, plus / moins lumineux (±10 %) |
+  | Prise, interrupteur | « Allumée · s'éteint à 23:00 » | Allumer / Éteindre |
+  Plusieurs appareils : celui du type principal, puis « et N autres » (toucher = liste avec les mêmes commandes).
+- **Toute commande du mode simple est une dérogation jusqu'au prochain horaire**, sans question
+  (Q-N2). Une ligne « Jusqu'à 22:00 · Modifier la durée » propose 1 h, 2 h, ce soir, toute la journée.
+  Confirmation visible : « C'est fait : 20,5 °C jusqu'à 22:00 » ; bouton « Reprendre le programme ».
+- **« Changer les horaires »** (mode simple) : liste en phrases, un jour à la fois (« De 07:00 à 09:00 :
+  Confort »), heures au sélecteur natif, boutons « Plus tôt / Plus tard » (15 min), ajout et retrait de
+  plage (avec confirmation), copie vers « tous les jours de semaine » / « le week-end ».
+- **« Plus d'options »** (`mdi:chevron-down`, devient `mdi:chevron-up` « Moins d'options ») : affiche
+  semaine détaillée, graphique, programmes, modes, profils, priorités, conditions, horaires solaires,
+  consignes directes, volets/lumières secondaires. Visible seulement si la carte l'autorise
+  (`show_advanced`, vrai par défaut) : désactivé sur le tableau de bord de Mamy (Q-N3).
+- **Vocabulaire** : aucun identifiant technique ni mot anglais à l'écran ; « Déroger… » → « Changer pour
+  l'instant » ; « Entités » → « Appareils » ; « Hors plage » → « En dehors des horaires » ; « Profil » →
+  « Saison » ; « Consigne » → « Réglage » ; presets affichés par leur nom de mode traduit.
+- **Gestes tactiles** : toucher (action principale) ; appui maintenu sur ± (répétition, vibration
+  `navigator.vibrate` à chaque cran) ; balayer gauche/droite dans la vue d'un jour (jour suivant /
+  précédent) ; balayer vers le bas pour fermer une modale ; glisser les bords d'une plage (avancé,
+  avec loupe) ; appui long sur une plage = menu rapide (modifier, copier, supprimer) ; pincer la barre
+  d'édition = zoom. Pas de double-toucher. Tout geste a un équivalent bouton.
+- **Sécurité** : toute suppression (programme, saison, mode, plage, appareil) demande confirmation et
+  son bouton est séparé des boutons Enregistrer / Annuler.
+- **Mise en page** : cibles tactiles ≥ 48 px (≥ 56 px pour ±), texte ≥ 14 px (16 px pour les phrases
+  d'état), rien de rogné ni de tronqué à 360 px, titres sur une ligne.
+
 ## 11. Compatibilité
 
 - **Versatile Thermostat** : § 6.2. Fenêtre ouverte : VT gère, pas de dérogation, la consigne de fin est envoyée au VT.
