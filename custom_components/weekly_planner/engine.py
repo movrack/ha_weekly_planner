@@ -365,6 +365,8 @@ class PlannerEngine:
             return
         if rt.get("oneshot") and not changed:
             return
+        if is_one_shot(rt.get("target")) and not (changed and reason in ("timer", "condition")):
+            return  # one-shot actions run at their time only, never re-applied (spec § 5.5)
         await self.async_apply(entity_id, reason)
 
     def _missed_end(self, rt: dict, seg: Segment) -> bool:

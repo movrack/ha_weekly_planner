@@ -90,7 +90,8 @@ class FakeClimate:
 
 async def setup(hass: HomeAssistant, hass_storage, freezer, programs, start: datetime, **options):
     await hass.config.async_update(time_zone="Europe/Brussels")
-    freezer.move_to(start)
+    if start is not None:
+        freezer.move_to(start)
     hass_storage[DOMAIN] = {"version": 1, "minor_version": 1, "key": DOMAIN,
                             "data": {"vacation": False, "modes": _modes(), "programs": programs}}
     entry = MockConfigEntry(domain=DOMAIN, data={}, options=options)
