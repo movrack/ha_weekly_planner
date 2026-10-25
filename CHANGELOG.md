@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-25
+
+First test release, installed by copy on the author's instance before the public release.
+
 ### Added
 - Weekly programs with several entities, each with its own setpoint, and one switch per program.
 - Slots with a start and an end, one-shot slots, slots crossing midnight, `24:00` end, 5-minute steps.
@@ -34,3 +38,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Repairs alerts for removed entities; entity renames followed automatically.
 - Versioned storage with backup before migration and read-only start when the file is corrupted.
 - Single repository: the integration serves its card and registers the Lovelace resource.
+- Simple mode for non-technical users (default): current and wanted temperature, warmer / colder buttons
+  (±0.5 °C, hold to repeat), mode selector, override until the next change with an editable duration,
+  sentence-based schedule editor, "More options" for advanced settings (`show_advanced`).
+- Touch gestures: swipe between days, swipe down to close dialogs, long press on a slot, pinch to zoom.
+- Confirmation before every deletion; 360 px layout; standard mdi icons.
+- Warnings for other controllers of the same entity (Scheduler, automations, other programs) and risky
+  Versatile Thermostat settings.
+
+### Fixed
+- Refused setpoints (for example an unknown preset) are no longer re-sent every minute.
+- Day view crash on modes without exceptions.
