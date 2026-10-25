@@ -15,6 +15,7 @@ lint = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+addopts = "--timeout=60"
 testpaths = ["tests"]
 pythonpath = ["."]
 
