@@ -109,6 +109,7 @@ export interface PlannerData {
   programs: Program[];
   status: Record<string, ProgramStatus>;
   entities: Record<string, EntityRuntime>;
+  warnings?: Record<string, { entity_id: string; code: string; detail: string }[]>;
   read_only: boolean;
   can_edit: boolean;
   is_admin?: boolean;

@@ -234,6 +234,13 @@ const en = {
   sp_on: "On",
   sp_off: "Off",
   sp_auto: "Automatic",
+  warn_other_program: "{entity} is also in: {detail} (the higher priority wins)",
+  warn_automation: "{entity} is also driven by automations: {detail}",
+  warn_scheduler: "{entity} is also driven by Scheduler: {detail}",
+  warn_missing: "{entity} does not exist any more",
+  warn_vt_follow_underlying: "{entity}: turn off “follow underlying changes” in Versatile Thermostat",
+  warn_vt_underlying_scheduled: "{entity} drives {detail}, which is also scheduled",
+  warn_vt_locked: "{entity} is locked for automations: setpoints will not be sent",
 };
 
 const fr: typeof en = {
@@ -470,6 +477,13 @@ const fr: typeof en = {
   sp_on: "Allumé",
   sp_off: "Éteint",
   sp_auto: "Automatique",
+  warn_other_program: "{entity} est aussi dans : {detail} (le plus prioritaire l'emporte)",
+  warn_automation: "{entity} est aussi piloté par des automatisations : {detail}",
+  warn_scheduler: "{entity} est aussi piloté par Scheduler : {detail}",
+  warn_missing: "{entity} n'existe plus",
+  warn_vt_follow_underlying: "{entity} : désactivez « suivre les changements du sous-jacent » dans Versatile Thermostat",
+  warn_vt_underlying_scheduled: "{entity} pilote {detail}, qui est aussi programmé",
+  warn_vt_locked: "{entity} est verrouillé pour les automatisations : les consignes ne seront pas envoyées",
 };
 
 export type Strings = typeof en;
