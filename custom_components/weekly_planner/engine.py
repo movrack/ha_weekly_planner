@@ -16,6 +16,7 @@ from typing import Any
 from homeassistant.components import persistent_notification
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import CALLBACK_TYPE, Context, Event, HomeAssistant, State, callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_point_in_utc_time, async_track_state_change_event
 from homeassistant.helpers.sun import get_astral_event_date
@@ -536,10 +537,20 @@ class PlannerEngine:
                 )
         except asyncio.CancelledError:
             raise
-        except Exception as err:  # noqa: BLE001 - any service failure is retried
+        except ServiceValidationError as err:
+            # The device refuses this setpoint (unknown preset…): retrying cannot help.
+            _LOGGER.warning("Setpoint %s refused by %s: %s", setpoint, entity_id, err)
+            self._tasks.pop(entity_id, None)
+            rt.pop("retry_at", None)
+            rt["refused"] = True
+            self._notify_failure(entity_id, str(err))
+            self._persist()
+            return
+        except Exception as err:  # noqa: BLE001 - other failures are retried with a backoff
             _LOGGER.warning("Applying %s to %s failed: %s", setpoint, entity_id, err)
         finally:
             self._tasks.pop(entity_id, None)
+        rt.pop("refused", None)
         rt.pop("pending", None)
         if is_one_shot(setpoint):
             self._log(entity_id, "applied", {"setpoint": setpoint, "reason": reason})
@@ -547,7 +558,8 @@ class PlannerEngine:
         now = dt_util.utcnow()
         rt["grace_until"] = (now + self.grace_for(entity_id)).isoformat()
         rt["retry_at"] = rt["grace_until"]
-        rt["attempt"] = 0
+        if reason != "retry":
+            rt["attempt"] = 0
         self._schedule_notify(entity_id)
         if reason != "retry":  # one logbook entry per decision, not per attempt
             self._log(entity_id, "applied", {"setpoint": setpoint, "reason": reason})
@@ -598,13 +610,14 @@ class PlannerEngine:
             delay = timedelta(minutes=self.options.get("notify_delay_min", 30))
             rt["notify_at"] = (dt_util.utcnow() + delay).isoformat()
 
-    def _notify_failure(self, entity_id: str) -> None:
+    def _notify_failure(self, entity_id: str, reason: str | None = None) -> None:
         target = self.effective_target(entity_id)
-        if target is None or matches(self.hass.states.get(entity_id), target):
+        if target is None or (reason is None and matches(self.hass.states.get(entity_id), target)):
             return
         persistent_notification.async_create(
             self.hass,
-            f"{entity_id} has not reached its scheduled setpoint ({target}).",
+            f"{entity_id} has not reached its scheduled setpoint ({target})."
+            + (f" {reason}" if reason else ""),
             title="Weekly Planner",
             notification_id=f"{DOMAIN}_{entity_id}_failed",
         )

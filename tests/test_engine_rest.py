@@ -103,3 +103,21 @@ async def test_effective_target_no_retry_during_override(hass, hass_storage, fre
     await tick(hass, freezer, timedelta(minutes=10))
     assert len(climate.calls) == calls  # boost is the effective target: no retry towards comfort
     assert climate.preset == "boost"
+
+
+async def test_refused_setpoint_not_retried(hass, hass_storage, freezer):
+    from homeassistant.exceptions import ServiceValidationError
+
+    calls = []
+
+    async def refuse(call):
+        calls.append(call)
+        raise ServiceValidationError("Preset mode comfort is not valid")
+
+    FakeClimate(hass)
+    hass.services.async_register("climate", "set_preset_mode", refuse)
+    await setup(hass, hass_storage, freezer, [program()], local(26, 9, 0))
+    count = len(calls)
+    assert count >= 1
+    await tick(hass, freezer, timedelta(minutes=20))
+    assert len(calls) == count  # no retry loop
