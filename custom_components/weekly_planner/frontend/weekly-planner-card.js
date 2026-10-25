@@ -2433,7 +2433,7 @@ function Re(e, t, s) {
     const [n, r] = t.time.split(":").map(Number);
     return me(n * 60 + r >= k ? "24 h" : Is(e, n * 60 + r));
   }
-  const i = h(e, `sun_${t.sun}`), o = t.offset ? ` ${Ii(e, t.offset)}` : "";
+  const i = h(e, t.sun === "sunrise" || t.sun === "sunset" ? `sun_${t.sun}_short` : `sun_${t.sun}`), o = t.offset ? ` ${Ii(e, t.offset)}` : "";
   return me(`${i}${o}`);
 }
 function gs(e, t) {
@@ -2558,7 +2558,7 @@ let nt = class extends P {
   }
   _params(e) {
     var a;
-    if (!(e != null && e.param) || !this.act || this.act.modeId) return p;
+    if (!(e != null && e.param) || !this.act) return p;
     const t = this._lang, s = ((a = this.hass.states[this.entityId]) == null ? void 0 : a.attributes) ?? {}, i = this.act.sp;
     if (e.param === "temperature") {
       const l = lt(s.min_temp) ?? 5, d = lt(s.max_temp) ?? 35, m = lt(i.temperature) ?? 19, _ = (f) => this._patch({ temperature: re(Math.round(f * 2) / 2, l, d) });
@@ -3920,16 +3920,16 @@ let z = class extends P {
   get _enabled() {
     return this._programs.some((e) => e.enabled);
   }
-  async _setEnabled(e) {
+  async _setEnabled(e, t) {
     if (!e && !await St(this, h(this._lang, "confirm_pause", { name: this._title }), h(this._lang, "pause_do"))) {
-      this.requestUpdate();
+      t.checked = !0;
       return;
     }
     try {
-      for (const t of this._programs)
-        await this.hass.callWS({ type: "weekly_planner/program/set_enabled", program_id: t.id, enabled: e });
-    } catch (t) {
-      this._error = h(this._lang, "error", { message: (t == null ? void 0 : t.message) ?? String(t) });
+      for (const s of this._programs)
+        await this.hass.callWS({ type: "weekly_planner/program/set_enabled", program_id: s.id, enabled: e });
+    } catch (s) {
+      this._error = h(this._lang, "error", { message: (s == null ? void 0 : s.message) ?? String(s) });
     }
   }
   async _deleteAll() {
@@ -4062,7 +4062,7 @@ let z = class extends P {
         <label class="switch">
           <span>${h(e, "schedule_on")}</span>
           <input type="checkbox" .checked=${this._enabled} ?disabled=${!this._canEdit}
-            @change=${(o) => void this._setEnabled(o.target.checked)} />
+            @change=${(o) => void this._setEnabled(o.target.checked, o.target)} />
           <span class="track"></span>
         </label>
         <button class="btn danger alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteAll()}>

@@ -55,7 +55,7 @@ Un programme fixé :
 type: custom:weekly-planner-card
 program: chauffage-bureau
 title: Bureau
-show_week: true
+display: schedule
 show_chart: true
 ```
 
@@ -75,11 +75,15 @@ title: Chauffage
 | `filter.types` | Types d'entités à lister (`climate`, `cover`, `light`...). |
 | `filter.area` | Seulement les programmes qui contiennent des entités de cette zone. |
 | `title` | Titre de la carte. |
-| `show_week` | Afficher les barres repliées de la semaine (désactivé par défaut). |
-| `show_chart` | Afficher le graphique prévu/réel dans la vue du jour (activé par défaut). |
+| `display` | `device` (par défaut) : un bloc par appareil. `schedule` : un bloc par programme. |
+| `show_chart` | Afficher le graphique prévu/mesuré dans l'écran des horaires (activé par défaut). |
 
-La carte a deux visages : une consultation très lisible, et la configuration dans des fenêtres (plein écran
-sur téléphone). Touchez une barre de jour pour voir le jour (graphique + liste), puis **Modifier**.
+La carte est un planificateur, pas une télécommande : une ligne compacte par appareil (état, prochaine action
+prévue, barre du jour) et un bouton **Horaires**. L'écran des horaires liste les plages une par ligne (toucher
+pour modifier sur place : début, fin facultative, jours, action), le reste du temps, un graphique
+prévu/mesuré, un interrupteur de pause et une suppression confirmée. L'engrenage (administrateurs
+uniquement) ouvre les réglages du propriétaire. Les modes communs (Nuit, Confort...) se modifient dans les
+options de l'intégration.
 
 <!-- screenshot: docs/images/card-day-editor.png — l'éditeur du jour avec bords de plage glissables -->
 <!-- screenshot: docs/images/card-chart.png — le graphique prévu/réel -->

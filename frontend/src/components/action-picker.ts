@@ -57,7 +57,7 @@ export class WpActionPicker extends LitElement {
   }
 
   private _params(choice: Choice | undefined): unknown {
-    if (!choice?.param || !this.act || this.act.modeId) return nothing;
+    if (!choice?.param || !this.act) return nothing;
     const lang = this._lang;
     const a = this.hass.states[this.entityId]?.attributes ?? {};
     const sp = this.act.sp as Record<string, unknown>;

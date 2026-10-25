@@ -54,7 +54,7 @@ One fixed program:
 type: custom:weekly-planner-card
 program: office-heating
 title: Office
-show_week: true
+display: schedule
 show_chart: true
 ```
 
@@ -74,11 +74,14 @@ title: Heating
 | `filter.types` | Entity types to list (`climate`, `cover`, `light`...). |
 | `filter.area` | Only programs that contain entities of this area. |
 | `title` | Card title. |
-| `show_week` | Show the folded week bars (default off). |
-| `show_chart` | Show the planned/actual chart in the day view (default on). |
+| `display` | `device` (default): one block per device. `schedule`: one block per program. |
+| `show_chart` | Show the planned/measured chart in the schedule screen (default on). |
 
-The card has two faces: a very readable consultation view, and configuration in dialogs (full screen on a
-phone). Tap a day bar to see the day (chart + list), then **Edit**.
+The card is a planner, not a remote control: one compact line per device (state, next scheduled action,
+day bar) and a **Schedule** button. The schedule screen lists the slots one per row (tap to edit in place:
+start, optional end, days, action), the rest of the time, a planned/measured chart, a pause switch and a
+confirmed delete. The gear (administrators only) opens the owner settings. The common modes (Night,
+Comfort...) are edited in the integration options.
 
 <!-- screenshot: docs/images/card-day-editor.png — the day editor with draggable slot edges -->
 <!-- screenshot: docs/images/card-chart.png — the planned/actual chart -->
