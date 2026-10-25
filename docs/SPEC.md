@@ -103,7 +103,8 @@ abandonnée dès que ce segment est périmé** (une seule tâche en vol par enti
 - **Fin** : appliquer l'état par défaut, **même si une dérogation a eu lieu pendant la plage**.
 - Exemple de référence : volet, plage 20:00 → 08:00 « Fermé », défaut « Favori ». 20:00 il ferme ; 21:00 la
   télécommande l'ouvre à moitié → il reste à moitié ; 08:00 il passe en favori.
-- **Plage ponctuelle** (début seul) : applique la consigne à l'heure dite ; pas de fin, pas de défaut.
+- **Plage ponctuelle** (début seul) : applique la consigne à l'heure dite ; pas de fin, pas de défaut. Elle est
+  **sautée** si un programme plus prioritaire est dans une plage pour cette entité ou si une dérogation est en cours.
 
 ### 5.3 Dérogation manuelle
 Une **dérogation** est déclarée quand, pendant un segment, l'état **stable** des attributs pilotés de *E* devient
@@ -545,5 +546,5 @@ en mode YAML ; garde `customElements.get()` avant `define`. **Prototype de faisa
 - Q-I ✅ Vacances, désactivation ou changement de profil annulent la dérogation volontaire.
 - Q-J ✅ Un programme désactivé libère ses entités (son défaut ne vaut que pour sa propre désactivation) ; Vacances : défaut du plus prioritaire, une fois.
 - Q-K ✅ Le réglage à la main l'emporte et remplace la dérogation volontaire (devient externe, échéance oubliée).
-- Q-L Plage ponctuelle d'un programme moins prioritaire pendant une plage plus prioritaire ou une dérogation : exécutée ou sautée ?
+- Q-L ✅ Sautée (priorité et dérogation l'emportent).
 - Q-M Avec `admin_only`, un non-admin peut-il utiliser « Déroger… » et changer de profil ?
