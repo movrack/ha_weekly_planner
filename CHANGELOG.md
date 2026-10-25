@@ -17,6 +17,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Hour notches in every day bar and one hour scale above the week list.
 - The schedule button of each line has no border and its icon sits on the first line.
 
+### Fixed (visual polish)
+- Today's bar and the week bars have the same width (a "Today" label column) and one hour scale 0/6/12/18/24 h; hour lines at 6, 12 and 18 h drawn behind the slots.
+- Bar labels are drawn only when they fit entirely.
+- The next change says "tomorrow" instead of the weekday.
+- Generic actions: technical services (a required free text or raw object) are left out; the device name shared by all labels is dropped ("Start" instead of "Start the vacuum"); long labels wrap instead of being cut.
+- The end choice reads "Until…" instead of repeating "End".
+
 ## [0.4.1] - 2026-10-25
 
 ### Changed

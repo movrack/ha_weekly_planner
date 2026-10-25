@@ -19,7 +19,7 @@ export class WpDayBar extends LitElement {
   @property({ type: Number }) now: number | null = null;
   @property({ type: Boolean }) thin = false;
   @property({ type: Boolean, attribute: "show-hours" }) showHours = false;
-  /** Small hour marks inside the bar: every 3 h, stronger at 6, 12 and 18 h. */
+  /** Hour lines inside the bar at 6, 12 and 18 h, behind the slots. */
   @property({ type: Boolean }) notches = false;
 
   @state() private _width = 0;
@@ -41,11 +41,13 @@ export class WpDayBar extends LitElement {
     this._ro?.disconnect();
   }
 
-  /** A label is only drawn when its span is at least 60 px wide (never cut off). */
+  /** A label is only drawn when its span is wide enough for it (never cut off). */
   private _fits(s: BarSpan): boolean {
     // Never under the "now" line: a label cut by it is dropped.
     const cut = this.now !== null && this.now >= s.start - 20 && this.now <= s.end + 20;
-    return !this.thin && !cut && this._width > 0 && ((s.end - s.start) / DAY) * this._width >= 60;
+    // Room needed: about 7 px per character, the sun icon and the padding.
+    const need = Math.max(40, s.label.length * 7 + (s.sun ? 18 : 0) + 14);
+    return !this.thin && !cut && this._width > 0 && ((s.end - s.start) / DAY) * this._width >= need;
   }
 
   render() {
@@ -53,6 +55,7 @@ export class WpDayBar extends LitElement {
     return html`
       <div class="bar ${this.thin ? "thin" : ""}" role="img"
         aria-label=${this.spans.map((s) => s.label).join(", ")}>
+        ${this.notches ? [6, 12, 18].map((h) => html`<i class="tick" style="left:${pct(h * 60)}"></i>`) : nothing}
         ${this.spans.map(
           (s) => html`<div
             class="span ${s.ignored ? "ignored" : ""}"
@@ -60,12 +63,10 @@ export class WpDayBar extends LitElement {
             title=${s.label}
           >${this._fits(s) ? html`<span>${s.sun ? html`<ha-icon icon="mdi:weather-sunny"></ha-icon>` : nothing}${s.label}</span>` : nothing}</div>`,
         )}
-        ${this.notches ? [0, 3, 6, 9, 12, 15, 18, 21, 24].map((h) => html`<i class="tick ${h % 6 === 0 && h % 24 !== 0 ? "strong" : ""}"
-          style="left:${h === 24 ? "calc(100% - 1px)" : pct(h * 60)}"></i>`) : nothing}
         ${this.now !== null ? html`<div class="now" style="left:${pct(this.now)}"></div>` : nothing}
       </div>
       ${this.showHours
-        ? html`<div class="hours">${[0, 12, 24].map((h) => html`<span style="left:${pct(h * 60)}">${h} h</span>`)}</div>`
+        ? html`<div class="hours">${[0, 6, 12, 18, 24].map((h) => html`<span style="left:${pct(h * 60)}">${h} h</span>`)}</div>`
         : nothing}
     `;
   }
@@ -90,13 +91,11 @@ export class WpDayBar extends LitElement {
       color: #fff; font-size: 11px; font-weight: 600; white-space: nowrap;
       text-shadow: 0 0 2px rgba(0, 0, 0, 0.6); padding: 0 6px; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
     }
+    /* Hour lines at 6, 12 and 18 h, drawn behind the slots. */
     .tick {
-      position: absolute; bottom: 0; width: 1px; height: 5px; pointer-events: none;
-      background: rgba(255, 255, 255, 0.85); box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.45);
+      position: absolute; top: 0; bottom: 0; width: 1px; margin-left: -0.5px; pointer-events: none;
+      background: var(--secondary-text-color); opacity: 0.35;
     }
-    .tick.strong { height: 9px; width: 2px; margin-left: -1px; }
-    .bar.thin .tick { height: 3px; }
-    .bar.thin .tick.strong { height: 5px; }
     .now {
       position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px;
       background: var(--primary-text-color); box-shadow: 0 0 0 1px var(--card-background-color);

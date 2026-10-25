@@ -8,7 +8,7 @@ import { actionChoices, selectedChoice } from "../actions";
 import type { Act, Choice } from "../actions";
 import { t } from "../i18n";
 import { ensureHaSelector, entityDomain, fmtNum } from "../planner";
-import { isGenericEntity, loadServiceNames, serviceDomains, serviceFields, servicesFor } from "../services";
+import { isGenericEntity, loadServiceNames, serviceDomains, serviceFields, servicesFor, shortLabels } from "../services";
 import { editorStyles, langOf } from "../editors/setpoint-editor";
 import type { HomeAssistant, PlannerData, Setpoint } from "../types";
 
@@ -53,7 +53,9 @@ export class WpActionPicker extends LitElement {
   /** Generic actions: the services accepting the entity, then the inputs of the chosen one. */
   private _services(): unknown {
     const lang = this._lang;
-    const all = servicesFor(this.hass, this.entityId);
+    const found = servicesFor(this.hass, this.entityId);
+    const short = shortLabels(found.map((s) => s.label));
+    const all = found.map((s, i) => ({ ...s, label: short[i] }));
     const current = this.act?.sp.kind === "service" ? String(this.act.sp.service) : "";
     const index = all.findIndex((s) => s.id === current);
     const open = this._more || index >= WpActionPicker.SHOWN;
@@ -184,6 +186,7 @@ export class WpActionPicker extends LitElement {
   }
 
   static styles = [editorStyles, css`
+    .chip span { white-space: normal; text-align: left; overflow-wrap: anywhere; }
     :host { display: block; }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; }
     .chip {

@@ -87,5 +87,7 @@ export function formatWhen(iso: string, timeZone: string, language: string, now 
   const sameDay = localDateIso(date, timeZone) === localDateIso(now, timeZone);
   const clock = fmtClock(language, localMinutes(date, timeZone));
   if (sameDay) return clock;
+  const tomorrow = localDateIso(new Date(now.getTime() + 86_400_000), timeZone) === localDateIso(date, timeZone);
+  if (tomorrow) return `${new Intl.RelativeTimeFormat(language, { numeric: "auto" }).format(1, "day")} ${clock}`;
   return `${new Intl.DateTimeFormat(language, { timeZone, weekday: "short" }).format(date)} ${clock}`;
 }
