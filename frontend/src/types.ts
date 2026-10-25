@@ -93,6 +93,7 @@ export interface ProgramStatus {
   next_change: string | null;
   entities_overridden: string[];
   skip_next: string | null;
+  next_actions?: Record<string, { at: string; setpoint: Setpoint }>;
 }
 
 export interface EntityRuntime {
@@ -131,4 +132,6 @@ export interface CardConfig {
   show_week?: boolean;
   show_chart?: boolean;
   show_advanced?: boolean;
+  /** One block per device (default) or per schedule. */
+  display?: "device" | "schedule";
 }
