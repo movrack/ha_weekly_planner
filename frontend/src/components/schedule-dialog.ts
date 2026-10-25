@@ -237,9 +237,9 @@ export class WpSchedule extends LitElement {
     return this._programs.some((p) => p.enabled);
   }
 
-  private async _setEnabled(enabled: boolean): Promise<void> {
+  private async _setEnabled(enabled: boolean, input: HTMLInputElement): Promise<void> {
     if (!enabled && !(await confirmAction(this, t(this._lang, "confirm_pause", { name: this._title }), t(this._lang, "pause_do")))) {
-      this.requestUpdate();
+      input.checked = true;
       return;
     }
     try {
@@ -408,7 +408,7 @@ export class WpSchedule extends LitElement {
         <label class="switch">
           <span>${t(lang, "schedule_on")}</span>
           <input type="checkbox" .checked=${this._enabled} ?disabled=${!this._canEdit}
-            @change=${(e: Event) => void this._setEnabled((e.target as HTMLInputElement).checked)} />
+            @change=${(e: Event) => void this._setEnabled((e.target as HTMLInputElement).checked, e.target as HTMLInputElement)} />
           <span class="track"></span>
         </label>
         <button class="btn danger alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteAll()}>

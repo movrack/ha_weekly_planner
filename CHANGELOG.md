@@ -6,6 +6,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-25
+
+### Changed
+- The card is a planner: no more immediate controls (temperature, modes, open/close, on/off, "More
+  options"). One compact line per device with its state, the next scheduled action and a day bar; a
+  manual setting is shown with a cross that cancels it; a paused program shows a pause icon.
+- New card option `display: device | schedule` (default `device`): one block per device or per program.
+- One screen per device or schedule replaces the five editors and the day view: slots listed one per
+  row and edited in place, the "rest of the time", a Planned / Measured chart with previous / next day,
+  a pause switch with confirmation and a confirmed delete.
+- A slot carries its days (chips plus All, Mon-Fri, Weekend); identical slots are grouped for display and
+  split per day on save. No more day tabs, day copy or duplicate.
+- Same slot form for every device: start (time with -/+15 min or sunrise / sunset), optional end
+  (no end = one-shot), days, action. Actions come from the device's own modes, then the Home Assistant
+  scenes that contain it, then the common modes.
+- The gear (administrators only) opens the owner settings: priority, conditions, devices, setpoints,
+  seasons.
+- Common modes are edited in the integration options.
+
+### Added
+- Light slots can set brightness, effect and colour temperature (`color_temp_kelvin`); the engine checks
+  them like the other setpoints.
+- The program status carries the next action of each device (`next_actions`).
+
+### Fixed
+- The schedule dialog could show the schedule of the previously opened device when the dialog was
+  reused for another one.
+
 ## [0.2.2] - 2026-10-25
 
 ### Fixed

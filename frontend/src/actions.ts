@@ -169,7 +169,7 @@ export function specText(lang: string, spec: TimeSpec, minutes?: number): string
     const [h, m] = spec.time.split(":").map(Number);
     return nb(h * 60 + m >= DAY ? "24 h" : fmtClock(lang, h * 60 + m));
   }
-  const name = t(lang, `sun_${spec.sun}` as never);
+  const name = t(lang, (spec.sun === "sunrise" || spec.sun === "sunset" ? `sun_${spec.sun}_short` : `sun_${spec.sun}`) as never);
   const off = spec.offset ? ` ${offsetWord(lang, spec.offset)}` : "";
   void minutes;
   return nb(`${name}${off}`);
