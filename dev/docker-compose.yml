@@ -1,0 +1,14 @@
+# Local Home Assistant instance for development and manual testing.
+# Usage: docker compose -f dev/docker-compose.yml up -d  →  http://localhost:8124
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:2026.10.2
+    container_name: weekly-planner-dev
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Brussels
+    ports:
+      - "8124:8123"
+    volumes:
+      - ./config:/config
+      - ../custom_components/weekly_planner:/config/custom_components/weekly_planner

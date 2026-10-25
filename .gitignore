@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Frontend
+node_modules/
+frontend/dist/
+
+# Local Home Assistant dev instance
+dev/config/*
+!dev/config/configuration.yaml
+!dev/config/packages/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

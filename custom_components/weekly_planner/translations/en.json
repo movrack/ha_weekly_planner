@@ -1,0 +1,26 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Weekly Planner",
+        "description": "Add the Weekly Planner. Programs are then created from the Weekly Planner card."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Weekly Planner is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Weekly Planner options",
+        "data": {
+          "admin_only": "Only administrators can edit programs and modes",
+          "reapply_default": "Re-apply the current slot after a restart or a change (default for new programs)",
+          "notify_delay_min": "Notify when a device has not reached its target after (minutes)",
+          "debounce_min": "Minimum time a condition must hold before it starts or ends a slot (minutes)"
+        }
+      }
+    }
+  }
+}

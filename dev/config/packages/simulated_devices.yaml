@@ -1,0 +1,57 @@
+# Simulated devices with realistic delays, used to test override detection.
+input_number:
+  slow_thermostat_target:
+    name: Slow thermostat target
+    min: 5
+    max: 30
+    step: 0.5
+  slow_cover_position:
+    name: Slow cover position
+    min: 0
+    max: 100
+    step: 1
+
+input_boolean:
+  presence:
+    name: Presence
+  window_office:
+    name: Office window
+
+# A thermostat that confirms its set point two minutes after the request (cloud-like),
+# and a shutter that takes 90 seconds to move.
+script:
+  slow_thermostat_set:
+    mode: restart
+    fields:
+      temperature: {}
+    sequence:
+      - delay: "00:02:00"
+      - action: input_number.set_value
+        target: {entity_id: input_number.slow_thermostat_target}
+        data: {value: "{{ temperature }}"}
+  slow_cover_move:
+    mode: restart
+    fields:
+      position: {}
+    sequence:
+      - delay: "00:01:30"
+      - action: input_number.set_value
+        target: {entity_id: input_number.slow_cover_position}
+        data: {value: "{{ position }}"}
+
+cover:
+  - platform: template
+    covers:
+      slow_shutter:
+        friendly_name: Slow shutter
+        device_class: shutter
+        position_template: "{{ states('input_number.slow_cover_position') | int(0) }}"
+        open_cover:
+          - action: script.slow_cover_move
+            data: {position: 100}
+        close_cover:
+          - action: script.slow_cover_move
+            data: {position: 0}
+        set_cover_position:
+          - action: script.slow_cover_move
+            data: {position: "{{ position }}"}

@@ -1,0 +1,21 @@
+# Development instance: demo entities for every supported type.
+default_config:
+
+homeassistant:
+  name: Weekly Planner dev
+  latitude: 50.85
+  longitude: 4.35
+  elevation: 50
+  unit_system: metric
+  time_zone: Europe/Brussels
+  country: BE
+  language: fr
+  packages: !include_dir_named packages
+
+logger:
+  default: warning
+  logs:
+    custom_components.weekly_planner: debug
+
+# Built-in demo platforms: climate, cover, light, fan, water_heater, media_player, switch…
+demo:

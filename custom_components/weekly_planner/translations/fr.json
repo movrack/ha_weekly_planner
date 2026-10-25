@@ -1,0 +1,26 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Weekly Planner",
+        "description": "Ajouter Weekly Planner. Les programmes se créent ensuite depuis la carte Weekly Planner."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Weekly Planner est déjà configuré."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options de Weekly Planner",
+        "data": {
+          "admin_only": "Seuls les administrateurs peuvent modifier les programmes et les modes",
+          "reapply_default": "Réappliquer la plage en cours après un redémarrage ou une modification (valeur par défaut des nouveaux programmes)",
+          "notify_delay_min": "Prévenir quand un appareil n'a pas atteint sa consigne après (minutes)",
+          "debounce_min": "Durée minimale d'une condition avant qu'elle commence ou termine une plage (minutes)"
+        }
+      }
+    }
+  }
+}

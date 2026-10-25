@@ -1,0 +1,23 @@
+{
+  "domain": "weekly_planner",
+  "name": "Weekly Planner",
+  "after_dependencies": [
+    "frontend",
+    "lovelace"
+  ],
+  "codeowners": [
+    "@movrack"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "http",
+    "websocket_api"
+  ],
+  "documentation": "https://github.com/movrack/ha_Weekly_planner",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/movrack/ha_Weekly_planner/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.0.1"
+}
