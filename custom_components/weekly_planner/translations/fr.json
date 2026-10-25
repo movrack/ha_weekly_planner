@@ -13,14 +13,48 @@
   "options": {
     "step": {
       "init": {
-        "title": "Options de Weekly Planner",
+        "title": "Weekly Planner",
+        "menu_options": {
+          "settings": "Réglages",
+          "modes": "Modes communs"
+        }
+      },
+      "settings": {
+        "title": "Réglages",
         "data": {
           "admin_only": "Seuls les administrateurs peuvent modifier les programmes et les modes",
           "reapply_default": "Réappliquer la plage en cours après un redémarrage ou une modification (valeur par défaut des nouveaux programmes)",
           "notify_delay_min": "Prévenir quand un appareil n'a pas atteint sa consigne après (minutes)",
           "debounce_min": "Durée minimale d'une condition avant qu'elle commence ou termine une plage (minutes)"
         }
+      },
+      "modes": {
+        "title": "Modes communs",
+        "description": "Partagés par tous les horaires. Choisissez-en un pour le modifier, ou + pour en ajouter.",
+        "data": {
+          "mode": "Mode"
+        }
+      },
+      "mode": {
+        "title": "Mode",
+        "description": "Nom, type d'appareil et action. La température ou la luminosité va dans Valeur.",
+        "data": {
+          "name": "Nom",
+          "type": "Type d'appareil",
+          "kind": "Action",
+          "value": "Valeur (°C, % ou luminosité)",
+          "preset": "Nom du préréglage",
+          "delete": "Supprimer ce mode"
+        }
       }
+    },
+    "error": {
+      "mode_in_use": "Ce mode est utilisé par un horaire.",
+      "invalid_mode": "Ce mode n'est pas valide.",
+      "kind_not_for_type": "Cette action ne convient pas à ce type d'appareil."
+    },
+    "abort": {
+      "not_loaded": "Weekly Planner n'est pas chargé."
     }
   },
   "entity": {
