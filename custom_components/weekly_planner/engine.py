@@ -480,12 +480,15 @@ class PlannerEngine:
                 else:
                     rt["outside"] = snapshot(self.hass.states.get(entity_id))
             rt.pop("oneshot", None)
+        target = self._target_of(entity_id, seg)
+        if previous_key != key or rt.get("target") != target:
+            # also journal a new target in the same segment (default or slot edited)
             self.store.record_segment({
                 "at": now.isoformat(), "entity_id": entity_id, "segment": key,
-                "program_id": seg.program_id, "slot_id": seg.slot_id, "setpoint": self._target_of(entity_id, seg),
+                "program_id": seg.program_id, "slot_id": seg.slot_id, "setpoint": target,
             })
         rt["segment"] = key
-        rt["target"] = self._target_of(entity_id, seg)
+        rt["target"] = target
         rt.pop("suppressed", None)
 
     def _target_of(self, entity_id: str, seg: Segment) -> dict | None:

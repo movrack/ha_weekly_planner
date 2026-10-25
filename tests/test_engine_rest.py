@@ -94,6 +94,20 @@ async def test_journal_records_segments(hass, hass_storage, freezer, hass_ws_cli
     assert segments and segments[-1]["segment"][0] == "slot" and segments[-1]["setpoint"]["preset"] == "comfort"
 
 
+async def test_journal_records_new_target_in_same_segment(hass, hass_storage, freezer, hass_ws_client):
+    FakeClimate(hass)
+    engine = await setup(hass, hass_storage, freezer, [program(slots=[slot("d", "00:00", "24:00", "climate_comfort")])], None)
+    ws = await hass_ws_client(hass)
+    mode = dict(engine.store.modes["climate_comfort"])
+    mode["value"] = {"kind": "preset", "preset": "boost"}
+    await ws.send_json_auto_id({"type": f"{DOMAIN}/mode/save", "mode": mode})
+    assert (await ws.receive_json())["success"]
+    await hass.async_block_till_done()
+    await ws.send_json_auto_id({"type": f"{DOMAIN}/journal", "entity_id": CLIMATE})
+    segments = (await ws.receive_json())["result"]["segments"]
+    assert [s["setpoint"]["preset"] for s in segments[-2:]] == ["comfort", "boost"]
+
+
 async def test_effective_target_no_retry_during_override(hass, hass_storage, freezer):  # S40
     climate = FakeClimate(hass)
     engine = await setup(hass, hass_storage, freezer, [program()], local(26, 8, 30))
