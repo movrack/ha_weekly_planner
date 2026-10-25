@@ -629,6 +629,7 @@ class PlannerEngine:
                 await self.hass.services.async_call(
                     call.domain, call.service, call.service_data(entity_id), blocking=True,
                     context=self.new_context(context),
+                    target={"entity_id": entity_id} if call.as_target else None,
                 )
         except asyncio.CancelledError:
             raise
@@ -638,15 +639,20 @@ class PlannerEngine:
             self._tasks.pop(entity_id, None)
             rt.pop("retry_at", None)
             rt["refused"] = True
-            self._notify_failure(entity_id, str(err))
+            rt.pop("service_retry", None)
+            self._notify_failure(entity_id, str(err), setpoint if setpoint["kind"] == "service" else None)
             self._persist()
             return
         except Exception as err:  # noqa: BLE001 - other failures are retried with a backoff
             _LOGGER.warning("Applying %s to %s failed: %s", setpoint, entity_id, err)
+            if setpoint["kind"] == "service":
+                self._retry_service(entity_id, setpoint, reason)
+                return
         finally:
             self._tasks.pop(entity_id, None)
         rt.pop("refused", None)
         rt.pop("pending", None)
+        rt.pop("service_retry", None)
         if is_one_shot(setpoint):
             self._log(entity_id, "applied", {"setpoint": setpoint, "reason": reason})
             return
@@ -678,8 +684,27 @@ class PlannerEngine:
         if entity_id.startswith("light."):
             await self._async_adaptive_for(entity_id, setpoint, context)
 
+    def _retry_service(self, entity_id: str, setpoint: dict, reason: str) -> None:
+        """A generic service call failed: try again after 1, 2, 5, 10, 15 min, then give up."""
+        rt = self.rt(entity_id)
+        attempt = rt.get("service_retry", {}).get("attempt", 0) if reason == "retry" else 0
+        if attempt >= len(RETRY_STEPS):
+            rt.pop("service_retry", None)
+            self._log(entity_id, "failed", {"setpoint": setpoint})
+            persistent_notification.async_create(
+                self.hass, f"{entity_id}: {setpoint['service']} could not be run.",
+                title="Weekly Planner", notification_id=f"{DOMAIN}_{entity_id}_failed")
+        else:
+            rt["service_retry"] = {"setpoint": setpoint, "attempt": attempt + 1}
+            rt["retry_at"] = (dt_util.utcnow() + timedelta(minutes=RETRY_STEPS[attempt])).isoformat()
+        self._persist()
+        self._arm_timer()
+
     async def _async_verify(self, entity_id: str) -> None:
         rt = self.rt(entity_id)
+        if retry := rt.get("service_retry"):
+            await self._async_send(entity_id, retry["setpoint"], "retry")
+            return
         target = self.effective_target(entity_id)
         if target is None:
             return
@@ -705,8 +730,8 @@ class PlannerEngine:
             delay = timedelta(minutes=self.options.get("notify_delay_min", 30))
             rt["notify_at"] = (dt_util.utcnow() + delay).isoformat()
 
-    def _notify_failure(self, entity_id: str, reason: str | None = None) -> None:
-        target = self.effective_target(entity_id)
+    def _notify_failure(self, entity_id: str, reason: str | None = None, setpoint: dict | None = None) -> None:
+        target = setpoint or self.effective_target(entity_id)
         if target is None or (reason is None and matches(self.hass.states.get(entity_id), target)):
             return
         persistent_notification.async_create(

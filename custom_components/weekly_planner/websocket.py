@@ -9,6 +9,7 @@ import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.util import dt as dt_util
 
 from .const import CONF_ADMIN_ONLY, DOMAIN
@@ -88,6 +89,16 @@ def ws_subscribe(hass, connection, msg) -> None:
     forward()
 
 
+def _uses_services(program: dict) -> bool:
+    return any(
+        isinstance(sp, dict) and sp.get("kind") == "service"
+        for profile in program.get("profiles", []) if isinstance(profile, dict)
+        for day in profile.get("days", []) if isinstance(day, list)
+        for slot in day if isinstance(slot, dict)
+        for sp in (slot.get("actions") or {}).get("by_entity", {}).values()
+    )
+
+
 @websocket_api.websocket_command({
     vol.Required("type"): f"{DOMAIN}/program/save",
     vol.Required("program"): dict,
@@ -109,7 +120,10 @@ async def ws_program_save(hass, connection, msg) -> None:
         connection.send_error(msg["id"], "conflict", "Modified elsewhere, reload")  # S34
         return
     try:
-        program = check_program(program, engine.store.modes)
+        descriptions = None
+        if _uses_services(program):
+            descriptions = await async_get_all_descriptions(hass)
+        program = check_program(program, engine.store.modes, hass, descriptions)
     except vol.Invalid as err:
         connection.send_error(msg["id"], "invalid", str(err))
         return

@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-ONE_SHOT_KINDS = frozenset({"scene", "script", "action"})
+ONE_SHOT_KINDS = frozenset({"scene", "script", "action", "service"})
 # Domains whose services only administrators may schedule (spec § 9).
 SENSITIVE_DOMAINS = frozenset({"homeassistant", "hassio", "alarm_control_panel", "lock", "alarmo"})
 ADMIN_ONLY_KINDS = frozenset({"script", "action"})
@@ -29,6 +29,7 @@ class Call:
     service: str
     data: dict[str, Any] = field(default_factory=dict)
     target_entity: bool = True  # add the entity as target
+    as_target: bool = False  # pass the entity as the call ``target`` (generic "service" setpoints)
 
     def service_data(self, entity_id: str) -> dict[str, Any]:
         data = dict(self.data)
@@ -47,7 +48,7 @@ def needs_admin(setpoint: dict | None) -> bool:
         return False
     if setpoint["kind"] in ADMIN_ONLY_KINDS:
         return True
-    action = setpoint.get("action", "")
+    action = setpoint.get("action") or setpoint.get("service") or ""
     return action.split(".", 1)[0] in SENSITIVE_DOMAINS
 
 
@@ -62,6 +63,9 @@ def calls_for(entity_id: str, setpoint: dict) -> list[Call]:
         return [Call("script", "turn_on",
                      {"entity_id": setpoint["script"], "variables": setpoint.get("variables", {})},
                      target_entity=False)]
+    if kind == "service":
+        dom, svc = setpoint["service"].split(".", 1)
+        return [Call(dom, svc, dict(setpoint.get("data") or {}), target_entity=False, as_target=True)]
     if kind == "action":
         dom, svc = setpoint["action"].split(".", 1)
         return [Call(dom, svc, setpoint.get("data", {}), target_entity=setpoint.get("target_self", True))]

@@ -105,7 +105,40 @@ class ProgramError(vol.Invalid):
     """A program breaks a rule that the schema cannot express."""
 
 
-def check_program(program: dict, modes: dict[str, dict]) -> dict:
+def _check_service(hass: Any, descriptions: dict | None, entity_id: str, setpoint: dict) -> None:
+    """A generic service setpoint: known service, usable on the entity, data is a dict."""
+    service = setpoint.get("service")
+    if not isinstance(service, str) or service.count(".") != 1:
+        raise ProgramError(f"unknown_service:{service}")
+    if not isinstance(setpoint.get("data", {}), dict):
+        raise ProgramError(f"invalid_service_data:{service}")
+    if hass is None:
+        return
+    domain, name = service.split(".")
+    if not hass.services.has_service(domain, name):
+        raise ProgramError(f"unknown_service:{service}")
+    entity_domain = entity_id.split(".", 1)[0]
+    if domain != entity_domain and not _target_accepts(descriptions, domain, name, entity_domain):
+        raise ProgramError(f"service_not_for_entity:{service}:{entity_id}")
+
+
+def _target_accepts(descriptions: dict | None, domain: str, name: str, entity_domain: str) -> bool:
+    """Does the service target accept entities of this domain (services.yaml descriptions)?"""
+    if descriptions is None:
+        return True  # descriptions unavailable: Home Assistant refuses bad targets at call time
+    target = (descriptions.get(domain, {}).get(name) or {}).get("target")
+    if not target:
+        return False
+    entity = target.get("entity")
+    filters = entity if isinstance(entity, list) else [entity or {}]
+    return any(not f.get("domain") or entity_domain in _as_list(f["domain"]) for f in filters)
+
+
+def _as_list(value: Any) -> list:
+    return value if isinstance(value, list) else [value]
+
+
+def check_program(program: dict, modes: dict[str, dict], hass: Any = None, descriptions: dict | None = None) -> dict:
     """Schema + semantic rules: unique profile names, known modes, no overlap on a day."""
     program = PROGRAM(program)
     names = [p["name"] for p in program["profiles"]]
@@ -121,8 +154,10 @@ def check_program(program: dict, modes: dict[str, dict]) -> dict:
                 for eid, setpoint in slot["actions"]["by_entity"].items():
                     if eid not in entity_ids:
                         raise ProgramError(f"entity_not_in_program:{eid}")
-                    if slot.get("end") is not None and is_one_shot(setpoint):
-                        pass  # one-shot setpoints are allowed in timed slots (fired at start)
+                    if setpoint["kind"] == "service":
+                        if slot.get("end") is not None:
+                            raise ProgramError(f"service_has_no_end:{eid}")
+                        _check_service(hass, descriptions, eid, setpoint)
             _check_overlaps(day_slots)
     return program
 
