@@ -33,7 +33,7 @@ def _may_edit(hass: HomeAssistant, connection) -> bool:
 @callback
 def async_register(hass: HomeAssistant) -> None:
     for handler in (ws_get, ws_subscribe, ws_program_save, ws_program_delete, ws_mode_save,
-                    ws_mode_delete, ws_preview, ws_journal):
+                    ws_mode_delete, ws_preview, ws_journal, ws_set_enabled):
         websocket_api.async_register_command(hass, handler)
 
 
@@ -241,3 +241,19 @@ def ws_journal(hass, connection, msg) -> None:
     entries = [e for e in engine.store.journal
                if e.get("at", "") >= since and (not msg.get("entity_id") or e["entity_id"] == msg["entity_id"])]
     connection.send_result(msg["id"], {"segments": entries})
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/program/set_enabled",
+    vol.Required("program_id"): str,
+    vol.Required("enabled"): bool,
+})
+@websocket_api.async_response
+async def ws_set_enabled(hass, connection, msg) -> None:
+    """Enable or suspend a program (open to everyone, like the switch entity)."""
+    engine = _engine(hass)
+    if engine is None or engine.store.program(msg["program_id"]) is None:
+        connection.send_error(msg["id"], "not_found", "Unknown program")
+        return
+    await engine.async_set_enabled(msg["program_id"], msg["enabled"])
+    connection.send_result(msg["id"])

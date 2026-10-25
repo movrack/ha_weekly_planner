@@ -1,0 +1,132 @@
+// Data shapes exchanged with the integration (see docs/SPEC.md § 8).
+
+export interface HomeAssistant {
+  states: Record<string, HassEntity>;
+  language: string;
+  locale?: { language: string };
+  config: { time_zone: string };
+  user?: { is_admin: boolean; name: string };
+  themes?: { darkMode?: boolean };
+  callWS<T>(msg: Record<string, unknown>): Promise<T>;
+  callService(domain: string, service: string, data?: Record<string, unknown>): Promise<unknown>;
+  connection: {
+    subscribeMessage<T>(cb: (msg: T) => void, msg: Record<string, unknown>): Promise<() => void>;
+  };
+}
+
+export interface HassEntity {
+  entity_id: string;
+  state: string;
+  attributes: Record<string, any>;
+  last_changed: string;
+}
+
+export type TimeSpec =
+  | { time: string }
+  | { sun: "dawn" | "sunrise" | "sunset" | "dusk"; offset?: number; earliest?: string; latest?: string };
+
+export interface Setpoint {
+  kind: string;
+  [key: string]: unknown;
+}
+
+export interface Condition {
+  entity_id: string;
+  attribute?: string | null;
+  op?: "eq" | "ne" | "lt" | "gt";
+  value: string | number | boolean;
+}
+
+export interface Slot {
+  id: string;
+  start: TimeSpec;
+  end?: TimeSpec | null;
+  conditions?: Condition[];
+  color?: string | null;
+  actions: { by_type: Record<string, string>; by_entity: Record<string, Setpoint> };
+}
+
+export interface Profile {
+  id: string;
+  name: string;
+  days: Slot[][]; // 0 = Monday … 6 = Sunday
+}
+
+export interface ProgramEntity {
+  entity_id: string;
+  default: { kind: "mode" | "setpoint" | "previous" | "none"; value?: string | Setpoint | null };
+  grace_s?: number | null;
+  force_permanent?: boolean;
+}
+
+export interface Program {
+  id: string;
+  revision: number;
+  created_at?: string;
+  name: string;
+  icon?: string | null;
+  area?: string | null;
+  priority: number;
+  enabled: boolean;
+  reapply: boolean;
+  main_type?: string | null;
+  conditions: Condition[];
+  entities: ProgramEntity[];
+  active_profile?: string | null;
+  profiles: Profile[];
+}
+
+export interface Mode {
+  id: string;
+  type: string;
+  name: string;
+  color: string;
+  icon?: string | null;
+  value: Setpoint;
+  exceptions: Record<string, Setpoint>;
+}
+
+export interface ProgramStatus {
+  program_id: string;
+  active_profile: string | null;
+  current_slots: Record<string, string>;
+  next_change: string | null;
+  entities_overridden: string[];
+  skip_next: string | null;
+}
+
+export interface EntityRuntime {
+  segment: (string | null)[] | null;
+  target: Setpoint | null;
+  override: { origin: "external" | "voluntary"; until?: string | null; setpoint?: Setpoint } | null;
+  suppressed?: boolean;
+  pending?: boolean;
+}
+
+export interface PlannerData {
+  vacation: boolean;
+  modes: Mode[];
+  programs: Program[];
+  status: Record<string, ProgramStatus>;
+  entities: Record<string, EntityRuntime>;
+  read_only: boolean;
+  can_edit: boolean;
+  is_admin?: boolean;
+}
+
+export interface PreviewSlot {
+  slot_id: string;
+  start: string;
+  end: string | null;
+  ignored: string | null;
+  sun: boolean;
+}
+
+export interface CardConfig {
+  type: string;
+  title?: string;
+  program?: string;
+  filter?: { types?: string[]; area?: string };
+  show_week?: boolean;
+  show_chart?: boolean;
+}
