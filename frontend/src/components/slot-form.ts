@@ -67,12 +67,12 @@ export class WpSlotForm extends LitElement {
     const dis = this.disabled;
     return html`
       <div class="time" role="group" aria-label=${title}>
-        <button class="ibtn round" ?disabled=${dis} aria-label=${t(lang, "minus15")} @click=${() => this._update(which, shiftSpec(spec, -15))}>−15</button>
+        <button class="step" ?disabled=${dis} aria-label=${t(lang, "minus15")} title=${t(lang, "minus15")} @click=${() => this._update(which, shiftSpec(spec, -15))}><ha-icon icon="mdi:minus"></ha-icon></button>
         ${"time" in spec
           ? html`<input type="time" step="300" .value=${spec.time === "24:00" ? "00:00" : spec.time} ?disabled=${dis}
               aria-label=${title} @change=${(e: Event) => this._fromInput(which, (e.target as HTMLInputElement).value)} />`
           : html`<output class="sun">${specText(lang, spec)}</output>`}
-        <button class="ibtn round" ?disabled=${dis} aria-label=${t(lang, "plus15")} @click=${() => this._update(which, shiftSpec(spec, 15))}>+15</button>
+        <button class="step" ?disabled=${dis} aria-label=${t(lang, "plus15")} title=${t(lang, "plus15")} @click=${() => this._update(which, shiftSpec(spec, 15))}><ha-icon icon="mdi:plus"></ha-icon></button>
       </div>
       <div class="chips">
         ${SUNS.map((sun) => {
@@ -162,9 +162,25 @@ export class WpSlotForm extends LitElement {
     :host { display: block; }
     section { margin: 0 0 14px; }
     h4 { margin: 0 0 6px; font-size: 14px; font-weight: 600; color: var(--secondary-text-color); }
-    .time { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px; }
-    .time input[type="time"] { width: 150px; text-align: center; font-size: 24px; font-weight: 600; min-height: 56px; }
-    .time output.sun { min-width: 150px; text-align: center; font-size: 20px; font-weight: 600; }
+    /* One field: [ − | time | + ], the steps (15 min) are part of the field. */
+    .time {
+      display: flex; align-items: stretch; margin-bottom: 8px; min-height: 56px; overflow: hidden;
+      border: 1px solid var(--divider-color); border-radius: 12px; background: var(--card-background-color);
+    }
+    .time:focus-within { border-color: var(--primary-color); }
+    .time .step {
+      flex: none; width: 56px; border: none; background: none; color: var(--primary-text-color); cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; --mdc-icon-size: 22px;
+    }
+    .time .step:first-child { border-right: 1px solid var(--divider-color); }
+    .time .step:last-child { border-left: 1px solid var(--divider-color); }
+    .time .step:hover:not(:disabled) { background: var(--secondary-background-color); }
+    .time .step:disabled { opacity: 0.4; cursor: default; }
+    .time input[type="time"] {
+      flex: 1; min-width: 0; border: none; border-radius: 0; background: none; outline: none;
+      text-align: center; font-size: 24px; font-weight: 600; min-height: 56px; color: var(--primary-text-color);
+    }
+    .time output.sun { flex: 1; min-width: 0; align-self: center; text-align: center; font-size: 20px; font-weight: 600; }
     .ibtn.round { border: 1px solid var(--divider-color); min-width: 64px; font-weight: 600; }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; }
     .chip {
