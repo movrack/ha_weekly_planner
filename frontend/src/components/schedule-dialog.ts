@@ -39,6 +39,9 @@ export class WpSchedule extends LitElement {
   /** Row being edited: its key, "new", or "rest:<entity>". */
   @state() private _open: string | null = null;
   @state() private _group: SlotGroup | null = null;
+  /** Editing one day of a group: that day, and the rest of the group kept as it is. */
+  @state() private _dayOnly: number | null = null;
+  private _rest: SlotGroup | null = null;
   @state() private _act: Act | null = null;
   @state() private _programId = "";
   @state() private _error = "";
@@ -98,8 +101,16 @@ export class WpSchedule extends LitElement {
     const { weekday, offset } = this.day;
     if (offset >= -BACK && offset <= AHEAD) this._offset = offset;
     const rows = this._rows().filter((r) => r.group.days.includes(weekday));
-    if (rows.length === 1) this._expand(rows[0].key, rows[0].program, rows[0].group);
-    else if (!rows.length && this._canEdit) this._add([weekday]);
+    if (rows.length === 1) {
+      const { key, program, group } = rows[0];
+      const { [weekday]: own, ...others } = group.ids;
+      this._expand(key, program, { slot: group.slot, days: [weekday], ids: own ? { [weekday]: own } : {} });
+      this._rest = { slot: structuredClone(group.slot), days: group.days.filter((d) => d !== weekday), ids: others };
+      this._dayOnly = weekday;
+    } else if (!rows.length && this._canEdit) {
+      this._add([weekday]);
+      this._dayOnly = weekday;
+    }
   }
 
   willUpdate(changed: Map<string, unknown>): void {
@@ -154,6 +165,8 @@ export class WpSchedule extends LitElement {
   private _cancel(): void {
     this._open = null;
     this._group = null;
+    this._dayOnly = null;
+    this._rest = null;
     this._act = null;
     this._error = "";
   }
@@ -200,6 +213,15 @@ export class WpSchedule extends LitElement {
     return "";
   }
 
+  /** The rest of a group edited from one day, minus the days the edit now covers. */
+  private _kept(days: number[]): SlotGroup[] {
+    const rest = this._rest;
+    if (!rest) return [];
+    const left = rest.days.filter((d) => !days.includes(d));
+    const ids = Object.fromEntries(left.filter((d) => rest.ids[d]).map((d) => [d, rest.ids[d]]));
+    return left.length ? [{ ...rest, days: left, ids }] : [];
+  }
+
   private async _saveRow(): Promise<void> {
     const program = this._programs.find((p) => p.id === this._programId);
     const draft = this._group;
@@ -213,7 +235,7 @@ export class WpSchedule extends LitElement {
     const include = this._include(program);
     const groups = groupSlots(profile, include, this._minutes)
       .filter((g) => `${program.id}|${g.ids[g.days[0]]}` !== this._open);
-    groups.push(draft);
+    groups.push(...this._kept(draft.days), draft);
     const next = writeGroups(profile, groups, include, this._minutes);
     for (const slots of next.days) {
       if (findOverlap(slots)) {
@@ -233,6 +255,7 @@ export class WpSchedule extends LitElement {
     const include = this._include(program);
     const groups = groupSlots(profile, include, this._minutes)
       .filter((g) => `${program.id}|${g.ids[g.days[0]]}` !== this._open);
+    groups.push(...this._kept([]));
     const next = writeGroups(profile, groups, include, this._minutes);
     if (await this._saveProgram({ ...program, profiles: program.profiles.map((p) => (p.id === profile.id ? next : p)) })) this._cancel();
   }
@@ -339,7 +362,7 @@ export class WpSchedule extends LitElement {
     const ids = this._entities.filter((e) => program.entities.some((x) => x.entity_id === e));
     return html`<div class="editor">
       <wp-slot-form .hass=${this.hass} .data=${this.data} .program=${program} .group=${this._group!} .entityIds=${ids}
-        ?disabled=${!this._canEdit}
+        .dayOnly=${this._dayOnly} ?disabled=${!this._canEdit}
         @group-change=${(e: CustomEvent<SlotGroup>) => { e.stopPropagation(); this._group = e.detail; this._error = ""; }}></wp-slot-form>
       ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
       <div class="btns">

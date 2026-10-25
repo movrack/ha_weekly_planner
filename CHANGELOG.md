@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-10-25
+
+### Changed
+- A day opened from the week list is edited alone; "Apply to other days" shows the day chips.
+
 ## [0.3.4] - 2026-10-25
 
 ### Added

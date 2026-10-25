@@ -22,6 +22,9 @@ export class WpSlotForm extends LitElement {
   @property({ attribute: false }) group!: SlotGroup;
   @property({ attribute: false }) entityIds: string[] = [];
   @property({ type: Boolean }) disabled = false;
+  /** Opened from one day of the week: edit that day only, other days on request. */
+  @property({ type: Number }) dayOnly: number | null = null;
+  @state() private _more = false;
   /** Last fixed time of each field, restored when a sun chip is switched off. */
   @state() private _last: Record<Which, string> = { start: "08:00", end: "09:00" };
 
@@ -126,13 +129,17 @@ export class WpSlotForm extends LitElement {
       </section>
       <section>
         <h4>${t(lang, "days_label")}</h4>
-        <div class="days" role="group" aria-label=${t(lang, "days_label")}>
+        ${this.dayOnly !== null && !this._more && eq(days, [this.dayOnly])
+          ? html`<div class="chips"><span class="only">${s.days[this.dayOnly]}</span>
+              <button class="chip" ?disabled=${this.disabled} @click=${() => (this._more = true)}>
+                <ha-icon icon="mdi:calendar-plus"></ha-icon>${t(lang, "apply_other_days")}</button></div>`
+          : html`<div class="days" role="group" aria-label=${t(lang, "days_label")}>
           ${s.days_short.map((name, d) => html`<button class="day ${days.includes(d) ? "on" : ""}" aria-pressed=${days.includes(d)}
             aria-label=${s.days[d]} ?disabled=${this.disabled} @click=${() => this._toggleDay(d)}>${days.includes(d) ? html`<ha-icon icon="mdi:check"></ha-icon>` : nothing}<span>${name}</span></button>`)}
         </div>
         <div class="chips">
           ${shortcut(t(lang, "all_days"), ALL_DAYS)}${shortcut(t(lang, "weekdays"), WEEKDAYS)}${shortcut(t(lang, "weekend"), WEEKEND)}
-        </div>
+        </div>`}
       </section>
       <section>
         <h4>${t(lang, "action")}</h4>
@@ -160,6 +167,7 @@ export class WpSlotForm extends LitElement {
     .chip.on, .day.on { background: var(--primary-color); border-color: var(--primary-color); color: var(--text-primary-color, #fff); font-weight: 600; }
     .chip:disabled, .day:disabled { opacity: 0.5; cursor: default; }
     .chip.small { padding: 0 14px; }
+    .only { display: inline-flex; align-items: center; min-height: 48px; font-size: 16px; font-weight: 500; margin-right: 8px; }
     .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 8px; }
     .day {
       min-height: 48px; min-width: 0; padding: 0; border-radius: 12px; border: 1px solid var(--divider-color);
