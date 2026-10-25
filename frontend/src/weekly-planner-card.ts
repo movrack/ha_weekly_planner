@@ -227,8 +227,11 @@ export class WeeklyPlannerCard extends LitElement {
           ${paused ? html`<ha-icon class="pause" icon="mdi:pause-circle-outline" title=${t(lang, "paused")}></ha-icon>` : nothing}
           ${opts.button ? html`<button class="hours" aria-label=${t(lang, "hours")} title=${t(lang, "hours")} @click=${open}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>` : nothing}
         </div>
-        <wp-day-bar show-hours notches .spans=${this._spans(entityId, programs)} .now=${localMinutes(this._now, this._tz)}
-          @click=${open}></wp-day-bar>
+        <div class="today">
+          <span class="wname">${t(lang, "today_short")}</span>
+          <wp-day-bar show-hours notches .spans=${this._spans(entityId, programs)} .now=${localMinutes(this._now, this._tz)}
+            @click=${open}></wp-day-bar>
+        </div>
         ${override ? html`<div class="manual"><ha-icon icon="mdi:hand-back-right"></ha-icon><span>${sub}</span>
           <button class="x" aria-label=${t(lang, "cancel_manual")} @click=${() => void this._cancelOverride(entityId)}>
             <ha-icon icon="mdi:close"></ha-icon></button></div>` : nothing}
@@ -251,7 +254,6 @@ export class WeeklyPlannerCard extends LitElement {
       <button class="weekbtn" aria-expanded=${open} @click=${toggle}>
         <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>${t(lang, "week")}</button>
       ${open ? html`<div class="week">
-        <div class="scale" aria-hidden="true">${[0, 6, 12, 18, 24].map((h) => html`<span style="left:${h / 24 * 100}%">${h} h</span>`)}</div>
         ${[1, 2, 3, 4, 5, 6].map((o) => {
           const weekday = localWeekday(this._dateAt(o), this._tz);
           return html`<button class="wday" aria-label=${days[weekday]} @click=${() => this._open(scope, { weekday, offset: o })}>
@@ -364,10 +366,6 @@ export class WeeklyPlannerCard extends LitElement {
     }
     button.hours:hover { background: var(--secondary-background-color); }
     .line button.hours { margin: -12px 0; }
-    .scale { position: relative; height: 18px; margin-left: 44px; font-size: 12px; color: var(--secondary-text-color); }
-    .scale span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
-    .scale span:first-child { transform: none; }
-    .scale span:last-child { transform: translateX(-100%); }
     wp-day-bar { cursor: pointer; margin-top: 2px; }
     .weekbtn {
       display: inline-flex; align-items: center; gap: 4px; min-height: 48px; padding: 0 8px 0 0; border: none;
@@ -380,7 +378,9 @@ export class WeeklyPlannerCard extends LitElement {
     }
     .wday:hover { background: var(--secondary-background-color); }
     .wname { flex: none; width: 36px; font-size: 14px; color: var(--secondary-text-color); }
-    .wday wp-day-bar { flex: 1; min-width: 0; }
+    .wday wp-day-bar, .today wp-day-bar { flex: 1; min-width: 0; }
+    .today { display: flex; align-items: flex-start; gap: 8px; }
+    .today .wname { line-height: 28px; margin-top: 2px; }
     .manual { display: flex; align-items: center; gap: 8px; font-size: 14px; --mdc-icon-size: 20px; margin-top: 2px; }
     .manual span { flex: 1; min-width: 0; }
     .prog { padding: 8px 0 4px; border-top: 1px solid var(--divider-color); }

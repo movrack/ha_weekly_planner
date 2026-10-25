@@ -105,7 +105,12 @@ export function servicesFor(hass: HomeAssistant, entityId: string): ServiceChoic
     if (d === "homeassistant") continue;
     for (const [service, info] of Object.entries(services as Record<string, ServiceInfo>)) {
       if (!info.target) continue;
-      if (d !== domain && !accepts(info.target.entity, entity, domain)) continue;
+      const filters = info.target.entity;
+      const anyEntity = !filters || (Array.isArray(filters) && !filters.length);
+      if (!accepts(filters, entity, domain) && !(d === domain && anyEntity)) continue;
+      // Technical services (a required free text or raw object, e.g. "send command") are left out.
+      const fields = Object.values(info.fields ?? {}) as { required?: boolean; selector?: Record<string, unknown> }[];
+      if (fields.some((f) => f.required && (!f.selector || "text" in f.selector || "object" in f.selector))) continue;
       const id = `${d}.${service}`;
       out.push({ id, domain: d, service, label: serviceLabel(hass, id) });
     }
@@ -139,4 +144,25 @@ export function serviceFields(hass: HomeAssistant, id: string): ServiceField[] {
   };
   walk(infoOf(hass, id)?.fields);
   return [...out.filter((f) => f.required), ...out.filter((f) => !f.required)];
+}
+
+const LINK_WORDS = new Set(["avec", "de", "du", "à", "au", "with", "of", "the", "for", "on"]);
+
+/**
+ * Shorter chip labels: the words most labels end with (the device, e.g. "l'aspirateur") are dropped,
+ * with the linking word before them ("avec", "de"…). Labels are kept whole when nothing is shared.
+ */
+export function shortLabels(labels: string[]): string[] {
+  if (labels.length < 3) return labels;
+  const words = labels.map((l) => l.split(" "));
+  const last = new Map<string, number>();
+  for (const w of words) last.set(w[w.length - 1], (last.get(w[w.length - 1]) ?? 0) + 1);
+  const [tail, count] = [...last.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (count < Math.ceil(labels.length * 0.6)) return labels;
+  return words.map((w, i) => {
+    if (w.length < 2 || w[w.length - 1] !== tail) return labels[i];
+    const cut = w.slice(0, -1);
+    while (cut.length > 1 && LINK_WORDS.has(cut[cut.length - 1].toLowerCase())) cut.pop();
+    return cut.join(" ");
+  });
 }
