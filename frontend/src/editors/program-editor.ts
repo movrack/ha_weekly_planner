@@ -8,7 +8,7 @@ import "../components/dialog";
 import { confirmAction } from "../components/confirm";
 import { displayName, scrollHintCss, trackScrollHints } from "../components/gestures";
 import { strings, t } from "../i18n";
-import { entityDomain, newId } from "../planner";
+import { ensureHaSelector, entityDomain, newId } from "../planner";
 import { spillover } from "../time";
 import type {
   Condition, HomeAssistant, PlannerData, Profile, Program, ProgramEntity, Setpoint, Slot,
@@ -47,6 +47,12 @@ export class WpProgramEditor extends LitElement {
   @state() private _slotEdit?: { slot: Slot; isNew: boolean };
   @state() private _error = "";
   @state() private _saving = false;
+  @state() private _picker = Boolean(customElements.get("ha-selector"));
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    if (!this._picker) void ensureHaSelector().then((ok) => (this._picker = ok));
+  }
   @state() private _copy?: { from: number; targets: number[]; profileId: string; slotId?: string };
   @state() private _profileForm?: { mode: "add" | "rename" | "copy"; name: string };
   private _ready = false;
@@ -350,18 +356,19 @@ export class WpProgramEditor extends LitElement {
           @input=${(e: Event) => this._patch({ name: (e.target as HTMLInputElement).value })} /></div>
       <div class="row">
         <div class="field"><label for="f-icon">${this._tr("pe_icon")}</label>
-          <div class="row" style="flex-wrap:nowrap">
-            ${p.icon && customElements.get("ha-icon") ? html`<ha-icon .icon=${p.icon}></ha-icon>` : nothing}
-            <input id="f-icon" type="text" placeholder="mdi:thermometer" .value=${p.icon ?? ""}
-              @input=${(e: Event) => this._patch({ icon: (e.target as HTMLInputElement).value.trim() || null })} />
-          </div></div>
+          ${this._picker
+            ? html`<ha-selector id="f-icon" .hass=${this.hass} .selector=${{ icon: {} }} .value=${p.icon ?? ""}
+                @value-changed=${(e: CustomEvent<{ value?: string }>) => this._patch({ icon: e.detail.value || null })}></ha-selector>`
+            : html`<div class="row" style="flex-wrap:nowrap">
+                ${p.icon && customElements.get("ha-icon") ? html`<ha-icon .icon=${p.icon}></ha-icon>` : nothing}
+                <input id="f-icon" type="text" placeholder="mdi:thermometer" .value=${p.icon ?? ""}
+                  @input=${(e: Event) => this._patch({ icon: (e.target as HTMLInputElement).value.trim() || null })} />
+              </div>`}</div>
         <div class="field" style="flex:0 1 140px"><label for="f-prio">${this._tr("pe_priority")}</label>
           <input id="f-prio" type="number" min="1" max="100" step="1" .value=${String(p.priority)}
             @change=${(e: Event) => this._patch({ priority: Math.max(1, Math.min(100, Math.round(Number((e.target as HTMLInputElement).value) || 10))) })} /></div>
       </div>
       <p class="hint">${this._tr("pe_priority_hint")}</p>
-      <label class="check"><input type="checkbox" .checked=${p.enabled}
-        @change=${(e: Event) => this._patch({ enabled: (e.target as HTMLInputElement).checked })} /> ${this._tr("pe_enabled")}</label>
       <label class="check"><input type="checkbox" .checked=${p.reapply}
         @change=${(e: Event) => this._patch({ reapply: (e.target as HTMLInputElement).checked })} /> ${this._tr("pe_reapply")}</label>
       <p class="hint">${this._tr("pe_reapply_hint")}</p>

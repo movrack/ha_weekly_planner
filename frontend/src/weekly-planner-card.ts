@@ -52,7 +52,7 @@ export class WeeklyPlannerCard extends LitElement {
   }
 
   setConfig(config: CardConfig): void {
-    this._config = { show_chart: true, display: "device", ...config };
+    this._config = { show_chart: true, ...config };
   }
 
   getCardSize(): number {
@@ -115,23 +115,6 @@ export class WeeklyPlannerCard extends LitElement {
   }
 
   /* ---- blocks ---- */
-
-  /** Entities shown in "device" mode, in program order. */
-  private _entities(programs: Program[]): string[] {
-    const types = this._config.filter?.types;
-    const seen = new Set<string>();
-    for (const p of programs) {
-      for (const e of p.entities) {
-        if (!types?.length || types.includes(entityDomain(e.entity_id))) seen.add(e.entity_id);
-      }
-    }
-    return [...seen];
-  }
-
-  private _programsOf(entityId: string): Program[] {
-    return this._data!.programs.filter((p) => p.entities.some((e) => e.entity_id === entityId))
-      .sort((a, b) => a.priority - b.priority);
-  }
 
   /** Spans of a day (`offset` days from today) for a device, from every program that schedules it. */
   private _spans(entityId: string, programs: Program[], offset = 0): BarSpan[] {
@@ -196,13 +179,13 @@ export class WeeklyPlannerCard extends LitElement {
 
   /* ---- render ---- */
 
-  private _line(entityId: string, programs: Program[], opts: { name: boolean; button: Scope | null; open: Scope }) {
+  private _line(entityId: string, programs: Program[], opts: { name: string | null; icon?: string; button: Scope | null; open: Scope }) {
     const lang = this._lang;
     const data = this._data!;
     const next = this._next(entityId, programs);
     const paused = programs.length > 0 && programs.every((p) => !p.enabled);
     const override = data.entities[entityId]?.override;
-    const icon = this.hass.states[entityId]?.attributes.icon ?? ICONS[entityDomain(entityId)] ?? "mdi:calendar-clock";
+    const icon = opts.icon ?? this.hass.states[entityId]?.attributes.icon ?? ICONS[entityDomain(entityId)] ?? "mdi:calendar-clock";
     const open = () => this._open(opts.open);
     const sub = override
       ? override.origin === "voluntary" && override.until
@@ -214,7 +197,7 @@ export class WeeklyPlannerCard extends LitElement {
         <div class="line">
           <ha-icon class="dev" icon=${icon}></ha-icon>
           <div class="info">
-            ${opts.name ? html`<span class="name">${friendlyName(this.hass, entityId)}</span>` : nothing}
+            ${opts.name ? html`<span class="name">${opts.name}</span>` : nothing}
             <span class="now">
               <span class="nw">${stateText(this.hass, lang, entityId)}</span>
               ${next ? html`<span class="nw">→ ${actText(this.hass, lang, data.modes, entityId, next.setpoint)}
@@ -257,17 +240,14 @@ export class WeeklyPlannerCard extends LitElement {
       </div>` : nothing}`;
   }
 
-  private _byDevice(programs: Program[]) {
-    return this._entities(programs).map((eid) => {
-      const scope: Scope = { kind: "device", entityId: eid };
-      return this._line(eid, this._programsOf(eid), { name: true, button: scope, open: scope });
-    });
-  }
-
   private _bySchedule(programs: Program[]) {
     const lang = this._lang;
     return programs.map((p) => {
       const scope: Scope = { kind: "program", programId: p.id };
+      // One device: one line named after the schedule (the name set in its settings).
+      if (p.entities.length === 1) {
+        return this._line(p.entities[0].entity_id, [p], { name: p.name, icon: p.icon ?? undefined, button: scope, open: scope });
+      }
       return html`
       <section class="prog">
         <div class="phead">
@@ -276,7 +256,7 @@ export class WeeklyPlannerCard extends LitElement {
           ${p.enabled ? nothing : html`<ha-icon class="pause" icon="mdi:pause-circle-outline" title=${t(lang, "paused")}></ha-icon>`}
           <button class="hours" @click=${() => this._open(scope)}>${t(lang, "hours")}</button>
         </div>
-        ${p.entities.map((e) => this._line(e.entity_id, [p], { name: p.entities.length > 1, button: null, open: scope }))}
+        ${p.entities.map((e) => this._line(e.entity_id, [p], { name: friendlyName(this.hass, e.entity_id), button: null, open: scope }))}
       </section>`;
     });
   }
@@ -302,7 +282,7 @@ export class WeeklyPlannerCard extends LitElement {
         ${data?.read_only ? html`<div class="error">${t(lang, "read_only")}</div>` : nothing}
         ${!data ? html`<div class="empty">…</div>` : nothing}
         ${data && !programs.length ? html`<div class="empty">${t(lang, "no_program")}</div>` : nothing}
-        ${data ? (this._config.display === "schedule" ? this._bySchedule(programs) : this._byDevice(programs)) : nothing}
+        ${data ? this._bySchedule(programs) : nothing}
       </ha-card>
       ${this._renderDialog()}`;
   }

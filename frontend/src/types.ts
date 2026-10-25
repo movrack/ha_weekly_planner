@@ -133,5 +133,4 @@ export interface CardConfig {
   show_chart?: boolean;
   show_advanced?: boolean;
   /** One block per device (default) or per schedule. */
-  display?: "device" | "schedule";
 }

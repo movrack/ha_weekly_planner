@@ -6,6 +6,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-25
+
+### Changed
+- The schedule settings use Home Assistant's icon picker (drop-down list); the "Program active" box is gone (the schedule screen has the same switch).
+- One display only: one block per schedule. A schedule with one device is a single line named and iconed after the schedule's own settings.
+
+### Removed
+- The card option `display` (by device / by schedule); it is ignored if still present.
+
 ## [0.3.5] - 2026-10-25
 
 ### Changed
