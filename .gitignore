@@ -21,3 +21,7 @@ dev/config/*
 .DS_Store
 .idea/
 .vscode/
+
+# Local Home Assistant runtime (no Docker)
+dev/.venv-ha/
+dev/ha.log

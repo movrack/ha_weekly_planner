@@ -12,6 +12,9 @@ homeassistant:
   language: fr
   packages: !include_dir_named packages
 
+http:
+  server_port: 8124
+
 logger:
   default: warning
   logs:
