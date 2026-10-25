@@ -91,7 +91,7 @@ export class WpDayBar extends LitElement {
       background: var(--primary-text-color); box-shadow: 0 0 0 1px var(--card-background-color);
     }
     .hours { position: relative; height: 20px; font-size: 12px; color: var(--secondary-text-color); }
-    .hours span { position: absolute; transform: translateX(-50%); top: 2px; }
+    .hours span { position: absolute; transform: translateX(-50%); top: 2px; white-space: nowrap; }
     .hours span:first-child { transform: none; }
     .hours span:last-child { transform: translateX(-100%); }
   `;
