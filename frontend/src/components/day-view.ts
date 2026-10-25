@@ -201,16 +201,16 @@ export class WpDayView extends LitElement {
       <wp-dialog wide ?open=${this._open} heading="${s.days[wd]} ${pretty}${isToday ? " · " + s.today : ""}"
         @closed=${this._closed}>
         <button slot="header-start" class="nav" ?disabled=${this._offset <= -BACK}
-          aria-label=${s.previous_day} @click=${() => this._go(-1)}>◀</button>
+          aria-label=${s.previous_day} @click=${() => this._go(-1)}><ha-icon icon="mdi:chevron-left"></ha-icon></button>
         <button slot="header-actions" class="nav" ?disabled=${this._offset >= AHEAD}
-          aria-label=${s.next_day} @click=${() => this._go(1)}>▶</button>
+          aria-label=${s.next_day} @click=${() => this._go(1)}><ha-icon icon="mdi:chevron-right"></ha-icon></button>
         <div class="program">${this.program.name}</div>
         <wp-day-bar show-hours .spans=${ready ? this._bars(date, slots) : []} .now=${nowMin}></wp-day-bar>
         ${ready && !rows.length ? html`<p class="empty">${s.no_slot_day}</p>` : nothing}
         <ul class="slots">
           ${rows.map((row) => html`
             <li class=${row.r?.ignored ? "ignored" : ""}>
-              <div class="time">${row.r?.sun ? "☀️ " : ""}${row.start}${row.end ? ` → ${row.end}` : ""}</div>
+              <div class="time">${row.r?.sun ? html`<ha-icon icon="mdi:weather-sunny"></ha-icon>` : nothing}${row.start}${row.end ? html` <ha-icon icon="mdi:arrow-right"></ha-icon> ${row.end}` : nothing}</div>
               <div class="what">
                 ${this._entityTexts(row.slot).map((e) => html`
                   <div class="line">
@@ -235,7 +235,7 @@ export class WpDayView extends LitElement {
             </section>`)
           : nothing}
         ${this.data.can_edit
-          ? html`<button slot="footer" class="primary" @click=${this._edit}>✏️ ${s.edit}</button>` : nothing}
+          ? html`<button slot="footer" class="primary" @click=${this._edit}><ha-icon icon="mdi:pencil"></ha-icon> ${s.edit}</button>` : nothing}
       </wp-dialog>
     `;
   }
@@ -254,7 +254,7 @@ export class WpDayView extends LitElement {
     ul.slots { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
     li { display: flex; gap: 12px; padding: 8px 10px; border-radius: 10px; background: var(--secondary-background-color); }
     li.ignored .time, li.ignored .name, li.ignored .val { text-decoration: line-through; opacity: 0.7; }
-    .time { min-width: 96px; font-weight: 500; font-variant-numeric: tabular-nums; }
+    .time { min-width: 96px; --mdc-icon-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums; }
     .what { flex: 1; min-width: 0; }
     .line { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
     .name { color: var(--secondary-text-color); font-size: 13px; }

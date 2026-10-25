@@ -30,7 +30,7 @@ export class WpDayBar extends LitElement {
             class="span ${s.ignored ? "ignored" : ""}"
             style="left:${pct(s.start)};width:${pct(Math.max(s.end - s.start, 5))};--c:${s.color}"
             title=${s.label}
-          >${!this.thin && s.end - s.start >= 90 ? html`<span>${s.sun ? "☀️ " : ""}${s.label}</span>` : nothing}</div>`,
+          >${!this.thin && s.end - s.start >= 90 ? html`<span>${s.sun ? html`<ha-icon icon="mdi:weather-sunny"></ha-icon>` : nothing}${s.label}</span>` : nothing}</div>`,
         )}
         ${this.now !== null ? html`<div class="now" style="left:${pct(this.now)}"></div>` : nothing}
       </div>
@@ -56,6 +56,7 @@ export class WpDayBar extends LitElement {
       opacity: 0.5;
     }
     .span span {
+      display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 14px; color: #fff;
       color: #fff; font-size: 11px; font-weight: 600; white-space: nowrap;
       text-shadow: 0 0 2px rgba(0, 0, 0, 0.6); padding: 0 6px;
     }
