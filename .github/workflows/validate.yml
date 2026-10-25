@@ -10,6 +10,8 @@ on:
 
 jobs:
   hacs:
+    # HACS only validates public repositories
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     steps:
       - uses: hacs/action@main
