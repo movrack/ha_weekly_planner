@@ -184,10 +184,11 @@ Settings > Devices & services > Weekly Planner > **Configure**.
 | `water_heater` | operation mode, temperature |
 | `media_player` | on/off, volume, source, play media |
 | `input_number`, `input_select` | value, option |
-| Any / other | HA action, scene, script (one-shot actions), advanced value |
+| Any other entity (`vacuum`, `lock`, `button`, `humidifier`...) | any Home Assistant service accepting the entity (e.g. a vacuum: clean area, start, return to base), run once at its start time; scene, script, advanced value |
 
 Choices (presets, HVAC modes, effects) are read from the entity and validated on save.
-One-shot actions (script, scene, action) are never re-applied after a restart.
+Generic service actions have no end and no default; if a call fails (other than a refused value) it is retried after 1, 2, 5, 10 and 15 minutes.
+One-shot actions (script, scene, action, service) are never re-applied after a restart.
 
 ## FAQ
 

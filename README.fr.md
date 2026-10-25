@@ -187,10 +187,11 @@ Paramètres > Appareils et services > Weekly Planner > **Configurer**.
 | `water_heater` | mode d'opération, température |
 | `media_player` | allumer/éteindre, volume, source, lire un média |
 | `input_number`, `input_select` | valeur, option |
-| Autre / tout type | action HA, scène, script (actions ponctuelles), valeur avancée |
+| Toute autre entité (`vacuum`, `lock`, `button`, `humidifier`...) | tout service Home Assistant qui accepte l'entité (ex. aspirateur : nettoyer une zone, démarrer, retourner à la base), lancé une fois à l'heure de début ; scène, script, valeur avancée |
 
 Les choix (presets, modes HVAC, effets) sont lus sur l'entité et validés à l'enregistrement.
-Les actions ponctuelles (script, scène, action) ne sont jamais réappliquées après un redémarrage.
+Les actions sur service n'ont ni fin ni « reste du temps » ; si l'appel échoue (hors valeur refusée), il est retenté après 1, 2, 5, 10 et 15 minutes.
+Les actions ponctuelles (script, scène, action, service) ne sont jamais réappliquées après un redémarrage.
 
 ## FAQ
 
