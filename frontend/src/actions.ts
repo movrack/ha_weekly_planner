@@ -3,7 +3,7 @@
 
 import { t } from "./i18n";
 import {
-  entityDomain, fmtNum, friendlyName, modeSetpoint, newId, presetLabel, presetTemperature,
+  entityDomain, fmtNum, friendlyName, modeEffect, modeSetpoint, newId, presetLabel, presetTemperature,
 } from "./planner";
 import { isGenericEntity, serviceLabel } from "./services";
 import { DAY, STEP, fmtClock } from "./time";
@@ -332,8 +332,12 @@ export function actionChoices(
     }
   }
   const type = domain === "input_boolean" ? "switch" : domain;
+  const key = (label: string) => label.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().split(" ")[0];
   for (const m of modes.filter((x) => x.type === type)) {
-    add({ id: `mode:${m.id}`, label: m.name, group: "common", act: { sp: modeSetpoint(m, entityId), modeId: m.id } });
+    // A common mode named like one of the device's own modes ("Hors-gel") would be a duplicate.
+    if (out.some((o) => o.group === "own" && key(o.label) === key(m.name))) continue;
+    const effect = modeEffect(hass, lang, m, entityId);
+    add({ id: `mode:${m.id}`, label: effect ? `${m.name} ${effect}` : m.name, group: "common", act: { sp: modeSetpoint(m, entityId), modeId: m.id } });
   }
   return out;
 }

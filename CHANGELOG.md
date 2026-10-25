@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-10-26
+
+### Fixed
+- A common mode named like one of the device's own modes ("Hors-gel") is no longer offered twice; common modes show their effect ("Nuit 16 °C").
+- Space between the end choice and its time field.
+
 ## [0.5.1] - 2026-10-26
 
 ### Changed
