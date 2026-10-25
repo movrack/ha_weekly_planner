@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-10-25
+
+### Added
+- Tapping a day of the week list opens the schedule on that day: its slot opens for editing, or a new slot for that day when it has none.
+
 ## [0.3.3] - 2026-10-25
 
 ### Fixed

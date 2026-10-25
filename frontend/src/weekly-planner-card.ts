@@ -18,7 +18,7 @@ import { formatWhen, localDateIso, localMinutes, localWeekday, nominal, spillove
 import type { CardConfig, HomeAssistant, PlannerData, PreviewSlot, Program, Slot } from "./types";
 
 type Dialog =
-  | { kind: "schedule"; scope: Scope }
+  | { kind: "schedule"; scope: Scope; day?: { weekday: number; offset: number } }
   | { kind: "program"; program?: Program }
   | { kind: "admin" }
   | null;
@@ -190,8 +190,8 @@ export class WeeklyPlannerCard extends LitElement {
     }
   }
 
-  private _open(scope: Scope): void {
-    this._dialog = { kind: "schedule", scope };
+  private _open(scope: Scope, day?: { weekday: number; offset: number }): void {
+    this._dialog = { kind: "schedule", scope, day };
   }
 
   /* ---- render ---- */
@@ -229,12 +229,12 @@ export class WeeklyPlannerCard extends LitElement {
         ${override ? html`<div class="manual"><ha-icon icon="mdi:hand-back-right"></ha-icon><span>${sub}</span>
           <button class="x" aria-label=${t(lang, "cancel_manual")} @click=${() => void this._cancelOverride(entityId)}>
             <ha-icon icon="mdi:close"></ha-icon></button></div>` : nothing}
-        ${this._weekRows(`${scopeKey(opts.open)}|${entityId}`, entityId, programs)}
+        ${this._weekRows(`${scopeKey(opts.open)}|${entityId}`, entityId, programs, opts.open)}
       </div>`;
   }
 
   /** Collapsible list of the next 6 days, one thin bar each, below today's bar. */
-  private _weekRows(key: string, entityId: string, programs: Program[]) {
+  private _weekRows(key: string, entityId: string, programs: Program[], scope: Scope) {
     const lang = this._lang;
     const open = this._week.has(key);
     const toggle = () => {
@@ -248,9 +248,12 @@ export class WeeklyPlannerCard extends LitElement {
       <button class="weekbtn" aria-expanded=${open} @click=${toggle}>
         <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>${t(lang, "week")}</button>
       ${open ? html`<div class="week">
-        ${[1, 2, 3, 4, 5, 6].map((o) => html`<div class="wday">
-          <span class="wname">${days[localWeekday(this._dateAt(o), this._tz)]}</span>
-          <wp-day-bar .spans=${this._spans(entityId, programs, o)}></wp-day-bar></div>`)}
+        ${[1, 2, 3, 4, 5, 6].map((o) => {
+          const weekday = localWeekday(this._dateAt(o), this._tz);
+          return html`<button class="wday" aria-label=${days[weekday]} @click=${() => this._open(scope, { weekday, offset: o })}>
+            <span class="wname">${days[weekday]}</span>
+            <wp-day-bar .spans=${this._spans(entityId, programs, o)}></wp-day-bar></button>`;
+        })}
       </div>` : nothing}`;
   }
 
@@ -310,7 +313,7 @@ export class WeeklyPlannerCard extends LitElement {
     const close = () => (this._dialog = null);
     switch (d.kind) {
       case "schedule":
-        return keyed(scopeKey(d.scope), html`<wp-schedule .hass=${this.hass} .data=${this._data} .scope=${d.scope}
+        return keyed(scopeKey(d.scope), html`<wp-schedule .hass=${this.hass} .data=${this._data} .scope=${d.scope} .day=${d.day ?? null}
           .chart=${this._config.show_chart !== false} @closed=${close}
           @open-settings=${(e: CustomEvent<{ programId: string }>) => {
             const program = this._data!.programs.find((p) => p.id === e.detail.programId);
@@ -361,8 +364,12 @@ export class WeeklyPlannerCard extends LitElement {
       display: inline-flex; align-items: center; gap: 4px; min-height: 48px; padding: 0 8px 0 0; border: none;
       background: none; color: var(--primary-color); font: inherit; font-size: 14px; cursor: pointer; --mdc-icon-size: 20px;
     }
-    .week { display: flex; flex-direction: column; gap: 6px; padding-bottom: 4px; }
-    .wday { display: flex; align-items: center; gap: 8px; }
+    .week { display: flex; flex-direction: column; gap: 0; padding-bottom: 4px; }
+    .wday {
+      display: flex; align-items: center; gap: 8px; min-height: 48px; width: 100%; padding: 0; border: none; border-radius: 8px;
+      background: none; color: inherit; font: inherit; cursor: pointer; text-align: left;
+    }
+    .wday:hover { background: var(--secondary-background-color); }
     .wname { flex: none; width: 36px; font-size: 14px; color: var(--secondary-text-color); }
     .wday wp-day-bar { flex: 1; min-width: 0; }
     .manual { display: flex; align-items: center; gap: 8px; font-size: 14px; --mdc-icon-size: 20px; margin-top: 2px; }
