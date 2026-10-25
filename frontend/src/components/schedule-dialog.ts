@@ -14,6 +14,7 @@ import type { Act, SlotGroup } from "../actions";
 import { addDaysIso } from "./chart";
 import { confirmAction } from "./confirm";
 import { strings, t } from "../i18n";
+import { isGenericEntity, loadServiceNames } from "../services";
 import { activeProfile, friendlyName, newId } from "../planner";
 import { localDateIso } from "../time";
 import { findOverlap, specMinutes } from "../editors/day-editor";
@@ -97,6 +98,7 @@ export class WpSchedule extends LitElement {
   /* ---- lifecycle / chart ---- */
 
   firstUpdated(): void {
+    this._loadNames();
     if (!this.day) return;
     const { weekday, offset } = this.day;
     if (offset >= -BACK && offset <= AHEAD) this._offset = offset;
@@ -111,6 +113,21 @@ export class WpSchedule extends LitElement {
       this._add([weekday]);
       this._dayOnly = weekday;
     }
+  }
+
+  /** Translated service names of the generic actions of this scope. */
+  private _loadNames(): void {
+    const domains = new Set<string>();
+    for (const p of this._programs) {
+      for (const day of activeProfile(p, this.data).days) {
+        for (const slot of day) {
+          for (const sp of Object.values(slot.actions.by_entity)) {
+            if (sp.kind === "service") domains.add(String(sp.service).split(".")[0]);
+          }
+        }
+      }
+    }
+    void loadServiceNames(this.hass, [...domains]).then((ok) => ok && this.requestUpdate());
   }
 
   willUpdate(changed: Map<string, unknown>): void {
@@ -176,7 +193,7 @@ export class WpSchedule extends LitElement {
     const eid = this._entities[0];
     if (!program || !eid) return;
     const slot: Slot = {
-      id: newId(), start: { time: "08:00" }, end: { time: "09:00" }, conditions: [],
+      id: newId(), start: { time: "08:00" }, end: this._entities.every(isGenericEntity) ? null : { time: "09:00" }, conditions: [],
       actions: { by_type: {}, by_entity: {} },
     };
     this._expand("new", program, { slot, days: [...days], ids: {}, fresh: true });
@@ -193,6 +210,7 @@ export class WpSchedule extends LitElement {
       const e = err as { code?: string; message?: string };
       if (e?.code === "conflict") this._error = t(this._lang, "ss_conflict");
       else if (e?.code === "unauthorized") this._error = t(this._lang, "err_unauthorized");
+      else if (e?.message?.includes("service_has_no_end")) this._error = t(this._lang, "err_service_end");
       else if (e?.message?.includes("overlapping_slots")) this._error = t(this._lang, "w_err_overlap");
       else this._error = t(this._lang, "ss_err_save");
       return false;
@@ -378,7 +396,7 @@ export class WpSchedule extends LitElement {
     const lang = this._lang;
     const program = this._programs[0];
     if (!program) return nothing;
-    return this._entities.filter((e) => program.entities.some((x) => x.entity_id === e)).map((eid) => {
+    return this._entities.filter((e) => !isGenericEntity(e) && program.entities.some((x) => x.entity_id === e)).map((eid) => {
       const entity = program.entities.find((x) => x.entity_id === eid)!;
       const act = readDefault(entity, this.data.modes);
       const key = `rest:${eid}`;
