@@ -2130,10 +2130,13 @@ function js(e, t, s, i) {
       return $e(e, i);
   }
 }
-var Ci = Object.defineProperty, Ei = Object.getOwnPropertyDescriptor, it = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? Ei(t, s) : t, n = e.length - 1, r; n >= 0; n--)
+function Ci(e, t, s = 7, i = 35) {
+  return Math.min(i, Math.max(s, Math.round((e + t * 0.5) * 2) / 2));
+}
+var Ei = Object.defineProperty, Pi = Object.getOwnPropertyDescriptor, it = (e, t, s, i) => {
+  for (var o = i > 1 ? void 0 : i ? Pi(t, s) : t, n = e.length - 1, r; n >= 0; n--)
     (r = e[n]) && (o = (i ? r(t, s, o) : r(o)) || o);
-  return i && o && Ci(t, s, o), o;
+  return i && o && Ei(t, s, o), o;
 };
 function fs(e, t) {
   const s = new Intl.DateTimeFormat("en-GB", {
@@ -2185,7 +2188,7 @@ function $s(e) {
   }
   return t;
 }
-const Pi = (e) => e === "unavailable" || e === "unknown" || e === "", W = (e) => typeof e == "number" && Number.isFinite(e) ? e : null;
+const Ai = (e) => e === "unavailable" || e === "unknown" || e === "", W = (e) => typeof e == "number" && Number.isFinite(e) ? e : null;
 let B = class extends M {
   constructor() {
     super(...arguments), this.entityId = "", this.date = "", this.slots = null, this._width = 320, this._loaded = null, this._failed = !1, this._cursor = null, this._model = null, this._token = 0;
@@ -2278,7 +2281,7 @@ let B = class extends M {
   }
   _live(e) {
     const t = k(this.entityId);
-    if (Pi(e.s)) return { applied: null, measured: null };
+    if (Ai(e.s)) return { applied: null, measured: null };
     if (t === "climate") return { applied: W(e.a.temperature), measured: W(e.a.current_temperature) };
     if (t === "cover") return { applied: W(e.a.current_position), measured: null };
     if (t === "light") {
@@ -2479,7 +2482,7 @@ let B = class extends M {
     </div>`;
   }
   _renderChart(e, t) {
-    const s = T(this._lang), i = this._width, o = Ai, n = (g) => S.l + g / e.span * (i - S.l - S.r), r = (g) => S.t + (1 - (g - e.lo) / (e.hi - e.lo)) * (o - S.t - S.b), { startMs: a } = _e(this.date, this._tz), c = [0, 1, 2, 3].map((g) => e.lo + (e.hi - e.lo) * g / 3), h = [];
+    const s = T(this._lang), i = this._width, o = Mi, n = (g) => S.l + g / e.span * (i - S.l - S.r), r = (g) => S.t + (1 - (g - e.lo) / (e.hi - e.lo)) * (o - S.t - S.b), { startMs: a } = _e(this.date, this._tz), c = [0, 1, 2, 3].map((g) => e.lo + (e.hi - e.lo) * g / 3), h = [];
     for (let g = 0; g <= e.span; g += 180) h.push(g);
     const m = (g, P) => g.map(([A, V]) => Mt`<rect class="z ${P}" x=${n(A)} y=${S.t} width=${Math.max(1, n(V) - n(A))}
         height=${o - S.t - S.b}></rect>`), _ = this._cursor;
@@ -2595,7 +2598,7 @@ it([
 B = it([
   N("wp-chart")
 ], B);
-const Ai = 160, S = { l: 38, r: 10, t: 10, b: 22 };
+const Mi = 160, S = { l: 38, r: 10, t: 10, b: 22 };
 function Z(e, t) {
   var o, n;
   const s = (n = (o = e.states[t]) == null ? void 0 : o.attributes) == null ? void 0 : n.friendly_name;
@@ -2604,7 +2607,7 @@ function Z(e, t) {
   return i ? i.charAt(0).toUpperCase() + i.slice(1) : t;
 }
 const Is = /* @__PURE__ */ new Set(["INPUT", "SELECT", "TEXTAREA", "WP-CHART"]);
-function Mi(e) {
+function Oi(e) {
   return e.composedPath().some((t) => t instanceof HTMLElement && Is.has(t.tagName));
 }
 class Rs {
@@ -2612,7 +2615,7 @@ class Rs {
     this.threshold = t, this.id = -1, this.sx = 0, this.sy = 0;
   }
   down(t) {
-    t.pointerType === "mouse" || !t.isPrimary || Mi(t) || (this.id = t.pointerId, this.sx = t.clientX, this.sy = t.clientY);
+    t.pointerType === "mouse" || !t.isPrimary || Oi(t) || (this.id = t.pointerId, this.sx = t.clientX, this.sy = t.clientY);
   }
   /** -1 = swiped right (previous), 1 = swiped left (next), 0 = nothing. */
   up(t) {
@@ -2625,7 +2628,7 @@ class Rs {
     this.id = -1;
   }
 }
-class Oi {
+class Ti {
   constructor(t, s = 500) {
     this.onFire = t, this.delay = s, this.timer = 0, this.sx = 0, this.sy = 0, this.fired = !1;
   }
@@ -2661,10 +2664,10 @@ const Ls = `
   .more-left { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); }
   .more-left.more-right { -webkit-mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
 `;
-var Ti = Object.defineProperty, zi = Object.getOwnPropertyDescriptor, at = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? zi(t, s) : t, n = e.length - 1, r; n >= 0; n--)
+var zi = Object.defineProperty, Di = Object.getOwnPropertyDescriptor, at = (e, t, s, i) => {
+  for (var o = i > 1 ? void 0 : i ? Di(t, s) : t, n = e.length - 1, r; n >= 0; n--)
     (r = e[n]) && (o = (i ? r(t, s, o) : r(o)) || o);
-  return i && o && Ti(t, s, o), o;
+  return i && o && zi(t, s, o), o;
 };
 const ws = 7;
 let J = class extends M {
@@ -2924,8 +2927,8 @@ J = at([
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const Di = (e) => (...t) => ({ _$litDirective$: e, values: t });
-let ji = class {
+const ji = (e) => (...t) => ({ _$litDirective$: e, values: t });
+let Ni = class {
   constructor(t) {
   }
   get _$AU() {
@@ -2946,13 +2949,13 @@ let ji = class {
  * Copyright 2020 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const Ni = {}, Ii = (e, t = Ni) => e._$AH = t;
+const Ii = {}, Ri = (e, t = Ii) => e._$AH = t;
 /**
  * @license
  * Copyright 2021 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const Ri = Di(class extends ji {
+const Ui = ji(class extends Ni {
   constructor() {
     super(...arguments), this.key = d;
   }
@@ -2960,13 +2963,13 @@ const Ri = Di(class extends ji {
     return this.key = e, t;
   }
   update(e, [t, s]) {
-    return t !== this.key && (Ii(e), this.key = t), s;
+    return t !== this.key && (Ri(e), this.key = t), s;
   }
 });
-var Ui = Object.defineProperty, Li = Object.getOwnPropertyDescriptor, Ee = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? Li(t, s) : t, n = e.length - 1, r; n >= 0; n--)
+var Li = Object.defineProperty, Fi = Object.getOwnPropertyDescriptor, Ee = (e, t, s, i) => {
+  for (var o = i > 1 ? void 0 : i ? Fi(t, s) : t, n = e.length - 1, r; n >= 0; n--)
     (r = e[n]) && (o = (i ? r(t, s, o) : r(o)) || o);
-  return i && o && Ui(t, s, o), o;
+  return i && o && Li(t, s, o), o;
 };
 let qt = class extends M {
   constructor() {
@@ -3024,17 +3027,17 @@ function kt(e, t, s) {
     }), (e.shadowRoot ?? e).appendChild(o);
   });
 }
-var Fi = Object.defineProperty, Hi = Object.getOwnPropertyDescriptor, X = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? Hi(t, s) : t, n = e.length - 1, r; n >= 0; n--)
+var Hi = Object.defineProperty, Wi = Object.getOwnPropertyDescriptor, X = (e, t, s, i) => {
+  for (var o = i > 1 ? void 0 : i ? Wi(t, s) : t, n = e.length - 1, r; n >= 0; n--)
     (r = e[n]) && (o = (i ? r(t, s, o) : r(o)) || o);
-  return i && o && Fi(t, s, o), o;
+  return i && o && Hi(t, s, o), o;
 };
-const Wi = { dawn: "next_dawn", sunrise: "next_rising", sunset: "next_setting", dusk: "next_dusk" }, qi = { dawn: 360, sunrise: 420, sunset: 1140, dusk: 1200 };
+const qi = { dawn: "next_dawn", sunrise: "next_rising", sunset: "next_setting", dusk: "next_dusk" }, Bi = { dawn: 360, sunrise: 420, sunset: 1140, dusk: 1200 };
 function Nt(e, t) {
   var o;
   if ("time" in t) return G(t.time);
-  const s = (o = e.states["sun.sun"]) == null ? void 0 : o.attributes[Wi[t.sun]];
-  let i = s ? bt(s, e.config.time_zone) : qi[t.sun];
+  const s = (o = e.states["sun.sun"]) == null ? void 0 : o.attributes[qi[t.sun]];
+  let i = s ? bt(s, e.config.time_zone) : Bi[t.sun];
   return i += t.offset ?? 0, t.earliest && (i = Math.max(i, G(t.earliest))), t.latest && (i = Math.min(i, G(t.latest))), Math.max(0, Math.min(b, i));
 }
 function Be(e) {
@@ -3077,7 +3080,7 @@ function Fs(e, t, s, i, o) {
 }
 let H = class extends M {
   constructor() {
-    super(...arguments), this.slots = [], this.spill = 0, this.day = 0, this._notice = "", this._zoom = 1, this._lp = new Oi(() => {
+    super(...arguments), this.slots = [], this.spill = 0, this.day = 0, this._notice = "", this._zoom = 1, this._lp = new Ti(() => {
       this._lpSlot && (this._menu = this._lpSlot);
     }), this._pts = /* @__PURE__ */ new Map();
   }
@@ -3409,12 +3412,12 @@ X([
 H = X([
   N("wp-day-editor")
 ], H);
-var Bi = Object.defineProperty, Vi = Object.getOwnPropertyDescriptor, pt = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? Vi(t, s) : t, n = e.length - 1, r; n >= 0; n--)
+var Vi = Object.defineProperty, Ji = Object.getOwnPropertyDescriptor, pt = (e, t, s, i) => {
+  for (var o = i > 1 ? void 0 : i ? Ji(t, s) : t, n = e.length - 1, r; n >= 0; n--)
     (r = e[n]) && (o = (i ? r(t, s, o) : r(o)) || o);
-  return i && o && Bi(t, s, o), o;
+  return i && o && Vi(t, s, o), o;
 };
-const Ji = ["dawn", "sunrise", "sunset", "dusk"];
+const Ki = ["dawn", "sunrise", "sunset", "dusk"];
 let Q = class extends M {
   constructor() {
     super(...arguments), this.others = [], this._mode = "modes", this._error = "";
@@ -3462,7 +3465,7 @@ let Q = class extends M {
                 <div class="field">
                   <label>${this._tr("sun_event")}</label>
                   <select @change=${(o) => this._setSpec(e, { ...t, sun: o.target.value })}>
-                    ${Ji.map((o) => l`<option value=${o} ?selected=${t.sun === o}>${this._tr(`sun_${o}`)}</option>`)}
+                    ${Ki.map((o) => l`<option value=${o} ?selected=${t.sun === o}>${this._tr(`sun_${o}`)}</option>`)}
                   </select>
                 </div>
                 <div class="field">
@@ -3670,10 +3673,10 @@ pt([
 Q = pt([
   N("wp-slot-editor")
 ], Q);
-var Ki = Object.defineProperty, Xi = Object.getOwnPropertyDescriptor, U = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? Xi(t, s) : t, n = e.length - 1, r; n >= 0; n--)
+var Xi = Object.defineProperty, Yi = Object.getOwnPropertyDescriptor, U = (e, t, s, i) => {
+  for (var o = i > 1 ? void 0 : i ? Yi(t, s) : t, n = e.length - 1, r; n >= 0; n--)
     (r = e[n]) && (o = (i ? r(t, s, o) : r(o)) || o);
-  return i && o && Ki(t, s, o), o;
+  return i && o && Xi(t, s, o), o;
 };
 const xs = () => [[], [], [], [], [], [], []];
 function ue(e) {
@@ -3948,7 +3951,7 @@ let z = class extends M {
     return l`
       ${e.entities.length === 0 ? l`<p class="muted">${this._tr("pe_no_entity")}</p>` : d}
       ${e.entities.map((t, s) => this._renderEntity(t, s))}
-      ${Ri(this._pickerKey, l`<wp-entity-picker .hass=${this.hass} .value=${""} .label=${this._tr("pe_add_entity")}
+      ${Ui(this._pickerKey, l`<wp-entity-picker .hass=${this.hass} .value=${""} .label=${this._tr("pe_add_entity")}
         .domains=${bi} .exclude=${e.entities.map((t) => t.entity_id)}
         @wp-change=${(t) => {
       t.stopPropagation(), this._addEntity(t.detail);
@@ -4198,13 +4201,13 @@ U([
 z = U([
   N("wp-program-editor")
 ], z);
-var Yi = Object.defineProperty, Gi = Object.getOwnPropertyDescriptor, L = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? Gi(t, s) : t, n = e.length - 1, r; n >= 0; n--)
+var Gi = Object.defineProperty, Zi = Object.getOwnPropertyDescriptor, L = (e, t, s, i) => {
+  for (var o = i > 1 ? void 0 : i ? Zi(t, s) : t, n = e.length - 1, r; n >= 0; n--)
     (r = e[n]) && (o = (i ? r(t, s, o) : r(o)) || o);
-  return i && o && Yi(t, s, o), o;
+  return i && o && Gi(t, s, o), o;
 };
 const ks = 7 * 24 * 3600 * 1e3;
-function Zi(e, t) {
+function Qi(e, t) {
   const s = new Intl.DateTimeFormat("en-GB", {
     timeZone: t,
     year: "numeric",
@@ -4223,7 +4226,7 @@ function Zi(e, t) {
 function Le(e, t, s) {
   const [i, o, n] = e.split("-").map(Number), [r, a] = t.split(":").map(Number), c = Date.UTC(i, o - 1, n, r, a);
   let h = c;
-  for (let m = 0; m < 3; m++) h = c - Zi(new Date(h), s);
+  for (let m = 0; m < 3; m++) h = c - Qi(new Date(h), s);
   return new Date(h);
 }
 function Ss(e, t) {
@@ -4456,12 +4459,12 @@ L([
 j = L([
   N("wp-override-dialog")
 ], j);
-var Qi = Object.defineProperty, to = Object.getOwnPropertyDescriptor, Ct = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? to(t, s) : t, n = e.length - 1, r; n >= 0; n--)
+var to = Object.defineProperty, eo = Object.getOwnPropertyDescriptor, Ct = (e, t, s, i) => {
+  for (var o = i > 1 ? void 0 : i ? eo(t, s) : t, n = e.length - 1, r; n >= 0; n--)
     (r = e[n]) && (o = (i ? r(t, s, o) : r(o)) || o);
-  return i && o && Qi(t, s, o), o;
+  return i && o && to(t, s, o), o;
 };
-const eo = ["climate", "cover", "light", "switch"];
+const so = ["climate", "cover", "light", "switch"];
 let nt = class extends M {
   constructor() {
     super(...arguments), this._type = "", this._rep = "", this._error = "", this._saving = !1;
@@ -4473,7 +4476,7 @@ let nt = class extends M {
     return C(this._lang, e, t);
   }
   _types() {
-    const e = new Set(eo);
+    const e = new Set(so);
     for (const t of this.data.modes) e.add(t.type);
     for (const t of this.data.programs) for (const s of t.entities) e.add(q(k(s.entity_id)));
     return [...e];
@@ -4680,10 +4683,10 @@ Ct([
 nt = Ct([
   N("wp-modes-editor")
 ], nt);
-var so = Object.defineProperty, io = Object.getOwnPropertyDescriptor, _t = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? io(t, s) : t, n = e.length - 1, r; n >= 0; n--)
+var io = Object.defineProperty, oo = Object.getOwnPropertyDescriptor, _t = (e, t, s, i) => {
+  for (var o = i > 1 ? void 0 : i ? oo(t, s) : t, n = e.length - 1, r; n >= 0; n--)
     (r = e[n]) && (o = (i ? r(t, s, o) : r(o)) || o);
-  return i && o && so(t, s, o), o;
+  return i && o && io(t, s, o), o;
 };
 const me = 15, Fe = (e) => e >= b ? "24:00" : Y(e);
 let tt = class extends M {
@@ -4960,12 +4963,12 @@ _t([
 tt = _t([
   N("wp-simple-schedule")
 ], tt);
-var oo = Object.defineProperty, no = Object.getOwnPropertyDescriptor, ut = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? no(t, s) : t, n = e.length - 1, r; n >= 0; n--)
+var no = Object.defineProperty, ro = Object.getOwnPropertyDescriptor, ut = (e, t, s, i) => {
+  for (var o = i > 1 ? void 0 : i ? ro(t, s) : t, n = e.length - 1, r; n >= 0; n--)
     (r = e[n]) && (o = (i ? r(t, s, o) : r(o)) || o);
-  return i && o && oo(t, s, o), o;
+  return i && o && no(t, s, o), o;
 };
-const ro = ["scene", "script", "action"], ao = ["switch", "input_boolean", "fan"], lo = 400, co = 800;
+const ao = ["scene", "script", "action"], lo = ["switch", "input_boolean", "fan"], co = 400, ho = 800;
 let et = class extends M {
   constructor() {
     super(...arguments), this._expanded = !1, this._pending = {}, this._message = "", this._error = "", this._durationOpen = !1, this._sendTimers = /* @__PURE__ */ new Map(), this._clear = /* @__PURE__ */ new Map(), this._stopHold = () => {
@@ -5031,11 +5034,11 @@ let et = class extends M {
         const s = { ...this._pending };
         delete s[e], this._pending = s;
       }, 6e3));
-    }, co));
+    }, ho));
   }
   _step(e, t) {
     var a, c;
-    const s = ((a = this.hass.states[e]) == null ? void 0 : a.attributes) ?? {}, i = this._pending[e] ?? Number(s.temperature ?? s.current_temperature ?? 20), o = Number(s.min_temp ?? 7), n = Number(s.max_temp ?? 35), r = Math.min(n, Math.max(o, Math.round((i + t * 0.5) * 2) / 2));
+    const s = ((a = this.hass.states[e]) == null ? void 0 : a.attributes) ?? {}, i = this._pending[e] ?? Number(s.temperature ?? s.current_temperature ?? 20), o = Number(s.min_temp ?? 7), n = Number(s.max_temp ?? 35), r = Ci(i, t, o, n);
     r !== i && (window.clearTimeout(this._clear.get(e)), this._pending = { ...this._pending, [e]: r }, (c = navigator.vibrate) == null || c.call(navigator, 10), this._queue(e, { kind: "temperature", temperature: r }));
   }
   _brightnessPct(e, t = !0) {
@@ -5051,7 +5054,7 @@ let et = class extends M {
     i === s && s !== 0 || (window.clearTimeout(this._clear.get(e)), this._pending = { ...this._pending, [e]: i }, (o = navigator.vibrate) == null || o.call(navigator, 10), this._queue(e, { kind: "on", brightness: i }));
   }
   _startHold(e, t) {
-    e.preventDefault(), this._stopHold(), t(), this._repeat = window.setInterval(t, lo);
+    e.preventDefault(), this._stopHold(), t(), this._repeat = window.setInterval(t, co);
   }
   _holdButton(e, t, s) {
     return l`<button class="big" aria-label=${t}
@@ -5129,7 +5132,7 @@ let et = class extends M {
     const t = q(k(e)), s = this.data.modes.filter((o) => {
       if (o.type !== t) return !1;
       const n = ge(o, e);
-      return !ro.includes(n.kind) && Si(this.hass, e, n);
+      return !ao.includes(n.kind) && Si(this.hass, e, n);
     });
     if (!s.length) return d;
     const i = this._activeModeId(e);
@@ -5149,7 +5152,7 @@ let et = class extends M {
         ${this._simple(e, "mdi:lightbulb-off", this._tr("sm_off"), { kind: "off" })}</div>
         <div class="pair">
         ${this._holdButton("mdi:minus", this._tr("sm_dimmer"), () => this._dim(e, -1))}
-        ${this._holdButton("mdi:plus", this._tr("sm_brighter"), () => this._dim(e, 1))}</div>` : ao.includes(t) ? l`<div class="pair">
+        ${this._holdButton("mdi:plus", this._tr("sm_brighter"), () => this._dim(e, 1))}</div>` : lo.includes(t) ? l`<div class="pair">
         ${this._simple(e, "mdi:power-plug", this._tr("sm_on"), { kind: "on" })}
         ${this._simple(e, "mdi:power-plug-off", this._tr("sm_off"), { kind: "off" })}</div>` : d;
   }
@@ -5263,10 +5266,10 @@ ut([
 et = ut([
   N("wp-simple-controls")
 ], et);
-var ho = Object.defineProperty, po = Object.getOwnPropertyDescriptor, lt = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? po(t, s) : t, n = e.length - 1, r; n >= 0; n--)
+var po = Object.defineProperty, _o = Object.getOwnPropertyDescriptor, lt = (e, t, s, i) => {
+  for (var o = i > 1 ? void 0 : i ? _o(t, s) : t, n = e.length - 1, r; n >= 0; n--)
     (r = e[n]) && (o = (i ? r(t, s, o) : r(o)) || o);
-  return i && o && ho(t, s, o), o;
+  return i && o && po(t, s, o), o;
 };
 let K = class extends M {
   constructor() {
@@ -5587,12 +5590,12 @@ lt([
 K = lt([
   N("weekly-planner-card")
 ], K);
-var _o = Object.defineProperty, uo = Object.getOwnPropertyDescriptor, Pe = (e, t, s, i) => {
-  for (var o = i > 1 ? void 0 : i ? uo(t, s) : t, n = e.length - 1, r; n >= 0; n--)
+var uo = Object.defineProperty, mo = Object.getOwnPropertyDescriptor, Pe = (e, t, s, i) => {
+  for (var o = i > 1 ? void 0 : i ? mo(t, s) : t, n = e.length - 1, r; n >= 0; n--)
     (r = e[n]) && (o = (i ? r(t, s, o) : r(o)) || o);
-  return i && o && _o(t, s, o), o;
+  return i && o && uo(t, s, o), o;
 };
-const mo = ["climate", "cover", "light", "switch", "fan", "water_heater", "media_player", "input_boolean", "input_number", "input_select"];
+const fo = ["climate", "cover", "light", "switch", "fan", "water_heater", "media_player", "input_boolean", "input_number", "input_select"];
 let Bt = class extends M {
   constructor() {
     super(...arguments), this._config = { type: "custom:weekly-planner-card" }, this._programs = [], this._loaded = !1;
@@ -5651,7 +5654,7 @@ let Bt = class extends M {
             </select></div>` : l`
             <div class="label">${this._tr("ce_types")}</div>
             <div class="row" role="group" aria-label=${this._tr("ce_types")}>
-              ${mo.map((o) => l`<label class="check" style="flex:1 1 150px"><input type="checkbox" .checked=${t.includes(o)}
+              ${fo.map((o) => l`<label class="check" style="flex:1 1 150px"><input type="checkbox" .checked=${t.includes(o)}
                 @change=${(n) => this._setFilter({ types: n.target.checked ? [...t, o] : t.filter((r) => r !== o) })} />
                 ${Ce(this._lang, o)}</label>`)}
             </div>
