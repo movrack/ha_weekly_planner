@@ -20,6 +20,12 @@ if [ -n "$(git status --porcelain -- custom_components)" ]; then
   echo "Uncommitted changes in custom_components: commit them first."; exit 1
 fi
 
+if [ "$MODE" = "--apply" ]; then
+  echo "Running tests before deploying…"
+  uv run --group test pytest -q >/dev/null 2>&1 || { echo "Python tests fail: not deploying."; exit 1; }
+  (cd frontend && npm test --silent >/dev/null 2>&1) || { echo "Card tests fail: not deploying."; exit 1; }
+fi
+
 RSYNC=(rsync -rlt --checksum --delete --exclude __pycache__ -e "ssh -o BatchMode=yes -o ConnectTimeout=10")
 if [ "$MODE" = "--apply" ]; then
   ssh -o BatchMode=yes "$HOST" "mkdir -p '$DEST'"
