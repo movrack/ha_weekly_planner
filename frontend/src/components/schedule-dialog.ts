@@ -33,6 +33,8 @@ export class WpSchedule extends LitElement {
   @property({ attribute: false }) data!: PlannerData;
   @property({ attribute: false }) scope!: Scope;
   @property({ type: Boolean }) chart = true;
+  /** Opened from a day of the card's week (0 = Monday, `offset` days from today): edit that day. */
+  @property({ attribute: false }) day: { weekday: number; offset: number } | null = null;
 
   /** Row being edited: its key, "new", or "rest:<entity>". */
   @state() private _open: string | null = null;
@@ -91,6 +93,15 @@ export class WpSchedule extends LitElement {
 
   /* ---- lifecycle / chart ---- */
 
+  firstUpdated(): void {
+    if (!this.day) return;
+    const { weekday, offset } = this.day;
+    if (offset >= -BACK && offset <= AHEAD) this._offset = offset;
+    const rows = this._rows().filter((r) => r.group.days.includes(weekday));
+    if (rows.length === 1) this._expand(rows[0].key, rows[0].program, rows[0].group);
+    else if (!rows.length && this._canEdit) this._add([weekday]);
+  }
+
   willUpdate(changed: Map<string, unknown>): void {
     if (!this._chartEntity || changed.has("scope")) this._chartEntity = this._entities[0] ?? "";
     const owner = this._programs[0];
@@ -147,7 +158,7 @@ export class WpSchedule extends LitElement {
     this._error = "";
   }
 
-  private _add(): void {
+  private _add(days: number[] = ALL_DAYS): void {
     const program = this._programs[0];
     const eid = this._entities[0];
     if (!program || !eid) return;
@@ -155,7 +166,7 @@ export class WpSchedule extends LitElement {
       id: newId(), start: { time: "08:00" }, end: { time: "09:00" }, conditions: [],
       actions: { by_type: {}, by_entity: {} },
     };
-    this._expand("new", program, { slot, days: [...ALL_DAYS], ids: {}, fresh: true });
+    this._expand("new", program, { slot, days: [...days], ids: {}, fresh: true });
   }
 
   /* ---- saving ---- */
