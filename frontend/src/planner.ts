@@ -172,3 +172,20 @@ export function isFrostMode(hass: HomeAssistant, mode: Mode, entityId: string): 
   const temp = modeTemperature(hass, mode, entityId);
   return temp !== null && temp <= 10;
 }
+
+/**
+ * Make Home Assistant's own form elements (ha-selector, icon picker) available. They are loaded lazily
+ * by the frontend; opening a built-in card editor once defines them. Resolves false when not possible.
+ */
+export async function ensureHaSelector(): Promise<boolean> {
+  if (customElements.get("ha-selector")) return true;
+  try {
+    const helpers = await (window as unknown as { loadCardHelpers?: () => Promise<any> }).loadCardHelpers?.();
+    const card = await helpers?.createCardElement({ type: "button", entity: "sun.sun" });
+    await (card?.constructor as { getConfigElement?: () => Promise<unknown> })?.getConfigElement?.();
+    await Promise.race([customElements.whenDefined("ha-selector"), new Promise((r) => setTimeout(r, 3000))]);
+  } catch {
+    /* keep the plain text field */
+  }
+  return Boolean(customElements.get("ha-selector"));
+}

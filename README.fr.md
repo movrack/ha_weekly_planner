@@ -55,7 +55,6 @@ Un programme fixé :
 type: custom:weekly-planner-card
 program: chauffage-bureau
 title: Bureau
-display: schedule
 show_chart: true
 ```
 
@@ -75,7 +74,6 @@ title: Chauffage
 | `filter.types` | Types d'entités à lister (`climate`, `cover`, `light`...). |
 | `filter.area` | Seulement les programmes qui contiennent des entités de cette zone. |
 | `title` | Titre de la carte. |
-| `display` | `device` (par défaut) : un bloc par appareil. `schedule` : un bloc par programme. |
 | `show_chart` | Afficher le graphique prévu/mesuré dans l'écran des horaires (activé par défaut). |
 
 La carte est un planificateur, pas une télécommande : une ligne compacte par appareil (état, prochaine action

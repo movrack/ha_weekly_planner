@@ -54,7 +54,6 @@ One fixed program:
 type: custom:weekly-planner-card
 program: office-heating
 title: Office
-display: schedule
 show_chart: true
 ```
 
@@ -74,7 +73,6 @@ title: Heating
 | `filter.types` | Entity types to list (`climate`, `cover`, `light`...). |
 | `filter.area` | Only programs that contain entities of this area. |
 | `title` | Card title. |
-| `display` | `device` (default): one block per device. `schedule`: one block per program. |
 | `show_chart` | Show the planned/measured chart in the schedule screen (default on). |
 
 The card is a planner, not a remote control: one compact line per device (state, next scheduled action,
