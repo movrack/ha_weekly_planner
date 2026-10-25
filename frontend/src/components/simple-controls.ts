@@ -281,7 +281,10 @@ export class WpSimpleControls extends LitElement {
     const modes = this.data.modes.filter((m: Mode) => {
       if (m.type !== type) return false;
       const sp = modeSetpoint(m, eid);
-      return !ONE_SHOT.includes(sp.kind) && applicable(this.hass, eid, sp);
+      // never repeat what the big buttons already do (Open / Close, On / Off)
+      const big = entityDomain(eid) === "cover" ? ["open", "close"] : ["on", "off"];
+      const duplicate = big.includes(sp.kind) && !("brightness" in sp) && !("percentage" in sp);
+      return !duplicate && !ONE_SHOT.includes(sp.kind) && applicable(this.hass, eid, sp);
     });
     if (!modes.length) return nothing;
     const active = this._activeModeId(eid);
@@ -310,8 +313,8 @@ export class WpSimpleControls extends LitElement {
     }
     if (domain === "cover") {
       return html`<div class="pair">
-        ${this._simple(eid, "mdi:blinds-open", this._tr("sm_open"), { kind: "open" })}
-        ${this._simple(eid, "mdi:blinds-closed", this._tr("sm_close"), { kind: "close" })}</div>`;
+        ${this._simple(eid, "mdi:window-shutter-open", this._tr("sm_open"), { kind: "open" })}
+        ${this._simple(eid, "mdi:window-shutter", this._tr("sm_close"), { kind: "close" })}</div>`;
     }
     if (domain === "light") {
       return html`<div class="pair">
