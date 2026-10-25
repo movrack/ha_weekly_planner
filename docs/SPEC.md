@@ -326,7 +326,7 @@ Entité `select.weekly_planner_<programme>_profil` (§ 5.10).
 pour le graphique) · `check` (avertissements VT, pilotes concurrents).
 
 **Droits**
-- `admin_only` (option globale) : si actif, seules la lecture, les switchs et `resume` restent ouverts aux non-admins.
+- `admin_only` (option globale, désactivée par défaut) : si actif, seules l'édition des programmes et des modes est réservée aux admins (lecture, switchs, `resume`, « Déroger… », profil restent ouverts).
 - **Toujours réservé aux admins**, quel que soit `admin_only` : consignes « action HA », « script », « valeur
   avancée », et toute consigne visant un domaine sensible (`homeassistant`, `hassio`, `alarm_control_panel`, `lock`).
 
