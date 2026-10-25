@@ -415,7 +415,9 @@ son chauffage »). Écran de référence : Galaxy S22, 360 × 780 px.
 
 - **Versatile Thermostat** : § 6.2. Fenêtre ouverte : VT gère, pas de dérogation, la consigne de fin est envoyée au VT.
 - **Evohome piloté directement** : option « dérogation permanente » (preset `permanent` puis consigne), proposée si
-  l'entité a ce preset ; fenêtre de grâce 6 min. Quand l'entité quitte Weekly Planner (retrait, suppression du
+  l'entité a ce preset ; fenêtre de grâce 6 min. Pour un Versatile Thermostat avec cette option, la garde
+  s'applique aussi à ses sous-jacents (`vtherm_over_climate.underlying_entities`) : une zone qui repasse en
+  `temporary` ou `none` est remise aussitôt en `permanent` (jamais quand elle est `off`). Quand l'entité quitte Weekly Planner (retrait, suppression du
   programme, désinstallation), elle est remise en suivi de programme Evohome (preset `none`). Evohome **sous un VT** : le programme interne Evohome de la zone
   doit être vide ou plat, sinon il reprend la main au point de bascule suivant (documenté, vérifié par `check`).
 - **Adaptive Lighting** : § 6.1 et § 5.3.

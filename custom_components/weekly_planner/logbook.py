@@ -18,6 +18,7 @@ MESSAGES = {
         "waiting_unavailable": "unavailable: will be applied when it is back",
         "failed": "did not reach {setpoint}",
         "locked": "locked: setpoint not sent",
+        "permanent_restored": "back to a permanent override (its own schedule stays off)",
     },
     "fr": {
         "applied": "consigne appliquée : {setpoint}",
@@ -27,6 +28,7 @@ MESSAGES = {
         "waiting_unavailable": "indisponible : sera appliqué à son retour",
         "failed": "consigne non atteinte : {setpoint}",
         "locked": "verrouillé : consigne non envoyée",
+        "permanent_restored": "remis en dérogation permanente (son propre programme reste coupé)",
     },
 }
 

@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-25
+
+### Added
+- "Force permanent override" also guards the climates a Versatile Thermostat drives: an Evohome zone that
+  falls back to a temporary override or its own schedule is put back in permanent override at once.
+
 ## [0.1.1] - 2026-10-25
 
 ### Fixed

@@ -90,6 +90,8 @@ class PlannerEngine:
 
         self._ready = True
         async_check_missing(self.hass, self)
+        for cid in self.permanent_guarded():
+            self._guard_permanent(cid, self.hass.states.get(cid))
         self._observe_all_conditions(initial=True)
         await self.async_recompute("startup")
 
@@ -223,6 +225,7 @@ class PlannerEngine:
         watched = set(self.managed_entities())
         watched |= {c["entity_id"] for c in self._all_conditions()}
         watched |= set(self._adaptive_switches())
+        watched |= set(self.permanent_guarded())
         if watched:
             self._unsubs.append(async_track_state_change_event(self.hass, sorted(watched), self._on_state))
 
@@ -235,6 +238,47 @@ class PlannerEngine:
                     for slot in day:
                         conds += slot.get("conditions", [])
         return conds
+
+    def permanent_guarded(self) -> set[str]:
+        """Evohome-like climates that must stay in permanent override (spec § 11).
+
+        For an entity with ``force_permanent``: the entity itself if it offers the ``permanent``
+        preset, and the climates a Versatile Thermostat drives (``vtherm_over_climate``).
+        """
+        guarded: set[str] = set()
+        for program in self.store.programs:
+            if not program.get("enabled", True):
+                continue
+            for entity in program["entities"]:
+                if not entity.get("force_permanent"):
+                    continue
+                eid = entity["entity_id"]
+                state = self.hass.states.get(eid)
+                if state is None:
+                    continue
+                candidates = [eid] + list(
+                    (state.attributes.get("vtherm_over_climate") or {}).get("underlying_entities") or []
+                )
+                for cid in candidates:
+                    cst = self.hass.states.get(cid)
+                    if cst is not None and "permanent" in (cst.attributes.get("preset_modes") or []):
+                        guarded.add(cid)
+        return guarded
+
+    @callback
+    def _guard_permanent(self, entity_id: str, new: State | None) -> None:
+        """Put a guarded climate back in permanent override if it left it (never fight 'off')."""
+        if new is None or new.state in UNAVAILABLE or new.state == "off":
+            return
+        if new.attributes.get("preset_mode") in ("permanent", None):
+            return
+        if entity_id not in self.permanent_guarded():
+            return
+        self._log(entity_id, "permanent_restored", {})
+        self.hass.async_create_task(self.hass.services.async_call(
+            "climate", "set_preset_mode", {"entity_id": entity_id, "preset_mode": "permanent"},
+            blocking=False, context=self.new_context()))
+        # no runtime entry for a guarded underlying: releasing it would reset its schedule
 
     def _adaptive_switches(self) -> list[str]:
         return [s.entity_id for s in self.hass.states.async_all("switch")
@@ -267,6 +311,8 @@ class PlannerEngine:
             self._arm_timer()
         if entity_id.startswith("switch.adaptive_lighting_"):
             self.hass.async_create_task(self._async_reaffirm_adaptive())
+        if entity_id.startswith("climate."):
+            self._guard_permanent(entity_id, new)
         if entity_id in self.managed_entities():
             self._check_entity_change(entity_id, old, new, event.context)
 
