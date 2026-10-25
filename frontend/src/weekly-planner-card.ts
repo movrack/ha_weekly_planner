@@ -12,7 +12,7 @@ import type { BarSpan } from "./components/day-bar";
 import { scopeKey } from "./components/schedule-dialog";
 import type { Scope } from "./components/schedule-dialog";
 import { actColor, actText, nb, readAct, stateText } from "./actions";
-import { t } from "./i18n";
+import { strings, t } from "./i18n";
 import { activeProfile, entityDomain, filterPrograms, friendlyName, subscribePlanner } from "./planner";
 import { formatWhen, localDateIso, localMinutes, localWeekday, nominal, spillover, DAY } from "./time";
 import type { CardConfig, HomeAssistant, PlannerData, PreviewSlot, Program, Slot } from "./types";
@@ -35,8 +35,10 @@ export class WeeklyPlannerCard extends LitElement {
   @state() private _data?: PlannerData;
   @state() private _error?: string;
   @state() private _dialog: Dialog = null;
-  @state() private _preview: Record<string, PreviewSlot[]> = {};
+  // Resolved slots (sun times) per local date, then per program: today and the next 6 days.
+  @state() private _preview: Record<string, Record<string, PreviewSlot[]>> = {};
   @state() private _now = new Date();
+  @state() private _week = new Set<string>();
   private _unsub?: () => void;
   private _clock?: number;
   private _previewKey = "";
@@ -91,19 +93,24 @@ export class WeeklyPlannerCard extends LitElement {
     return this.hass.config.time_zone;
   }
 
-  /** Resolved slots of today (sun times), reloaded only when a program changes. */
+  /** The moment `offset` days from now (only its local date and weekday are used). */
+  private _dateAt(offset: number): Date {
+    return new Date(this._now.getTime() + offset * 86_400_000);
+  }
+
+  /** Resolved slots of the coming 7 days (sun times), reloaded only when a program changes. */
   private async _loadPreviews(): Promise<void> {
     if (!this._data) return;
-    const date = localDateIso(new Date(), this._tz);
+    const dates = [0, 1, 2, 3, 4, 5, 6].map((o) => localDateIso(this._dateAt(o), this._tz));
     const programs = filterPrograms(this._data, this._config);
-    const key = `${date}|${programs.map((p) => `${p.id}:${p.revision}`).join(",")}`;
+    const key = `${dates[0]}|${programs.map((p) => `${p.id}:${p.revision}`).join(",")}`;
     if (key === this._previewKey) return;
     this._previewKey = key;
-    const previews: Record<string, PreviewSlot[]> = {};
-    await Promise.all(programs.map((p) =>
+    const previews: Record<string, Record<string, PreviewSlot[]>> = {};
+    await Promise.all(dates.flatMap((date) => programs.map((p) =>
       this.hass.callWS<{ slots: PreviewSlot[] }>({ type: "weekly_planner/preview", program_id: p.id, date })
-        .then((res) => { previews[p.id] = res.slots; })
-        .catch(() => undefined)));
+        .then((res) => { (previews[date] ??= {})[p.id] = res.slots; })
+        .catch(() => undefined))));
     this._preview = previews;
   }
 
@@ -126,11 +133,13 @@ export class WeeklyPlannerCard extends LitElement {
       .sort((a, b) => a.priority - b.priority);
   }
 
-  /** Spans of today for a device, from every program that schedules it. */
-  private _spans(entityId: string, programs: Program[]): BarSpan[] {
+  /** Spans of a day (`offset` days from today) for a device, from every program that schedules it. */
+  private _spans(entityId: string, programs: Program[], offset = 0): BarSpan[] {
     const data = this._data!;
     const lang = this._lang;
-    const today = localWeekday(this._now, this._tz);
+    const at = this._dateAt(offset);
+    const today = localWeekday(at, this._tz);
+    const preview = this._preview[localDateIso(at, this._tz)] ?? {};
     const spans: BarSpan[] = [];
     const of = (slot: Slot) => readAct(slot, entityId, data.modes);
     for (const program of [...programs].reverse()) {
@@ -143,7 +152,7 @@ export class WeeklyPlannerCard extends LitElement {
       for (const { slot, end } of spillover(profile.days[(today + 6) % 7])) {
         if (of(slot)) spans.push(mk(slot, 0, end));
       }
-      const resolved = this._preview[program.id];
+      const resolved = preview[program.id];
       for (const slot of profile.days[today]) {
         if (!of(slot)) continue;
         const r = resolved?.find((x) => x.slot_id === slot.id);
@@ -220,7 +229,29 @@ export class WeeklyPlannerCard extends LitElement {
         ${override ? html`<div class="manual"><ha-icon icon="mdi:hand-back-right"></ha-icon><span>${sub}</span>
           <button class="x" aria-label=${t(lang, "cancel_manual")} @click=${() => void this._cancelOverride(entityId)}>
             <ha-icon icon="mdi:close"></ha-icon></button></div>` : nothing}
+        ${this._weekRows(`${scopeKey(opts.open)}|${entityId}`, entityId, programs)}
       </div>`;
+  }
+
+  /** Collapsible list of the next 6 days, one thin bar each, below today's bar. */
+  private _weekRows(key: string, entityId: string, programs: Program[]) {
+    const lang = this._lang;
+    const open = this._week.has(key);
+    const toggle = () => {
+      const week = new Set(this._week);
+      if (open) week.delete(key);
+      else week.add(key);
+      this._week = week;
+    };
+    const days = strings(lang).days_short;
+    return html`
+      <button class="weekbtn" aria-expanded=${open} @click=${toggle}>
+        <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>${t(lang, "week")}</button>
+      ${open ? html`<div class="week">
+        ${[1, 2, 3, 4, 5, 6].map((o) => html`<div class="wday">
+          <span class="wname">${days[localWeekday(this._dateAt(o), this._tz)]}</span>
+          <wp-day-bar .spans=${this._spans(entityId, programs, o)}></wp-day-bar></div>`)}
+      </div>` : nothing}`;
   }
 
   private _byDevice(programs: Program[]) {
@@ -326,6 +357,14 @@ export class WeeklyPlannerCard extends LitElement {
       background: none; color: var(--primary-color); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
     }
     wp-day-bar { cursor: pointer; margin-top: 2px; }
+    .weekbtn {
+      display: inline-flex; align-items: center; gap: 4px; min-height: 48px; padding: 0 8px 0 0; border: none;
+      background: none; color: var(--primary-color); font: inherit; font-size: 14px; cursor: pointer; --mdc-icon-size: 20px;
+    }
+    .week { display: flex; flex-direction: column; gap: 6px; padding-bottom: 4px; }
+    .wday { display: flex; align-items: center; gap: 8px; }
+    .wname { flex: none; width: 36px; font-size: 14px; color: var(--secondary-text-color); }
+    .wday wp-day-bar { flex: 1; min-width: 0; }
     .manual { display: flex; align-items: center; gap: 8px; font-size: 14px; --mdc-icon-size: 20px; margin-top: 2px; }
     .manual span { flex: 1; min-width: 0; }
     .prog { padding: 8px 0 4px; border-top: 1px solid var(--divider-color); }
