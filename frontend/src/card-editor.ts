@@ -100,12 +100,15 @@ export class WeeklyPlannerCardEditor extends LitElement {
               <input id="ce-area" type="text" .value=${c.filter?.area ?? ""} placeholder="bureau"
                 @input=${(e: Event) => this._setFilter({ area: (e.target as HTMLInputElement).value.trim() })} /></div>`}
 
-      <label class="check"><input type="checkbox" .checked=${Boolean(c.show_week)}
-        @change=${(e: Event) => this._set("show_week", (e.target as HTMLInputElement).checked)} /> ${this._tr("ce_show_week")}</label>
+      <div class="label">${this._tr("ce_display")}</div>
+      <div class="row" role="radiogroup" aria-label=${this._tr("ce_display")}>
+        <label class="check"><input type="radio" name="ce-display" .checked=${c.display !== "schedule"}
+          @change=${() => this._set("display", undefined)} /> ${this._tr("ce_display_device")}</label>
+        <label class="check"><input type="radio" name="ce-display" .checked=${c.display === "schedule"}
+          @change=${() => this._set("display", "schedule")} /> ${this._tr("ce_display_schedule")}</label>
+      </div>
       <label class="check"><input type="checkbox" .checked=${c.show_chart !== false}
         @change=${(e: Event) => this._set("show_chart", (e.target as HTMLInputElement).checked)} /> ${this._tr("ce_show_chart")}</label>
-      <label class="check"><input type="checkbox" .checked=${c.show_advanced !== false}
-        @change=${(e: Event) => this._set("show_advanced", (e.target as HTMLInputElement).checked ? undefined : false)} /> ${this._tr("ce_show_advanced")}</label>
     `;
   }
 
