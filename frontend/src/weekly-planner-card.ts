@@ -13,6 +13,7 @@ import { scopeKey } from "./components/schedule-dialog";
 import type { Scope } from "./components/schedule-dialog";
 import { actColor, actText, nb, readAct, stateText } from "./actions";
 import { strings, t } from "./i18n";
+import { loadServiceNames } from "./services";
 import { activeProfile, entityDomain, filterPrograms, friendlyName, subscribePlanner } from "./planner";
 import { formatWhen, localDateIso, localMinutes, localWeekday, nominal, spillover, DAY } from "./time";
 import type { CardConfig, HomeAssistant, PlannerData, PreviewSlot, Program, Slot } from "./types";
@@ -25,7 +26,8 @@ type Dialog =
 
 const ICONS: Record<string, string> = {
   climate: "mdi:thermostat", cover: "mdi:window-shutter", light: "mdi:lightbulb",
-  switch: "mdi:power-plug", input_boolean: "mdi:toggle-switch", fan: "mdi:fan",
+  switch: "mdi:power-plug", input_boolean: "mdi:toggle-switch", fan: "mdi:fan", vacuum: "mdi:robot-vacuum",
+  water_heater: "mdi:water-boiler", media_player: "mdi:play-box", lock: "mdi:lock", button: "mdi:gesture-tap-button",
 };
 
 @customElement("weekly-planner-card")
@@ -80,6 +82,7 @@ export class WeeklyPlannerCard extends LitElement {
       this._unsub = subscribePlanner(this.hass, (data) => {
         this._data = data;
         this._error = undefined;
+        void this._loadNames(data);
         void this._loadPreviews();
       });
     }
@@ -96,6 +99,23 @@ export class WeeklyPlannerCard extends LitElement {
   /** The moment `offset` days from now (only its local date and weekday are used). */
   private _dateAt(offset: number): Date {
     return new Date(this._now.getTime() + offset * 86_400_000);
+  }
+
+  /** Translated names of the services used by the programs. */
+  private async _loadNames(data: PlannerData): Promise<void> {
+    const domains = new Set<string>();
+    for (const p of data.programs) {
+      for (const profile of p.profiles) {
+        for (const day of profile.days) {
+          for (const slot of day) {
+            for (const sp of Object.values(slot.actions.by_entity)) {
+              if (sp.kind === "service") domains.add(String(sp.service).split(".")[0]);
+            }
+          }
+        }
+      }
+    }
+    if (await loadServiceNames(this.hass, [...domains])) this.requestUpdate();
   }
 
   /** Resolved slots of the coming 7 days (sun times), reloaded only when a program changes. */

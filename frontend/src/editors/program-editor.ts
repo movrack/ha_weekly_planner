@@ -8,6 +8,7 @@ import "../components/dialog";
 import { confirmAction } from "../components/confirm";
 import { displayName, scrollHintCss, trackScrollHints } from "../components/gestures";
 import { strings, t } from "../i18n";
+import { isGenericEntity } from "../services";
 import { ensureHaSelector, entityDomain, newId } from "../planner";
 import { spillover } from "../time";
 import type {
@@ -18,7 +19,7 @@ import "./day-editor";
 import "./slot-editor";
 import "./setpoint-editor";
 import {
-  SUPPORTED_DOMAINS, defaultSetpoint, editorStyles, langOf, modeTypeOf, typeLabel,
+  defaultSetpoint, editorStyles, langOf, modeTypeOf, typeLabel,
 } from "./setpoint-editor";
 import type { K } from "./setpoint-editor";
 
@@ -396,8 +397,12 @@ export class WpProgramEditor extends LitElement {
     return html`
       ${p.entities.length === 0 ? html`<p class="muted">${this._tr("pe_no_entity")}</p>` : nothing}
       ${p.entities.map((e, i) => this._renderEntity(e, i))}
-      ${keyed(this._pickerKey, html`<wp-entity-picker .hass=${this.hass} .value=${""} .label=${this._tr("pe_add_entity")}
-        .domains=${SUPPORTED_DOMAINS} .exclude=${p.entities.map((x) => x.entity_id)}
+      ${keyed(this._pickerKey, this._picker
+        ? html`<ha-selector .hass=${this.hass} .selector=${{ entity: { exclude_entities: p.entities.map((x) => x.entity_id) } }}
+            .label=${this._tr("pe_add_entity")} .value=${""}
+            @value-changed=${(ev: CustomEvent<{ value?: string }>) => { ev.stopPropagation(); this._addEntity(ev.detail.value ?? ""); }}></ha-selector>`
+        : html`<wp-entity-picker .hass=${this.hass} .value=${""} .label=${this._tr("pe_add_entity")}
+        .exclude=${p.entities.map((x) => x.entity_id)}
         @wp-change=${(ev: CustomEvent) => { ev.stopPropagation(); this._addEntity(ev.detail); }}></wp-entity-picker>`)}
     `;
   }
@@ -416,13 +421,13 @@ export class WpProgramEditor extends LitElement {
           <button class="ibtn" aria-label=${`${this._tr("delete")} ${displayName(this.hass, e.entity_id)}`}
             @click=${() => void this._askDeleteEntity(index)}><ha-icon icon="mdi:delete"></ha-icon></button>
         </div>
-        <div class="field"><label>${this._tr("pe_default")}</label>
+        ${isGenericEntity(e.entity_id) ? nothing : html`<div class="field"><label>${this._tr("pe_default")}</label>
           <select @change=${(ev: Event) => this._setDefaultKind(index, (ev.target as HTMLSelectElement).value as ProgramEntity["default"]["kind"])}>
             <option value="none" ?selected=${kind === "none"}>${this._tr("pe_default_none")}</option>
             <option value="previous" ?selected=${kind === "previous"}>${this._tr("pe_default_previous")}</option>
             <option value="mode" ?selected=${kind === "mode"}>${this._tr("pe_default_mode")}</option>
             <option value="setpoint" ?selected=${kind === "setpoint"}>${this._tr("pe_default_setpoint")}</option>
-          </select></div>
+          </select></div>`}
         ${kind === "mode"
           ? html`<div class="field"><select aria-label=${this._tr("pe_default_mode")}
               @change=${(ev: Event) => this._setEntity(index, { default: { kind: "mode", value: (ev.target as HTMLSelectElement).value } })}>

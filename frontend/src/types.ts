@@ -7,6 +7,11 @@ export interface HomeAssistant {
   config: { time_zone: string };
   user?: { is_admin: boolean; name: string };
   themes?: { darkMode?: boolean };
+  services?: Record<string, Record<string, unknown>>;
+  localize?: (key: string, ...args: unknown[]) => string;
+  loadBackendTranslation?: (category: string, integration?: string | string[], configFlow?: boolean) =>
+    Promise<(key: string, ...args: unknown[]) => string>;
+  formatEntityState?: (stateObj: HassEntity, state?: string) => string;
   callWS<T>(msg: Record<string, unknown>): Promise<T>;
   callService(domain: string, service: string, data?: Record<string, unknown>): Promise<unknown>;
   connection: {

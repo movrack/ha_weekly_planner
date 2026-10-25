@@ -5,6 +5,7 @@ import { t } from "./i18n";
 import {
   entityDomain, fmtNum, friendlyName, modeSetpoint, newId, presetLabel, presetTemperature,
 } from "./planner";
+import { isGenericEntity, serviceLabel } from "./services";
 import { DAY, STEP, fmtClock } from "./time";
 import type { HomeAssistant, Mode, Profile, Program, ProgramEntity, Setpoint, Slot, TimeSpec } from "./types";
 
@@ -79,6 +80,7 @@ export function actText(hass: HomeAssistant, lang: string, modes: Mode[], entity
   const domain = entityDomain(entityId);
   switch (sp.kind) {
     case "scene": return String(hass.states[String(sp.scene)]?.attributes.friendly_name ?? sp.scene);
+    case "service": return serviceLabel(hass, String(sp.service));
     case "temperature": return `${fmtNum(lang, Number(sp.temperature))} °C`;
     case "preset": {
       if (mode) return mode.name;
@@ -123,9 +125,13 @@ export function stateText(hass: HomeAssistant, lang: string, entityId: string): 
       return b !== null ? `${t(lang, "sp_on")} ${Math.round((b / 255) * 100)} %` : t(lang, "sp_on");
     }
     default:
+      if (isGenericEntity(entityId)) return hass.formatEntityState?.(st) ?? st.state;
       return st.state === "on" ? t(lang, "sp_on") : st.state === "off" ? t(lang, "sp_off") : st.state;
   }
 }
+
+/** Does this act call a Home Assistant service (one-shot, never an end)? */
+export const isServiceAct = (act: Act | null | undefined): boolean => act?.sp.kind === "service";
 
 /** Colour of a slot on the day bar. */
 export function actColor(modes: Mode[], entityId: string, act: Act | null): string {
@@ -145,6 +151,7 @@ export function actColor(modes: Mode[], entityId: string, act: Act | null): stri
     case "on": return "#ffb300";
     case "off": return "#616161";
     case "scene": return "#7e57c2";
+    case "service": return "#26a69a";
     default: return "var(--secondary-text-color)";
   }
 }

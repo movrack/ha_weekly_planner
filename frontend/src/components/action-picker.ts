@@ -3,11 +3,12 @@
 
 import { LitElement, css, html, nothing } from "lit";
 import type { TemplateResult } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { customElement, property, state } from "lit/decorators.js";
 import { actionChoices, selectedChoice } from "../actions";
 import type { Act, Choice } from "../actions";
 import { t } from "../i18n";
-import { entityDomain, fmtNum } from "../planner";
+import { ensureHaSelector, entityDomain, fmtNum } from "../planner";
+import { isGenericEntity, loadServiceNames, serviceDomains, serviceFields, servicesFor } from "../services";
 import { editorStyles, langOf } from "../editors/setpoint-editor";
 import type { HomeAssistant, PlannerData, Setpoint } from "../types";
 
@@ -24,7 +25,56 @@ export class WpActionPicker extends LitElement {
   @property({ type: Boolean }) rest = false;
   @property({ type: Boolean }) disabled = false;
 
+  /** Services shown as chips before "More actions". */
+  private static readonly SHOWN = 8;
+  @state() private _more = false;
+  @state() private _selector = Boolean(customElements.get("ha-selector"));
+  private _loadedFor = "";
+
   private get _lang(): string { return langOf(this.hass); }
+
+  updated(): void {
+    if (!this.hass || !this.entityId || this.rest || !isGenericEntity(this.entityId) || this._loadedFor === this.entityId) return;
+    this._loadedFor = this.entityId;
+    void loadServiceNames(this.hass, serviceDomains(this.hass, this.entityId)).then((ok) => ok && this.requestUpdate());
+    if (!this._selector) void ensureHaSelector().then((ok) => (this._selector = ok));
+  }
+
+  private _setData(key: string, value: unknown): void {
+    const sp = this.act?.sp;
+    if (!sp) return;
+    const data = { ...((sp.data as Record<string, unknown> | undefined) ?? {}) };
+    const empty = value === undefined || value === null || value === "" || (Array.isArray(value) && !value.length);
+    if (empty) delete data[key];
+    else data[key] = value;
+    this._emit({ sp: { ...sp, data } });
+  }
+
+  /** Generic actions: the services accepting the entity, then the inputs of the chosen one. */
+  private _services(): unknown {
+    const lang = this._lang;
+    const all = servicesFor(this.hass, this.entityId);
+    const current = this.act?.sp.kind === "service" ? String(this.act.sp.service) : "";
+    const index = all.findIndex((s) => s.id === current);
+    const open = this._more || index >= WpActionPicker.SHOWN;
+    const shown = open ? all : all.slice(0, WpActionPicker.SHOWN);
+    const data = ((this.act?.sp as Record<string, unknown> | undefined)?.data ?? {}) as Record<string, unknown>;
+    const fields = current ? serviceFields(this.hass, current) : [];
+    const chip = (label: string, on: boolean, click: () => void) => html`
+      <button class="chip ${on ? "on" : ""}" role="radio" aria-checked=${on} ?disabled=${this.disabled} @click=${click}><span>${label}</span></button>`;
+    return html`
+      <div class="chips" role="radiogroup" aria-label=${t(lang, "action")}>
+        ${shown.map((s) => chip(s.label, s.id === current, () => this._emit({ sp: { kind: "service", service: s.id, data: {} } })))}
+        ${!open && all.length > WpActionPicker.SHOWN
+          ? html`<button class="chip add" ?disabled=${this.disabled} @click=${() => (this._more = true)}>${t(lang, "more_actions")}</button>` : nothing}
+      </div>
+      ${fields.map((f) => this._selector
+        ? html`<ha-selector class="fld" .hass=${this.hass} .selector=${f.selector} .value=${data[f.key]} .label=${f.label}
+            .required=${f.required} ?disabled=${this.disabled}
+            @value-changed=${(e: CustomEvent<{ value?: unknown }>) => { e.stopPropagation(); this._setData(f.key, e.detail.value); }}></ha-selector>`
+        : html`<div class="field"><label>${f.label}</label><input type="text" .value=${String(data[f.key] ?? "")} ?disabled=${this.disabled}
+            @change=${(e: Event) => this._setData(f.key, (e.target as HTMLInputElement).value)} /></div>`)}`;
+  }
 
   private _emit(act: Act): void {
     this.dispatchEvent(new CustomEvent("act-change", { detail: act, bubbles: true, composed: true }));
@@ -115,6 +165,8 @@ export class WpActionPicker extends LitElement {
     const chosen = this.act?.special ? undefined : selectedChoice(choices, this.act);
     const custom = this.act && !this.act.special && !chosen;
     const domain = entityDomain(this.entityId);
+    const generic = !this.rest && isGenericEntity(this.entityId);
+    if (generic && !choices.length) return this._services();
     const chip = (label: string, on: boolean, click: () => void, icon?: string) => html`
       <button class="chip ${on ? "on" : ""}" role="radio" aria-checked=${on} ?disabled=${this.disabled} @click=${click}>
         ${icon ? html`<ha-icon icon=${icon}></ha-icon>` : nothing}<span>${label}</span></button>`;
@@ -127,7 +179,8 @@ export class WpActionPicker extends LitElement {
           ${chip(t(lang, "rest_none"), this.act?.special === "none", () => this._emit({ sp: { kind: "off" }, special: "none" }))}
           ${chip(t(lang, "rest_previous"), this.act?.special === "previous", () => this._emit({ sp: { kind: "off" }, special: "previous" }))}` : nothing}
       </div>
-      ${domain ? this._params(chosen) : nothing}`;
+      ${domain ? this._params(chosen) : nothing}
+      ${generic ? this._services() : nothing}`;
   }
 
   static styles = [editorStyles, css`
@@ -149,6 +202,7 @@ export class WpActionPicker extends LitElement {
     .adders { margin-top: 8px; }
     .chip.add { border-style: dashed; color: var(--primary-color); min-height: 48px; }
     .stepper select { flex: 1; min-width: 0; }
+    .fld { display: block; margin-top: 8px; }
   `];
 }
 

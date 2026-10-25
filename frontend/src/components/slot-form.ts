@@ -3,7 +3,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "./action-picker";
-import { ALL_DAYS, WEEKDAYS, WEEKEND, readAct, shiftSpec, specText, writeAct } from "../actions";
+import { ALL_DAYS, WEEKDAYS, WEEKEND, isServiceAct, readAct, shiftSpec, specText, writeAct } from "../actions";
 import type { Act, SlotGroup } from "../actions";
 import { strings, t } from "../i18n";
 import { entityDomain, friendlyName } from "../planner";
@@ -100,7 +100,14 @@ export class WpSlotForm extends LitElement {
   /* ---- action ---- */
 
   private _setAct(entityId: string, act: Act): void {
-    this._set({ ...writeAct(this.group.slot, this.program, entityId, act) });
+    const slot = writeAct(this.group.slot, this.program, entityId, act);
+    // a service runs once: no end
+    this._set(isServiceAct(act) ? { ...slot, end: null } : { ...slot });
+  }
+
+  /** A slot with a service action has no end. */
+  private _oneShot(): boolean {
+    return this.entityIds.some((e) => isServiceAct(readAct(this.group.slot, e, this.data.modes)));
   }
 
   render() {
@@ -117,7 +124,7 @@ export class WpSlotForm extends LitElement {
         <h4>${t(lang, "start")}</h4>
         ${this._timeBlock("start", t(lang, "start"))}
       </section>
-      <section>
+      ${this._oneShot() ? nothing : html`<section>
         <h4>${t(lang, "end")}</h4>
         <div class="chips">
           <button class="chip ${slot.end ? "" : "on"}" aria-pressed=${!slot.end} ?disabled=${this.disabled}
@@ -126,7 +133,7 @@ export class WpSlotForm extends LitElement {
             @click=${() => this._toggleEnd(true)}>${t(lang, "with_end")}</button>
         </div>
         ${slot.end ? this._timeBlock("end", t(lang, "end")) : nothing}
-      </section>
+      </section>`}
       <section>
         <h4>${t(lang, "days_label")}</h4>
         ${this.dayOnly !== null && !this._more && eq(days, [this.dayOnly])
