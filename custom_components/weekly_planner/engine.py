@@ -214,7 +214,48 @@ class PlannerEngine:
             "next_change": nxt.isoformat() if nxt else None,
             "entities_overridden": overrides,
             "skip_next": prt.get("skip_at"),
+            "next_actions": {
+                e["entity_id"]: action for e in program["entities"]
+                if (action := self.next_action(e["entity_id"]))
+            },
         }
+
+    def next_action(self, entity_id: str) -> dict[str, Any] | None:
+        """Next thing the plan does to an entity: ``{"at": iso, "setpoint": {...}}``.
+
+        Looks at the next days of the enabled programs: a one-shot slot gives its setpoint at its
+        start, a timed slot gives its setpoint at its start and the default at its end.
+        """
+        now = dt_util.utcnow()
+        if self.store.config.get("vacation"):
+            return None
+        previous_key = self.segment(entity_id, now).key
+        edges: dict[datetime, dict] = {}
+        for program in self.store.programs:
+            if not program.get("enabled", True) or not any(
+                e["entity_id"] == entity_id for e in program["entities"]
+            ):
+                continue
+            profile = active_profile(program, self._profiles())
+            for occ, slot in occurrences_around(profile, now, self.tz, self.sun, days=range(0, 8)):
+                if not occ.runs:
+                    continue
+                setpoint = slot_setpoint(slot, entity_id, self.store.modes)
+                if setpoint is None:
+                    continue
+                if occ.start > now:
+                    edges[occ.start] = {"oneshot": occ.end is None, "setpoint": setpoint}
+                if occ.end is not None and occ.end > now:
+                    edges.setdefault(occ.end, {"oneshot": False, "setpoint": None})
+        for moment in sorted(edges):
+            seg = self.segment(entity_id, moment)
+            edge = edges[moment]
+            setpoint = edge["setpoint"] if edge["oneshot"] else self._target_of(entity_id, seg)
+            changed = seg.key != previous_key
+            previous_key = seg.key
+            if setpoint is not None and (edge["oneshot"] or changed):
+                return {"at": moment.isoformat(), "setpoint": setpoint}
+        return None
 
     # ------------------------------------------------------------------ subscriptions
 
