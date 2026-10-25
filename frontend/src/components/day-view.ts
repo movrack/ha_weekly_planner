@@ -5,10 +5,11 @@ import { customElement, property, state } from "lit/decorators.js";
 import "./chart";
 import "./day-bar";
 import "./dialog";
+import { SwipeTracker, displayName } from "./gestures";
 import { addDaysIso, weekdayOf } from "./chart";
 import type { BarSpan } from "./day-bar";
 import { strings, t } from "../i18n";
-import { activeProfile, entityDomain, friendlyName, slotColor, slotLabel } from "../planner";
+import { activeProfile, entityDomain, slotColor, slotLabel } from "../planner";
 import { formatClock, localDateIso, localMinutes, nominal, spillover, DAY } from "../time";
 import type { HomeAssistant, Mode, PlannerData, PreviewSlot, Program, Setpoint, Slot } from "../types";
 
@@ -29,6 +30,7 @@ export class WpDayView extends LitElement {
   @state() private _loadedDate = "";
   private _editing = false;
   private _token = 0;
+  private _swipe = new SwipeTracker(60);
   private _previews = new Map<string, PreviewSlot[] | null>();
 
   private get _lang(): string { return this.hass.locale?.language ?? this.hass.language ?? "en"; }
@@ -77,6 +79,12 @@ export class WpDayView extends LitElement {
     this._loadedDate = "";
     this._slots = null;
     this._offset = next;
+  }
+
+  /** Swipe left = next day, swipe right = previous day (buttons in the header do the same). */
+  private _swiped(ev: PointerEvent): void {
+    const dir = this._swipe.up(ev);
+    if (dir) this._go(dir);
   }
 
   private _edit(): void {
@@ -190,7 +198,7 @@ export class WpDayView extends LitElement {
     const date = this._date;
     const wd = weekdayOf(date);
     const [y, m, d] = date.split("-").map(Number);
-    const pretty = new Intl.DateTimeFormat(this._lang, { day: "numeric", month: "long", timeZone: "UTC" })
+    const pretty = new Intl.DateTimeFormat(this._lang, { day: "numeric", month: "short", timeZone: "UTC" })
       .format(new Date(Date.UTC(y, m - 1, d, 12)));
     const ready = this._loadedDate === date;
     const slots = ready ? this._slots : null;
@@ -198,13 +206,15 @@ export class WpDayView extends LitElement {
     const nowMin = isToday ? localMinutes(new Date(), this._tz) : null;
     const rows = ready ? this._rows(date, slots) : [];
     return html`
-      <wp-dialog wide ?open=${this._open} heading="${s.days[wd]} ${pretty}${isToday ? " · " + s.today : ""}"
+      <wp-dialog wide ?open=${this._open} heading="${s.days[wd]} ${pretty}"
         @closed=${this._closed}>
         <button slot="header-start" class="nav" ?disabled=${this._offset <= -BACK}
           aria-label=${s.previous_day} @click=${() => this._go(-1)}><ha-icon icon="mdi:chevron-left"></ha-icon></button>
         <button slot="header-actions" class="nav" ?disabled=${this._offset >= AHEAD}
           aria-label=${s.next_day} @click=${() => this._go(1)}><ha-icon icon="mdi:chevron-right"></ha-icon></button>
-        <div class="program">${this.program.name}</div>
+        <div class="swipe" @pointerdown=${(e: PointerEvent) => this._swipe.down(e)}
+          @pointerup=${(e: PointerEvent) => this._swiped(e)} @pointercancel=${() => this._swipe.cancel()}>
+        <div class="program">${this.program.name}${isToday ? html` <span class="badge">${s.today}</span>` : nothing}</div>
         <wp-day-bar show-hours .spans=${ready ? this._bars(date, slots) : []} .now=${nowMin}></wp-day-bar>
         ${ready && !rows.length ? html`<p class="empty">${s.no_slot_day}</p>` : nothing}
         <ul class="slots">
@@ -214,7 +224,7 @@ export class WpDayView extends LitElement {
               <div class="what">
                 ${this._entityTexts(row.slot).map((e) => html`
                   <div class="line">
-                    <span class="name">${friendlyName(this.hass, e.entityId)}</span>
+                    <span class="name">${displayName(this.hass, e.entityId)}</span>
                     ${e.mode
                       ? html`<span class="pill" style="background:${row.slot.color || e.mode.color}">${e.mode.name}</span>`
                       : nothing}
@@ -229,13 +239,14 @@ export class WpDayView extends LitElement {
         ${this.showChart && ready
           ? this.program.entities.map((e) => html`
             <section class="chart">
-              <h3>${friendlyName(this.hass, e.entity_id)}</h3>
+              <h3>${displayName(this.hass, e.entity_id)}</h3>
               <wp-chart .hass=${this.hass} .data=${this.data} .program=${this.program}
                 .entityId=${e.entity_id} .date=${date} .slots=${slots}></wp-chart>
             </section>`)
           : nothing}
+        </div>
         ${this.data.can_edit
-          ? html`<button slot="footer" class="primary" @click=${this._edit}><ha-icon icon="mdi:pencil"></ha-icon> ${s.edit}</button>` : nothing}
+          ? html`<button slot="footer" class="primary wide" @click=${this._edit}><ha-icon icon="mdi:pencil"></ha-icon> ${s.edit}</button>` : nothing}
       </wp-dialog>
     `;
   }
@@ -244,11 +255,16 @@ export class WpDayView extends LitElement {
     :host { display: contents; }
     .nav {
       border: none; background: none; color: var(--primary-text-color); font-size: 16px;
-      min-width: 40px; height: 40px; border-radius: 20px; cursor: pointer;
+      min-width: 48px; height: 48px; border-radius: 24px; cursor: pointer;
     }
     .nav:hover:not([disabled]) { background: var(--secondary-background-color); }
     .nav[disabled] { opacity: 0.3; cursor: default; }
-    .program { color: var(--secondary-text-color); margin-bottom: 8px; }
+    .swipe { touch-action: pan-y; min-height: 40vh; }
+    .program { color: var(--secondary-text-color); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .badge {
+      background: var(--primary-color); color: var(--text-primary-color, #fff); border-radius: 12px;
+      padding: 2px 10px; font-size: 13px; font-weight: 600;
+    }
     wp-day-bar { margin: 4px 0 8px; }
     .empty { color: var(--secondary-text-color); text-align: center; }
     ul.slots { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -262,9 +278,10 @@ export class WpDayView extends LitElement {
     .why { font-size: 12px; color: var(--secondary-text-color); font-style: italic; }
     .chart h3 { margin: 16px 0 4px; font-size: 14px; font-weight: 500; }
     button.primary {
-      border: none; border-radius: 18px; padding: 8px 18px; min-height: 40px; cursor: pointer;
+      border: none; border-radius: 18px; padding: 8px 18px; min-height: 48px; cursor: pointer;
       background: var(--primary-color); color: var(--text-primary-color, #fff); font-size: 14px;
     }
-    @media (max-width: 420px) { .time { min-width: 80px; } }
+    button.wide { display: inline-flex; align-items: center; gap: 6px; }
+    @media (max-width: 420px) { .time { min-width: 80px; } button.wide { flex: 1; justify-content: center; } }
   `;
 }

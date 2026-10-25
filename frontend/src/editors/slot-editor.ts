@@ -5,7 +5,8 @@ import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "../components/dialog";
 import { t } from "../i18n";
-import { entityDomain, friendlyName } from "../planner";
+import { entityDomain } from "../planner";
+import { displayName } from "../components/gestures";
 import { DAY, clockToMinutes, minutesToClock } from "../time";
 import type { Condition, HomeAssistant, PlannerData, Program, Setpoint, Slot, TimeSpec } from "../types";
 import { findOverlap, slotTimeText } from "./day-editor";
@@ -185,7 +186,7 @@ export class WpSlotEditor extends LitElement {
           <label class="check"><input type="checkbox" .checked=${Boolean(sp)}
             @change=${(ev: Event) => this._setDirect(e.entity_id,
               (ev.target as HTMLInputElement).checked ? defaultSetpoint(this.hass, e.entity_id) : null)} />
-            <strong>${friendlyName(this.hass, e.entity_id)}</strong></label>
+            <strong>${displayName(this.hass, e.entity_id)}</strong></label>
           ${sp
             ? html`<wp-setpoint-editor .hass=${this.hass} entity-id=${e.entity_id} .value=${sp}
                 .admin=${Boolean(this.data.is_admin)}

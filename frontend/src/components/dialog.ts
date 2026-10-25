@@ -20,6 +20,57 @@ export class WpDialog extends LitElement {
     this.removeEventListener("keydown", this._onKey);
   }
 
+  // Swipe down from the header closes the dialog on phones (button equivalent: the close button).
+  private _sw?: { id: number; y: number; x: number; dy: number };
+
+  private _isPhone(): boolean {
+    return typeof matchMedia === "function" && matchMedia("(max-width: 600px)").matches;
+  }
+
+  private _panel(): HTMLElement | null {
+    return this.renderRoot.querySelector<HTMLElement>(".panel");
+  }
+
+  private _hdown(ev: PointerEvent): void {
+    if (!this._isPhone() || ev.pointerType === "mouse") return;
+    if (ev.composedPath().some((n) => n instanceof HTMLElement && n.tagName === "BUTTON")) return;
+    this._sw = { id: ev.pointerId, y: ev.clientY, x: ev.clientX, dy: 0 };
+    (ev.currentTarget as HTMLElement).setPointerCapture?.(ev.pointerId);
+  }
+
+  private _hmove(ev: PointerEvent): void {
+    const sw = this._sw;
+    if (!sw || ev.pointerId !== sw.id) return;
+    sw.dy = Math.max(0, ev.clientY - sw.y);
+    const panel = this._panel();
+    if (panel) {
+      panel.style.transition = "none";
+      panel.style.transform = `translateY(${sw.dy}px)`;
+    }
+  }
+
+  private _hup(ev: PointerEvent): void {
+    const sw = this._sw;
+    if (!sw || ev.pointerId !== sw.id) return;
+    this._sw = undefined;
+    const panel = this._panel();
+    const dx = Math.abs(ev.clientX - sw.x);
+    if (panel) {
+      panel.style.transition = "";
+      panel.style.transform = "";
+    }
+    if (sw.dy >= 100 && dx < sw.dy) this.close();
+  }
+
+  private _hcancel(): void {
+    this._sw = undefined;
+    const panel = this._panel();
+    if (panel) {
+      panel.style.transition = "";
+      panel.style.transform = "";
+    }
+  }
+
   private _onKey = (ev: KeyboardEvent) => {
     if (ev.key === "Escape") {
       ev.stopPropagation();
@@ -44,7 +95,8 @@ export class WpDialog extends LitElement {
       <div class="backdrop" @click=${() => this.close()}></div>
       <div class="panel ${this.wide ? "wide" : ""}" role="dialog" aria-modal="true"
         aria-label=${this.heading} tabindex="-1">
-        <header>
+        <header @pointerdown=${this._hdown} @pointermove=${this._hmove} @pointerup=${this._hup}
+          @pointercancel=${this._hcancel}>
           <slot name="header-start"></slot>
           <h2>${this.heading}</h2>
           <slot name="header-actions"></slot>
@@ -69,9 +121,13 @@ export class WpDialog extends LitElement {
     }
     .panel.wide { width: min(880px, calc(100vw - 32px)); }
     header { display: flex; align-items: center; gap: 8px; padding: 16px 16px 8px 20px; }
-    h2 { flex: 1; margin: 0; font-size: 20px; font-weight: 500; }
+    header { touch-action: none; }
+    h2 {
+      flex: 1; min-width: 0; margin: 0; font-size: 20px; font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
     .content { padding: 8px 20px 16px; overflow-y: auto; }
-    footer { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 16px 16px; }
+    footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 8px 16px 16px; }
     footer:empty { display: none; }
     button.icon {
       border: none; background: none; color: inherit; --mdc-icon-size: 24px; width: 48px; height: 48px;
@@ -79,6 +135,7 @@ export class WpDialog extends LitElement {
     }
     button.icon:hover { background: var(--secondary-background-color); }
     @media (max-width: 600px) {
+      h2 { font-size: 18px; }
       .panel, .panel.wide {
         left: 0; top: 0; transform: none; width: 100vw; height: 100vh; max-height: none; border-radius: 0;
       }

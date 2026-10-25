@@ -8,11 +8,12 @@ import "./components/day-view";
 import "./editors/program-editor";
 import "./editors/override-dialog";
 import "./editors/modes-editor";
-import { describeSetpoint } from "./editors/setpoint-editor";
+import "./editors/simple-schedule";
+import "./components/simple-controls";
 import type { BarSpan } from "./components/day-bar";
 import { t, strings } from "./i18n";
 import {
-  activeProfile, filterPrograms, slotColor, slotLabel, slotMode, subscribePlanner,
+  activeProfile, describeSp, filterPrograms, slotColor, slotLabel, slotMode, subscribePlanner,
 } from "./planner";
 import { formatWhen, localDateIso, localMinutes, localWeekday, nominal, spillover, DAY } from "./time";
 import type { CardConfig, HomeAssistant, PlannerData, PreviewSlot, Program } from "./types";
@@ -22,6 +23,7 @@ type Dialog =
   | { kind: "program"; program?: Program }
   | { kind: "override"; program: Program }
   | { kind: "modes" }
+  | { kind: "simple"; program: Program }
   | null;
 
 @customElement("weekly-planner-card")
@@ -32,6 +34,7 @@ export class WeeklyPlannerCard extends LitElement {
   @state() private _error?: string;
   @state() private _dialog: Dialog = null;
   @state() private _showWeek = false;
+  @state() private _advanced = false;
   @state() private _preview: Record<string, PreviewSlot[]> = {};
   @state() private _now = new Date();
   private _unsub?: () => void;
@@ -170,32 +173,52 @@ export class WeeklyPlannerCard extends LitElement {
     const programs = data ? filterPrograms(data, this._config) : [];
     const today = localWeekday(this._now, this._tz);
     const nowMin = localMinutes(this._now, this._tz);
+    const canAdvanced = this._config.show_advanced !== false;
+    const open = canAdvanced && this._advanced;
 
     return html`
       <ha-card>
         <div class="head">
           <h1>${this._config.title ?? s.title}</h1>
           ${data?.vacation ? html`<span class="chip warn"><ha-icon icon="mdi:bag-suitcase"></ha-icon> ${s.vacation}</span>` : nothing}
-          ${data?.can_edit && !this._config.program
-            ? html`<button class="ghost" @click=${() => (this._dialog = { kind: "modes" })}>${s.modes}</button>
-                <button class="ghost" @click=${() => (this._dialog = { kind: "program" })}><ha-icon icon="mdi:plus"></ha-icon> ${s.new_program}</button>`
-            : nothing}
         </div>
         ${this._error ? html`<div class="error">${t(lang, "error", { message: this._error })}</div>` : nothing}
         ${data?.read_only ? html`<div class="error">${s.read_only}</div>` : nothing}
         ${!data ? html`<div class="empty">…</div>` : nothing}
         ${data && !programs.length ? html`<div class="empty">${s.no_program}</div>` : nothing}
-        ${programs.map((program) => this._renderProgram(program, today, nowMin))}
-        ${programs.length && !this._config.program
+        ${programs.map((program) => this._renderProgram(program, today, nowMin, open))}
+        ${open && programs.length && !this._config.program
           ? html`<button class="link" @click=${() => (this._showWeek = !this._showWeek)}>
               ${this._showWeek ? s.hide_week : s.show_week}</button>`
+          : nothing}
+        ${open && data?.can_edit && !this._config.program
+          ? html`<div class="adv-actions">
+              <button class="small" @click=${() => (this._dialog = { kind: "modes" })}>${s.modes}</button>
+              <button class="small" @click=${() => (this._dialog = { kind: "program" })}><ha-icon icon="mdi:plus"></ha-icon> ${s.new_program}</button>
+            </div>`
+          : nothing}
+        ${canAdvanced && programs.length
+          ? html`<button class="more" aria-expanded=${open} @click=${() => (this._advanced = !this._advanced)}>
+              <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon> ${open ? s.sm_less : s.sm_more}</button>`
           : nothing}
       </ha-card>
       ${this._renderDialog()}
     `;
   }
 
-  private _renderProgram(program: Program, today: number, nowMin: number) {
+  private _renderProgram(program: Program, today: number, nowMin: number, open: boolean) {
+    const data = this._data!;
+    return html`
+      <section class="program ${program.enabled ? "" : "off"}">
+        <h2 class="ptitle">${program.name}</h2>
+        <wp-simple-controls .hass=${this.hass} .data=${data} .program=${program}
+          @simple-schedule=${() => (this._dialog = { kind: "simple", program })}></wp-simple-controls>
+        ${open ? this._renderAdvanced(program, today, nowMin) : nothing}
+      </section>
+    `;
+  }
+
+  private _renderAdvanced(program: Program, today: number, nowMin: number) {
     const lang = this._lang;
     const s = strings(lang);
     const data = this._data!;
@@ -205,14 +228,13 @@ export class WeeklyPlannerCard extends LitElement {
     const showWeek = this._showWeek || Boolean(this._config.program);
     const profile = activeProfile(program, data);
     return html`
-      <section class="program ${program.enabled ? "" : "off"}">
+      <div class="advanced">
         <div class="row">
           <div class="name">
-            <span class="title">${program.name}</span>
             ${program.profiles.length > 1 ? html`<span class="chip">${profile.name}</span>` : nothing}
           </div>
           <label class="switch" title=${program.enabled ? "On" : "Off"}>
-            <input type="checkbox" .checked=${program.enabled}
+            <input type="checkbox" .checked=${program.enabled} aria-label=${program.name}
               @change=${(e: Event) => this._toggle(program, (e.target as HTMLInputElement).checked)} />
             <span></span>
           </label>
@@ -254,7 +276,7 @@ export class WeeklyPlannerCard extends LitElement {
             ? html`<button class="small ghost" @click=${() => (this._dialog = { kind: "program", program })}><ha-icon icon="mdi:pencil"></ha-icon> ${s.edit}</button>`
             : nothing}
         </div>
-      </section>
+      </div>
     `;
   }
 
@@ -269,7 +291,7 @@ export class WeeklyPlannerCard extends LitElement {
   private _effective(program: Program): string | undefined {
     const first = program.entities[0]?.entity_id;
     const o = first ? this._data!.entities[first]?.override : undefined;
-    return o?.origin === "voluntary" && o.setpoint ? describeSetpoint(this._lang, o.setpoint) : undefined;
+    return o?.origin === "voluntary" && o.setpoint ? describeSp(this._lang, this._data!.modes, first, o.setpoint) : undefined;
   }
 
   /** Mode applied outside slots (default of the first entity), to show instead of "outside slots". */
@@ -303,6 +325,9 @@ export class WeeklyPlannerCard extends LitElement {
       case "override":
         return html`<wp-override-dialog .hass=${this.hass} .data=${this._data} .program=${d.program}
           @closed=${close}></wp-override-dialog>`;
+      case "simple":
+        return html`<wp-simple-schedule .hass=${this.hass} .data=${this._data} .program=${d.program}
+          @closed=${close}></wp-simple-schedule>`;
       case "modes":
         return html`<wp-modes-editor .hass=${this.hass} .data=${this._data} @closed=${close}></wp-modes-editor>`;
     }
@@ -310,8 +335,16 @@ export class WeeklyPlannerCard extends LitElement {
 
   static styles = css`
     ha-card { padding: 16px; }
-    .head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
-    h1 { flex: 1; margin: 0; font-size: 20px; font-weight: 500; }
+    .head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; min-height: 48px; }
+    h1 { flex: 1; min-width: 0; margin: 0; font-size: 20px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ptitle { margin: 0 0 4px; font-size: 18px; font-weight: 500; overflow-wrap: anywhere; }
+    .advanced { margin-top: 12px; padding-top: 8px; border-top: 1px dashed var(--divider-color); }
+    .adv-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    button.more {
+      display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 48px; margin-top: 8px;
+      border: none; background: none; color: var(--primary-color); font: inherit; font-size: 14px; font-weight: 500;
+      cursor: pointer; --mdc-icon-size: 22px;
+    }
     .program { padding: 12px 0; border-top: 1px solid var(--divider-color); }
     .program:first-of-type { border-top: none; }
     .program.off { opacity: 0.55; }
@@ -320,43 +353,44 @@ export class WeeklyPlannerCard extends LitElement {
     .title { font-size: 16px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .state { display: flex; align-items: center; gap: 8px; margin: 6px 0 10px; flex-wrap: wrap; }
     .pill {
-      background: var(--c); color: #fff; border-radius: 12px; padding: 2px 10px; font-size: 13px;
+      background: var(--c); color: #fff; border-radius: 12px; padding: 2px 10px; font-size: 14px;
       font-weight: 600; text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
     }
     .pill.override {
       background: repeating-linear-gradient(135deg, var(--warning-color, #ff9800) 0 6px, #e68900 6px 12px);
     }
     .pill.neutral { background: var(--secondary-background-color); color: var(--primary-text-color); text-shadow: none; }
-    .muted { color: var(--secondary-text-color); font-size: 13px; }
+    .muted { color: var(--secondary-text-color); font-size: 14px; }
     .chip {
       display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 14px;
-      font-size: 12px; padding: 1px 8px; border-radius: 10px; background: var(--secondary-background-color);
+      font-size: 14px; padding: 2px 10px; border-radius: 12px; background: var(--secondary-background-color);
     }
     .chip.warn { background: var(--warning-color, #ff9800); color: #fff; }
-    .warnings { font-size: 12px; color: var(--secondary-text-color); margin-bottom: 8px; }
+    .warnings { font-size: 14px; color: var(--secondary-text-color); margin-bottom: 8px; }
     .warnings summary { cursor: pointer; display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 20px; }
-    .warn-row { --mdc-icon-size: 20px; display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 8px; }
+    .warn-row { --mdc-icon-size: 20px; display: flex; align-items: center; gap: 8px; font-size: 14px; margin-bottom: 8px; }
     wp-day-bar { cursor: pointer; }
     .week { display: grid; gap: 4px; margin-top: 8px; }
     .day {
-      display: grid; grid-template-columns: 36px 1fr; align-items: center; gap: 8px;
-      background: none; border: none; padding: 2px 0; cursor: pointer; color: inherit; font: inherit;
+      display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 8px;
+      background: none; border: none; padding: 8px 0; min-height: 48px; cursor: pointer; color: inherit; font: inherit;
     }
-    .day span { font-size: 12px; color: var(--secondary-text-color); text-align: left; }
+    .day span { font-size: 14px; color: var(--secondary-text-color); text-align: left; }
     .day span.today { color: var(--primary-color); font-weight: 600; }
     .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
     button.small, button.ghost {
       display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 20px;
       border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color);
-      border-radius: 16px; padding: 4px 12px; font: inherit; font-size: 13px; cursor: pointer; min-height: 32px;
+      border-radius: 24px; padding: 4px 16px; font: inherit; font-size: 14px; cursor: pointer; min-height: 48px;
     }
     button.ghost { border-color: transparent; color: var(--primary-color); }
     button.link {
-      border: none; background: none; color: var(--primary-color); cursor: pointer; padding: 8px 0 0; font: inherit;
+      border: none; background: none; color: var(--primary-color); cursor: pointer; padding: 0; min-height: 48px; font: inherit; font-size: 14px;
     }
     .empty { color: var(--secondary-text-color); padding: 16px 0; text-align: center; }
-    .error { color: var(--error-color, #db4437); font-size: 13px; margin-bottom: 8px; }
-    .switch { position: relative; width: 40px; height: 22px; flex: none; }
+    .error { color: var(--error-color, #db4437); font-size: 14px; margin-bottom: 8px; }
+    .switch { position: relative; width: 48px; height: 48px; flex: none; display: flex; align-items: center; }
+    .switch span { inset: auto !important; position: relative !important; width: 40px; height: 22px; }
     .switch input { opacity: 0; width: 0; height: 0; }
     .switch span {
       position: absolute; inset: 0; border-radius: 11px; background: var(--disabled-color, #bdbdbd);

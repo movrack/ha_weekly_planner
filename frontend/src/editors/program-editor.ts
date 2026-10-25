@@ -1,12 +1,14 @@
 // Program editor: General / Entities / Week tabs. Works on a copy and only saves on "Save".
 
-import { LitElement, css, html, nothing } from "lit";
+import { LitElement, css, html, nothing, unsafeCSS } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { keyed } from "lit/directives/keyed.js";
 import "../components/day-bar";
 import "../components/dialog";
+import { confirmAction } from "../components/confirm";
+import { displayName, scrollHintCss, trackScrollHints } from "../components/gestures";
 import { strings, t } from "../i18n";
-import { entityDomain, friendlyName, newId } from "../planner";
+import { entityDomain, newId } from "../planner";
 import { spillover } from "../time";
 import type {
   Condition, HomeAssistant, PlannerData, Profile, Program, ProgramEntity, Setpoint, Slot,
@@ -45,8 +47,7 @@ export class WpProgramEditor extends LitElement {
   @state() private _slotEdit?: { slot: Slot; isNew: boolean };
   @state() private _error = "";
   @state() private _saving = false;
-  @state() private _confirm?: { text: string; yes: () => void };
-  @state() private _copy?: { from: number; targets: number[]; profileId: string };
+  @state() private _copy?: { from: number; targets: number[]; profileId: string; slotId?: string };
   @state() private _profileForm?: { mode: "add" | "rename" | "copy"; name: string };
   private _ready = false;
 
@@ -159,17 +160,33 @@ export class WpProgramEditor extends LitElement {
     const copy = this._copy;
     if (!copy) return;
     const source = this._profile.days[copy.from] ?? [];
+    const one = copy.slotId ? source.find((x) => x.id === copy.slotId) : undefined;
+    const skipped: number[] = [];
     let p = this._p;
     for (const target of copy.targets) {
       if (target === copy.from && copy.profileId === this._profileId) continue;
       p = {
         ...p,
-        profiles: p.profiles.map((x) =>
-          x.id === copy.profileId ? { ...x, days: x.days.map((d, i) => (i === target ? cloneSlots(source) : d)) } : x),
+        profiles: p.profiles.map((x) => {
+          if (x.id !== copy.profileId) return x;
+          return {
+            ...x,
+            days: x.days.map((d, i) => {
+              if (i !== target) return d;
+              if (!one) return cloneSlots(source);
+              const next = sortSlots(this.hass, [...d, ...cloneSlots([one])]);
+              if (findOverlap(next)) { skipped.push(target); return d; }
+              return next;
+            }),
+          };
+        }),
       };
     }
     this._p = p;
     this._copy = undefined;
+    this._error = skipped.length
+      ? this._tr("copy_slot_overlap", { days: skipped.map((d) => this._long(d)).join(", ") })
+      : "";
   }
 
   private _saveSlot(slot: Slot): void {
@@ -272,6 +289,23 @@ export class WpProgramEditor extends LitElement {
     }
   }
 
+  private async _askDelete(): Promise<void> {
+    if (await confirmAction(this, this._tr("confirm_delete", { name: this._p.name }), this._tr("delete"))) await this._delete();
+  }
+
+  private async _askDeleteProfile(profile: Profile): Promise<void> {
+    if (await confirmAction(this, this._tr("confirm_delete", { name: profile.name }), this._tr("delete"))) this._deleteProfile();
+  }
+
+  private async _askDeleteEntity(index: number): Promise<void> {
+    const id = this._p.entities[index]?.entity_id;
+    if (!id) return;
+    const text = this._tr("confirm_delete", { name: displayName(this.hass, id) });
+    if (await confirmAction(this, text, this._tr("delete"))) {
+      this._patch({ entities: this._p.entities.filter((_, j) => j !== index) });
+    }
+  }
+
   private async _delete(): Promise<void> {
     try {
       await this.hass.callWS({ type: "weekly_planner/program/delete", program_id: this._p.id });
@@ -346,6 +380,10 @@ export class WpProgramEditor extends LitElement {
 
   private _pickerKey = 0;
 
+  updated(): void {
+    trackScrollHints(this.renderRoot.querySelector<HTMLElement>(".tabs"));
+  }
+
   private _renderEntities() {
     const p = this._p;
     return html`
@@ -366,10 +404,10 @@ export class WpProgramEditor extends LitElement {
     return html`
       <div class="card">
         <div class="row" style="flex-wrap:nowrap">
-          <div class="grow"><strong>${friendlyName(this.hass, e.entity_id)}</strong>
-            <div class="muted small">${e.entity_id}${this.hass.states[e.entity_id] ? "" : ` · ${this._tr("pe_unknown_entity")}`}</div></div>
-          <button class="ibtn" aria-label=${`${this._tr("delete")} ${friendlyName(this.hass, e.entity_id)}`}
-            @click=${() => this._patch({ entities: this._p.entities.filter((_, j) => j !== index) })}><ha-icon icon="mdi:delete"></ha-icon></button>
+          <div class="grow"><strong>${displayName(this.hass, e.entity_id)}</strong>
+            ${this.hass.states[e.entity_id] ? nothing : html`<div class="muted small">${this._tr("pe_unknown_entity")}</div>`}</div>
+          <button class="ibtn" aria-label=${`${this._tr("delete")} ${displayName(this.hass, e.entity_id)}`}
+            @click=${() => void this._askDeleteEntity(index)}><ha-icon icon="mdi:delete"></ha-icon></button>
         </div>
         <div class="field"><label>${this._tr("pe_default")}</label>
           <select @change=${(ev: Event) => this._setDefaultKind(index, (ev.target as HTMLSelectElement).value as ProgramEntity["default"]["kind"])}>
@@ -417,7 +455,7 @@ export class WpProgramEditor extends LitElement {
           @click=${() => (this._profileForm = { mode: "copy", name: `${profile.name} ${this._tr("copy_suffix")}`.slice(0, 40) })}><ha-icon icon="mdi:content-copy"></ha-icon></button>
         <button class="ibtn" aria-label=${this._tr("profile_delete")} title=${this._tr("profile_delete")}
           ?disabled=${p.profiles.length < 2 || profile.id === active}
-          @click=${() => (this._confirm = { text: this._tr("confirm_delete", { name: profile.name }), yes: () => this._deleteProfile() })}><ha-icon icon="mdi:delete"></ha-icon></button>
+          @click=${() => void this._askDeleteProfile(profile)}><ha-icon icon="mdi:delete"></ha-icon></button>
       </div>
       ${profile.id === active ? html`<p class="hint"><ha-icon icon="mdi:star"></ha-icon> ${this._tr("profile_active_hint")}</p>` : nothing}
       ${form
@@ -462,7 +500,11 @@ export class WpProgramEditor extends LitElement {
       <wp-day-editor .hass=${this.hass} .data=${this.data} .program=${this._p} .day=${day}
         .slots=${profile.days[day]} .spill=${this._spill(profile, day)}
         @wp-change=${(e: CustomEvent) => { e.stopPropagation(); this._setDay(day, e.detail); }}
-        @edit-slot=${(e: CustomEvent) => { e.stopPropagation(); this._slotEdit = e.detail; }}></wp-day-editor>
+        @edit-slot=${(e: CustomEvent) => { e.stopPropagation(); this._slotEdit = e.detail; }}
+        @copy-slot=${(e: CustomEvent) => {
+          e.stopPropagation();
+          this._copy = { from: day, targets: [], profileId: profile.id, slotId: (e.detail.slot as Slot).id };
+        }}></wp-day-editor>
     `;
   }
 
@@ -474,7 +516,7 @@ export class WpProgramEditor extends LitElement {
     const set = (targets: number[]) => (this._copy = { ...copy, targets });
     const days = [0, 1, 2, 3, 4, 5, 6];
     return html`
-      <wp-dialog open heading=${`${this._tr("copy_day")} — ${this._long(copy.from)}`}
+      <wp-dialog open heading=${copy.slotId ? this._tr("copy_slot") : `${this._tr("copy_day")} — ${this._long(copy.from)}`}
         @closed=${(e: Event) => { e.stopPropagation(); this._copy = undefined; }}>
         <div class="row">
           <button class="btn" @click=${() => set([0, 1, 2, 3, 4])}>${this._tr("copy_mon")} <ha-icon icon="mdi:arrow-right"></ha-icon> ${this._tr("copy_fri")}</button>
@@ -490,20 +532,9 @@ export class WpProgramEditor extends LitElement {
           <select @change=${(e: Event) => (this._copy = { ...copy, profileId: (e.target as HTMLSelectElement).value })}>
             ${this._p.profiles.map((x) => html`<option value=${x.id} ?selected=${x.id === copy.profileId}>${x.name}</option>`)}
           </select></div>
-        <p class="hint">${this._tr("copy_warning")}</p>
+        <p class="hint">${this._tr(copy.slotId ? "copy_slot_hint" : "copy_warning")}</p>
         <button slot="footer" class="btn" @click=${() => (this._copy = undefined)}>${this._tr("cancel")}</button>
         <button slot="footer" class="btn primary" ?disabled=${!copy.targets.length} @click=${() => this._applyCopy()}>${this._tr("copy")}</button>
-      </wp-dialog>`;
-  }
-
-  private _renderConfirm() {
-    const c = this._confirm;
-    if (!c) return nothing;
-    return html`
-      <wp-dialog open heading=${this._tr("confirm")} @closed=${(e: Event) => { e.stopPropagation(); this._confirm = undefined; }}>
-        <p>${c.text}</p>
-        <button slot="footer" class="btn" @click=${() => (this._confirm = undefined)}>${this._tr("cancel")}</button>
-        <button slot="footer" class="btn danger" @click=${() => { const yes = c.yes; this._confirm = undefined; yes(); }}>${this._tr("delete")}</button>
       </wp-dialog>`;
   }
 
@@ -515,7 +546,7 @@ export class WpProgramEditor extends LitElement {
     return html`
       <wp-dialog id="main" open wide heading=${this._isNew ? this._tr("new_program") : this._p.name || this._tr("title")}>
         ${!editable ? html`<p class="error" role="alert">${this._tr("read_only")}</p>` : nothing}
-        <div class="tabs" role="tablist">
+        <div class="tabs" role="tablist" aria-label=${this._tr("tab_scroll")}>
           ${tabs.map(([id, label]) => html`<button role="tab" aria-selected=${this._tab === id} class="tab ${this._tab === id ? "on" : ""}"
             @click=${() => (this._tab = id)}>${this._tr(label)}</button>`)}
         </div>
@@ -524,15 +555,17 @@ export class WpProgramEditor extends LitElement {
         </div>
         ${this._error ? html`<p class="error" role="alert">${this._error}</p>` : nothing}
         ${!this._isNew
-          ? html`<button slot="footer" class="btn danger" style="margin-right:auto"
-              @click=${() => (this._confirm = { text: this._tr("confirm_delete", { name: this._p.name }), yes: () => void this._delete() })}>${this._tr("delete")}</button>
-            <button slot="footer" class="btn" @click=${() => this._duplicate()}>${this._tr("duplicate")}</button>`
+          ? html`<button slot="footer" class="btn" @click=${() => this._duplicate()}>${this._tr("duplicate")}</button>`
           : nothing}
         <button slot="footer" class="btn" @click=${() => this._close()}>${this._tr("cancel")}</button>
         <button slot="footer" class="btn primary" ?disabled=${!editable || this._saving} @click=${() => void this._save()}>${this._tr("save")}</button>
+        ${!this._isNew
+          ? html`<span slot="footer" class="break" aria-hidden="true"></span>
+            <button slot="footer" class="btn danger del" ?disabled=${!editable}
+              @click=${() => void this._askDelete()}><ha-icon icon="mdi:delete"></ha-icon> ${this._tr("delete")}</button>`
+          : nothing}
       </wp-dialog>
       ${this._renderCopy()}
-      ${this._renderConfirm()}
       ${this._slotEdit && day !== undefined
         ? html`<wp-slot-editor .hass=${this.hass} .data=${this.data} .program=${this._p} .entry=${this._slotEdit.slot}
             .others=${this._profile.days[day].filter((s) => s.id !== this._slotEdit!.slot.id)}
@@ -550,14 +583,21 @@ export class WpProgramEditor extends LitElement {
       .small { font-size: 12px; }
       .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--divider-color); margin-bottom: 8px; overflow-x: auto; }
       .tab {
-        min-height: 44px; padding: 0 16px; border: none; background: none; color: var(--secondary-text-color);
+        min-height: 48px; padding: 0 16px; border: none; background: none; color: var(--secondary-text-color);
         border-bottom: 3px solid transparent; cursor: pointer; white-space: nowrap;
       }
       .tab.on { color: var(--primary-color); border-bottom-color: var(--primary-color); font-weight: 600; }
+      ${unsafeCSS(scrollHintCss)}
+      .break { display: none; }
+      @media (max-width: 520px) {
+        .break { display: block; order: 3; flex: 1 0 100%; height: 0; }
+        .del { order: 4; margin-right: auto; }
+      }
+      @media (min-width: 521px) { .del { order: -1; margin-right: auto; } }
       .profile-bar { align-items: flex-end; gap: 4px; }
       .dayrow { display: flex; align-items: center; gap: 4px; padding: 4px 0; }
       .dname {
-        flex: none; width: 40px; min-height: 40px; border: none; background: none; color: inherit;
+        flex: none; width: 44px; min-height: 48px; border: none; background: none; color: inherit;
         font-weight: 600; text-align: left; cursor: pointer;
       }
       .bar { cursor: pointer; }

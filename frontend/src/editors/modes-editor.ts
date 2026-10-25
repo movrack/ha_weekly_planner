@@ -1,10 +1,12 @@
 // Modes library: one tab per entity type, list of modes, create / edit / delete.
 
-import { LitElement, css, html, nothing } from "lit";
+import { LitElement, css, html, nothing, unsafeCSS } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "../components/dialog";
+import { confirmAction } from "../components/confirm";
+import { displayName, scrollHintCss, trackScrollHints } from "../components/gestures";
 import { t } from "../i18n";
-import { entityDomain, friendlyName } from "../planner";
+import { entityDomain } from "../planner";
 import type { HomeAssistant, Mode, PlannerData, Setpoint } from "../types";
 import "./setpoint-editor";
 import { defaultSetpoint, describeSetpoint, editorStyles, langOf, modeTypeOf, typeLabel } from "./setpoint-editor";
@@ -22,7 +24,6 @@ export class WpModesEditor extends LitElement {
   @state() private _edit?: Draft;
   @state() private _rep = "";
   @state() private _error = "";
-  @state() private _confirmId = "";
   @state() private _saving = false;
 
   private get _lang() { return langOf(this.hass); }
@@ -64,7 +65,6 @@ export class WpModesEditor extends LitElement {
   private _startEdit(mode?: Mode): void {
     const type = this._current;
     this._error = "";
-    this._confirmId = "";
     if (mode) {
       this._edit = structuredClone(mode);
       this._rep = this._candidates(type)[0] ?? `${this._domains(type)[0]}.x`;
@@ -111,8 +111,11 @@ export class WpModesEditor extends LitElement {
     }
   }
 
+  private async _askDelete(mode: Mode): Promise<void> {
+    if (await confirmAction(this, this._tr("confirm_delete", { name: mode.name }), this._tr("delete"))) await this._delete(mode.id);
+  }
+
   private async _delete(id: string): Promise<void> {
-    this._confirmId = "";
     try {
       await this.hass.callWS({ type: "weekly_planner/mode/delete", mode_id: id });
       this._error = "";
@@ -123,6 +126,10 @@ export class WpModesEditor extends LitElement {
 
   /* ---- render ---- */
 
+  updated(): void {
+    trackScrollHints(this.renderRoot.querySelector<HTMLElement>(".tabs"));
+  }
+
   private _renderList() {
     const type = this._current;
     const modes = this.data.modes.filter((m) => m.type === type);
@@ -130,7 +137,7 @@ export class WpModesEditor extends LitElement {
     return html`
       <div class="tabs" role="tablist">
         ${this._types().map((ty) => html`<button role="tab" aria-selected=${ty === type} class="tab ${ty === type ? "on" : ""}"
-          @click=${() => { this._type = ty; this._error = ""; this._confirmId = ""; }}>${typeLabel(this._lang, ty)}</button>`)}
+          @click=${() => { this._type = ty; this._error = ""; }}>${typeLabel(this._lang, ty)}</button>`)}
       </div>
       ${modes.length === 0 ? html`<p class="muted">${this._tr("no_modes")}</p>` : nothing}
       ${modes.map((m) => {
@@ -144,12 +151,8 @@ export class WpModesEditor extends LitElement {
                 Object.keys(m.exceptions ?? {}).length ? ` · ${this._tr("mode_exceptions_n", { n: String(Object.keys(m.exceptions).length) })}` : ""}</div>
               <div class="muted small">${n === 0 ? this._tr("mode_unused") : this._tr(n === 1 ? "mode_used_one" : "mode_used_many", { n: String(n) })}</div>
             </div>
-            ${this._confirmId === m.id
-              ? html`<span class="small">${this._tr("confirm_delete", { name: m.name })}</span>
-                  <button class="btn danger" @click=${() => void this._delete(m.id)}>${this._tr("delete")}</button>
-                  <button class="btn" @click=${() => (this._confirmId = "")}>${this._tr("cancel")}</button>`
-              : html`<button class="ibtn" ?disabled=${!editable} aria-label=${`${this._tr("edit")} ${m.name}`} @click=${() => this._startEdit(m)}><ha-icon icon="mdi:pencil"></ha-icon></button>
-                  <button class="ibtn" ?disabled=${!editable} aria-label=${`${this._tr("delete")} ${m.name}`} @click=${() => { this._confirmId = m.id; this._error = ""; }}><ha-icon icon="mdi:delete"></ha-icon></button>`}
+            <button class="ibtn" ?disabled=${!editable} aria-label=${`${this._tr("edit")} ${m.name}`} @click=${() => this._startEdit(m)}><ha-icon icon="mdi:pencil"></ha-icon></button>
+            <button class="ibtn" ?disabled=${!editable} aria-label=${`${this._tr("delete")} ${m.name}`} @click=${() => { this._error = ""; void this._askDelete(m); }}><ha-icon icon="mdi:delete"></ha-icon></button>
           </div>`;
       })}
       ${this._error ? html`<p class="error" role="alert">${this._error}</p>` : nothing}
@@ -180,7 +183,7 @@ export class WpModesEditor extends LitElement {
       ${candidates.length
         ? html`<div class="field"><label>${this._tr("mode_rep_entity")}</label>
             <select @change=${(e: Event) => (this._rep = (e.target as HTMLSelectElement).value)}>
-              ${candidates.map((id) => html`<option value=${id} ?selected=${id === rep}>${friendlyName(this.hass, id)}</option>`)}
+              ${candidates.map((id) => html`<option value=${id} ?selected=${id === rep}>${displayName(this.hass, id)}</option>`)}
             </select></div>`
         : nothing}
       <wp-setpoint-editor .hass=${this.hass} entity-id=${rep} .value=${draft.value} .admin=${admin} state-only
@@ -190,9 +193,12 @@ export class WpModesEditor extends LitElement {
       ${exceptions.map(([eid, sp]) => html`
         <div class="card">
           <div class="row" style="flex-wrap:nowrap">
-            <strong class="grow">${friendlyName(this.hass, eid)}</strong>
-            <button class="ibtn" aria-label=${`${this._tr("delete")} ${friendlyName(this.hass, eid)}`}
-              @click=${() => { const next = { ...draft.exceptions }; delete next[eid]; this._patch({ exceptions: next }); }}><ha-icon icon="mdi:delete"></ha-icon></button>
+            <strong class="grow">${displayName(this.hass, eid)}</strong>
+            <button class="ibtn" aria-label=${`${this._tr("delete")} ${displayName(this.hass, eid)}`}
+              @click=${async () => {
+                if (!(await confirmAction(this, this._tr("confirm_delete", { name: displayName(this.hass, eid) }), this._tr("delete")))) return;
+                const next = { ...draft.exceptions }; delete next[eid]; this._patch({ exceptions: next });
+              }}><ha-icon icon="mdi:delete"></ha-icon></button>
           </div>
           <wp-setpoint-editor .hass=${this.hass} entity-id=${eid} .value=${sp} state-only
             @wp-change=${(e: CustomEvent) => { e.stopPropagation(); this._patch({ exceptions: { ...draft.exceptions, [eid]: e.detail } }); }}></wp-setpoint-editor>
@@ -227,8 +233,9 @@ export class WpModesEditor extends LitElement {
       h3 { margin: 16px 0 4px; font-size: 15px; font-weight: 500; }
       .small { font-size: 12px; }
       .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--divider-color); margin-bottom: 8px; overflow-x: auto; }
+      ${unsafeCSS(scrollHintCss)}
       .tab {
-        min-height: 44px; padding: 0 16px; border: none; background: none; color: var(--secondary-text-color);
+        min-height: 48px; padding: 0 16px; border: none; background: none; color: var(--secondary-text-color);
         border-bottom: 3px solid transparent; cursor: pointer; white-space: nowrap;
       }
       .tab.on { color: var(--primary-color); border-bottom-color: var(--primary-color); font-weight: 600; }

@@ -104,6 +104,8 @@ export class WeeklyPlannerCardEditor extends LitElement {
         @change=${(e: Event) => this._set("show_week", (e.target as HTMLInputElement).checked)} /> ${this._tr("ce_show_week")}</label>
       <label class="check"><input type="checkbox" .checked=${c.show_chart !== false}
         @change=${(e: Event) => this._set("show_chart", (e.target as HTMLInputElement).checked)} /> ${this._tr("ce_show_chart")}</label>
+      <label class="check"><input type="checkbox" .checked=${c.show_advanced !== false}
+        @change=${(e: Event) => this._set("show_advanced", (e.target as HTMLInputElement).checked ? undefined : false)} /> ${this._tr("ce_show_advanced")}</label>
     `;
   }
 
