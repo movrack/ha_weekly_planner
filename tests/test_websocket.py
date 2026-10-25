@@ -81,3 +81,16 @@ async def test_unsupported_preset_refused(hass, hass_storage, freezer, hass_ws_c
     await ws.send_json_auto_id({"type": f"{DOMAIN}/program/save", "program": prog})
     res = await ws.receive_json()
     assert res["error"]["code"] == "unsupported_preset" and "comfort" in res["error"]["message"]
+
+
+async def test_warnings(hass, hass_storage, freezer, hass_ws_client):
+    FakeClimate(hass)
+    hass.states.async_set(CLIMATE, "heat", {"preset_modes": ["eco", "comfort"],
+                                            "vtherm_over_climate": {"follow_underlying_temp_change": True},
+                                            "lock_manager": {"is_locked": True, "lock_automations": True}})
+    hass.states.async_set("switch.schedule_abc", "on", {"entities": [CLIMATE]})
+    await setup(hass, hass_storage, freezer, [program()], None)
+    ws = await _client(hass, hass_ws_client)
+    await ws.send_json_auto_id({"type": f"{DOMAIN}/get"})
+    codes = {w["code"] for w in (await ws.receive_json())["result"]["warnings"]["office"]}
+    assert {"scheduler", "vt_follow_underlying", "vt_locked"} <= codes

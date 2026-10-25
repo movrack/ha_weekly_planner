@@ -224,6 +224,10 @@ export class WeeklyPlannerCard extends LitElement {
           ? html`<div class="warn-row">⚠️ ${overridden.length > 1 ? `${overridden.length} × ` : ""}${this._overrideText(overridden[0].entity_id)}
               <button class="small" @click=${() => this._resume(program)}>${s.resume}</button></div>`
           : nothing}
+        ${(data.warnings?.[program.id] ?? []).length && data.can_edit
+          ? html`<details class="warnings"><summary>⚠️ ${(data.warnings?.[program.id] ?? []).length}</summary>
+              ${(data.warnings?.[program.id] ?? []).map((w) => html`<div>${this._warning(w)}</div>`)}</details>`
+          : nothing}
         <wp-day-bar .spans=${this._spans(program, today, true)} .now=${nowMin} show-hours
           @click=${() => (this._dialog = { kind: "day", program, day: today })}></wp-day-bar>
         ${showWeek
@@ -242,6 +246,13 @@ export class WeeklyPlannerCard extends LitElement {
         </div>
       </section>
     `;
+  }
+
+  private _warning(w: { entity_id: string; code: string; detail: string }): string {
+    const name = this.hass.states[w.entity_id]?.attributes.friendly_name ?? w.entity_id;
+    const key = `warn_${w.code}` as any;
+    const text = (strings(this._lang) as any)[key] as string | undefined;
+    return text ? t(this._lang, key, { entity: name, detail: w.detail }) : `${name}: ${w.code}`;
   }
 
   /** Mode applied outside slots (default of the first entity), to show instead of "outside slots". */
@@ -301,6 +312,8 @@ export class WeeklyPlannerCard extends LitElement {
       font-size: 12px; padding: 1px 8px; border-radius: 10px; background: var(--secondary-background-color);
     }
     .chip.warn { background: var(--warning-color, #ff9800); color: #fff; }
+    .warnings { font-size: 12px; color: var(--secondary-text-color); margin-bottom: 8px; }
+    .warnings summary { cursor: pointer; }
     .warn-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 8px; }
     wp-day-bar { cursor: pointer; }
     .week { display: grid; gap: 4px; margin-top: 8px; }

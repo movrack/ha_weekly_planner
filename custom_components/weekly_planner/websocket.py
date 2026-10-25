@@ -12,6 +12,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.util import dt as dt_util
 
 from .const import CONF_ADMIN_ONLY, DOMAIN
+from .checks import program_warnings
 from .engine import PlannerEngine
 from .resolver import active_profile, occurrences_around
 from .store import new_id
@@ -47,6 +48,8 @@ def _snapshot(engine: PlannerEngine) -> dict[str, Any]:
         "modes": engine.store.config["modes"],
         "programs": engine.store.programs,
         "status": {p["id"]: engine.program_status(p["id"]) for p in engine.store.programs},
+        "warnings": {p["id"]: program_warnings(engine.hass, engine.store.programs, p)
+                     for p in engine.store.programs},
         "entities": entities,
         "read_only": engine.store.read_only,
         "can_edit": True,
