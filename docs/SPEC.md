@@ -135,8 +135,11 @@ Service `weekly_planner.resume` / bouton « Reprendre » : efface la dérogation
   - `rien` : ne rien envoyer à la fin.
 - Reprise de la main : si une plage de priorité plus haute se termine pendant qu'un programme plus bas est dans
   une plage, l'entité reçoit l'action de cette plage, pas le défaut.
-- Quand aucune plage n'est en cours, le défaut appliqué est celui du **programme de plus haute priorité qui contient
-  l'entité** (règle unique, valable aussi pour Vacances, désactivation et premier démarrage).
+- Quand aucune plage n'est en cours, le défaut appliqué est celui du **programme actif de plus haute priorité qui
+  contient l'entité**. Un programme **désactivé libère ses entités** : son défaut ne s'applique qu'une fois, à sa
+  propre désactivation (§ 5.5), jamais aux fins de plage des autres programmes.
+- Vacances : au passage en Vacances, chaque entité reçoit une fois le défaut du programme le plus prioritaire qui la
+  contient (programmes actifs avant les Vacances).
 - Actions ponctuelles (« Autre », scène, script, bouton) : défaut `rien` imposé.
 
 ### 5.5 Redémarrage, activation, modification (D10)
@@ -536,7 +539,7 @@ en mode YAML ; garde `customElements.get()` avant `define`. **Prototype de faisa
 
 ## 16 bis. Questions produit (relecture n° 2)
 - Q-I Vacances, désactivation du programme ou changement de profil pendant une dérogation volontaire : annulée ou conservée ?
-- Q-J Programme désactivé : libère-t-il ses entités (son défaut ne s'applique plus) ? Défaut pendant Vacances quand plusieurs programmes visent l'entité ?
+- Q-J ✅ Un programme désactivé libère ses entités (son défaut ne vaut que pour sa propre désactivation) ; Vacances : défaut du plus prioritaire, une fois.
 - Q-K Réglage à la main pendant une dérogation volontaire : garde l'échéance, ou devient une dérogation externe ?
 - Q-L Plage ponctuelle d'un programme moins prioritaire pendant une plage plus prioritaire ou une dérogation : exécutée ou sautée ?
 - Q-M Avec `admin_only`, un non-admin peut-il utiliser « Déroger… » et changer de profil ?
