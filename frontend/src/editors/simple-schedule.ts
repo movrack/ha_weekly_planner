@@ -8,9 +8,9 @@ import "../components/dialog";
 import { confirmAction } from "../components/confirm";
 import { SwipeTracker } from "../components/gestures";
 import { strings, t } from "../i18n";
-import { activeProfile, describeSp, mainType, modeEffect, newId } from "../planner";
+import { activeProfile, describeSp, mainType, modeEffect, modeSetpoint, newId } from "../planner";
 import { DAY, clockToMinutes, fmtClock, localWeekday, minutesToClock, nominal } from "../time";
-import type { HomeAssistant, PlannerData, Profile, Program, Slot, TimeSpec } from "../types";
+import type { HomeAssistant, Mode, PlannerData, Profile, Program, Slot, TimeSpec } from "../types";
 import { findOverlap, sortSlots, specMinutes } from "./day-editor";
 import { editorStyles, langOf } from "./setpoint-editor";
 import type { K } from "./setpoint-editor";
@@ -31,6 +31,7 @@ export class WpSimpleSchedule extends LitElement {
   @state() private _conflict = false;
   @state() private _saving = false;
   @state() private _saved = false;
+  @state() private _adding = false;
   private _closeTimer?: number;
   private _swipe = new SwipeTracker(60);
 
@@ -116,7 +117,8 @@ export class WpSimpleSchedule extends LitElement {
     this._patchSlot(slot.id, { actions: { ...slot.actions, by_type: { ...slot.actions.by_type, [type]: modeId } } });
   }
 
-  private _add(): void {
+  private _add(range: boolean): void {
+    this._adding = false;
     const slots = this._slots;
     let start = 8 * 60;
     if (slots.length) {
@@ -130,15 +132,15 @@ export class WpSimpleSchedule extends LitElement {
     const modes = this._modes;
     const comfort = modes.find((m) => /confort|comfort/i.test(`${m.id} ${m.name}`)) ?? modes[0];
     const slot: Slot = {
-      id: newId(), start: { time: clock(start) }, end: { time: clock(Math.min(DAY, start + 60)) }, conditions: [],
+      id: newId(), start: { time: clock(start) }, conditions: [],
       actions: { by_type: comfort ? { [mainType(this._p!)]: comfort.id } : {}, by_entity: {} },
     };
+    if (range) slot.end = { time: clock(Math.min(DAY, start + 60)) };
     this._setDay(this._day, [...slots, slot]);
   }
 
   private async _remove(slot: Slot): Promise<void> {
-    const sun = !("time" in slot.start) || Boolean(slot.end && !("time" in slot.end));
-    const text = sun ? this._tr("ss_confirm_remove_sun") : this._tr("ss_confirm_remove", { time: this._sentenceTime(slot) });
+    const text = this._tr("ss_confirm_remove", { time: this._sentenceTime(slot) });
     if (await confirmAction(this, text, this._tr("ss_remove"))) {
       this._setDay(this._day, this._slots.filter((s) => s.id !== slot.id));
     }
@@ -217,34 +219,29 @@ export class WpSimpleSchedule extends LitElement {
 
   /* ---- render ---- */
 
-  private _sunText(side: "from" | "to", ev: Sun): string {
-    return this._tr(`ss_${side}_${ev}` as K);
+  private _offsetWord(minutes: number): string {
+    const abs = Math.abs(minutes);
+    const d = abs < 60 ? `${abs} min` : abs % 60 ? `${Math.floor(abs / 60)} h ${String(abs % 60).padStart(2, "0")}` : `${abs / 60} h`;
+    return this._tr(minutes > 0 ? "ss_off_after" : "ss_off_before", { d });
   }
 
-  /** "8 h 30 à 22 h" (fixed times only; sun-based times use their own words). */
+  /** "À 4 h" / "Au coucher du soleil" / "30 min après le coucher du soleil" / "De 8 h" / "à 22 h". */
+  private _whenText(spec: TimeSpec, role: "at" | "from" | "to"): string {
+    if ("time" in spec) {
+      const m = clockToMinutes(spec.time);
+      return `${this._tr(`ss_${role}` as K)} ${m >= DAY ? this._tr("ss_midnight_word") : fmtClock(this._lang, m)}`;
+    }
+    const offset = spec.offset ?? 0;
+    if (!offset) return this._tr(`ss_${role}_${spec.sun}` as K);
+    const phrase = `${this._offsetWord(offset)} ${this._tr(`ss_the_${spec.sun}` as K)}`;
+    return role === "at" ? phrase : `${this._tr(`ss_${role}` as K)} ${phrase}`;
+  }
+
+  /** "8 h 45 à 17 h" is built as "De 8 h 45 à 17 h"; a single time as "À 4 h". */
   private _sentenceTime(slot: Slot): string {
-    const side = (spec: TimeSpec | null | undefined, kind: "from" | "to"): string =>
-      !spec ? "" : "time" in spec ? fmtClock(this._lang, clockToMinutes(spec.time)) : this._sunText(kind, spec.sun);
-    return slot.end ? `${side(slot.start, "from")} ${this._tr("ss_to")} ${side(slot.end, "to")}` : side(slot.start, "from");
-  }
-
-  private _timeInput(slot: Slot, which: "start" | "end", word: string) {
-    const spec = slot[which];
-    if (!spec) return nothing;
-    const m = nominal(spec) ?? 0;
-    const shown = m >= DAY ? "00:00" : "time" in spec ? spec.time : "";
-    return html`<span class="w">${word}</span>
-      <input type="time" step="900" .value=${shown} aria-label=${word} @change=${(e: Event) => this._fromInput(slot, which, e)} />`;
-  }
-
-  private _steps(slot: Slot, which: "start" | "end", label: string) {
-    if (!slot[which]) return nothing;
-    const aria = (k: K) => this._tr(k, { when: label });
-    return html`<div class="steps"><span class="lbl">${label}</span>
-      <button class="btn step" aria-label=${aria("ss_earlier_aria")} @click=${() => this._shift(slot, which, -MOVE)}>
-        <ha-icon icon="mdi:minus"></ha-icon><span>${this._tr("ss_earlier")}</span></button>
-      <button class="btn step" aria-label=${aria("ss_later_aria")} @click=${() => this._shift(slot, which, MOVE)}>
-        <ha-icon icon="mdi:plus"></ha-icon><span>${this._tr("ss_later")}</span></button></div>`;
+    return slot.end
+      ? `${this._whenText(slot.start, "from")} ${this._whenText(slot.end, "to")}`
+      : this._whenText(slot.start, "at");
   }
 
   /** Entity the period's mode is read on (first entity of the main type). */
@@ -254,56 +251,147 @@ export class WpSimpleSchedule extends LitElement {
     return ids.find((id) => id.split(".")[0] === type) ?? ids[0] ?? "";
   }
 
-  private _modeControl(slot: Slot) {
-    const modes = this._modes;
-    const current = this._mode(slot);
+  /** Action of a mode as the user reads it: a verb ("fermer le volet") or a setting ("Confort (19 °C)"). */
+  private _action(mode: Mode): { text: string; verb: boolean } {
     const eid = this._firstEntity;
+    const sp = (eid ? modeSetpoint(mode, eid) : mode.value) as Record<string, unknown>;
+    const n = String(sp.position ?? "");
+    switch (sp.kind) {
+      case "open": return { text: this._tr("ss_act_open"), verb: true };
+      case "close": return { text: this._tr("ss_act_close"), verb: true };
+      case "off": return { text: this._tr("ss_act_off"), verb: true };
+      case "on": return typeof sp.brightness === "number"
+        ? { text: this._tr("ss_act_on_pct", { n: String(sp.brightness) }), verb: true }
+        : { text: this._tr("ss_act_on"), verb: true };
+      case "position":
+        return /favori|favorite/i.test(`${mode.id} ${mode.name}`)
+          ? { text: this._tr("ss_act_fav", { n }), verb: true }
+          : { text: this._tr("ss_act_pos", { n }), verb: true };
+      default: {
+        const effect = eid ? modeEffect(this.hass, this._lang, mode, eid) : "";
+        return { text: effect ? `${mode.name} (${effect})` : mode.name, verb: false };
+      }
+    }
+  }
+
+  /** The whole sentence of a slot: when, then what happens. */
+  private _title(slot: Slot): string {
+    const when = this._sentenceTime(slot);
+    const current = this._mode(slot);
+    let action = "";
+    let verb = false;
+    if (current) {
+      const mode = this._modes.find((m) => m.id === current);
+      if (mode) ({ text: action, verb } = this._action(mode));
+    } else if (Object.keys(slot.actions.by_entity).length) {
+      const [id, sp] = Object.entries(slot.actions.by_entity)[0];
+      action = describeSp(this._lang, this.data.modes, id, sp);
+    }
+    if (!action) return when;
+    return verb
+      ? `${when}, ${action.charAt(0).toLowerCase()}${action.slice(1)}`
+      : `${when}${this._tr("ss_colon")}${action}`;
+  }
+
+  /* ---- time block ("Quand" / "Début" / "Fin") ---- */
+
+  private _setKind(slot: Slot, which: "start" | "end", kind: string): void {
+    const spec = slot[which];
+    if (!spec) return;
+    if (kind === "time") {
+      if ("time" in spec) return;
+      this._setTime(slot, which, Math.round(specMinutes(this.hass, spec) / 5) * 5);
+    } else {
+      const sun = kind as Sun;
+      const next: TimeSpec = "time" in spec ? { sun, offset: 0 } : { ...spec, sun };
+      this._patchSlot(slot.id, { [which]: next } as Partial<Slot>);
+    }
+  }
+
+  private _setOffset(slot: Slot, which: "start" | "end", ev: Event): void {
+    const spec = slot[which];
+    if (!spec || "time" in spec) return;
+    const offset = Number((ev.target as HTMLSelectElement).value);
+    this._patchSlot(slot.id, { [which]: { ...spec, offset } } as Partial<Slot>);
+  }
+
+  private _whenBlock(slot: Slot, which: "start" | "end", title: string) {
+    const spec = slot[which];
+    if (!spec) return nothing;
+    const kind = "time" in spec ? "time" : spec.sun;
+    const kinds = ["time", "sunrise", "sunset", ...(kind === "dawn" || kind === "dusk" ? [kind] : [])];
+    const edit = this._canEdit;
+    let body;
+    if ("time" in spec) {
+      const m = nominal(spec) ?? 0;
+      body = html`
+        <input type="time" step="300" .value=${m >= DAY ? "00:00" : spec.time} aria-label=${title} ?disabled=${!edit}
+          @change=${(e: Event) => this._fromInput(slot, which, e)} />
+        <div class="steps">
+          <button class="btn step" ?disabled=${!edit} aria-label=${this._tr("ss_earlier_aria", { when: title })}
+            @click=${() => this._shift(slot, which, -MOVE)}><ha-icon icon="mdi:minus"></ha-icon><span>${this._tr("ss_earlier")}</span></button>
+          <button class="btn step" ?disabled=${!edit} aria-label=${this._tr("ss_later_aria", { when: title })}
+            @click=${() => this._shift(slot, which, MOVE)}><ha-icon icon="mdi:plus"></ha-icon><span>${this._tr("ss_later")}</span></button>
+        </div>`;
+    } else {
+      const offset = spec.offset ?? 0;
+      const offsets = [0, 15, 30, 60, -15, -30, -60];
+      if (!offsets.includes(offset)) offsets.unshift(offset);
+      body = html`<select aria-label=${title} ?disabled=${!edit} @change=${(e: Event) => this._setOffset(slot, which, e)}>
+        ${offsets.map((o) => html`<option value=${o} ?selected=${o === offset}>${o === 0 ? this._tr("ss_off_zero") : this._offsetWord(o)}</option>`)}
+      </select>`;
+    }
+    return html`
+      <div class="blk" role="group" aria-label=${title}>
+        <div class="blk-t">${title}</div>
+        <div class="seg" role="radiogroup" aria-label=${title}>
+          ${kinds.map((k) => html`<button class="segb ${k === kind ? "on" : ""}" role="radio" aria-checked=${k === kind}
+            ?disabled=${!edit} @click=${() => this._setKind(slot, which, k)}>${this._tr(`ss_kind_${k}` as K)}</button>`)}
+        </div>
+        ${body}
+      </div>`;
+  }
+
+  /* ---- action block ---- */
+
+  private _actionBlock(slot: Slot) {
+    const current = this._mode(slot);
     const custom = !current && Object.keys(slot.actions.by_entity).length > 0;
+    const modes = this._modes;
     if (custom) {
       const [id, sp] = Object.entries(slot.actions.by_entity)[0];
       const more = Object.keys(slot.actions.by_entity).length - 1;
-      return html`<strong class="custom">${describeSp(this._lang, this.data.modes, id, sp)}${more > 0 ? ` +${more}` : ""}</strong>`;
+      const text = `${describeSp(this._lang, this.data.modes, id, sp)}${more > 0 ? ` +${more}` : ""}`;
+      return html`<div class="blk"><div class="blk-t">${this._tr("ss_action")}</div><strong class="custom">${text}</strong></div>`;
     }
+    const edit = this._canEdit;
     return html`
-      <select aria-label=${this._tr("slot_action")} @change=${(e: Event) => this._setMode(slot, (e.target as HTMLSelectElement).value)}>
-        ${current ? nothing : html`<option value="" selected>${this._tr("ss_pick_mode")}</option>`}
-        ${modes.map((m) => {
-          const effect = eid ? modeEffect(this.hass, this._lang, m, eid) : "";
-          return html`<option value=${m.id} ?selected=${m.id === current}>${effect ? `${m.name} (${effect})` : m.name}</option>`;
-        })}
-      </select>`;
+      <div class="blk" role="radiogroup" aria-label=${this._tr("ss_action")}>
+        <div class="blk-t">${this._tr("ss_action")}</div>
+        ${modes.map((m) => html`
+          <label class="opt ${m.id === current ? "on" : ""}">
+            <input type="radio" name=${`act-${slot.id}`} .checked=${m.id === current} ?disabled=${!edit}
+              @change=${() => this._setMode(slot, m.id)} />
+            <span>${this._action(m).text}</span>
+          </label>`)}
+      </div>`;
   }
 
   private _renderSlot(slot: Slot) {
-    const fixedStart = "time" in slot.start;
-    const fixedEnd = !slot.end || "time" in slot.end;
-    const sun = !fixedStart || !fixedEnd;
     const s = nominal(slot.start);
     const e = nominal(slot.end ?? null);
     const next = s !== null && e !== null && e <= s && e < DAY;
     return html`
       <div class="slot card">
-        ${sun
-          ? html`<div class="sentence">
-              <strong>${this._sentenceTime(slot)}</strong>
-              <p class="hint"><ha-icon icon="mdi:weather-sunny"></ha-icon> ${this._tr("ss_sun_note")}</p>
-              <div class="sent"><span class="w">:</span><div class="grow">${this._modeControl(slot)}</div></div>
-            </div>`
-          : html`
-            <div class="sent">
-              ${slot.end
-                ? html`${this._timeInput(slot, "start", this._tr("ss_from"))}
-                  <span class="grp">${this._timeInput(slot, "end", this._tr("ss_to"))}<span class="w">:</span></span>`
-                : html`<span class="grp">${this._timeInput(slot, "start", this._tr("ss_at"))}<span class="w">:</span></span>`}
-              <div class="mode">${this._modeControl(slot)}</div>
-            </div>
-            ${next ? html`<p class="hint"><ha-icon icon="mdi:weather-night"></ha-icon> ${this._tr("ss_next_day")}</p>` : nothing}
-            ${e === DAY ? html`<p class="hint">${this._tr("ss_midnight")}</p>` : nothing}
-            ${this._steps(slot, "start", this._tr("ss_start_lbl"))}
-            ${this._steps(slot, "end", this._tr("ss_end_lbl"))}`}
+        <div class="sentence">${this._title(slot)}</div>
+        ${slot.end
+          ? html`${this._whenBlock(slot, "start", this._tr("ss_start_lbl"))}${this._whenBlock(slot, "end", this._tr("ss_end_lbl"))}`
+          : this._whenBlock(slot, "start", this._tr("ss_when"))}
+        ${next ? html`<p class="hint"><ha-icon icon="mdi:weather-night"></ha-icon> ${this._tr("ss_next_day")}</p>` : nothing}
+        ${this._actionBlock(slot)}
         <div class="actions">
-          <button class="btn danger" ?disabled=${!this._canEdit} @click=${() => void this._remove(slot)}>
-            <ha-icon icon="mdi:delete"></ha-icon> ${this._tr("ss_remove")}</button>
+          <button class="textbtn" ?disabled=${!this._canEdit} @click=${() => void this._remove(slot)}>
+            <ha-icon icon="mdi:delete-outline"></ha-icon> ${this._tr("ss_remove")}</button>
         </div>
       </div>`;
   }
@@ -333,8 +421,15 @@ export class WpSimpleSchedule extends LitElement {
           ${this._p.profiles.length > 1 ? html`<p class="muted small">${this._tr("ss_season", { name: this._profile.name })}</p>` : nothing}
           ${slots.length === 0 ? html`<p class="muted">${this._tr("ss_empty")}</p>` : nothing}
           ${slots.map((slot) => this._renderSlot(slot))}
-          <button class="btn" ?disabled=${!editable} @click=${() => this._add()}>
-            <ha-icon icon="mdi:plus"></ha-icon> ${this._tr("ss_add")}</button>
+          ${this._adding
+            ? html`<div class="card addbox" role="group" aria-label=${this._tr("ss_add")}>
+                <div class="blk-t">${this._tr("ss_add_title")}</div>
+                <button class="btn big" @click=${() => this._add(false)}><ha-icon icon="mdi:clock-outline"></ha-icon> ${this._tr("ss_add_point")}</button>
+                <button class="btn big" @click=${() => this._add(true)}><ha-icon icon="mdi:timer-sand"></ha-icon> ${this._tr("ss_add_range")}</button>
+                <button class="textbtn plain" @click=${() => { this._adding = false; }}>${s.cancel}</button>
+              </div>`
+            : html`<button class="btn" ?disabled=${!editable} @click=${() => { this._adding = true; }}>
+                <ha-icon icon="mdi:plus"></ha-icon> ${this._tr("ss_add")}</button>`}
           <h4>${this._tr("ss_copy_title")}</h4>
           <div class="row">
             <button class="btn" ?disabled=${!editable} @click=${() => void this._copy("weekdays")}>${this._tr("ss_copy_weekdays")}</button>
@@ -345,8 +440,8 @@ export class WpSimpleSchedule extends LitElement {
         ${this._error ? html`<p class="error" role="alert">${this._error}
           ${this._conflict ? html`<button class="btn" @click=${() => this._reload()}>${this._tr("ss_reload")}</button>` : nothing}</p>` : nothing}
         ${this._saved ? html`<p class="saved" role="status"><ha-icon icon="mdi:check-circle"></ha-icon> ${this._tr("ss_saved")}</p>` : nothing}
-        <button slot="footer" class="btn" @click=${() => this._closeDialog()}>${s.cancel}</button>
         <button slot="footer" class="btn primary save" ?disabled=${!editable || this._saving || this._saved} @click=${() => void this._save()}>${s.save}</button>
+        <button slot="footer" class="textbtn plain cancel" @click=${() => this._closeDialog()}>${s.cancel}</button>
       </wp-dialog>`;
   }
 
@@ -370,27 +465,44 @@ export class WpSimpleSchedule extends LitElement {
         background: var(--primary-color); color: var(--text-primary-color, #fff); border-radius: 12px;
         padding: 2px 10px; font-size: 13px; font-weight: 600; vertical-align: middle;
       }
-      .slot { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
-      .sent { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-      .grp { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-      .sent .w { font-size: 16px; }
-      .sent input[type="time"] { flex: 0 0 104px; width: 104px; min-height: 48px; font-size: 20px; font-weight: 600; text-align: center; padding: 4px; }
-      .sent .mode { flex: 1 1 150px; min-width: 0; }
-      .sent select { font-size: 16px; }
+      .slot { display: flex; flex-direction: column; gap: 12px; padding: 12px; }
+      .sentence { font-size: 18px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+      .blk { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--divider-color); min-width: 0; }
+      .blk-t { font-size: 15px; font-weight: 600; }
+      .seg { display: flex; flex-wrap: wrap; gap: 8px; }
+      .segb {
+        flex: 1 1 96px; min-height: 52px; padding: 6px 8px; border-radius: 12px; font-size: 15px; line-height: 1.2;
+        border: 2px solid var(--secondary-text-color); background: none; color: var(--primary-text-color); cursor: pointer;
+      }
+      .segb.on { background: var(--primary-color); border-color: var(--primary-color); color: var(--text-primary-color, #fff); font-weight: 600; }
+      .segb:disabled { opacity: 0.45; cursor: default; }
+      .blk input[type="time"] { width: 100%; max-width: 180px; min-height: 52px; font-size: 22px; font-weight: 600; text-align: center; }
+      .blk select { font-size: 16px; min-height: 52px; }
+      .steps { display: flex; flex-wrap: wrap; gap: 8px; }
+      .btn.step { flex: 1 1 100%; min-width: 0; min-height: 52px; padding: 0 12px; font-size: 16px; gap: 6px; border-color: var(--secondary-text-color); }
+      @media (min-width: 600px) { .btn.step { flex: 1 1 160px; } }
+      .opt {
+        display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 14px; border-radius: 12px; cursor: pointer;
+        border: 2px solid var(--secondary-text-color); font-size: 16px; line-height: 1.25;
+      }
+      .opt input { flex: none; }
+      .opt.on { border-color: var(--primary-color); background: color-mix(in srgb, var(--primary-color) 18%, transparent); font-weight: 600; }
       .custom { font-size: 18px; }
-      .steps { display: flex; align-items: center; gap: 8px; }
-      .steps .lbl { flex: 0 0 44px; font-size: 14px; opacity: 0.8; }
-      .btn.step { flex: 1; min-width: 0; padding: 0 8px; font-size: 14px; gap: 2px; --mdc-icon-size: 16px; white-space: nowrap; }
-      .btn.step span { white-space: nowrap; }
       .btn { border-color: var(--secondary-text-color); }
       .btn.primary { border-color: var(--primary-color); }
-      .btn.danger { border-color: var(--error-color, #db4437); }
+      .btn.big { min-height: 56px; font-size: 16px; width: 100%; }
+      .addbox { display: flex; flex-direction: column; gap: 8px; }
       .muted, .hint { color: var(--primary-text-color); opacity: 0.8; }
-      .sentence { font-size: 16px; }
-      .actions { display: flex; justify-content: flex-start; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--divider-color); }
+      .actions { display: flex; justify-content: flex-start; padding-top: 4px; }
+      .textbtn {
+        display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 8px; border: none; background: none;
+        cursor: pointer; font-size: 15px; color: var(--error-color, #db4437); text-decoration: underline; --mdc-icon-size: 20px;
+      }
+      .textbtn.plain { color: var(--primary-text-color); justify-content: center; }
+      .textbtn:disabled { opacity: 0.45; cursor: default; }
       .saved { display: flex; align-items: center; gap: 8px; font-size: 16px; color: var(--success-color, #43a047); --mdc-icon-size: 22px; }
-      @media (max-width: 600px) { .btn.save { flex: 1 1 100%; order: -1; } }
-      @media (max-width: 400px) { .sent input[type="time"] { flex-basis: 96px; width: 96px; font-size: 18px; } }
+      .btn.save { flex: 1 1 100%; min-height: 56px; font-size: 17px; }
+      .cancel { flex: 1 1 100%; }
     `,
   ];
 }
