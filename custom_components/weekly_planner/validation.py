@@ -29,7 +29,12 @@ TIME_SPEC = vol.Any(
     }),
 )
 
-SETPOINT = vol.Schema({vol.Required("kind"): str}, extra=vol.ALLOW_EXTRA)
+SETPOINT = vol.Schema({
+    vol.Required("kind"): str,
+    vol.Optional("brightness"): vol.All(vol.Coerce(int), vol.Range(min=1, max=100)),
+    vol.Optional("color_temp_kelvin"): vol.All(vol.Coerce(int), vol.Range(min=1000, max=12000)),
+    vol.Optional("effect"): str,
+}, extra=vol.ALLOW_EXTRA)
 
 CONDITION = vol.Schema({
     vol.Required("entity_id"): cv.entity_id,

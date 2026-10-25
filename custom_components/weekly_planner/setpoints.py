@@ -18,6 +18,7 @@ ADMIN_ONLY_KINDS = frozenset({"script", "action"})
 TEMPERATURE_TOLERANCE = 0.2
 POSITION_TOLERANCE = 3
 BRIGHTNESS_TOLERANCE = 10  # percent
+COLOR_TEMP_TOLERANCE = 150  # kelvin (devices round to whole mireds)
 
 
 @dataclass(frozen=True, slots=True)
@@ -191,7 +192,16 @@ def matches(state: Any, setpoint: dict | None) -> bool | None:
                 current = attrs.get("brightness")
                 if current is None:
                     return False
-                return abs(round(current * 100 / 255) - setpoint["brightness"]) <= BRIGHTNESS_TOLERANCE
+                if abs(round(current * 100 / 255) - setpoint["brightness"]) > BRIGHTNESS_TOLERANCE:
+                    return False
+            if domain == "light" and kind == "on":
+                if setpoint.get("effect") and attrs.get("effect") != setpoint["effect"]:
+                    return False
+                kelvin = setpoint.get("color_temp_kelvin")
+                if kelvin is not None:
+                    current_k = attrs.get("color_temp_kelvin")
+                    if current_k is None or abs(current_k - kelvin) > COLOR_TEMP_TOLERANCE:
+                        return False
             if domain == "fan" and "percentage" in setpoint:
                 return attrs.get("percentage") == setpoint["percentage"]
             return True
@@ -243,6 +253,10 @@ def snapshot(state: Any) -> dict | None:
         setpoint: dict[str, Any] = {"kind": "on"}
         if domain == "light" and attrs.get("brightness") is not None:
             setpoint["brightness"] = round(attrs["brightness"] * 100 / 255)
+        if domain == "light" and attrs.get("effect") not in (None, "off"):
+            setpoint["effect"] = attrs["effect"]
+        elif domain == "light" and attrs.get("color_temp_kelvin") is not None:
+            setpoint["color_temp_kelvin"] = attrs["color_temp_kelvin"]
         if domain == "fan" and attrs.get("percentage") is not None:
             setpoint["percentage"] = attrs["percentage"]
         return setpoint
