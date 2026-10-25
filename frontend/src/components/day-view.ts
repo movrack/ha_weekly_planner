@@ -125,7 +125,7 @@ export class WpDayView extends LitElement {
     const fallback = s.override;
     const spans: BarSpan[] = [];
     for (const { slot, end } of spillover(profile.days[(wd + 6) % 7])) {
-      spans.push({ start: 0, end, color: slotColor(slot, this.program, modes), label: slotLabel(slot, this.program, modes, fallback) });
+      spans.push({ start: 0, end, color: slotColor(slot, this.program, modes), label: slotLabel(slot, this.program, modes, this._lang) });
     }
     const reason = (code: string): string => (s as unknown as Record<string, string>)[`reason_${code}`] ?? code;
     for (const slot of profile.days[wd]) {
@@ -139,7 +139,7 @@ export class WpDayView extends LitElement {
       }
       if (start === null) continue;
       const stop = end === null ? start + 10 : end > start ? end : DAY;
-      const label = slotLabel(slot, this.program, modes, fallback);
+      const label = slotLabel(slot, this.program, modes, this._lang);
       spans.push({
         start, end: Math.min(DAY, stop), color: slotColor(slot, this.program, modes),
         label: r?.ignored ? `${label} — ${reason(r.ignored)}` : label,
