@@ -64,7 +64,10 @@ export class WpOverrideDialog extends LitElement {
   willUpdate(): void {
     if (this._init || !this.program) return;
     this._init = true;
-    this._sel = this.program.entities.map((e) => e.entity_id);
+    // preselect the entities of the program's main type (one type at a time)
+    const ids = this.program.entities.map((e) => e.entity_id);
+    const first = modeTypeOf(entityDomain(ids[0] ?? ""));
+    this._sel = ids.filter((id) => modeTypeOf(entityDomain(id)) === first);
   }
 
   private get _rep(): string {

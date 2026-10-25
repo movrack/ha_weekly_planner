@@ -8,6 +8,7 @@ import "./components/day-view";
 import "./editors/program-editor";
 import "./editors/override-dialog";
 import "./editors/modes-editor";
+import { describeSetpoint } from "./editors/setpoint-editor";
 import type { BarSpan } from "./components/day-bar";
 import { t, strings } from "./i18n";
 import {
@@ -217,7 +218,9 @@ export class WeeklyPlannerCard extends LitElement {
           </label>
         </div>
         <div class="state">
-          ${mode
+          ${this._effective(program)
+            ? html`<span class="pill override">${this._effective(program)}</span>`
+            : mode
             ? html`<span class="pill" style="--c:${mode.color}">${mode.name}</span>`
             : slot
               ? html`<span class="pill" style="--c:${slotColor(slot, program, data.modes)}">${slotLabel(slot, program, data.modes, lang)}</span>`
@@ -260,6 +263,13 @@ export class WeeklyPlannerCard extends LitElement {
     const key = `warn_${w.code}` as any;
     const text = (strings(this._lang) as any)[key] as string | undefined;
     return text ? t(this._lang, key, { entity: name, detail: w.detail }) : `${name}: ${w.code}`;
+  }
+
+  /** Setpoint of a voluntary override on the program's first entity, shown instead of the plan. */
+  private _effective(program: Program): string | undefined {
+    const first = program.entities[0]?.entity_id;
+    const o = first ? this._data!.entities[first]?.override : undefined;
+    return o?.origin === "voluntary" && o.setpoint ? describeSetpoint(this._lang, o.setpoint) : undefined;
   }
 
   /** Mode applied outside slots (default of the first entity), to show instead of "outside slots". */
@@ -312,6 +322,9 @@ export class WeeklyPlannerCard extends LitElement {
     .pill {
       background: var(--c); color: #fff; border-radius: 12px; padding: 2px 10px; font-size: 13px;
       font-weight: 600; text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+    }
+    .pill.override {
+      background: repeating-linear-gradient(135deg, var(--warning-color, #ff9800) 0 6px, #e68900 6px 12px);
     }
     .pill.neutral { background: var(--secondary-background-color); color: var(--primary-text-color); text-shadow: none; }
     .muted { color: var(--secondary-text-color); font-size: 13px; }
