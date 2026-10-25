@@ -130,4 +130,5 @@ export interface CardConfig {
   filter?: { types?: string[]; area?: string };
   show_week?: boolean;
   show_chart?: boolean;
+  show_advanced?: boolean;
 }

@@ -1,6 +1,7 @@
 // Shared data access: one subscription per page, helpers to read programs and modes.
 
 import { describeSetpoint } from "./editors/setpoint-editor";
+import { strings } from "./i18n";
 import type { HomeAssistant, Mode, PlannerData, Program, Setpoint, Slot } from "./types";
 
 type Listener = (data: PlannerData) => void;
@@ -84,4 +85,49 @@ export function filterPrograms(data: PlannerData, config: { program?: string; fi
 
 export function newId(): string {
   return Math.random().toString(16).slice(2, 14).padEnd(12, "0");
+}
+
+/* ---- plain-language helpers (simple mode) ---- */
+
+export function fmtNum(lang: string, n: number): string {
+  return new Intl.NumberFormat(lang, { maximumFractionDigits: 1 }).format(n);
+}
+
+export const fmtTemp = (lang: string, n: number): string => `${fmtNum(lang, n)} °C`;
+
+/** Translated preset name (falls back to the raw value). */
+export function presetLabel(lang: string, preset: string): string {
+  const text = (strings(lang) as Record<string, unknown>)[`preset_${preset}`];
+  return typeof text === "string" ? text : preset;
+}
+
+/** Setpoint a mode applies to an entity (its exception, else its value). */
+export const modeSetpoint = (mode: Mode, entityId: string): Setpoint => mode.exceptions?.[entityId] ?? mode.value;
+
+/** True when a setpoint can be applied to this entity right now (e.g. the preset exists). */
+export function applicable(hass: HomeAssistant, entityId: string, sp: Setpoint): boolean {
+  const attrs = hass.states[entityId]?.attributes ?? {};
+  const x = sp as Record<string, any>;
+  if (sp.kind === "preset") return (attrs.preset_modes as string[] | undefined)?.includes(x.preset) ?? false;
+  if (sp.kind === "hvac_mode") return (attrs.hvac_modes as string[] | undefined)?.includes(x.hvac_mode) ?? false;
+  if (sp.kind === "tilt") return attrs.current_tilt_position !== undefined;
+  return true;
+}
+
+/** Short plain-language text of a setpoint: mode name when a mode has this value, else a translation. */
+export function describeSp(lang: string, modes: Mode[], entityId: string, sp: Setpoint): string {
+  const key = JSON.stringify(sp);
+  const mode = modes.find((m) => JSON.stringify(modeSetpoint(m, entityId)) === key);
+  if (mode) return mode.name;
+  const x = sp as Record<string, any>;
+  const s = strings(lang);
+  switch (sp.kind) {
+    case "preset": return presetLabel(lang, String(x.preset));
+    case "temperature": return fmtTemp(lang, Number(x.temperature));
+    case "open": return s.sp_open;
+    case "close": return s.sp_close;
+    case "off": return s.sp_off;
+    case "on": return x.brightness !== undefined ? `${s.sp_on} · ${x.brightness} %` : s.sp_on;
+    default: return describeSetpoint(lang, sp);
+  }
 }

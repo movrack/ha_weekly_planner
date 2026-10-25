@@ -35,19 +35,19 @@ export const editorStyles = css`
   .row > .field { flex: 1 1 140px; }
   input[type="text"], input[type="number"], input[type="time"], input[type="date"], input:not([type]),
   select, textarea {
-    width: 100%; min-height: 40px; padding: 8px 10px; font: inherit; color: var(--primary-text-color);
+    width: 100%; min-height: 48px; padding: 8px 10px; font: inherit; color: var(--primary-text-color);
     background: var(--card-background-color, #fff); border: 1px solid var(--divider-color);
     border-radius: 8px;
   }
   textarea { min-height: 72px; font-family: monospace; }
-  input[type="color"] { width: 56px; height: 40px; padding: 2px; border: 1px solid var(--divider-color);
+  input[type="color"] { width: 56px; height: 48px; padding: 2px; border: 1px solid var(--divider-color);
     border-radius: 8px; background: none; }
   input[type="checkbox"], input[type="radio"] { width: 20px; height: 20px; margin: 0; accent-color: var(--primary-color); }
-  label.check { display: flex; align-items: center; gap: 10px; min-height: 40px; cursor: pointer; }
+  label.check { display: flex; align-items: center; gap: 10px; min-height: 48px; cursor: pointer; }
   button { font: inherit; }
   .btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 4px; --mdc-icon-size: 20px;
-    min-height: 40px; padding: 0 16px; border-radius: 20px; border: 1px solid var(--divider-color);
+    min-height: 48px; padding: 0 16px; border-radius: 24px; border: 1px solid var(--divider-color);
     background: none; color: var(--primary-text-color); cursor: pointer;
   }
   .btn:hover:not(:disabled) { background: var(--secondary-background-color); }

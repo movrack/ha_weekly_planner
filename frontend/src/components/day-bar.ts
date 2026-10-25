@@ -1,7 +1,7 @@
 // A 24-hour bar of colored slots (read-only). Used in the week view and the day view.
 
 import { LitElement, css, html, nothing } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { customElement, property, state } from "lit/decorators.js";
 import { DAY } from "../time";
 
 export interface BarSpan {
@@ -20,6 +20,30 @@ export class WpDayBar extends LitElement {
   @property({ type: Boolean }) thin = false;
   @property({ type: Boolean, attribute: "show-hours" }) showHours = false;
 
+  @state() private _width = 0;
+  private _ro?: ResizeObserver;
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    if (typeof ResizeObserver !== "undefined") {
+      this._ro = new ResizeObserver((entries) => {
+        const w = Math.round(entries[0]?.contentRect.width ?? 0);
+        if (w !== this._width) this._width = w;
+      });
+      this._ro.observe(this);
+    }
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this._ro?.disconnect();
+  }
+
+  /** A label is only drawn when its span is at least 60 px wide (never cut off). */
+  private _fits(s: BarSpan): boolean {
+    return !this.thin && this._width > 0 && ((s.end - s.start) / DAY) * this._width >= 60;
+  }
+
   render() {
     const pct = (m: number) => `${(m / DAY) * 100}%`;
     return html`
@@ -30,7 +54,7 @@ export class WpDayBar extends LitElement {
             class="span ${s.ignored ? "ignored" : ""}"
             style="left:${pct(s.start)};width:${pct(Math.max(s.end - s.start, 5))};--c:${s.color}"
             title=${s.label}
-          >${!this.thin && s.end - s.start >= 90 ? html`<span>${s.sun ? html`<ha-icon icon="mdi:weather-sunny"></ha-icon>` : nothing}${s.label}</span>` : nothing}</div>`,
+          >${this._fits(s) ? html`<span>${s.sun ? html`<ha-icon icon="mdi:weather-sunny"></ha-icon>` : nothing}${s.label}</span>` : nothing}</div>`,
         )}
         ${this.now !== null ? html`<div class="now" style="left:${pct(this.now)}"></div>` : nothing}
       </div>
@@ -58,7 +82,7 @@ export class WpDayBar extends LitElement {
     .span span {
       display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 14px; color: #fff;
       color: #fff; font-size: 11px; font-weight: 600; white-space: nowrap;
-      text-shadow: 0 0 2px rgba(0, 0, 0, 0.6); padding: 0 6px;
+      text-shadow: 0 0 2px rgba(0, 0, 0, 0.6); padding: 0 6px; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
     }
     .now {
       position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px;

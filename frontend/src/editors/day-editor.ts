@@ -5,9 +5,12 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "../components/day-bar";
+import "../components/dialog";
+import { confirmAction } from "../components/confirm";
+import { LongPress, displayName } from "../components/gestures";
 import type { BarSpan } from "../components/day-bar";
 import { t } from "../i18n";
-import { friendlyName, mainType, newId, slotColor, slotLabel, slotMode } from "../planner";
+import { mainType, newId, slotColor, slotLabel, slotMode } from "../planner";
 import { DAY, STEP, clockToMinutes, localMinutes, minutesToClock, nominal, slotSpans } from "../time";
 import type { HomeAssistant, PlannerData, Program, Slot, TimeSpec } from "../types";
 import { editorStyles, langOf } from "./setpoint-editor";
@@ -99,6 +102,12 @@ export class WpDayEditor extends LitElement {
   @state() private _drag?: { refs: Ref[]; lo: number; hi: number; min: number; moved: boolean };
   @state() private _dragSlots?: Slot[];
   @state() private _notice = "";
+  @state() private _zoom = 1;
+  @state() private _menu?: Slot;
+  private _lp = new LongPress(() => { if (this._lpSlot) this._menu = this._lpSlot; });
+  private _lpSlot?: Slot;
+  private _pts = new Map<number, { x: number; y: number }>();
+  private _pinch?: { d0: number; z0: number };
 
   private get _lang() { return langOf(this.hass); }
   private _tr(key: K, vars?: Record<string, string>) { return t(this._lang, key, vars); }
@@ -211,6 +220,77 @@ export class WpDayEditor extends LitElement {
     this._dragSlots = undefined;
   }
 
+  /* ---- pinch to zoom (buttons ± do the same) ---- */
+
+  private _scroller(): HTMLElement | null {
+    return this.renderRoot.querySelector<HTMLElement>(".wrap");
+  }
+
+  private async _setZoom(zoom: number, clientX?: number): Promise<void> {
+    const z = Math.round(Math.max(1, Math.min(4, zoom)) * 100) / 100;
+    if (z === this._zoom) return;
+    const box = this._scroller();
+    let frac = 0;
+    let offset = 0;
+    if (box) {
+      const rect = box.getBoundingClientRect();
+      offset = (clientX ?? rect.left + rect.width / 2) - rect.left;
+      frac = (box.scrollLeft + offset) / Math.max(1, box.scrollWidth);
+    }
+    this._zoom = z;
+    await this.updateComplete;
+    if (box) box.scrollLeft = frac * box.scrollWidth - offset;
+  }
+
+  private _pdown(ev: PointerEvent): void {
+    if (ev.pointerType === "mouse" || this._drag) return;
+    if (ev.composedPath().some((n) => n instanceof HTMLElement && n.classList.contains("handle"))) return;
+    this._pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (this._pts.size === 2) {
+      const [a, b] = [...this._pts.values()];
+      this._pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: this._zoom };
+    }
+  }
+
+  private _pmove(ev: PointerEvent): void {
+    if (!this._pts.has(ev.pointerId)) return;
+    this._pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (this._pinch && this._pts.size === 2 && !this._drag) {
+      const [a, b] = [...this._pts.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      void this._setZoom(this._pinch.z0 * (d / this._pinch.d0), (a.x + b.x) / 2);
+    }
+  }
+
+  private _pup(ev: PointerEvent): void {
+    this._pts.delete(ev.pointerId);
+    if (this._pts.size < 2) this._pinch = undefined;
+  }
+
+  /* ---- long press menu / delete ---- */
+
+  private _slotDown(ev: PointerEvent, slot: Slot): void {
+    this._lpSlot = slot;
+    this._lp.down(ev);
+  }
+
+  private async _remove(slot: Slot): Promise<void> {
+    const text = this._tr("confirm_delete_slot", { time: slotTimeText(this.hass, slot, this._lang) });
+    if (await confirmAction(this, text, this._tr("delete"))) {
+      this._emitSlots(this.slots.filter((s) => s.id !== slot.id));
+    }
+  }
+
+  private _menuDo(action: "edit" | "copy" | "delete"): void {
+    const slot = this._menu;
+    this._menu = undefined;
+    if (!slot) return;
+    if (action === "edit") this._edit(slot, false);
+    else if (action === "copy") {
+      this.dispatchEvent(new CustomEvent("copy-slot", { detail: { slot }, bubbles: true, composed: true }));
+    } else void this._remove(slot);
+  }
+
   /* ---- keyboard / buttons ---- */
 
   private _nudge(refs: Ref[], current: number, delta: number): void {
@@ -266,7 +346,7 @@ export class WpDayEditor extends LitElement {
       .map((id) => this.data.modes.find((m) => m.id === id)?.name)
       .filter(Boolean);
     if (names.length) return names.join(" · ");
-    const entities = Object.keys(slot.actions.by_entity).map((e) => friendlyName(this.hass, e));
+    const entities = Object.keys(slot.actions.by_entity).map((e) => displayName(this.hass, e));
     return mode?.name ?? (entities.length ? entities.join(", ") : this._tr("slot_direct"));
   }
 
@@ -297,8 +377,9 @@ export class WpDayEditor extends LitElement {
     const drag = this._drag;
     const sorted = sortSlots(this.hass, slots);
     return html`
-      <div class="wrap">
-        <div class="track">
+      <div class="wrap" @pointerdown=${this._pdown} @pointermove=${this._pmove} @pointerup=${this._pup}
+        @pointercancel=${this._pup}>
+        <div class="track" style="width:${this._zoom * 100}%">
           <wp-day-bar .spans=${spans} show-hours></wp-day-bar>
           <div class="handles">
             ${edges.map((edge) => {
@@ -322,13 +403,22 @@ export class WpDayEditor extends LitElement {
           </div>
         </div>
       </div>
+      <div class="zoombar">
+        <button class="ibtn" ?disabled=${this._zoom <= 1} aria-label=${this._tr("zoom_out")} title=${this._tr("zoom_out")}
+          @click=${() => void this._setZoom(Math.ceil(this._zoom - 1))}><ha-icon icon="mdi:magnify-minus-outline"></ha-icon></button>
+        <span class="muted">${this._tr("zoom")} ×${Number(this._zoom.toFixed(1))}</span>
+        <button class="ibtn" ?disabled=${this._zoom >= 4} aria-label=${this._tr("zoom_in")} title=${this._tr("zoom_in")}
+          @click=${() => void this._setZoom(Math.floor(this._zoom + 1))}><ha-icon icon="mdi:magnify-plus-outline"></ha-icon></button>
+      </div>
       ${this.spill > 0 ? html`<p class="hint">${this._tr("spill_hint", { time: minutesToClock(this.spill) })}</p>` : nothing}
       ${this._notice ? html`<p class="error" role="alert">${this._notice}</p>` : nothing}
       <div class="list">
         ${sorted.length === 0 ? html`<p class="muted">${this._tr("no_slots")}</p>` : nothing}
         ${sorted.map(
           (slot) => html`
-            <div class="slot">
+            <div class="slot" @pointerdown=${(e: PointerEvent) => this._slotDown(e, slot)}
+              @pointermove=${(e: PointerEvent) => this._lp.move(e)} @pointerup=${() => this._lp.cancel()}
+              @pointercancel=${() => this._lp.cancel()} @contextmenu=${(e: Event) => e.preventDefault()}>
               <span class="dot" style="background:${slotColor(slot, this.program, this.data.modes)}"></span>
               <div class="grow">
                 <div class="times">
@@ -341,19 +431,34 @@ export class WpDayEditor extends LitElement {
               <button class="ibtn" aria-label=${`${this._tr("edit")} ${slotTimeText(this.hass, slot, this._lang)}`}
                 @click=${() => this._edit(slot, false)}><ha-icon icon="mdi:pencil"></ha-icon></button>
               <button class="ibtn" aria-label=${`${this._tr("delete")} ${slotTimeText(this.hass, slot, this._lang)}`}
-                @click=${() => this._emitSlots(this.slots.filter((s) => s.id !== slot.id))}><ha-icon icon="mdi:delete"></ha-icon></button>
+                @click=${() => void this._remove(slot)}><ha-icon icon="mdi:delete"></ha-icon></button>
             </div>`,
         )}
       </div>
       <button class="btn" @click=${() => this._edit(this._newSlot(), true)}>+ ${this._tr("add_slot")}</button>
+      <p class="hint"><ha-icon icon="mdi:gesture-tap-hold"></ha-icon> ${this._tr("longpress_hint")}</p>
+      ${this._menu
+        ? html`<wp-dialog open heading=${slotTimeText(this.hass, this._menu, this._lang)}
+            @closed=${(e: Event) => { e.stopPropagation(); this._menu = undefined; }}>
+            <div class="menu">
+              <button class="btn" @click=${() => this._menuDo("edit")}><ha-icon icon="mdi:pencil"></ha-icon> ${this._tr("edit")}</button>
+              <button class="btn" @click=${() => this._menuDo("copy")}><ha-icon icon="mdi:content-copy"></ha-icon> ${this._tr("copy_to")}</button>
+              <button class="btn danger" @click=${() => this._menuDo("delete")}><ha-icon icon="mdi:delete"></ha-icon> ${this._tr("delete")}</button>
+            </div>
+          </wp-dialog>`
+        : nothing}
     `;
   }
 
   static styles = [
     editorStyles,
     css`
-      .wrap { padding: 56px 22px 0; }
-      .track { position: relative; }
+      .wrap { padding: 56px 22px 0; overflow-x: auto; touch-action: pan-x pan-y; }
+      .zoombar { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+      .menu { display: flex; flex-direction: column; gap: 8px; }
+      .menu .btn { justify-content: flex-start; }
+      .slot { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+      .track { position: relative; min-width: 100%; }
       .handles { position: absolute; left: 0; right: 0; top: 0; height: 28px; }
       .handle {
         position: absolute; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px; padding: 0;
@@ -361,8 +466,8 @@ export class WpDayEditor extends LitElement {
         align-items: center; justify-content: center;
       }
       .grip {
-        width: 8px; height: 36px; border-radius: 4px; background: var(--card-background-color, #fff);
-        border: 2px solid var(--primary-text-color); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+        width: 6px; height: 34px; border-radius: 3px; background: var(--primary-text-color);
+        border: 1px solid var(--card-background-color, #fff); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
       }
       .handle.active .grip { background: var(--primary-color); }
       .loupe {
