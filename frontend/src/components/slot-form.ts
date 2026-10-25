@@ -183,6 +183,7 @@ export class WpSlotForm extends LitElement {
     .time output.sun { flex: 1; min-width: 0; align-self: center; text-align: center; font-size: 20px; font-weight: 600; }
     .ibtn.round { border: 1px solid var(--divider-color); min-width: 64px; font-weight: 600; }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chips + .time { margin-top: 12px; }
     .chip {
       display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 16px; border-radius: 24px; font: inherit; font-size: 15px;
       border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); cursor: pointer; --mdc-icon-size: 20px;
