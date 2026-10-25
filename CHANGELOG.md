@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-25
+
+### Fixed
+- The permanent-override guard ignores the planner's own changes, only undoes a fallback to `none` or
+  `temporary`, and still hands a zone back to its schedule when it leaves the planner.
+
 ## [0.2.0] - 2026-10-25
 
 ### Added
