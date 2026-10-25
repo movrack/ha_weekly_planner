@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-25
+
+### Added
+- Collapsible "Week" below each device line: one bar per coming day, with resolved sun times.
+
 ## [0.3.1] - 2026-10-25
 
 ### Changed
