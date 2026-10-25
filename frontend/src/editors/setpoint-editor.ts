@@ -42,7 +42,7 @@ export const editorStyles = css`
   textarea { min-height: 72px; font-family: monospace; }
   input[type="color"] { width: 56px; height: 48px; padding: 2px; border: 1px solid var(--divider-color);
     border-radius: 8px; background: none; }
-  input[type="checkbox"], input[type="radio"] { width: 20px; height: 20px; margin: 0; accent-color: var(--primary-color); }
+  input[type="checkbox"], input[type="radio"] { width: 20px; height: 20px; min-width: 20px; flex: none; margin: 0; accent-color: var(--primary-color); }
   label.check { display: flex; align-items: center; gap: 10px; min-height: 48px; cursor: pointer; }
   button { font: inherit; }
   .btn {

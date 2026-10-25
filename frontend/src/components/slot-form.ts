@@ -108,7 +108,7 @@ export class WpSlotForm extends LitElement {
     const days = this.group.days;
     const eq = (a: number[], b: number[]) => a.length === b.length && b.every((d) => a.includes(d));
     const shortcut = (label: string, set: number[]) => html`<button class="chip small ${eq(days, set) ? "on" : ""}"
-      aria-pressed=${eq(days, set)} ?disabled=${this.disabled} @click=${() => this._set({}, [...set])}>${label}</button>`;
+      aria-pressed=${eq(days, set)} ?disabled=${this.disabled} @click=${() => this._set({}, [...set])}>${eq(days, set) ? html`<ha-icon icon="mdi:check"></ha-icon>` : nothing}${label}</button>`;
     return html`
       <section>
         <h4>${t(lang, "start")}</h4>
@@ -128,7 +128,7 @@ export class WpSlotForm extends LitElement {
         <h4>${t(lang, "days_label")}</h4>
         <div class="days" role="group" aria-label=${t(lang, "days_label")}>
           ${s.days_short.map((name, d) => html`<button class="day ${days.includes(d) ? "on" : ""}" aria-pressed=${days.includes(d)}
-            aria-label=${s.days[d]} ?disabled=${this.disabled} @click=${() => this._toggleDay(d)}>${name}</button>`)}
+            aria-label=${s.days[d]} ?disabled=${this.disabled} @click=${() => this._toggleDay(d)}>${days.includes(d) ? html`<ha-icon icon="mdi:check"></ha-icon>` : nothing}<span>${name}</span></button>`)}
         </div>
         <div class="chips">
           ${shortcut(t(lang, "all_days"), ALL_DAYS)}${shortcut(t(lang, "weekdays"), WEEKDAYS)}${shortcut(t(lang, "weekend"), WEEKEND)}
@@ -164,6 +164,7 @@ export class WpSlotForm extends LitElement {
     .day {
       min-height: 48px; min-width: 0; padding: 0; border-radius: 12px; border: 1px solid var(--divider-color);
       background: none; color: var(--primary-text-color); font: inherit; font-size: 14px; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; --mdc-icon-size: 14px;
     }
     .dev { display: flex; align-items: center; gap: 8px; margin: 8px 0 4px; font-weight: 600; --mdc-icon-size: 20px; }
   `];

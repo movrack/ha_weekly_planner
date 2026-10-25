@@ -18,6 +18,7 @@ import "./dialog";
 export class WpConfirm extends LitElement {
   @property() message = "";
   @property({ attribute: "confirm-label" }) confirmLabel = "";
+  @property({ attribute: "cancel-label" }) cancelLabel = "";
   @property() lang = document.documentElement.lang || "en";
 
   private _result = false;
@@ -39,7 +40,7 @@ export class WpConfirm extends LitElement {
         <p class="msg">${this.message}</p>
         <div slot="footer" class="foot">
           <button class="danger" @click=${() => this._choose(true)}>${this.confirmLabel}</button>
-          <button class="cancel" @click=${() => this._choose(false)}>${s.cancel}</button>
+          <button class="cancel" @click=${() => this._choose(false)}>${this.cancelLabel || s.cancel}</button>
         </div>
       </wp-dialog>
     `;
@@ -57,11 +58,12 @@ export class WpConfirm extends LitElement {
   `;
 }
 
-export function confirmAction(host: HTMLElement, message: string, confirmLabel: string): Promise<boolean> {
+export function confirmAction(host: HTMLElement, message: string, confirmLabel: string, cancelLabel = ""): Promise<boolean> {
   return new Promise((resolve) => {
     const el = document.createElement("wp-confirm") as WpConfirm;
     el.message = message;
     el.confirmLabel = confirmLabel;
+    el.cancelLabel = cancelLabel;
     const hass = (host as { hass?: { locale?: { language?: string }; language?: string } }).hass;
     el.lang = hass?.locale?.language ?? hass?.language ?? (document.documentElement.lang || "en");
     el.addEventListener("choice", (ev) => {

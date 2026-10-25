@@ -75,35 +75,37 @@ export class WpActionPicker extends LitElement {
         <input type="range" min="0" max="100" step="5" .value=${String(v)} ?disabled=${this.disabled}
           aria-label=${t(lang, "act_pos")} @change=${(e: Event) => set(Number((e.target as HTMLInputElement).value))} />`;
     }
-    // light: brightness, effect, colour temperature (each optional)
+    // light: brightness, colour temperature and effect, each optional and collapsed until set
     const modes = (a.supported_color_modes as string[] | undefined) ?? [];
-    const effects = (a.effect_list as string[] | undefined) ?? [];
+    const effects = ((a.effect_list as string[] | undefined) ?? []).filter((x) => x !== "off");
     const rows: TemplateResult[] = [];
+    const adders: TemplateResult[] = [];
+    const adder = (name: string, patch: Record<string, unknown>) => adders.push(html`
+      <button class="chip add" ?disabled=${this.disabled} @click=${() => this._patch(patch)}>${t(lang, "add_param", { name })}</button>`);
     if (modes.some((m) => m !== "onoff")) {
       const b = num(sp.brightness);
       const set = (n: number) => this._patch({ brightness: clamp(Math.round(n / 5) * 5, 5, 100) });
-      rows.push(this._stepper(t(lang, "act_brightness"), b === null ? "—" : `${b} %`,
-        () => set((b ?? 100) - 10), () => set((b ?? 90) + 10), b === null ? undefined : () => this._patch({}, ["brightness"])));
+      if (b === null) adder(t(lang, "act_brightness"), { brightness: 80 });
+      else rows.push(this._stepper(t(lang, "act_brightness"), `${b} %`, () => set(b - 10), () => set(b + 10), () => this._patch({}, ["brightness"])));
     }
     if (modes.includes("color_temp")) {
       const lo = num(a.min_color_temp_kelvin) ?? 2000;
       const hi = num(a.max_color_temp_kelvin) ?? 6500;
       const k = num(sp.color_temp_kelvin);
       const set = (n: number) => this._patch({ color_temp_kelvin: clamp(Math.round(n / 100) * 100, lo, hi) });
-      rows.push(this._stepper(t(lang, "act_kelvin"), k === null ? "—" : `${k} K`,
-        () => set((k ?? 3000) - 200), () => set((k ?? 2800) + 200), k === null ? undefined : () => this._patch({}, ["color_temp_kelvin"])));
+      if (k === null) adder(t(lang, "act_kelvin"), { color_temp_kelvin: clamp(2700, lo, hi) });
+      else rows.push(this._stepper(t(lang, "act_kelvin"), `${k} K`, () => set(k - 200), () => set(k + 200), () => this._patch({}, ["color_temp_kelvin"])));
     }
     if (effects.length) {
-      rows.push(html`<label class="eff"><span class="lbl">${t(lang, "act_effect")}</span>
-        <select ?disabled=${this.disabled} @change=${(e: Event) => {
-          const v = (e.target as HTMLSelectElement).value;
-          if (v) this._patch({ effect: v }); else this._patch({}, ["effect"]);
-        }}>
-          <option value="">—</option>
+      if (!sp.effect) adder(t(lang, "act_effect"), { effect: effects[0] });
+      else rows.push(html`<div class="stepper"><span class="lbl">${t(lang, "act_effect")}</span>
+        <select class="grow" ?disabled=${this.disabled} aria-label=${t(lang, "act_effect")}
+          @change=${(e: Event) => this._patch({ effect: (e.target as HTMLSelectElement).value })}>
           ${effects.map((x) => html`<option value=${x} ?selected=${x === sp.effect}>${x}</option>`)}
-        </select></label>`);
+        </select>
+        <button class="ibtn round" ?disabled=${this.disabled} aria-label=${t(lang, "clear")} @click=${() => this._patch({}, ["effect"])}><ha-icon icon="mdi:close"></ha-icon></button></div>`);
     }
-    return html`${rows}`;
+    return html`${rows}${adders.length ? html`<div class="chips adders">${adders}</div>` : nothing}`;
   }
 
   render() {
@@ -144,8 +146,9 @@ export class WpActionPicker extends LitElement {
     .stepper output { min-width: 84px; text-align: center; font-size: 22px; font-weight: 600; }
     .ibtn.round { border: 1px solid var(--divider-color); }
     input[type="range"] { width: 100%; min-height: 48px; margin: 4px 0 0; accent-color: var(--primary-color); }
-    .eff { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
-    .eff .lbl { font-size: 13px; color: var(--secondary-text-color); }
+    .adders { margin-top: 8px; }
+    .chip.add { border-style: dashed; color: var(--primary-color); min-height: 48px; }
+    .stepper select { flex: 1; min-width: 0; }
   `];
 }
 

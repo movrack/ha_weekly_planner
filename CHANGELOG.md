@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-25
+
+### Changed
+- Opening a slot row scrolls to its top.
+- Slot rows use two lines: action and time range, then the days.
+- Light actions: brightness, white tone and effect start as small "+" chips and only appear when set; the
+  effect is hidden when the light has none, the white tone when it has no colour temperature.
+- Day bar: a label is never drawn under the "now" line; hour marks 0 h, 12 h, 24 h at a readable size.
+- Day shortcuts are "Tous les jours", "Semaine" and "Week-end"; selected days show a check mark.
+- Deletions ask "Oui / Non", with 32 px above the red button; "delete" of a device screen is outlined and last.
+- The pause switch says "En marche" or "À l'arrêt"; "Le reste du temps" stays on one line.
+- More room between the gear and the close button; the dialog footer lines up with its content; checkboxes
+  keep the same size.
+
 ## [0.3.0] - 2026-10-25
 
 ### Changed

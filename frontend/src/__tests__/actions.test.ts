@@ -121,7 +121,7 @@ describe("texts", () => {
   it("writes the days short", () => {
     const short = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
     expect(daysText("fr", short, [0, 1, 2, 3, 4])).toBe("Lun–Ven");
-    expect(daysText("fr", short, [5, 6])).toBe("W-E");
+    expect(daysText("fr", short, [5, 6])).toBe("Week-end");
     expect(daysText("fr", short, [0, 1, 4])).toBe("Lun Mar Ven");
   });
 });
