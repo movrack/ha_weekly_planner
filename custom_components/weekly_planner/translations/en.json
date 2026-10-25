@@ -13,14 +13,48 @@
   "options": {
     "step": {
       "init": {
-        "title": "Weekly Planner options",
+        "title": "Weekly Planner",
+        "menu_options": {
+          "settings": "Settings",
+          "modes": "Common modes"
+        }
+      },
+      "settings": {
+        "title": "Settings",
         "data": {
           "admin_only": "Only administrators can edit programs and modes",
           "reapply_default": "Re-apply the current slot after a restart or a change (default for new programs)",
           "notify_delay_min": "Notify when a device has not reached its target after (minutes)",
           "debounce_min": "Minimum time a condition must hold before it starts or ends a slot (minutes)"
         }
+      },
+      "modes": {
+        "title": "Common modes",
+        "description": "Shared by all schedules. Pick one to change it, or + to add one.",
+        "data": {
+          "mode": "Mode"
+        }
+      },
+      "mode": {
+        "title": "Mode",
+        "description": "Name, device type and what it does. Temperature or brightness goes in Value.",
+        "data": {
+          "name": "Name",
+          "type": "Device type",
+          "kind": "Action",
+          "value": "Value (°C, % or brightness)",
+          "preset": "Preset name",
+          "delete": "Delete this mode"
+        }
       }
+    },
+    "error": {
+      "mode_in_use": "This mode is used by a schedule.",
+      "invalid_mode": "This mode is not valid.",
+      "kind_not_for_type": "This action does not fit this device type."
+    },
+    "abort": {
+      "not_loaded": "Weekly Planner is not loaded."
     }
   },
   "entity": {
