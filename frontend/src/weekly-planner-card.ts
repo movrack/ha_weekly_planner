@@ -13,7 +13,7 @@ import { t, strings } from "./i18n";
 import {
   activeProfile, filterPrograms, slotColor, slotLabel, slotMode, subscribePlanner,
 } from "./planner";
-import { formatClock, formatWhen, localMinutes, localWeekday, nominal, spillover, DAY } from "./time";
+import { formatWhen, localDateIso, localMinutes, localWeekday, nominal, spillover, DAY } from "./time";
 import type { CardConfig, HomeAssistant, PlannerData, PreviewSlot, Program } from "./types";
 
 type Dialog =
@@ -87,21 +87,26 @@ export class WeeklyPlannerCard extends LitElement {
     return this.hass.config.time_zone;
   }
 
+  /** Resolved slots (sun times, ignored slots) for the next occurrence of each weekday. */
   private async _loadPreviews(): Promise<void> {
     if (!this._data) return;
     const previews: Record<string, PreviewSlot[]> = {};
-    await Promise.all(
-      filterPrograms(this._data, this._config).map(async (p) => {
-        try {
-          const res = await this.hass.callWS<{ slots: PreviewSlot[] }>({
-            type: "weekly_planner/preview", program_id: p.id,
-          });
-          previews[p.id] = res.slots;
-        } catch {
-          /* preview is optional */
-        }
-      }),
-    );
+    const base = new Date();
+    const jobs: Promise<void>[] = [];
+    for (const p of filterPrograms(this._data, this._config)) {
+      for (let offset = 0; offset < 7; offset++) {
+        const when = new Date(base.getTime() + offset * 86_400_000);
+        const date = localDateIso(when, this._tz);
+        const weekday = localWeekday(when, this._tz);
+        jobs.push(
+          this.hass
+            .callWS<{ slots: PreviewSlot[] }>({ type: "weekly_planner/preview", program_id: p.id, date })
+            .then((res) => { previews[`${p.id}|${weekday}`] = res.slots; })
+            .catch(() => undefined),
+        );
+      }
+    }
+    await Promise.all(jobs);
     this._preview = previews;
   }
 
@@ -109,12 +114,12 @@ export class WeeklyPlannerCard extends LitElement {
   private _spans(program: Program, day: number, today: boolean): BarSpan[] {
     const data = this._data!;
     const profile = activeProfile(program, data);
-    const label = (s: any) => slotLabel(s, program, data.modes, t(this._lang, "override"));
+    const label = (s: any) => slotLabel(s, program, data.modes, this._lang);
     const spans: BarSpan[] = [];
     for (const { slot, end } of spillover(profile.days[(day + 6) % 7])) {
       spans.push({ start: 0, end, color: slotColor(slot, program, data.modes), label: label(slot) });
     }
-    const resolved = today ? this._preview[program.id] : undefined;
+    const resolved = this._preview[`${program.id}|${day}`];
     for (const slot of profile.days[day]) {
       const r = resolved?.find((x) => x.slot_id === slot.id);
       let start = nominal(slot.start);
@@ -193,7 +198,7 @@ export class WeeklyPlannerCard extends LitElement {
     const lang = this._lang;
     const s = strings(lang);
     const data = this._data!;
-    const { status, mode, overridden } = this._summary(program);
+    const { status, slot, mode, overridden } = this._summary(program);
     const next = status?.next_change ? formatWhen(status.next_change, this._tz, lang, this._now) : null;
     const fallback = this._defaultMode(program);
     const showWeek = this._showWeek || Boolean(this._config.program);
@@ -214,7 +219,9 @@ export class WeeklyPlannerCard extends LitElement {
         <div class="state">
           ${mode
             ? html`<span class="pill" style="--c:${mode.color}">${mode.name}</span>`
-            : fallback && program.enabled && !data.vacation
+            : slot
+              ? html`<span class="pill" style="--c:${slotColor(slot, program, data.modes)}">${slotLabel(slot, program, data.modes, lang)}</span>`
+              : fallback && program.enabled && !data.vacation
               ? html`<span class="pill" style="--c:${fallback.color}">${fallback.name}</span>`
               : html`<span class="pill neutral">${program.enabled ? s.off_slot : "—"}</span>`}
           <span class="muted">${next ? t(lang, "until", { time: next }) : s.no_change}</span>
@@ -265,7 +272,7 @@ export class WeeklyPlannerCard extends LitElement {
   private _overrideText(entityId: string): string {
     const o = this._data!.entities[entityId]?.override;
     if (o?.origin === "voluntary" && o.until) {
-      return t(this._lang, "overridden_until", { time: formatClock(o.until, this._tz, this._lang) });
+      return t(this._lang, "overridden_until", { time: formatWhen(o.until, this._tz, this._lang, this._now) });
     }
     return t(this._lang, "overridden");
   }

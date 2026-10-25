@@ -78,7 +78,7 @@ export function daySpans(
     const sun = !("time" in slot.start) || Boolean(slot.end && !("time" in slot.end));
     spans.push({
       start: a, end: b, sun, color: slotColor(slot, program, data.modes),
-      label: `${slotLabel(slot, program, data.modes, t(lang, "slot_direct"))} ${slotTimeText(hass, slot, lang)}`,
+      label: `${slotLabel(slot, program, data.modes, lang)} ${slotTimeText(hass, slot, lang)}`,
     });
   }
   return spans;

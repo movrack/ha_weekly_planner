@@ -1,6 +1,7 @@
 // Shared data access: one subscription per page, helpers to read programs and modes.
 
-import type { HomeAssistant, Mode, PlannerData, Program, Slot } from "./types";
+import { describeSetpoint } from "./editors/setpoint-editor";
+import type { HomeAssistant, Mode, PlannerData, Program, Setpoint, Slot } from "./types";
 
 type Listener = (data: PlannerData) => void;
 
@@ -54,11 +55,17 @@ export function slotColor(slot: Slot, program: Program, modes: Mode[]): string {
   return slot.color || slotMode(slot, program, modes)?.color || "var(--secondary-text-color)";
 }
 
-export function slotLabel(slot: Slot, program: Program, modes: Mode[], fallback: string): string {
+/** Short text of a slot: its mode, else the direct setpoint of the first entity (+ count). */
+export function slotLabel(
+  slot: Slot, program: Program, modes: Mode[], lang: string,
+): string {
   const mode = slotMode(slot, program, modes);
   if (mode) return mode.name;
-  const count = Object.keys(slot.actions.by_entity).length;
-  return count ? `${fallback} (${count})` : fallback;
+  const direct = program.entities
+    .map((e) => slot.actions.by_entity[e.entity_id])
+    .filter((sp): sp is Setpoint => Boolean(sp));
+  if (!direct.length) return "";
+  return direct.length > 1 ? `${describeSetpoint(lang, direct[0])} +${direct.length - 1}` : describeSetpoint(lang, direct[0]);
 }
 
 export function friendlyName(hass: HomeAssistant, entityId: string): string {

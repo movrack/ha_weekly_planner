@@ -317,7 +317,7 @@ export class WpChart extends LitElement {
       const sp = this._slotSetpoint(r.slot);
       plan.push({
         s, e: r.e, v: this._value(sp), color: slotColor(r.slot, this.program, modes),
-        label: slotLabel(r.slot, this.program, modes, fallback),
+        label: slotLabel(r.slot, this.program, modes, this._lang),
       });
       cursor = r.e;
     }
@@ -337,7 +337,7 @@ export class WpChart extends LitElement {
       return {
         s: found.m, e: found.m, v: this._value(found.e.setpoint),
         color: slot ? slotColor(slot, this.program, modes) : GRAY,
-        label: slot ? slotLabel(slot, this.program, modes, fallback) : "",
+        label: slot ? slotLabel(slot, this.program, modes, this._lang) : "",
       };
     };
     const cuts = new Set<number>([0, span, pastEnd]);
