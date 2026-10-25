@@ -5130,7 +5130,7 @@ let Z = class extends P {
             </span>
           </div>
           ${r ? l`<ha-icon class="pause" icon="mdi:pause-circle-outline" title=${d(i, "paused")}></ha-icon>` : p}
-          ${s.button ? l`<button class="hours" @click=${h}>${d(i, "hours")}</button>` : p}
+          ${s.button ? l`<button class="hours" aria-label=${d(i, "hours")} title=${d(i, "hours")} @click=${h}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>` : p}
         </div>
         <wp-day-bar show-hours .spans=${this._spans(e, t)} .now=${zt(this._now, this._tz)}
           @click=${h}></wp-day-bar>
@@ -5168,7 +5168,7 @@ let Z = class extends P {
           <ha-icon icon=${s.icon ?? "mdi:calendar-clock"}></ha-icon>
           <h2>${s.name}</h2>
           ${s.enabled ? p : l`<ha-icon class="pause" icon="mdi:pause-circle-outline" title=${d(t, "paused")}></ha-icon>`}
-          <button class="hours" @click=${() => this._open(i)}>${d(t, "hours")}</button>
+          <button class="hours" aria-label=${d(t, "hours")} title=${d(t, "hours")} @click=${() => this._open(i)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
         </div>
         ${s.entities.map((n) => this._line(n.entity_id, [s], { name: wt(this.hass, n.entity_id), button: null, open: i }))}
       </section>`;
@@ -5184,7 +5184,7 @@ let Z = class extends P {
               <h1>${this._config.title ?? ""}</h1>
               ${t != null && t.vacation ? l`<span class="chip"><ha-icon icon="mdi:bag-suitcase"></ha-icon> ${d(e, "vacation")}</span>` : p}
               ${i ? l`<button class="gear" aria-label=${d(e, "all_programs")} @click=${() => this._dialog = { kind: "admin" }}>
-                <ha-icon icon="mdi:calendar-edit"></ha-icon></button>` : p}
+                <ha-icon icon="mdi:format-list-bulleted"></ha-icon></button>` : p}
             </div>` : p}
         ${this._error ? l`<div class="error">${d(e, "error", { message: this._error })}</div>` : p}
         ${t != null && t.read_only ? l`<div class="error">${d(e, "read_only")}</div>` : p}
@@ -5244,8 +5244,9 @@ Z.styles = H`
     .when { opacity: 0.8; }
     .pause { --mdc-icon-size: 20px; color: var(--secondary-text-color); flex: none; }
     button.hours {
-      flex: none; min-height: 48px; padding: 0 14px; border-radius: 24px; border: 1px solid var(--primary-color);
-      background: none; color: var(--primary-color); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
+      flex: none; width: 48px; height: 48px; padding: 0; border-radius: 24px; border: 1px solid var(--primary-color);
+      background: none; color: var(--primary-color); cursor: pointer; --mdc-icon-size: 24px;
+      display: inline-flex; align-items: center; justify-content: center;
     }
     wp-day-bar { cursor: pointer; margin-top: 2px; }
     .weekbtn {

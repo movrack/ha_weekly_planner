@@ -205,7 +205,7 @@ export class WeeklyPlannerCard extends LitElement {
             </span>
           </div>
           ${paused ? html`<ha-icon class="pause" icon="mdi:pause-circle-outline" title=${t(lang, "paused")}></ha-icon>` : nothing}
-          ${opts.button ? html`<button class="hours" @click=${open}>${t(lang, "hours")}</button>` : nothing}
+          ${opts.button ? html`<button class="hours" aria-label=${t(lang, "hours")} title=${t(lang, "hours")} @click=${open}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>` : nothing}
         </div>
         <wp-day-bar show-hours .spans=${this._spans(entityId, programs)} .now=${localMinutes(this._now, this._tz)}
           @click=${open}></wp-day-bar>
@@ -254,7 +254,7 @@ export class WeeklyPlannerCard extends LitElement {
           <ha-icon icon=${p.icon ?? "mdi:calendar-clock"}></ha-icon>
           <h2>${p.name}</h2>
           ${p.enabled ? nothing : html`<ha-icon class="pause" icon="mdi:pause-circle-outline" title=${t(lang, "paused")}></ha-icon>`}
-          <button class="hours" @click=${() => this._open(scope)}>${t(lang, "hours")}</button>
+          <button class="hours" aria-label=${t(lang, "hours")} title=${t(lang, "hours")} @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
         </div>
         ${p.entities.map((e) => this._line(e.entity_id, [p], { name: friendlyName(this.hass, e.entity_id), button: null, open: scope }))}
       </section>`;
@@ -275,7 +275,7 @@ export class WeeklyPlannerCard extends LitElement {
               <h1>${this._config.title ?? ""}</h1>
               ${data?.vacation ? html`<span class="chip"><ha-icon icon="mdi:bag-suitcase"></ha-icon> ${t(lang, "vacation")}</span>` : nothing}
               ${admin ? html`<button class="gear" aria-label=${t(lang, "all_programs")} @click=${() => (this._dialog = { kind: "admin" })}>
-                <ha-icon icon="mdi:calendar-edit"></ha-icon></button>` : nothing}
+                <ha-icon icon="mdi:format-list-bulleted"></ha-icon></button>` : nothing}
             </div>`
           : nothing}
         ${this._error ? html`<div class="error">${t(lang, "error", { message: this._error })}</div>` : nothing}
@@ -336,8 +336,9 @@ export class WeeklyPlannerCard extends LitElement {
     .when { opacity: 0.8; }
     .pause { --mdc-icon-size: 20px; color: var(--secondary-text-color); flex: none; }
     button.hours {
-      flex: none; min-height: 48px; padding: 0 14px; border-radius: 24px; border: 1px solid var(--primary-color);
-      background: none; color: var(--primary-color); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
+      flex: none; width: 48px; height: 48px; padding: 0; border-radius: 24px; border: 1px solid var(--primary-color);
+      background: none; color: var(--primary-color); cursor: pointer; --mdc-icon-size: 24px;
+      display: inline-flex; align-items: center; justify-content: center;
     }
     wp-day-bar { cursor: pointer; margin-top: 2px; }
     .weekbtn {
