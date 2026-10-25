@@ -1,6 +1,6 @@
 // Editor for the slots of ONE day of a profile: draggable 24 h bar + list of slots.
 // Fixed-time edges are dragged (pointer events, 5 min snapping, magnifier); every edge also
-// has -5 / +5 minute buttons. Sun-based slots are shown (☀️) but edited in the slot dialog.
+// has -5 / +5 minute buttons. Sun-based slots are shown (sun icon) but edited in the slot dialog.
 
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
@@ -56,10 +56,10 @@ export function slotTimeText(hass: HomeAssistant, slot: Slot, lang: string): str
   const side = (spec: TimeSpec): string => {
     if ("time" in spec) return spec.time;
     const off = spec.offset ? ` ${spec.offset > 0 ? "+" : "−"}${Math.abs(spec.offset)} min` : "";
-    return `☀️ ${t(lang, `sun_${spec.sun}` as K)}${off} (≈${minutesToClock(specMinutes(hass, spec))})`;
+    return `${t(lang, `sun_${spec.sun}` as K)}${off} (≈${minutesToClock(specMinutes(hass, spec))})`;
   };
   if (!slot.end) return `${side(slot.start)} · ${t(lang, "one_shot")}`;
-  return `${side(slot.start)} → ${side(slot.end)}`;
+  return `${side(slot.start)} – ${side(slot.end)}`;
 }
 
 /** Bar spans of a day (sun times approximated), plus the spill-over of the previous day. */
@@ -273,7 +273,7 @@ export class WpDayEditor extends LitElement {
   private _stepper(slot: Slot, which: "start" | "end", spec: TimeSpec | null | undefined) {
     if (!spec) return html`<span class="muted">${this._tr("one_shot")}</span>`;
     if (!("time" in spec)) {
-      return html`<span class="time sun">${slotTimeText(this.hass, { ...slot, start: spec, end: null } as Slot, this._lang).replace(` · ${this._tr("one_shot")}`, "")}</span>`;
+      return html`<span class="time sun"><ha-icon icon="mdi:weather-sunny"></ha-icon> ${slotTimeText(this.hass, { ...slot, start: spec, end: null } as Slot, this._lang).replace(` · ${this._tr("one_shot")}`, "")}</span>`;
     }
     const min = clockToMinutes(spec.time);
     const refs: Ref[] = [{ id: slot.id, which }];
@@ -333,15 +333,15 @@ export class WpDayEditor extends LitElement {
               <div class="grow">
                 <div class="times">
                   ${this._stepper(slot, "start", slot.start)}
-                  ${slot.end ? html`<span class="muted">→</span>${this._stepper(slot, "end", slot.end)}` : html`<span class="muted">· ${this._tr("one_shot")}</span>`}
+                  ${slot.end ? html`<span class="muted"><ha-icon icon="mdi:arrow-right"></ha-icon></span>${this._stepper(slot, "end", slot.end)}` : html`<span class="muted">· ${this._tr("one_shot")}</span>`}
                 </div>
                 <div class="action muted">${this._actionText(slot)}${
                   slot.conditions?.length ? ` · ${this._tr("slot_conditions")}: ${slot.conditions.length}` : ""}</div>
               </div>
               <button class="ibtn" aria-label=${`${this._tr("edit")} ${slotTimeText(this.hass, slot, this._lang)}`}
-                @click=${() => this._edit(slot, false)}>✏️</button>
+                @click=${() => this._edit(slot, false)}><ha-icon icon="mdi:pencil"></ha-icon></button>
               <button class="ibtn" aria-label=${`${this._tr("delete")} ${slotTimeText(this.hass, slot, this._lang)}`}
-                @click=${() => this._emitSlots(this.slots.filter((s) => s.id !== slot.id))}>🗑</button>
+                @click=${() => this._emitSlots(this.slots.filter((s) => s.id !== slot.id))}><ha-icon icon="mdi:delete"></ha-icon></button>
             </div>`,
         )}
       </div>
@@ -382,7 +382,7 @@ export class WpDayEditor extends LitElement {
       .times { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
       .stepper { display: inline-flex; align-items: center; gap: 2px; }
       .time { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 44px; text-align: center; }
-      .time.sun { font-weight: 500; text-align: left; }
+      .time.sun { font-weight: 500; text-align: left; display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 16px; }
       .action { font-size: 12px; }
     `,
   ];

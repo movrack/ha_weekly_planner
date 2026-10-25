@@ -175,10 +175,10 @@ export class WeeklyPlannerCard extends LitElement {
       <ha-card>
         <div class="head">
           <h1>${this._config.title ?? s.title}</h1>
-          ${data?.vacation ? html`<span class="chip warn">🧳 ${s.vacation}</span>` : nothing}
+          ${data?.vacation ? html`<span class="chip warn"><ha-icon icon="mdi:bag-suitcase"></ha-icon> ${s.vacation}</span>` : nothing}
           ${data?.can_edit && !this._config.program
             ? html`<button class="ghost" @click=${() => (this._dialog = { kind: "modes" })}>${s.modes}</button>
-                <button class="ghost" @click=${() => (this._dialog = { kind: "program" })}>＋ ${s.new_program}</button>`
+                <button class="ghost" @click=${() => (this._dialog = { kind: "program" })}><ha-icon icon="mdi:plus"></ha-icon> ${s.new_program}</button>`
             : nothing}
         </div>
         ${this._error ? html`<div class="error">${t(lang, "error", { message: this._error })}</div>` : nothing}
@@ -231,11 +231,11 @@ export class WeeklyPlannerCard extends LitElement {
           ${status?.skip_next ? html`<span class="chip">${s.skip_planned}</span>` : nothing}
         </div>
         ${overridden.length
-          ? html`<div class="warn-row">⚠️ ${overridden.length > 1 ? `${overridden.length} × ` : ""}${this._overrideText(overridden[0].entity_id)}
+          ? html`<div class="warn-row"><ha-icon icon="mdi:alert"></ha-icon> ${overridden.length > 1 ? `${overridden.length} × ` : ""}${this._overrideText(overridden[0].entity_id)}
               <button class="small" @click=${() => this._resume(program)}>${s.resume}</button></div>`
           : nothing}
         ${(data.warnings?.[program.id] ?? []).length && data.can_edit
-          ? html`<details class="warnings"><summary>⚠️ ${(data.warnings?.[program.id] ?? []).length}</summary>
+          ? html`<details class="warnings"><summary><ha-icon icon="mdi:alert"></ha-icon> ${(data.warnings?.[program.id] ?? []).length}</summary>
               ${(data.warnings?.[program.id] ?? []).map((w) => html`<div>${this._warning(w)}</div>`)}</details>`
           : nothing}
         <wp-day-bar .spans=${this._spans(program, today, true)} .now=${nowMin} show-hours
@@ -251,7 +251,7 @@ export class WeeklyPlannerCard extends LitElement {
         <div class="actions">
           <button class="small" @click=${() => (this._dialog = { kind: "override", program })}>${s.override}</button>
           ${data.can_edit
-            ? html`<button class="small ghost" @click=${() => (this._dialog = { kind: "program", program })}>✏️ ${s.edit}</button>`
+            ? html`<button class="small ghost" @click=${() => (this._dialog = { kind: "program", program })}><ha-icon icon="mdi:pencil"></ha-icon> ${s.edit}</button>`
             : nothing}
         </div>
       </section>
@@ -329,12 +329,13 @@ export class WeeklyPlannerCard extends LitElement {
     .pill.neutral { background: var(--secondary-background-color); color: var(--primary-text-color); text-shadow: none; }
     .muted { color: var(--secondary-text-color); font-size: 13px; }
     .chip {
+      display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 14px;
       font-size: 12px; padding: 1px 8px; border-radius: 10px; background: var(--secondary-background-color);
     }
     .chip.warn { background: var(--warning-color, #ff9800); color: #fff; }
     .warnings { font-size: 12px; color: var(--secondary-text-color); margin-bottom: 8px; }
-    .warnings summary { cursor: pointer; }
-    .warn-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 8px; }
+    .warnings summary { cursor: pointer; display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 20px; }
+    .warn-row { --mdc-icon-size: 20px; display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 8px; }
     wp-day-bar { cursor: pointer; }
     .week { display: grid; gap: 4px; margin-top: 8px; }
     .day {
@@ -345,6 +346,7 @@ export class WeeklyPlannerCard extends LitElement {
     .day span.today { color: var(--primary-color); font-weight: 600; }
     .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
     button.small, button.ghost {
+      display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 20px;
       border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color);
       border-radius: 16px; padding: 4px 12px; font: inherit; font-size: 13px; cursor: pointer; min-height: 32px;
     }

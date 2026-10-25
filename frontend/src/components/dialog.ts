@@ -48,7 +48,7 @@ export class WpDialog extends LitElement {
           <slot name="header-start"></slot>
           <h2>${this.heading}</h2>
           <slot name="header-actions"></slot>
-          <button class="icon" @click=${() => this.close()} aria-label="Close">✕</button>
+          <button class="icon" @click=${() => this.close()} aria-label=${document.documentElement.lang?.startsWith("fr") ? "Fermer" : "Close"}><ha-icon icon="mdi:close"></ha-icon></button>
         </header>
         <div class="content"><slot></slot></div>
         <footer><slot name="footer"></slot></footer>
@@ -74,8 +74,8 @@ export class WpDialog extends LitElement {
     footer { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 16px 16px; }
     footer:empty { display: none; }
     button.icon {
-      border: none; background: none; color: inherit; font-size: 18px; width: 40px; height: 40px;
-      border-radius: 20px; cursor: pointer;
+      border: none; background: none; color: inherit; --mdc-icon-size: 24px; width: 48px; height: 48px;
+      display: inline-flex; align-items: center; justify-content: center; border-radius: 24px; cursor: pointer;
     }
     button.icon:hover { background: var(--secondary-background-color); }
     @media (max-width: 600px) {

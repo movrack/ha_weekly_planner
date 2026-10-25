@@ -110,7 +110,7 @@ export class WpSlotEditor extends LitElement {
                           }} />
                         ${spec[bound]
                           ? html`<button class="ibtn" aria-label=${this._tr("clear")}
-                              @click=${() => { const next = { ...spec } as Record<string, unknown>; delete next[bound]; this._setSpec(which, next as TimeSpec); }}>✕</button>`
+                              @click=${() => { const next = { ...spec } as Record<string, unknown>; delete next[bound]; this._setSpec(which, next as TimeSpec); }}><ha-icon icon="mdi:close"></ha-icon></button>`
                           : nothing}
                       </div>
                     </div>`,

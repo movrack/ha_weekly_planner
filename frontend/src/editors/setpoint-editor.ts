@@ -46,6 +46,7 @@ export const editorStyles = css`
   label.check { display: flex; align-items: center; gap: 10px; min-height: 40px; cursor: pointer; }
   button { font: inherit; }
   .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px; --mdc-icon-size: 20px;
     min-height: 40px; padding: 0 16px; border-radius: 20px; border: 1px solid var(--divider-color);
     background: none; color: var(--primary-text-color); cursor: pointer;
   }
@@ -54,7 +55,7 @@ export const editorStyles = css`
   .btn.danger { color: var(--error-color, #db4437); border-color: var(--error-color, #db4437); }
   .btn:disabled { opacity: 0.45; cursor: default; }
   .ibtn {
-    min-width: 40px; min-height: 40px; border-radius: 20px; border: none; background: none;
+    min-width: 48px; min-height: 48px; border-radius: 24px; border: none; background: none; --mdc-icon-size: 20px;
     color: inherit; cursor: pointer; font-size: 16px; display: inline-flex; align-items: center; justify-content: center;
   }
   .ibtn:hover:not(:disabled) { background: var(--secondary-background-color); }
@@ -63,7 +64,7 @@ export const editorStyles = css`
     outline: 2px solid var(--primary-color); outline-offset: 2px;
   }
   .error { color: var(--error-color, #db4437); margin: 8px 0; }
-  .hint { color: var(--secondary-text-color); font-size: 12px; margin: 4px 0; }
+  .hint { display: flex; align-items: center; gap: 4px; --mdc-icon-size: 16px; color: var(--secondary-text-color); font-size: 12px; margin: 4px 0; }
   .card {
     border: 1px solid var(--divider-color); border-radius: 12px; padding: 8px 12px; margin: 8px 0;
   }
@@ -219,7 +220,7 @@ export class WpConditionsEditor extends LitElement {
                   @change=${(e: Event) => this._patch(i, { value: this._parse((e.target as HTMLInputElement).value, Boolean(c.attribute)) })} />
               </div>
               <button class="ibtn" aria-label=${this._tr("delete")}
-                @click=${() => this._set(this.conditions.filter((_, j) => j !== i))}>🗑</button>
+                @click=${() => this._set(this.conditions.filter((_, j) => j !== i))}><ha-icon icon="mdi:delete"></ha-icon></button>
             </div>
           </div>`,
       )}

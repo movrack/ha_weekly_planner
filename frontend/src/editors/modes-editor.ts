@@ -148,8 +148,8 @@ export class WpModesEditor extends LitElement {
               ? html`<span class="small">${this._tr("confirm_delete", { name: m.name })}</span>
                   <button class="btn danger" @click=${() => void this._delete(m.id)}>${this._tr("delete")}</button>
                   <button class="btn" @click=${() => (this._confirmId = "")}>${this._tr("cancel")}</button>`
-              : html`<button class="ibtn" ?disabled=${!editable} aria-label=${`${this._tr("edit")} ${m.name}`} @click=${() => this._startEdit(m)}>✏️</button>
-                  <button class="ibtn" ?disabled=${!editable} aria-label=${`${this._tr("delete")} ${m.name}`} @click=${() => { this._confirmId = m.id; this._error = ""; }}>🗑</button>`}
+              : html`<button class="ibtn" ?disabled=${!editable} aria-label=${`${this._tr("edit")} ${m.name}`} @click=${() => this._startEdit(m)}><ha-icon icon="mdi:pencil"></ha-icon></button>
+                  <button class="ibtn" ?disabled=${!editable} aria-label=${`${this._tr("delete")} ${m.name}`} @click=${() => { this._confirmId = m.id; this._error = ""; }}><ha-icon icon="mdi:delete"></ha-icon></button>`}
           </div>`;
       })}
       ${this._error ? html`<p class="error" role="alert">${this._error}</p>` : nothing}
@@ -192,7 +192,7 @@ export class WpModesEditor extends LitElement {
           <div class="row" style="flex-wrap:nowrap">
             <strong class="grow">${friendlyName(this.hass, eid)}</strong>
             <button class="ibtn" aria-label=${`${this._tr("delete")} ${friendlyName(this.hass, eid)}`}
-              @click=${() => { const next = { ...draft.exceptions }; delete next[eid]; this._patch({ exceptions: next }); }}>🗑</button>
+              @click=${() => { const next = { ...draft.exceptions }; delete next[eid]; this._patch({ exceptions: next }); }}><ha-icon icon="mdi:delete"></ha-icon></button>
           </div>
           <wp-setpoint-editor .hass=${this.hass} entity-id=${eid} .value=${sp} state-only
             @wp-change=${(e: CustomEvent) => { e.stopPropagation(); this._patch({ exceptions: { ...draft.exceptions, [eid]: e.detail } }); }}></wp-setpoint-editor>

@@ -369,7 +369,7 @@ export class WpProgramEditor extends LitElement {
           <div class="grow"><strong>${friendlyName(this.hass, e.entity_id)}</strong>
             <div class="muted small">${e.entity_id}${this.hass.states[e.entity_id] ? "" : ` · ${this._tr("pe_unknown_entity")}`}</div></div>
           <button class="ibtn" aria-label=${`${this._tr("delete")} ${friendlyName(this.hass, e.entity_id)}`}
-            @click=${() => this._patch({ entities: this._p.entities.filter((_, j) => j !== index) })}>🗑</button>
+            @click=${() => this._patch({ entities: this._p.entities.filter((_, j) => j !== index) })}><ha-icon icon="mdi:delete"></ha-icon></button>
         </div>
         <div class="field"><label>${this._tr("pe_default")}</label>
           <select @change=${(ev: Event) => this._setDefaultKind(index, (ev.target as HTMLSelectElement).value as ProgramEntity["default"]["kind"])}>
@@ -407,19 +407,19 @@ export class WpProgramEditor extends LitElement {
       <div class="row profile-bar">
         <div class="field" style="flex:1 1 160px"><label for="f-profile">${this._tr("profile")}</label>
           <select id="f-profile" @change=${(e: Event) => { this._profileId = (e.target as HTMLSelectElement).value; this._dayView = undefined; }}>
-            ${p.profiles.map((x) => html`<option value=${x.id} ?selected=${x.id === profile.id}>${x.name}${x.id === active ? ` ★` : ""}</option>`)}
+            ${p.profiles.map((x) => html`<option value=${x.id} ?selected=${x.id === profile.id}>${x.name}${x.id === active ? ` (${this._tr("profile_active")})` : ""}</option>`)}
           </select></div>
         <button class="ibtn" aria-label=${this._tr("profile_add")} title=${this._tr("profile_add")}
-          @click=${() => (this._profileForm = { mode: "add", name: "" })}>＋</button>
+          @click=${() => (this._profileForm = { mode: "add", name: "" })}><ha-icon icon="mdi:plus"></ha-icon></button>
         <button class="ibtn" aria-label=${this._tr("profile_rename")} title=${this._tr("profile_rename")}
-          @click=${() => (this._profileForm = { mode: "rename", name: profile.name })}>✏️</button>
+          @click=${() => (this._profileForm = { mode: "rename", name: profile.name })}><ha-icon icon="mdi:pencil"></ha-icon></button>
         <button class="ibtn" aria-label=${this._tr("profile_copy")} title=${this._tr("profile_copy")}
-          @click=${() => (this._profileForm = { mode: "copy", name: `${profile.name} ${this._tr("copy_suffix")}`.slice(0, 40) })}>⧉</button>
+          @click=${() => (this._profileForm = { mode: "copy", name: `${profile.name} ${this._tr("copy_suffix")}`.slice(0, 40) })}><ha-icon icon="mdi:content-copy"></ha-icon></button>
         <button class="ibtn" aria-label=${this._tr("profile_delete")} title=${this._tr("profile_delete")}
           ?disabled=${p.profiles.length < 2 || profile.id === active}
-          @click=${() => (this._confirm = { text: this._tr("confirm_delete", { name: profile.name }), yes: () => this._deleteProfile() })}>🗑</button>
+          @click=${() => (this._confirm = { text: this._tr("confirm_delete", { name: profile.name }), yes: () => this._deleteProfile() })}><ha-icon icon="mdi:delete"></ha-icon></button>
       </div>
-      ${profile.id === active ? html`<p class="hint">★ ${this._tr("profile_active_hint")}</p>` : nothing}
+      ${profile.id === active ? html`<p class="hint"><ha-icon icon="mdi:star"></ha-icon> ${this._tr("profile_active_hint")}</p>` : nothing}
       ${form
         ? html`<div class="card">
             <div class="field"><label for="f-pname">${this._tr(form.mode === "rename" ? "profile_rename" : form.mode === "copy" ? "profile_copy" : "profile_add")}</label>
@@ -443,9 +443,9 @@ export class WpProgramEditor extends LitElement {
         <div class="dayrow">
           <button class="dname" @click=${() => (this._dayView = d)} aria-label=${`${this._tr("edit")} ${name}`}>${this._short(d)}</button>
           <div class="grow bar" @click=${() => (this._dayView = d)}><wp-day-bar .spans=${spans}></wp-day-bar></div>
-          <button class="ibtn" aria-label=${`${this._tr("edit")} ${name}`} @click=${() => (this._dayView = d)}>✏️</button>
+          <button class="ibtn" aria-label=${`${this._tr("edit")} ${name}`} @click=${() => (this._dayView = d)}><ha-icon icon="mdi:pencil"></ha-icon></button>
           <button class="ibtn" aria-label=${`${this._tr("copy_day")} ${name}`} title=${this._tr("copy_day")}
-            @click=${() => (this._copy = { from: d, targets: [], profileId: profile.id })}>⧉</button>
+            @click=${() => (this._copy = { from: d, targets: [], profileId: profile.id })}><ha-icon icon="mdi:content-copy"></ha-icon></button>
         </div>`;
     })}`;
   }
@@ -453,11 +453,11 @@ export class WpProgramEditor extends LitElement {
   private _renderDayEditor(profile: Profile, day: number) {
     return html`
       <div class="row daynav">
-        <button class="btn" @click=${() => (this._dayView = undefined)}>← ${this._tr("week")}</button>
+        <button class="btn" @click=${() => (this._dayView = undefined)}><ha-icon icon="mdi:arrow-left"></ha-icon> ${this._tr("week")}</button>
         <span class="grow"></span>
-        <button class="ibtn" aria-label=${this._tr("previous_day")} @click=${() => (this._dayView = (day + 6) % 7)}>◀</button>
+        <button class="ibtn" aria-label=${this._tr("previous_day")} @click=${() => (this._dayView = (day + 6) % 7)}><ha-icon icon="mdi:chevron-left"></ha-icon></button>
         <strong>${this._long(day)}</strong>
-        <button class="ibtn" aria-label=${this._tr("next_day")} @click=${() => (this._dayView = (day + 1) % 7)}>▶</button>
+        <button class="ibtn" aria-label=${this._tr("next_day")} @click=${() => (this._dayView = (day + 1) % 7)}><ha-icon icon="mdi:chevron-right"></ha-icon></button>
       </div>
       <wp-day-editor .hass=${this.hass} .data=${this.data} .program=${this._p} .day=${day}
         .slots=${profile.days[day]} .spill=${this._spill(profile, day)}
@@ -477,7 +477,7 @@ export class WpProgramEditor extends LitElement {
       <wp-dialog open heading=${`${this._tr("copy_day")} — ${this._long(copy.from)}`}
         @closed=${(e: Event) => { e.stopPropagation(); this._copy = undefined; }}>
         <div class="row">
-          <button class="btn" @click=${() => set([0, 1, 2, 3, 4])}>${this._tr("copy_weekdays")}</button>
+          <button class="btn" @click=${() => set([0, 1, 2, 3, 4])}>${this._tr("copy_mon")} <ha-icon icon="mdi:arrow-right"></ha-icon> ${this._tr("copy_fri")}</button>
           <button class="btn" @click=${() => set([5, 6])}>${this._tr("copy_weekend")}</button>
           <button class="btn" @click=${() => set(days)}>${this._tr("copy_all")}</button>
         </div>
