@@ -3,14 +3,14 @@
 from datetime import datetime, UTC
 from zoneinfo import ZoneInfo
 
+from custom_components.weekly_planner.actions import resolve_action
 from custom_components.weekly_planner.resolver import next_transition, resolve_entity
 
 TZ = ZoneInfo("Europe/Brussels")
 E = "climate.office"
-MODES = {
-    "comfort": {"id": "comfort", "type": "climate", "value": {"kind": "preset", "preset": "comfort"}},
-    "eco": {"id": "eco", "type": "climate", "value": {"kind": "preset", "preset": "eco"},
-            "exceptions": {"climate.bath": {"kind": "temperature", "temperature": 18}}},
+LABELS = {
+    "comfort": {"id": "comfort", "action": {"kind": "service", "service": "climate.set_preset_mode", "data": {"preset_mode": "comfort"}}},
+    "eco": {"id": "eco", "action": {"kind": "service", "service": "climate.set_preset_mode", "data": {"preset_mode": "eco"}}},
 }
 
 
@@ -22,21 +22,25 @@ def all_true(conditions):
     return True
 
 
-def program(pid, priority, slots, default_mode="eco", enabled=True, conditions=None, entities=(E,)):
+def program(pid, priority, slots, default_mode="eco", enabled=True, conditions=None, entities=(E,), overrides=None):
     week = [list(slots) for _ in range(7)]
     return {
         "id": pid,
         "priority": priority,
         "enabled": enabled,
         "conditions": conditions or [],
-        "entities": [{"entity_id": e, "default": {"kind": "mode", "value": default_mode}} for e in entities],
+        "entities": [{"entity_id": e, "default_label": default_mode, "label_overrides": (overrides or {}).get(e, {})}
+                     for e in entities],
         "profiles": [{"id": "p", "name": "Base", "days": week}],
     }
 
 
 def slot(sid, start, end, mode="comfort", conditions=None):
-    return {"id": sid, "start": {"time": start}, "end": {"time": end},
-            "actions": {"by_type": {"climate": mode}}, "conditions": conditions or []}
+    return {"id": sid, "start": {"time": start}, "end": {"time": end}, "label": mode, "conditions": conditions or []}
+
+
+def resolve_label(program, entity_id, label_id):
+    return resolve_action(program, entity_id, label_id, LABELS)
 
 
 def local(h, m=0):  # Wednesday 2026-10-28
@@ -44,21 +48,23 @@ def local(h, m=0):  # Wednesday 2026-10-28
 
 
 def resolve(programs, h, m=0, **kw):
-    return resolve_entity(E, programs, MODES, local(h, m), TZ, no_sun, kw.pop("cond", all_true), **kw)
+    return resolve_entity(E, programs, resolve_label, local(h, m), TZ, no_sun, kw.pop("cond", all_true), **kw)
 
 
 def test_inside_and_outside_slot():
     progs = [program("a", 1, [slot("s1", "08:00", "12:00")])]
     inside = resolve(progs, 9)
-    assert inside.in_slot and inside.setpoint == {"kind": "preset", "preset": "comfort"}
+    assert inside.in_slot and inside.action["data"] == {"preset_mode": "comfort"}
     outside = resolve(progs, 13)
-    assert outside.key == ("default", "a") and outside.setpoint["preset"] == "eco"
+    assert outside.key == ("default", "a") and outside.action["data"]["preset_mode"] == "eco"
 
 
-def test_mode_exception_per_entity():
-    progs = [program("a", 1, [slot("s1", "08:00", "12:00", mode="eco")], entities=("climate.bath",))]
-    seg = resolve_entity("climate.bath", progs, MODES, local(9), TZ, no_sun, all_true)
-    assert seg.setpoint == {"kind": "temperature", "temperature": 18}
+def test_label_override_per_entity():
+    own = {"kind": "service", "service": "climate.set_temperature", "data": {"temperature": 18}}
+    progs = [program("a", 1, [slot("s1", "08:00", "12:00", mode="eco")], entities=("climate.bath",),
+                     overrides={"climate.bath": {"eco": own}})]
+    seg = resolve_entity("climate.bath", progs, resolve_label, local(9), TZ, no_sun, all_true)
+    assert seg.action == own
 
 
 def test_priority_and_hand_back():  # S9
