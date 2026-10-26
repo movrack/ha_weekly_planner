@@ -196,7 +196,7 @@ export class WeeklyPlannerCard extends LitElement {
       const mk = (slot: Slot, start: number, end: number, extra: Partial<BarSpan> = {}): BarSpan => {
         const label = labelOf(data, slot.label)!;
         return { start, end, color: label.color, label: label.name, slotId: slot.id, startSun: sunDir(slot.start),
-          endSun: slot.end ? sunDir(slot.end) : null, marker: !slot.end, ...extra };
+          endSun: slot.end ? sunDir(slot.end) : null, startSpec: slot.start, endSpec: slot.end ?? null, marker: !slot.end, ...extra };
       };
       for (const { slot, end } of spillover(profile.days[(today + 6) % 7])) {
         if (of(slot)) spans.push(mk(slot, 0, end, { spill: true, startSun: null }));

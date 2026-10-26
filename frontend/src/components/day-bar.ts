@@ -2,8 +2,10 @@
 
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { t } from "../i18n";
-import { DAY } from "../time";
+import "./tip";
+import { strings, t } from "../i18n";
+import { DAY, fmtClock } from "../time";
+import type { TimeSpec } from "../types";
 
 export interface BarSpan {
   start: number; // minutes 0–1440
@@ -14,6 +16,9 @@ export interface BarSpan {
   /** The start / end of this span follows the sun: which icon to draw there (sunrise side or sunset side). */
   startSun?: "up" | "down" | null;
   endSun?: "up" | "down" | null;
+  /** The start / end as stored (for the tooltip of the sun icon: event and offset). */
+  startSpec?: TimeSpec | null;
+  endSpec?: TimeSpec | null;
   ignored?: string | null;
   /** Slot this span comes from (spill: the part of the previous day's slot that crosses midnight). */
   slotId?: string;
@@ -27,6 +32,18 @@ export function sunDir(spec: { time: string } | { sun: string } | null | undefin
   if (!spec || !("sun" in spec)) return null;
   return spec.sun === "sunrise" || spec.sun === "dawn" ? "up" : "down";
 }
+
+/** Text of a sun icon: "Sunset + 30 min · 5:55 pm" (the time is the resolved one). */
+export function sunTip(lang: string, spec: TimeSpec | null | undefined, minutes: number): string {
+  if (!spec || !("sun" in spec)) return "";
+  const offset = spec.offset ?? 0;
+  const name = strings(lang)[`sun_${spec.sun}` as "sun_sunset"] ?? spec.sun;
+  const off = offset ? ` ${offset > 0 ? "+" : "-"} ${Math.abs(offset)} min` : "";
+  return `${name}${off} · ${fmtClock(lang, minutes)}`;
+}
+
+/** Text of the "now" icon: "Now · 2:05 pm". */
+export const nowTip = (lang: string, minutes: number): string => `${t(lang, "now")} · ${fmtClock(lang, minutes)}`;
 
 @customElement("wp-day-bar")
 export class WpDayBar extends LitElement {
@@ -71,13 +88,15 @@ export class WpDayBar extends LitElement {
 
   /** Sun icons at the start / end of the spans that follow the sun (visible even when the label does not fit). */
   private _sunIcons() {
-    const icons: { m: number; dir: "up" | "down" }[] = [];
+    const icons: { m: number; dir: "up" | "down"; spec?: TimeSpec | null }[] = [];
     for (const s of this.spans) {
-      if (s.startSun) icons.push({ m: s.start, dir: s.startSun });
-      if (s.endSun && s.end < DAY) icons.push({ m: s.end, dir: s.endSun });
+      if (s.startSun) icons.push({ m: s.start, dir: s.startSun, spec: s.startSpec });
+      if (s.endSun && s.end < DAY) icons.push({ m: s.end, dir: s.endSun, spec: s.endSpec });
     }
-    return icons.map((i) => html`<span class="sunic" style="left:clamp(10px, ${(i.m / DAY) * 100}%, calc(100% - 10px))"
-      data-sun=${i.dir}><ha-icon icon=${i.dir === "up" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down"}></ha-icon></span>`);
+    // While editing, the handles below keep the pointer; the icon is still read by keyboard and screen readers.
+    return icons.map((i) => html`<wp-tip class="sunic" ?passive=${this.tall} text=${sunTip(this.lang, i.spec, i.m)}
+      style="left:clamp(16px, ${(i.m / DAY) * 100}%, calc(100% - 16px))" data-sun=${i.dir}>
+      <span class="sunc"><ha-icon icon=${i.dir === "up" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down"}></ha-icon></span></wp-tip>`);
   }
 
   render() {
@@ -99,7 +118,7 @@ export class WpDayBar extends LitElement {
         <div class="icons">${this._sunIcons()}</div>
         <slot></slot>
         ${now !== null ? html`<div class="nowline" style="left:${pct(now)}">
-          <ha-icon class="nowic" icon="mdi:clock-outline" role="img" aria-label=${t(this.lang, "now")}></ha-icon></div>` : nothing}
+          <wp-tip class="nowic" text=${nowTip(this.lang, now)}><ha-icon icon="mdi:clock-outline"></ha-icon></wp-tip></div>` : nothing}
       </div>
       ${this.showHours
         ? html`<div class="hours">${[0, 6, 12, 18, 24].map((h) => html`<span style="left:${pct(h * 60)}">${h} h</span>`)}</div>`
@@ -134,9 +153,10 @@ export class WpDayBar extends LitElement {
       position: absolute; top: 0; bottom: 0; width: 1px; margin-left: -0.5px; pointer-events: none;
       background: var(--secondary-text-color); opacity: 0.35;
     }
-    .icons { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
-    .sunic {
-      position: absolute; top: 50%; transform: translate(-50%, -50%); width: 18px; height: 18px; border-radius: 9px;
+    .icons { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
+    .sunic { position: absolute; top: 50%; transform: translate(-50%, -50%); }
+    .sunc {
+      width: 18px; height: 18px; border-radius: 9px;
       display: flex; align-items: center; justify-content: center; --mdc-icon-size: 14px;
       background: var(--card-background-color, #fff); color: var(--primary-text-color);
       box-shadow: 0 0 0 1px var(--divider-color, rgba(127, 127, 127, 0.5));
@@ -144,13 +164,14 @@ export class WpDayBar extends LitElement {
     slot { display: contents; }
     /* the "now" line is drawn over everything, outside the clipped bar; the clock sits just above the bar */
     .nowline {
-      position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; z-index: 3; pointer-events: none;
+      position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; z-index: 5; pointer-events: none;
       background: var(--primary-text-color); box-shadow: 0 0 0 1px var(--card-background-color);
     }
     .nowic {
       position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%); --mdc-icon-size: 13px;
-      color: var(--primary-text-color); display: flex; margin-bottom: 0;
+      color: var(--primary-text-color); margin-bottom: 0; align-items: flex-end;
     }
+    .nowic::part(hit) { align-items: flex-end; }
     .hours { position: relative; height: 20px; font-size: 12px; color: var(--secondary-text-color); }
     .hours span { position: absolute; transform: translateX(-50%); top: 2px; white-space: nowrap; }
     .hours span:first-child { transform: none; }
