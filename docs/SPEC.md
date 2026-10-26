@@ -342,6 +342,7 @@ SVG maison, un jour (précédent / suivant).
   ils sont repérés seulement par l'écart avec les actions de Weekly Planner (± 1 min), sans pouvoir dire qui les a faits.
   **Le moteur n'est pas concerné.**
 - **Valeur prévue en escalier (0.7.0)** : pour toute action numérique, ligne horizontale par palier dans la couleur de son étiquette, raccords verticaux fins, retour à la valeur par défaut (aussi avant le premier horaire et jusqu'à la fin du jour) ; point plein + valeur au début de chaque horaire ; cercle creux seulement là où la valeur revient vraiment au défaut (fin d'une suite d'horaires contigus). Actions non numériques : repères seuls.
+- **Activité réelle (0.7.0)** : sous l'escalier prévu, zone translucide (~25 %) dans la couleur de l'étiquette en vigueur, seulement pendant les périodes où l'appareil était actif d'après l'historique déjà chargé, et jusqu'à « maintenant ». Actif : climat = `hvac_action` (chauffe, refroidit, déshumidifie…) sinon consigne − mesure > 0,3 °C (< −0,3 °C en mode froid) ; lumière, prise, ventilateur, interrupteur = `on` ; volet = `opening` / `closing` ; aspirateur = `cleaning` / `returning` ; lecteur = `playing` ; le reste = ni `off`, `idle`, `unavailable`, `unknown`, `docked`. Appareils à bandes : même règle, bande translucide. Légende « Actif » seulement si une zone est visible.
 - **Légende minimale** : « Mesuré », « Réglé » (courbes), « Prévu », et « Manuel » en rouge ; aucune couleur inexpliquée.
 
 ### 10.5 Exigences transverses
@@ -551,6 +552,7 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [ ] Renommer une étiquette sur place (crayon, « Partagé »)
 - [ ] `card_version` (serveur + test pytest) et rechargement automatique de la carte
 - [ ] Graphique : valeur PRÉVUE en escalier (couleur de l'étiquette par palier), cercle creux seulement au vrai retour au défaut, légende « Prévu » en trait + tests du constructeur d'escalier
+- [ ] Graphique : zone ombrée sous l'escalier prévu, seulement quand l'appareil était réellement ACTIF (jusqu'à maintenant), légende « Actif », constructeur testé
 - [ ] Version 0.7.0, CHANGELOG, vérification dans le navigateur (360 px tactile, ≥ 1400 px souris), captures
 
 ## 15. v2 (hors périmètre)
