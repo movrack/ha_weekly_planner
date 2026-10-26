@@ -97,3 +97,23 @@ async def test_card_version_in_get_and_subscribe(hass, hass_storage, freezer, ha
     await ws.send_json_auto_id({"type": f"{DOMAIN}/subscribe"})
     assert (await ws.receive_json())["success"]
     assert (await ws.receive_json())["event"]["card_version"] == expected
+
+
+async def test_allowed_services_saved_and_warned(hass, hass_storage, freezer, hass_ws_client):
+    Recorder(hass)
+    entities = [{"entity_id": CLIMATE, "default_label": "t15", "label_overrides": {},
+                 "allowed_services": ["climate.set_temperature"]}]
+    prog = program(slots=[slot("s1", "08:00", "12:00", "boost")], entities=entities)
+    await setup(hass, hass_storage, freezer, [prog], None)
+    ws = await _client(hass, hass_ws_client)
+    await ws.send_json_auto_id({"type": f"{DOMAIN}/get"})
+    data = (await ws.receive_json())["result"]
+    assert data["programs"][0]["entities"][0]["allowed_services"] == ["climate.set_temperature"]
+    # the preset label is not among the allowed services: skipped with a warning
+    warnings = data["warnings"]["office"]
+    assert any(w["code"] == "incompatible_label" and "boost" in w["detail"] for w in warnings)
+    # the list must be a list of service ids
+    bad = data["programs"][0]
+    bad["entities"][0]["allowed_services"] = "climate.set_temperature"
+    await ws.send_json_auto_id({"type": f"{DOMAIN}/program/save", "program": bad})
+    assert not (await ws.receive_json())["success"]

@@ -108,3 +108,21 @@ def test_next_transition_crosses_midnight():
     progs = [program("a", 1, [slot("night", "22:00", "06:00")])]
     nxt = next_transition(progs, local(23), TZ, no_sun)
     assert nxt == datetime(2026, 10, 29, 6, 0, tzinfo=TZ).astimezone(UTC)
+
+
+def test_allowed_services_restrict_labels():
+    labels = {
+        **LABELS,
+        "temp": {"id": "temp", "action": {"kind": "service", "service": "climate.set_temperature", "data": {"temperature": 19}}},
+        "scene": {"id": "scene", "action": {"kind": "scene", "scene": "scene.soir"}},
+    }
+    prog = program("a", 1, [])
+    prog["entities"][0]["allowed_services"] = ["climate.set_temperature"]
+    assert resolve_action(prog, E, "temp", labels)["data"] == {"temperature": 19}
+    assert resolve_action(prog, E, "eco", labels) is None  # preset service not allowed
+    assert resolve_action(prog, E, "scene", labels) is not None  # scenes stay allowed
+    prog["entities"][0]["allowed_services"] = []
+    assert resolve_action(prog, E, "eco", labels) is not None  # empty = all
+    prog["entities"][0]["allowed_services"] = ["climate.set_temperature"]
+    prog["entities"][0]["label_overrides"] = {"temp": {"kind": "service", "service": "climate.set_hvac_mode", "data": {}}}
+    assert resolve_action(prog, E, "temp", labels) is None  # an override is checked too

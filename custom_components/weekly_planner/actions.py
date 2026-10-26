@@ -44,7 +44,8 @@ def resolve_action(
 
     The entity's own value for the label (``label_overrides``) wins over the action of the label.
     Returns None when there is no label, when the label is unknown, or when the action does not
-    suit the entity (``accepts(entity_id, action)`` is False): the entity is skipped.
+    suit the entity (``accepts(entity_id, action)`` is False, or its service is not in the entity's
+    ``allowed_services`` when that list is not empty): the entity is skipped.
     """
     label = labels.get(label_id or "")
     if label is None:
@@ -53,6 +54,9 @@ def resolve_action(
     for entity in program["entities"]:
         if entity["entity_id"] == entity_id:
             action = (entity.get("label_overrides") or {}).get(label["id"], action)
+            allowed = entity.get("allowed_services") or []
+            if allowed and action and action.get("kind") == "service" and action.get("service") not in allowed:
+                return None  # the owner left this service out for the device: incompatible
             break
     if not action or (accepts is not None and not accepts(entity_id, action)):
         return None
