@@ -7,7 +7,7 @@ from typing import Final
 DOMAIN: Final = "weekly_planner"
 
 STORAGE_KEY: Final = DOMAIN
-STORAGE_VERSION: Final = 1
+STORAGE_VERSION: Final = 2
 STORAGE_MINOR_VERSION: Final = 1
 
 CONF_ADMIN_ONLY: Final = "admin_only"
