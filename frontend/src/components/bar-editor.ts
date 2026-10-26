@@ -511,8 +511,13 @@ export class WpBarEditor extends LitElement {
 
   private _spansNow(): BarSpan[] {
     if (!this._draft) return this.spans;
-    const out: BarSpan[] = this.spans.filter((s) => s.spill);
-    for (const slot of this._draft) {
+    return [...this.spans.filter((s) => s.spill), ...this._spansOf(this._draft)];
+  }
+
+  /** Bar spans of the slots of a day (the labels that do nothing for this device are left out). */
+  private _spansOf(slots: Slot[]): BarSpan[] {
+    const out: BarSpan[] = [];
+    for (const slot of slots) {
       const label = labelOf(this.data, slot.label);
       if (!label || !entityAction(this.program, this.entityId, label)) continue;
       const e = eff(slot, this._at);
@@ -597,9 +602,16 @@ export class WpBarEditor extends LitElement {
       this._conflict = { ...c, skip: skip ? [...c.skip.filter((x) => x !== d), d] : c.skip.filter((x) => x !== d) };
     };
     const allSkipped = c.to.every((d) => c.skip.includes(d));
+    // each day in conflict: its bar now, and what it becomes with the choice made
+    const all = activeProfile(this._live, this.data).days;
+    const ctx = this._ctx();
+    const bar = (title: string, slots: Slot[]) => html`<div class="cfbar"><span>${title}</span>
+      <wp-day-bar lang=${this.lang} notches .spans=${this._spansOf(slots)} .now=${null}></wp-day-bar></div>`;
     return html`<wp-dialog open heading=${t(lang, "conflict_title")} @closed=${(e: Event) => { e.stopPropagation(); this._conflict = null; }}>
       <div class="cf">
         ${c.days.map((d) => html`<div class="cfrow"><strong>${days[d]}</strong>
+          ${bar(t(lang, "cf_before"), all[d] ?? [])}
+          ${bar(t(lang, "cf_after"), c.skip.includes(d) ? all[d] ?? [] : copyToDays(all, { day: this.weekday, id: c.id }, [d], ctx)[d] ?? [])}
           <div class="seg2" role="radiogroup" aria-label=${days[d]}>
             <button role="radio" aria-checked=${!c.skip.includes(d)} class=${c.skip.includes(d) ? "" : "on"} @click=${() => set(d, false)}>${t(lang, "replace")}</button>
             <button role="radio" aria-checked=${c.skip.includes(d)} class=${c.skip.includes(d) ? "on" : ""} @click=${() => set(d, true)}>${t(lang, "skip_day")}</button>
@@ -676,6 +688,8 @@ export class WpBarEditor extends LitElement {
     .cf { display: flex; flex-direction: column; gap: 12px; }
     .cfrow { display: flex; flex-direction: column; gap: 6px; }
     .seg2 { display: flex; flex-wrap: wrap; gap: 6px; }
+    .cfbar { display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 8px; font-size: 13px; }
+    .cfbar span { color: var(--secondary-text-color); }
     .seg2 button {
       flex: 1 1 140px; min-height: 48px; padding: 0 12px; border-radius: 24px; border: 1px solid var(--divider-color); background: none;
       color: var(--primary-text-color); font: inherit; font-size: 14px; cursor: pointer;
