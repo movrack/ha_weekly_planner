@@ -22,6 +22,12 @@ export interface BarSpan {
   marker?: boolean;
 }
 
+/** Icon side of a time that follows the sun: sunrise side ("up") or sunset side ("down"), null for a fixed time. */
+export function sunDir(spec: { time: string } | { sun: string } | null | undefined): "up" | "down" | null {
+  if (!spec || !("sun" in spec)) return null;
+  return spec.sun === "sunrise" || spec.sun === "dawn" ? "up" : "down";
+}
+
 @customElement("wp-day-bar")
 export class WpDayBar extends LitElement {
   @property({ attribute: false }) spans: BarSpan[] = [];
