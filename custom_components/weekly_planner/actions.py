@@ -17,7 +17,10 @@ from dataclasses import dataclass, field
 from typing import Any
 
 # Domains whose services only administrators may schedule (spec § 9).
-SENSITIVE_DOMAINS = frozenset({"homeassistant", "hassio", "alarm_control_panel", "lock", "alarmo"})
+SENSITIVE_DOMAINS = frozenset({
+    "homeassistant", "hassio", "alarm_control_panel", "lock", "alarmo",
+    "shell_command", "python_script", "pyscript", "rest_command",
+})
 
 
 @dataclass(frozen=True, slots=True)

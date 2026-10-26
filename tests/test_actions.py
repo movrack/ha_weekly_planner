@@ -157,3 +157,20 @@ async def test_next_action_of_a_one_shot(hass, hass_storage, freezer):
     engine = await setup(hass, hass_storage, freezer, [program(slots=slots)], local(26, 6, 0))
     nxt = engine.next_action(CLIMATE)
     assert nxt["action"] == temp(25) and nxt["at"].startswith("2026-10-27T04:00")  # tomorrow 05:00 local
+
+
+def test_service_data_cannot_retarget():
+    """Service data may not name another target than the device; shell commands are admin-only."""
+    import pytest
+    import voluptuous as vol
+
+    from custom_components.weekly_planner.actions import needs_admin
+    from custom_components.weekly_planner.validation import check_label
+
+    base = {"id": "l1", "name": "Test", "action": {"kind": "service", "service": "light.turn_on", "data": {}}}
+    check_label(base)
+    for key in ("entity_id", "device_id", "area_id", "floor_id", "label_id"):
+        bad = {**base, "action": {**base["action"], "data": {key: "x"}}}
+        with pytest.raises(vol.Invalid):
+            check_label(bad)
+    assert needs_admin({"kind": "service", "service": "shell_command.run"})
