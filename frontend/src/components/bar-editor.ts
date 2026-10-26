@@ -9,7 +9,7 @@ import "./day-bar";
 import "./dialog";
 import "./label-picker";
 import { confirmAction } from "./confirm";
-import { sunDir } from "./day-bar";
+import { sunDir, sunTip } from "./day-bar";
 import type { BarSpan } from "./day-bar";
 import {
   boundaries, copyConflicts, copyToDays, eff, handleMinute, mergeAdjacent, middle, moveBoundary, removeSlot, segments,
@@ -519,6 +519,7 @@ export class WpBarEditor extends LitElement {
       out.push({
         start: e.start, end: e.end ?? e.start + 10, color: label.color, label: label.name, slotId: slot.id,
         marker: e.end === null, startSun: sunDir(slot.start), endSun: slot.end ? sunDir(slot.end) : null,
+        startSpec: slot.start, endSpec: slot.end ?? null,
       });
     }
     return out;
@@ -526,6 +527,13 @@ export class WpBarEditor extends LitElement {
 
   private _clock(m: number): string {
     return m >= DAY ? "24 h" : fmtClock(this.lang, m);
+  }
+
+  /** Text of a handle on a sun boundary (the icon under it does not catch the pointer while editing). */
+  private _sunTitle(ref: { id: string; edge: string }, m: number): string {
+    const slot = this._draft?.find((x) => x.id === ref.id);
+    const spec = ref.edge === "start" ? slot?.start : slot?.end;
+    return sunTip(this.lang, spec, m);
   }
 
   private _overlay_() {
@@ -546,7 +554,7 @@ export class WpBarEditor extends LitElement {
         return html`<button class="hd ${b.oneShot ? "dot" : ""} ${on ? "on" : ""}" style="left:clamp(0px, ${pct(b.m)}, 100%)"
           role="slider" aria-orientation="horizontal" aria-valuemin="0" aria-valuemax="1440" aria-valuenow=${b.m}
           aria-valuetext=${this._clock(b.m)} aria-label=${t(this.lang, "handle", { time: this._clock(b.m) })}
-          data-h=${b.refs.map((r) => `${r.id}:${r.edge}`).join(" ")}
+          data-h=${b.refs.map((r) => `${r.id}:${r.edge}`).join(" ")} title=${this._sunTitle(ref, b.m)}
           @keydown=${(e: KeyboardEvent) => this._key(e, ref)} @focus=${() => (this._hsel = ref)}
           ><i></i></button>`;
       })}

@@ -10,7 +10,9 @@ import { customElement, property, state } from "lit/decorators.js";
 import { t } from "../i18n";
 import { actionValue, entityAction, labelOf } from "../labels";
 import { activeProfile, entityDomain, friendlyName } from "../planner";
-import { localWeekday, nominal, spillover } from "../time";
+import { localMinutes, localWeekday, nominal, spillover } from "../time";
+import { nowTip } from "./day-bar";
+import "./tip";
 import type { HomeAssistant, Label, PlannerData, PreviewSlot, Program, Slot } from "../types";
 
 // ---- date helpers (server time zone) -------------------------------------------------------
@@ -499,8 +501,8 @@ export class WpChart extends LitElement {
     };
     const nowLine = model.isToday
       ? svg`<line class="now" x1=${x(model.pastEnd)} x2=${x(model.pastEnd)} y1=${PAD.t - 4} y2=${H - PAD.b}></line>
-        <g class="nowicon" role="img" aria-label=${t(lang, "now")} transform="translate(${x(model.pastEnd) - 6}, ${PAD.t - 17}) scale(0.5)"><title>${t(lang, "now")}</title><path d=${CLOCK}></path></g>` : nothing;
-    return html`
+        <g class="nowicon" aria-hidden="true" transform="translate(${x(model.pastEnd) - 6}, ${PAD.t - 17}) scale(0.5)"><path d=${CLOCK}></path></g>` : nothing;
+    return html`<div class="cwrap">
       <svg width=${W} height=${H} viewBox="0 0 ${W} ${H}" tabindex="0" role="button"
         aria-label=${t(lang, "chart_open", { name: friendlyName(this.hass, this.entityId) })}
         @click=${() => this._open()}
@@ -532,12 +534,17 @@ export class WpChart extends LitElement {
         ${model.markers.map(mark)}
         ${nowLine}
         <rect class="hit" x="0" y="0" width=${W} height=${H}></rect>
-      </svg>`;
+      </svg>
+      ${model.isToday ? html`<wp-tip class="nowtip" style="left:${x(model.pastEnd)}px;top:${PAD.t - 11}px"
+        text=${nowTip(lang, localMinutes(new Date(), this._tz))}></wp-tip>` : nothing}
+    </div>`;
   }
 
   static styles = css`
     :host { display: block; }
     .box { position: relative; width: 100%; min-height: 40px; }
+    .cwrap { position: relative; width: fit-content; max-width: 100%; }
+    .nowtip { position: absolute; transform: translate(-50%, -50%); }
     svg { display: block; user-select: none; outline: none; max-width: 100%; cursor: pointer; }
     svg:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; border-radius: 4px; }
     .grid { stroke: var(--divider-color, rgba(127, 127, 127, 0.3)); stroke-width: 1; }
