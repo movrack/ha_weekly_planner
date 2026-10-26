@@ -41,3 +41,13 @@ describe("options of a device's modes", () => {
     expect(deviceOptions(h, "climate.t", field("temperature", { number: {} }))).toBeUndefined();
   });
 });
+
+import { missingFields } from "../services";
+
+describe("required mode", () => {
+  it("asks for the mode of climate.set_hvac_mode even when the description does not", () => {
+    const h = { states: {}, services: { climate: { set_hvac_mode: { fields: { hvac_mode: { selector: { state: {} } } } } } } } as unknown as HomeAssistant;
+    expect(missingFields(h, "climate.set_hvac_mode", {})).toHaveLength(1);
+    expect(missingFields(h, "climate.set_hvac_mode", { hvac_mode: "heat" })).toHaveLength(0);
+  });
+});

@@ -561,16 +561,16 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Version 0.7.0, CHANGELOG, vérification dans le navigateur (360 px tactile, ≥ 1400 px souris), captures
 
 ### 14.11 Version 0.7.3
-- [ ] Spec § 6 : « Actions proposées » par appareil (`entities[].allowed_services`), cadre de l'étiquette en lecture seule + un crayon / un formulaire, un seul Enregistrer / Annuler visible
-- [ ] Réglages (engrenage, onglet Appareils) : liste à cocher « Actions proposées » par appareil, noms traduits ; vide ou absent = toutes ; nouveaux appareils : toutes
-- [ ] Carte : sélecteur de services (`servicesFor`) et `labelsFor` restreints aux services autorisés (les scènes restent permises)
-- [ ] Serveur : validation de `allowed_services` (liste de chaînes) ; étiquette dont le service n'est pas autorisé = incompatible pour cet appareil (ignorée, avertissement) ; tests pytest
-- [ ] Bug : la liste « Mode CVC » (`hvac_mode`) est vide : contexte (`filter_entity`, `filter_attribute`, `entity_id`) transmis à chaque `ha-selector`, options construites depuis l'attribut de l'appareil en repli (`hvac_modes`, `preset_modes`, `fan_modes`, `swing_modes`)
-- [ ] Cadre de l'étiquette : lecture seule (pastille, nom, « Partagé », résumé de l'action avec valeurs, « Valeur pour cet appareil » seulement si elle existe) ; un crayon ouvre UN formulaire (nom, couleur, action, valeur pour cet appareil + « Revenir à la valeur commune ») ; idem dans l'écran d'horaires et sous une barre
-- [ ] Jamais plus d'une paire Enregistrer / Annuler : dans une ligne d'horaire dépliée, le formulaire d'étiquette n'a pas de boutons (modifs = brouillon de l'horaire ; Enregistrer enregistre l'étiquette puis l'horaire, Annuler jette les deux ; Dupliquer et Supprimer masqués pendant l'édition) ; sous une barre et dans « Étiquettes », une seule paire
-- [ ] Info-bulles : icônes soleil (« Coucher du soleil + 30 min · 17 h 55 ») et « maintenant » (« Maintenant · 14 h 05 ») des barres (`day-bar`, `bar-editor`) et du graphique ; survol et focus clavier, toucher = 2 s sans entrer en édition ni sélectionner ; même texte en `aria-label` ; zone tactile ≥ 32 px
-- [ ] Tests vitest et pytest, vérification navigateur (360 px et ≥ 1400 px), captures
-- [ ] Version 0.7.3 (manifest, pyproject, package.json, lock), CHANGELOG
+- [x] Spec § 6 : « Actions proposées » par appareil (`entities[].allowed_services`), cadre de l'étiquette en lecture seule + un crayon / un formulaire, un seul Enregistrer / Annuler visible
+- [x] Réglages (engrenage, onglet Appareils) : liste à cocher « Actions proposées » par appareil, noms traduits ; vide ou absent = toutes ; nouveaux appareils : toutes
+- [x] Carte : sélecteur de services (`servicesFor`) et `labelsFor` restreints aux services autorisés (les scènes restent permises)
+- [x] Serveur : validation de `allowed_services` (liste de chaînes) ; étiquette dont le service n'est pas autorisé = incompatible pour cet appareil (ignorée, avertissement) ; tests pytest
+- [x] Bug : la liste « Mode CVC » (`hvac_mode`) est vide : contexte (`filter_entity`, `filter_attribute`, `entity_id`) transmis à chaque `ha-selector`, options construites depuis l'attribut de l'appareil en repli (`hvac_modes`, `preset_modes`, `fan_modes`, `swing_modes`)
+- [x] Cadre de l'étiquette : lecture seule (pastille, nom, « Partagé », résumé de l'action avec valeurs, « Valeur pour cet appareil » seulement si elle existe) ; un crayon ouvre UN formulaire (nom, couleur, action, valeur pour cet appareil + « Revenir à la valeur commune ») ; idem dans l'écran d'horaires et sous une barre
+- [x] Jamais plus d'une paire Enregistrer / Annuler : dans une ligne d'horaire dépliée, le formulaire d'étiquette n'a pas de boutons (modifs = brouillon de l'horaire ; Enregistrer enregistre l'étiquette puis l'horaire, Annuler jette les deux ; Dupliquer et Supprimer masqués pendant l'édition) ; sous une barre et dans « Étiquettes », une seule paire
+- [x] Info-bulles : icônes soleil (« Coucher du soleil + 30 min · 17 h 55 ») et « maintenant » (« Maintenant · 14 h 05 ») des barres (`day-bar`, `bar-editor`) et du graphique ; survol et focus clavier, toucher = 2 s sans entrer en édition ni sélectionner ; même texte en `aria-label` ; zone tactile ≥ 32 px
+- [x] Tests vitest et pytest, vérification navigateur (360 px et ≥ 1400 px), captures
+- [x] Version 0.7.3 (manifest, pyproject, package.json, lock), CHANGELOG
 
 ## 15. v2 (hors périmètre)
 - Import des programmes `scheduler-component` (`.storage/scheduler.storage`, version 3) — nécessite plages ponctuelles et défaut « rien » (présents en v1).
