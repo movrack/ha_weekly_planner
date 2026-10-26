@@ -77,13 +77,25 @@ export class WpDayBar extends LitElement {
     this._ro?.disconnect();
   }
 
-  /** A label is only drawn when its span is wide enough for it (never cut off). */
-  private _fits(s: BarSpan): boolean {
-    // Never under the "now" line: a label cut by it is dropped.
-    const cut = this.now !== null && this.now >= s.start - 20 && this.now <= s.end + 20;
+  /**
+   * Where the label of a span is drawn (left and width in % of the span), or null when it does not fit (never cut
+   * off). Crossed by the "now" line, it goes in the wider side of the span, if that side is wide enough.
+   */
+  private _labelBox(s: BarSpan): { left: number; width: number } | null {
+    if (this.thin || this._width <= 0) return null;
+    let from = s.start;
+    let to = s.end;
+    const now = this.now;
+    if (now !== null && now > s.start - 20 && now < s.end + 20) {
+      const gap = 20; // minutes kept clear on each side of the line
+      if (now - s.start >= s.end - now) to = Math.min(s.end, now - gap);
+      else from = Math.max(s.start, now + gap);
+    }
     // Room needed: about 7 px per character, the sun icon and the padding.
     const need = Math.max(40, s.label.length * 7 + 14);
-    return !this.thin && !cut && this._width > 0 && ((s.end - s.start) / DAY) * this._width >= need;
+    if (((to - from) / DAY) * this._width < need) return null;
+    const span = Math.max(s.end - s.start, 1);
+    return { left: ((from - s.start) / span) * 100, width: ((to - from) / span) * 100 };
   }
 
   /** Sun icons at the start / end of the spans that follow the sun (visible even when the label does not fit). */
@@ -107,13 +119,14 @@ export class WpDayBar extends LitElement {
         <div class="bar ${this.thin ? "thin" : ""} ${this.tall ? "tall" : ""}" role="img"
           aria-label=${this.spans.map((s) => s.label).join(", ")}>
           ${this.notches ? [6, 12, 18].map((h) => html`<i class="tick" style="left:${pct(h * 60)}"></i>`) : nothing}
-          ${this.spans.map(
-            (s) => html`<div
+          ${this.spans.map((s) => {
+            const box = this._labelBox(s);
+            return html`<div
               class="span ${s.ignored ? "ignored" : ""}"
               style="left:${pct(s.start)};width:${pct(Math.max(s.end - s.start, 5))};--c:${s.color}"
               title=${s.label}
-            >${this._fits(s) ? html`<span>${s.label}</span>` : nothing}</div>`,
-          )}
+            >${box ? html`<span class="name" style="left:${box.left}%;width:${box.width}%">${s.label}</span>` : nothing}</div>`;
+          })}
         </div>
         <div class="icons">${this._sunIcons()}</div>
         <slot></slot>
@@ -148,6 +161,7 @@ export class WpDayBar extends LitElement {
       color: #fff; font-size: 11px; font-weight: 600; white-space: nowrap;
       text-shadow: 0 0 2px rgba(0, 0, 0, 0.6); padding: 0 6px; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
     }
+    .span .name { position: absolute; top: 0; bottom: 0; justify-content: center; box-sizing: border-box; }
     /* Hour lines at 6, 12 and 18 h, drawn behind the slots. */
     .tick {
       position: absolute; top: 0; bottom: 0; width: 1px; margin-left: -0.5px; pointer-events: none;

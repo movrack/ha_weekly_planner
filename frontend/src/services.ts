@@ -24,6 +24,8 @@ interface ServiceFieldInfo {
   advanced?: boolean;
   selector?: Record<string, unknown> | null;
   fields?: Record<string, ServiceFieldInfo>;
+  /** The field only applies to devices with these features or attribute values. */
+  filter?: { supported_features?: number[]; attribute?: Record<string, unknown[]> };
 }
 
 export interface ServiceChoice {
@@ -119,9 +121,30 @@ export function serviceDomains(hass: HomeAssistant, entityId: string): string[] 
   return [...new Set(servicesFor(hass, entityId).map((s) => s.domain))];
 }
 
-/** Input fields of a service: required first, without advanced or target fields. */
-export function serviceFields(hass: HomeAssistant, id: string): ServiceField[] {
+/** Whether a field applies to the device (its features and attributes); without a device every field does. */
+function fieldApplies(field: ServiceFieldInfo, entity: HassEntity | undefined): boolean {
+  const filter = field.filter;
+  if (!filter || !entity) return true;
+  const features = Number(entity.attributes.supported_features ?? 0);
+  if (filter.supported_features?.length && !filter.supported_features.some((bit) => (features & bit) === bit)) return false;
+  for (const [attr, values] of Object.entries(filter.attribute ?? {})) {
+    const value = entity.attributes[attr];
+    const list = Array.isArray(value) ? value : [value];
+    if (!list.some((v) => values.includes(v))) return false;
+  }
+  return true;
+}
+
+/**
+ * Input fields of a service for a device: required first, without advanced or target fields, nor the fields the
+ * device does not support. An optional field that another service of the domain sets on its own (the mode in
+ * "set temperature", as "set mode" exists) is left out: one action, one thing. A service whose fields are all
+ * optional needs at least one: its first field becomes required.
+ */
+export function serviceFields(hass: HomeAssistant, id: string, entityId?: string): ServiceField[] {
   const [domain, service] = id.split(".");
+  const entity = entityId ? hass.states[entityId] : undefined;
+  const own = hass.services?.[domain] ?? {};
   const out: ServiceField[] = [];
   const walk = (fields: Record<string, ServiceFieldInfo> | undefined) => {
     for (const [key, field] of Object.entries(fields ?? {})) {
@@ -129,7 +152,8 @@ export function serviceFields(hass: HomeAssistant, id: string): ServiceField[] {
         walk(field.fields);
         continue;
       }
-      if (field.advanced || TARGET_FIELDS.has(key) || field.selector?.target) continue;
+      if (field.advanced || TARGET_FIELDS.has(key) || field.selector?.target || !fieldApplies(field, entity)) continue;
+      if (!field.required && service !== `set_${key}` && `set_${key}` in own) continue;
       out.push({
         key,
         selector: field.selector ?? { text: {} },
@@ -141,6 +165,7 @@ export function serviceFields(hass: HomeAssistant, id: string): ServiceField[] {
     }
   };
   walk(infoOf(hass, id)?.fields);
+  if (out.length && !out.some((f) => f.required)) out[0] = { ...out[0], required: true };
   return [...out.filter((f) => f.required), ...out.filter((f) => !f.required)];
 }
 
@@ -169,7 +194,7 @@ export function shortLabels(labels: string[]): string[] {
 export function startData(hass: HomeAssistant, id: string, entityId: string): Record<string, unknown> {
   const attrs = hass.states[entityId]?.attributes ?? {};
   const data: Record<string, unknown> = {};
-  for (const f of serviceFields(hass, id)) {
+  for (const f of serviceFields(hass, id, entityId)) {
     if (!f.required) continue;
     const number = f.selector.number as { min?: number } | undefined;
     if (f.default !== undefined) data[f.key] = f.default;
@@ -180,8 +205,10 @@ export function startData(hass: HomeAssistant, id: string, entityId: string): Re
 }
 
 /** Required fields still empty (labels of them), so a form does not save a call that must fail. */
-export function missingFields(hass: HomeAssistant, id: string, data: Record<string, unknown> | undefined): string[] {
-  return serviceFields(hass, id)
+export function missingFields(
+  hass: HomeAssistant, id: string, data: Record<string, unknown> | undefined, entityId?: string,
+): string[] {
+  return serviceFields(hass, id, entityId)
     .filter((f) => f.required && (data?.[f.key] === undefined || data[f.key] === "" || data[f.key] === null))
     .map((f) => f.label);
 }

@@ -6,6 +6,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-10-26
+
+### Changed
+- The label name stays visible in a bar crossed by the "now" line: it moves to the wider side of the slot.
+- Service fields follow the device: fields it does not support (e.g. temperature range) are hidden, and an optional field that another service sets on its own (the mode in "set temperature") is left out.
+
+### Fixed
+- A label could be saved without any value when every field of its service is optional (e.g. "set temperature" without a temperature): the first field is now required.
+
 ## [0.7.3] - 2026-10-26
 
 ### Added
