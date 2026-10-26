@@ -7,6 +7,10 @@
     "lovelace",
     "repairs"
   ],
+  "categories": [
+    "helpers",
+    "productivity_information.calendars_todos"
+  ],
   "codeowners": [
     "@movrack"
   ],
