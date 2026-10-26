@@ -1,7 +1,7 @@
 # Weekly Planner — spécification v1
 
 > Statut : **0.6 — un seul modèle pour tous les appareils** (voir § 5 et § 6 ; les anciennes règles retirées en 0.6.0 sont marquées « retiré en 0.6.0 »).
-> Dépôt : `ha_Weekly_planner` · domaine HA : `weekly_planner` · cible : Home Assistant ≥ 2026.10.
+> Dépôt : `ha_weekly_planner` · domaine HA : `weekly_planner` · cible : Home Assistant ≥ 2026.10.
 > Les cases `[ ]` / `[x]` suivent l'avancement. Critère de fin de la v1 : **tout fonctionne** (§ 13).
 
 ---

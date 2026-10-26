@@ -41,7 +41,7 @@ d'étiquettes partagées. Une seule installation apporte le moteur (intégration
 ## Installation
 
 1. Dans HACS, ouvrez le menu > **Dépôts personnalisés**.
-2. Ajoutez `https://github.com/movrack/ha_Weekly_planner` avec la catégorie **Intégration**.
+2. Ajoutez `https://github.com/movrack/ha_weekly_planner` avec la catégorie **Intégration**.
 3. Installez **Weekly Planner** puis redémarrez Home Assistant.
 4. Allez dans **Paramètres > Appareils et services > Ajouter une intégration** et ajoutez
    **Weekly Planner** (une seule instance est possible).
