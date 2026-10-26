@@ -17,12 +17,16 @@ CARD_FILE = Path(__file__).parent / "frontend" / "weekly-planner-card.js"
 URL_BASE = f"/{DOMAIN}_static"
 CARD_URL = f"{URL_BASE}/weekly-planner-card.js"
 _REGISTERED = f"{DOMAIN}_frontend_registered"
+CARD_VERSION_KEY = f"{DOMAIN}_card_version"
 
 
 async def async_register_card(hass: HomeAssistant) -> None:
     """Serve the card file and make dashboards load it (once per process)."""
     content = await hass.async_add_executor_job(CARD_FILE.read_bytes)
-    url = f"{CARD_URL}?v={sha256(content).hexdigest()[:12]}"
+    version = sha256(content).hexdigest()[:12]
+    url = f"{CARD_URL}?v={version}"
+    # the pages compare it with the version of the card they run and reload themselves when it differs
+    hass.data[CARD_VERSION_KEY] = version
 
     if not hass.data.get(_REGISTERED):
         await hass.http.async_register_static_paths(
