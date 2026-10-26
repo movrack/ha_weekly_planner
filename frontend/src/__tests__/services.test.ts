@@ -51,3 +51,29 @@ describe("required mode", () => {
     expect(missingFields(h, "climate.set_hvac_mode", { hvac_mode: "heat" })).toHaveLength(0);
   });
 });
+
+import { serviceFields } from "../services";
+
+describe("fields shown for a device", () => {
+  const h = {
+    states: { "climate.t": { entity_id: "climate.t", state: "heat", attributes: { supported_features: 1 } } },
+    services: { climate: {
+      set_hvac_mode: { fields: { hvac_mode: { selector: { state: {} } } } },
+      set_temperature: { fields: {
+        temperature: { selector: { number: {} }, filter: { supported_features: [1] } },
+        target_temp_high: { selector: { number: {} }, filter: { supported_features: [2] } },
+        target_temp_low: { selector: { number: {} }, filter: { supported_features: [2] } },
+        hvac_mode: { selector: { state: {} } },
+      } },
+    } },
+  } as unknown as HomeAssistant;
+
+  it("leaves out the fields the device does not support and the mode another service sets", () => {
+    expect(serviceFields(h, "climate.set_temperature", "climate.t").map((f) => f.key)).toEqual(["temperature"]);
+  });
+
+  it("asks for the temperature when every field of the service is optional", () => {
+    expect(missingFields(h, "climate.set_temperature", {}, "climate.t")).toHaveLength(1);
+    expect(missingFields(h, "climate.set_temperature", { temperature: 18 }, "climate.t")).toHaveLength(0);
+  });
+});

@@ -72,7 +72,7 @@ export class WpActionPicker extends LitElement {
     const open = this._more || index >= WpActionPicker.SHOWN;
     const shown = open ? all : all.slice(0, WpActionPicker.SHOWN);
     const data = (this.action?.kind === "service" ? this.action.data ?? {} : {}) as Record<string, unknown>;
-    const fields = current ? serviceFields(this.hass, current) : [];
+    const fields = current ? serviceFields(this.hass, current, this.entityId) : [];
     const scenes = scenesOf(this.hass, this.entityId);
     const chip = (label: string, on: boolean, click: () => void, icon?: string) => html`
       <button class="chip ${on ? "on" : ""}" role="radio" aria-checked=${on} ?disabled=${this.disabled} @click=${click}>
