@@ -6,7 +6,8 @@ import { customElement, property, state } from "lit/decorators.js";
 import { scenesOf } from "../labels";
 import { t } from "../i18n";
 import { ensureHaSelector } from "../planner";
-import { loadServiceNames, serviceDomains, serviceFields, servicesFor, shortLabels, startData } from "../services";
+import { LIST_ATTRIBUTE, deviceOptions, loadServiceNames, serviceDomains, serviceFields, servicesFor, shortLabels, startData } from "../services";
+import type { ServiceField } from "../services";
 import { editorStyles, langOf } from "../editors/shared";
 import type { Action, HomeAssistant } from "../types";
 
@@ -16,6 +17,8 @@ export class WpActionPicker extends LitElement {
   @property({ attribute: "entity-id" }) entityId = "";
   @property({ attribute: false }) action: Action | null = null;
   @property({ type: Boolean }) disabled = false;
+  /** Services offered for the device (empty: all); the chosen one is always shown. */
+  @property({ attribute: false }) allowed: string[] = [];
 
   /** Services shown as chips before "More actions". */
   private static readonly SHOWN = 8;
@@ -45,13 +48,26 @@ export class WpActionPicker extends LitElement {
     this._emit({ ...this.action, data });
   }
 
+  /** Context of Home Assistant's service control: the entity the field is about, and the attribute to list. */
+  private _context(f: ServiceField): Record<string, unknown> {
+    const state = f.selector.state as { attribute?: string } | undefined;
+    return { filter_entity: [this.entityId], filter_target: { entity_id: [this.entityId] }, entity_id: this.entityId,
+      filter_attribute: state?.attribute ?? LIST_ATTRIBUTE[f.key] };
+  }
+
+  /** Selector of a field; a list of the device (modes, presets…) is built from its attribute when it has one. */
+  private _selectorOf(f: ServiceField): Record<string, unknown> {
+    const options = deviceOptions(this.hass, this.entityId, f);
+    return options ? { select: { options, mode: "dropdown" } } : f.selector;
+  }
+
   render() {
     if (!this.hass || !this.entityId) return nothing;
     const lang = this._lang;
-    const found = servicesFor(this.hass, this.entityId);
+    const current = this.action?.kind === "service" ? this.action.service : "";
+    const found = servicesFor(this.hass, this.entityId, this.allowed.length && current ? [...this.allowed, current] : this.allowed);
     const short = shortLabels(found.map((s) => s.label));
     const all = found.map((s, i) => ({ ...s, label: short[i] }));
-    const current = this.action?.kind === "service" ? this.action.service : "";
     const index = all.findIndex((s) => s.id === current);
     const open = this._more || index >= WpActionPicker.SHOWN;
     const shown = open ? all : all.slice(0, WpActionPicker.SHOWN);
@@ -72,7 +88,7 @@ export class WpActionPicker extends LitElement {
           () => this._emit({ kind: "scene", scene: s.entity_id }), "mdi:palette-outline"))}
       </div>
       ${fields.map((f) => this._selector
-        ? html`<ha-selector class="fld" .hass=${this.hass} .selector=${f.selector} .value=${data[f.key]} .label=${f.label}
+        ? html`<ha-selector class="fld" .hass=${this.hass} .selector=${this._selectorOf(f)} .context=${this._context(f)} .value=${data[f.key]} .label=${f.label}
             .required=${f.required} ?disabled=${this.disabled}
             @value-changed=${(e: CustomEvent<{ value?: unknown }>) => { e.stopPropagation(); this._setData(f.key, e.detail.value); }}></ha-selector>`
         : html`<div class="field"><label>${f.label}</label><input type="text" .value=${String(data[f.key] ?? "")} ?disabled=${this.disabled}

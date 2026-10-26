@@ -72,6 +72,8 @@ export interface ProgramEntity {
   default_label: string | null;
   /** Value of a label for this device only. */
   label_overrides: Record<string, Action>;
+  /** Services offered for this device (`domain.service`); empty or missing = all. */
+  allowed_services?: string[];
 }
 
 export interface Program {

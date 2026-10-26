@@ -9,6 +9,7 @@ import { confirmAction } from "../components/confirm";
 import { displayName, scrollHintCss, trackScrollHints } from "../components/gestures";
 import { strings, t } from "../i18n";
 import { ensureHaSelector, newId } from "../planner";
+import { loadServiceNames, serviceDomains, servicesFor } from "../services";
 import type { Condition, HomeAssistant, PlannerData, Profile, Program, ProgramEntity, Slot } from "../types";
 import "./shared";
 import { editorStyles, langOf } from "./shared";
@@ -139,7 +140,7 @@ export class WpProgramEditor extends LitElement {
   private _addEntity(entityId: string): void {
     if (!entityId || this._p.entities.some((e) => e.entity_id === entityId)) return;
     this._pickerKey += 1;
-    this._patch({ entities: [...this._p.entities, { entity_id: entityId, default_label: null, label_overrides: {} }] });
+    this._patch({ entities: [...this._p.entities, { entity_id: entityId, default_label: null, label_overrides: {}, allowed_services: [] }] });
   }
 
   /* ---- save / delete ---- */
@@ -294,7 +295,30 @@ export class WpProgramEditor extends LitElement {
     `;
   }
 
+  @state() private _servicesOpen = "";
+
+  /** Checklist of the services offered for a device (all checked or none: all are offered). */
+  private _renderServices(e: ProgramEntity, index: number) {
+    const all = servicesFor(this.hass, e.entity_id);
+    if (!all.length) return nothing;
+    const allowed = e.allowed_services ?? [];
+    const on = (id: string) => !allowed.length || allowed.includes(id);
+    const count = all.filter((s) => on(s.id)).length;
+    const open = this._servicesOpen === e.entity_id;
+    const toggle = (id: string, checked: boolean) => {
+      const next = all.map((s) => s.id).filter((x) => (x === id ? checked : on(x)));
+      if (!next.length) return;
+      this._setEntity(index, { allowed_services: next.length === all.length ? [] : next });
+    };
+    return html`
+      <button class="link" aria-expanded=${open} @click=${() => (this._servicesOpen = open ? "" : e.entity_id)}>
+        <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>${this._tr("pe_services")} · ${count === all.length ? this._tr("pe_services_all") : `${count}/${all.length}`}</button>
+      ${open ? html`<div class="svc">${all.map((s) => html`<label class="check"><input type="checkbox" .checked=${on(s.id)}
+        ?disabled=${on(s.id) && count === 1} @change=${(ev: Event) => toggle(s.id, (ev.target as HTMLInputElement).checked)} /> ${s.label}</label>`)}</div>` : nothing}`;
+  }
+
   private _renderEntity(e: ProgramEntity, index: number) {
+    void loadServiceNames(this.hass, serviceDomains(this.hass, e.entity_id)).then((ok) => ok && this.requestUpdate());
     return html`
       <div class="card">
         <div class="row" style="flex-wrap:nowrap">
@@ -303,6 +327,7 @@ export class WpProgramEditor extends LitElement {
           <button class="ibtn" aria-label=${`${this._tr("delete")} ${displayName(this.hass, e.entity_id)}`}
             @click=${() => void this._askDeleteEntity(index)}><ha-icon icon="mdi:delete"></ha-icon></button>
         </div>
+        ${this._renderServices(e, index)}
       </div>`;
   }
 
@@ -384,6 +409,11 @@ export class WpProgramEditor extends LitElement {
       }
       .tab.on { color: var(--primary-color); border-bottom-color: var(--primary-color); font-weight: 600; }
       ${unsafeCSS(scrollHintCss)}
+      .link {
+        display: inline-flex; align-items: center; gap: 4px; min-height: 48px; padding: 0; border: none; background: none;
+        color: var(--primary-color); font: inherit; font-size: 14px; cursor: pointer; --mdc-icon-size: 20px;
+      }
+      .svc { display: flex; flex-direction: column; padding-left: 8px; }
       .break { display: none; }
       @media (max-width: 520px) {
         .break { display: block; order: 3; flex: 1 0 100%; height: 0; }
