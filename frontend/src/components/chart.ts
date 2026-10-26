@@ -322,9 +322,13 @@ export class WpChart extends LitElement {
     // tells where it comes from and Weekly Planner did not send anything at that time.
     const nearSent = (ms: number) => loaded.sent.some((s) => Math.abs(s - ms) <= NEAR);
     const starts: number[] = [];
+    // an entry without a user and with the same state as before is HA coming back (restart, reload), not a change
+    let prevState: string | undefined = loaded.hist[0]?.s;
     for (const e of loaded.log) {
       if (isBad(e.state)) continue;
-      if (e.user || (!e.context && !nearSent(e.t))) starts.push(toM(e.t));
+      const same = e.state === prevState;
+      prevState = e.state;
+      if (e.user || (!e.context && !same && !nearSent(e.t))) starts.push(toM(e.t));
     }
     // changes of a value that is set without changing the state never reach the logbook: they are compared
     // with what Weekly Planner sent (the user cannot be known)
