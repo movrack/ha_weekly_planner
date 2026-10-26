@@ -1,4 +1,4 @@
-"""Warnings shown in the card: other pilots of the same entity, risky device settings (spec § 6.2, § 9)."""
+"""Warnings shown in the card: other pilots of the same entity (spec § 9)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,9 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 
 
-def program_warnings(hass: HomeAssistant, programs: list[dict], program: dict) -> list[dict[str, Any]]:
+def program_warnings(
+    hass: HomeAssistant, programs: list[dict], program: dict, engine: Any = None
+) -> list[dict[str, Any]]:
     """Never blocking: each warning is {entity_id, code, detail}."""
     try:
         from homeassistant.components.automation import automations_with_entity
@@ -15,7 +17,6 @@ def program_warnings(hass: HomeAssistant, programs: list[dict], program: dict) -
         automations_with_entity = None  # type: ignore[assignment]
 
     warnings: list[dict[str, Any]] = []
-    managed = {e["entity_id"] for p in programs if p.get("enabled", True) for e in p["entities"]}
     schedules = [s for s in hass.states.async_all("switch")
                  if s.entity_id.startswith("switch.schedule_") and s.state != "off"]
 
@@ -34,17 +35,16 @@ def program_warnings(hass: HomeAssistant, programs: list[dict], program: dict) -
         if sched:
             warnings.append({"entity_id": eid, "code": "scheduler", "detail": ", ".join(sched)})
 
+        if engine is not None:
+            labels = engine.labels
+            used = {s["label"] for p in program["profiles"] for d in p["days"] for s in d} | {entity.get("default_label")}
+            skipped = sorted(
+                labels[lid]["name"] for lid in used
+                if lid in labels and engine.resolve(program, eid, lid) is None)
+            if skipped:
+                warnings.append({"entity_id": eid, "code": "incompatible_label", "detail": ", ".join(skipped)})
         state = hass.states.get(eid)
         if state is None:
             warnings.append({"entity_id": eid, "code": "missing", "detail": ""})
             continue
-        over = state.attributes.get("vtherm_over_climate") or {}
-        if over.get("follow_underlying_temp_change"):
-            warnings.append({"entity_id": eid, "code": "vt_follow_underlying", "detail": ""})
-        underlying = [u for u in over.get("underlying_entities") or [] if u in managed]
-        if underlying:
-            warnings.append({"entity_id": eid, "code": "vt_underlying_scheduled", "detail": ", ".join(underlying)})
-        lock = state.attributes.get("lock_manager")
-        if isinstance(lock, dict) and lock.get("is_locked") and lock.get("lock_automations"):
-            warnings.append({"entity_id": eid, "code": "vt_locked", "detail": ""})
     return warnings

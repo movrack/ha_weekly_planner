@@ -21,10 +21,6 @@ def rename_entity(config: dict[str, Any], old: str, new: str) -> bool:
                 cond["entity_id"] = new
                 changed = True
 
-    for mode in config["modes"]:
-        if old in mode.get("exceptions", {}):
-            mode["exceptions"][new] = mode["exceptions"].pop(old)
-            changed = True
     for program in config["programs"]:
         swap_conditions(program.get("conditions", []))
         for entity in program["entities"]:
@@ -35,10 +31,6 @@ def rename_entity(config: dict[str, Any], old: str, new: str) -> bool:
             for day in profile["days"]:
                 for slot in day:
                     swap_conditions(slot.get("conditions", []))
-                    by_entity = slot["actions"].get("by_entity", {})
-                    if old in by_entity:
-                        by_entity[new] = by_entity.pop(old)
-                        changed = True
     return changed
 
 
