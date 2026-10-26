@@ -25,3 +25,35 @@ dev/config/*
 # Local Home Assistant runtime (no Docker)
 dev/.venv-ha/
 dev/ha.log
+
+# Frontend caches and coverage
+frontend/.vite/
+frontend/coverage/
+coverage/
+*.tsbuildinfo
+.nyc_output/
+
+# Logs, secrets, local env
+*.log
+.env
+.env.*
+*.pem
+*.key
+.dev_token
+dev/config/.storage/
+dev/config/*.db
+dev/config/*.db-*
+
+# Screenshots and captures
+screenshots/
+captures/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+
+# Misc
+*.swp
+*.tmp
+.python-version
