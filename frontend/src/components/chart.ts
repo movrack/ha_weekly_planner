@@ -3,6 +3,8 @@
 // line, and the manual changes in red. Tapping the chart opens the Home Assistant history. Hand-made SVG.
 // The x axis is in real minutes from the server-zone midnight, so a time-change day is 23 or 25 h.
 
+import { buildPlanned } from "../planned";
+import type { Planned } from "../planned";
 import { LitElement, css, html, nothing, svg } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { t } from "../i18n";
@@ -65,6 +67,7 @@ interface Model {
   lines: { key: "measured" | "set" | "main"; pts: Pt[] }[];
   bands: { s: number; e: number; state: string; text: string; on: boolean }[];
   markers: Marker[];
+  planned: Planned;
   manual: Span[];
   lo: number;
   hi: number;
@@ -117,6 +120,9 @@ function fitText(text: string, width: number): string {
   if (max < 4) return "";
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
+
+// mdi:clock-outline
+const CLOCK = "M12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22C6.47,22 2,17.5 2,12A10,10 0 0,1 12,2M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z";
 
 const isBad = (s: string) => s === "unavailable" || s === "unknown" || s === "";
 const num = (x: unknown): number | null => (typeof x === "number" && Number.isFinite(x) ? x : null);
@@ -282,8 +288,19 @@ export class WpChart extends LitElement {
     };
     for (const r of ranges) {
       if (!r.spill) add(r.s, labelOf(this.data, r.slot.label), false);
-      if (r.e !== null) add(r.e, defaultLabel, true);
     }
+    // the planned value as a staircase; the hollow circle only where the value really returns to the default
+    const valueOf = (label: Label | undefined) => actionValue(entityAction(this.program, this.entityId, label));
+    const planned = buildPlanned(
+      ranges.flatMap((r) => {
+        const label = labelOf(this.data, r.slot.label);
+        return label && entityAction(this.program, this.entityId, label)
+          ? [{ start: r.s, end: r.e, color: label.color, value: valueOf(label) }] : [];
+      }),
+      defaultLabel ? { color: defaultLabel.color, value: valueOf(defaultLabel), active: Boolean(entityAction(this.program, this.entityId, defaultLabel)) } : null,
+      span,
+    );
+    for (const m of planned.returns) add(m, defaultLabel, true);
     markers.sort((a, b) => a.m - b.m);
 
     // history
@@ -364,7 +381,7 @@ export class WpChart extends LitElement {
     let lo = 0;
     let hi = 100;
     if (numeric && domain !== "cover" && domain !== "light") {
-      const values = [...lines.flatMap((l) => l.pts.map((p) => p.v)), ...markers.map((m) => m.value)]
+      const values = [...lines.flatMap((l) => l.pts.map((p) => p.v)), ...markers.map((m) => m.value), ...planned.steps.map((st) => st.value)]
         .filter((v): v is number => v !== null);
       if (values.length) {
         lo = Math.floor(Math.min(...values) - 1);
@@ -375,7 +392,7 @@ export class WpChart extends LitElement {
     const unit = domain === "climate" ? "°C" : domain === "cover" || domain === "light" ? "%"
       : (this.hass.states[this.entityId]?.attributes.unit_of_measurement ?? "");
     return { span, pastEnd, isToday: startMs <= now && now < endMs, kind: numeric ? "curve" : "band",
-      lines, bands, markers, manual, lo, hi, unit };
+      lines, bands, markers, planned, manual, lo, hi, unit };
   }
 
   // ---- interaction ----
@@ -437,7 +454,7 @@ export class WpChart extends LitElement {
       html`<span class="key"><i class=${cls} style=${color ? `--k:${color}` : ""}></i>${label}</span>`;
     const has = (key: string) => model.lines.some((l) => l.key === key);
     return html`<div class="legend">
-      ${model.markers.length ? item("planned", t(lang, "planned")) : nothing}
+      ${model.markers.length || model.planned.steps.length ? item("planned", t(lang, "planned")) : nothing}
       ${has("measured") ? item("measured", t(lang, "measured")) : nothing}
       ${has("set") ? item("set", t(lang, "ch_set")) : nothing}
       ${model.manual.length ? item("manual", t(lang, "manual")) : nothing}
@@ -476,7 +493,8 @@ export class WpChart extends LitElement {
         ${mk.value !== null ? svg`<text class="val" x=${Math.min(Math.max(x(mk.m), 14), W - 14)} y=${Math.max(cy - 8, 9)} text-anchor="middle">${Number(mk.value.toFixed(1))}</text>` : nothing}`;
     };
     const nowLine = model.isToday
-      ? svg`<line class="now" x1=${x(model.pastEnd)} x2=${x(model.pastEnd)} y1=${PAD.t - 4} y2=${H - PAD.b}></line>` : nothing;
+      ? svg`<line class="now" x1=${x(model.pastEnd)} x2=${x(model.pastEnd)} y1=${PAD.t - 4} y2=${H - PAD.b}></line>
+        <g class="nowicon" role="img" aria-label=${t(lang, "now")} transform="translate(${x(model.pastEnd) - 6}, ${PAD.t - 17}) scale(0.5)"><title>${t(lang, "now")}</title><path d=${CLOCK}></path></g>` : nothing;
     return html`
       <svg width=${W} height=${H} viewBox="0 0 ${W} ${H}" tabindex="0" role="button"
         aria-label=${t(lang, "chart_open", { name: friendlyName(this.hass, this.entityId) })}
@@ -501,6 +519,8 @@ export class WpChart extends LitElement {
           return svg`${base ? svg`<path class="line red" d=${this._path(base.pts, model, x, y, base.key === "set", span)}></path>` : nothing}
             ${dot !== null ? svg`<circle class="reddot" cx=${x(span[0])} cy=${y(dot)} r="3.5"></circle>` : nothing}`;
         }) : nothing}
+        ${curve ? model.planned.steps.map((st) => svg`<path class="plan" d="M${x(st.from).toFixed(1)},${y(st.value).toFixed(1)}H${x(st.to).toFixed(1)}" style="--c:${st.color}"></path>`) : nothing}
+        ${curve ? model.planned.risers.map((r) => svg`<line class="riser" x1=${x(r.m)} x2=${x(r.m)} y1=${y(r.from)} y2=${y(r.to)} style="--c:${r.color}"></line>`) : nothing}
         ${model.markers.map(mark)}
         ${nowLine}
         <rect class="hit" x="0" y="0" width=${W} height=${H}></rect>
@@ -526,10 +546,13 @@ export class WpChart extends LitElement {
     .band { fill: var(--secondary-text-color); opacity: 0.35; stroke: var(--card-background-color); stroke-width: 1; }
     .band.on { fill: var(--primary-color); opacity: 0.4; }
     .red-band { fill: var(--error-color, #db4437); opacity: 0.55; }
+    .plan { fill: none; stroke: var(--c); stroke-width: 3; stroke-linecap: butt; }
+    .riser { stroke: var(--c); stroke-width: 1.2; opacity: 0.8; }
     .drop { stroke: var(--secondary-text-color); stroke-width: 1; stroke-dasharray: 1 3; opacity: 0.6; }
     .mk { fill: var(--c); stroke: var(--card-background-color); stroke-width: 1.5; }
     .mk.end { fill: var(--card-background-color); stroke: var(--c); stroke-width: 2; }
     .now { stroke: var(--primary-text-color); stroke-width: 1.5; }
+    .nowicon path { fill: var(--primary-text-color); }
     .hit { fill: transparent; }
     .note { padding: 24px 0; text-align: center; color: var(--secondary-text-color); font-size: 13px; }
     .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 12px; color: var(--secondary-text-color); }
@@ -537,7 +560,8 @@ export class WpChart extends LitElement {
     .key i { display: inline-block; width: 16px; height: 0; border-top: 3px solid var(--primary-color); }
     .key i.measured { border-top: 2px solid var(--accent-color, #ff9800); }
     .key i.set { border-top: 2px dashed var(--primary-text-color); }
-    .key i.planned { width: 10px; height: 10px; border: 2px solid var(--secondary-text-color); border-radius: 50%; }
+    .key i.planned { width: 16px; height: 0; border-top: 3px solid var(--secondary-text-color); border-radius: 2px; }
+
     .key i.manual { border-top: 3px solid var(--error-color, #db4437); }
   `;
 }
