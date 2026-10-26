@@ -108,6 +108,8 @@ export interface PlannerData {
   read_only: boolean;
   can_edit: boolean;
   is_admin?: boolean;
+  /** Version (hash) of the card bundle the integration serves now. */
+  card_version?: string | null;
 }
 
 export interface PreviewSlot {
