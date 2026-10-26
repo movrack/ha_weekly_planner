@@ -11,39 +11,24 @@ EVENT = f"{DOMAIN}_event"
 
 MESSAGES = {
     "en": {
-        "applied": "applied {setpoint}",
-        "override_detected": "changed by hand: kept until the next change",
-        "override_set": "override {setpoint}",
-        "resumed": "back to the schedule",
+        "applied": "ran {action}",
         "waiting_unavailable": "unavailable: will be applied when it is back",
-        "failed": "did not reach {setpoint}",
-        "locked": "locked: setpoint not sent",
-        "permanent_restored": "back to a permanent override (its own schedule stays off)",
+        "failed": "could not run {action}",
     },
     "fr": {
-        "applied": "consigne appliquée : {setpoint}",
-        "override_detected": "modifié à la main : conservé jusqu'au prochain changement",
-        "override_set": "dérogation : {setpoint}",
-        "resumed": "retour au programme",
+        "applied": "action lancée : {action}",
         "waiting_unavailable": "indisponible : sera appliqué à son retour",
-        "failed": "consigne non atteinte : {setpoint}",
-        "locked": "verrouillé : consigne non envoyée",
-        "permanent_restored": "remis en dérogation permanente (son propre programme reste coupé)",
+        "failed": "action impossible : {action}",
     },
 }
 
 
-def describe_setpoint(setpoint: dict | None) -> str:
-    if not setpoint:
+def describe_action(action: dict | None) -> str:
+    if not action:
         return "—"
-    kind = setpoint.get("kind")
-    if kind == "service":
-        return str(setpoint.get("service"))
-    for key in ("preset", "temperature", "position", "hvac_mode", "option", "value", "scene", "script"):
-        if key in setpoint:
-            value = setpoint[key]
-            return f"{value} °C" if key == "temperature" else str(value)
-    return str(kind)
+    if action.get("kind") == "scene":
+        return str(action.get("scene"))
+    return str(action.get("service"))
 
 
 @callback
@@ -57,7 +42,7 @@ def async_describe_events(hass: HomeAssistant, async_describe_event) -> None:
             template = MESSAGES[lang]["applied"]
         return {
             LOGBOOK_ENTRY_NAME: "Weekly Planner",
-            LOGBOOK_ENTRY_MESSAGE: template.format(setpoint=describe_setpoint(event.data.get("setpoint"))),
+            LOGBOOK_ENTRY_MESSAGE: template.format(action=describe_action(event.data.get("action"))),
             LOGBOOK_ENTRY_ENTITY_ID: event.data.get("entity_id"),
         }
 
