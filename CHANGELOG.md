@@ -6,6 +6,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-26
+
+### Added
+- Edit directly on the card's bars ("Today" and the week): long press (finger) or click (mouse) makes the bar taller with a handle on every boundary; drag to move it (15 min steps, a bubble shows the time, neighbours are never crossed, sun-based boundaries become fixed times); keyboard arrows move the selected handle by 15 min; Escape or a tap outside leaves the edit mode.
+- Saved on release for that day only, rebuilt on the current program (one retry on a revision conflict, never a reload request); "Changed · Undo" for about 6 s; neighbouring slots with the same label are merged.
+- Tap a slot or a gap: label chips, "None", scissors (cut in the middle) and "Copy to…" (days, with a Replace / Do not copy choice for days where the copy overlaps; existing slots are trimmed or split around the copied range).
+- Sun icons (sunrise / sunset) at the boundary or marker of anything that follows the sun, even when the label does not fit.
+- A clock icon above the "now" line (bars and chart), outside the clipped bar.
+- Chart: the planned value is drawn as a staircase in the colour of each label, the hollow circle only where the value really returns to the default, and the periods where the device was really active are shaded under it (up to now).
+- Rename a label in place (pencil in an open slot), with a discreet "Shared" when other programs use it.
+- The card reloads the page by itself, once, when the integration serves a newer bundle and nothing is open (`card_version` in the websocket data).
+
+### Changed
+- In the week list the day name opens the schedule screen; the bar itself is editable.
+
 ## [0.6.5] - 2026-10-26
 
 ### Fixed
