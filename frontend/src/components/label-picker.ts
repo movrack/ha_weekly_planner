@@ -21,7 +21,7 @@ export class WpLabelPicker extends LitElement {
   /** "The rest of the time": a "Nothing" choice is added. */
   @property({ type: Boolean, attribute: "allow-none" }) allowNone = false;
   @property({ type: Boolean }) disabled = false;
-  /** Only the chips (no creation, no pencil, no value for a device): the strip under a bar. */
+  /** The strip under a bar: no label creation (the chosen label's settings stay visible and editable). */
   @property({ type: Boolean }) compact = false;
 
   @state() private _creating = false;
@@ -124,11 +124,6 @@ export class WpLabelPicker extends LitElement {
         ${this.compact ? nothing : html`<button class="chip add" ?disabled=${this.disabled} @click=${() => this._startCreate()}>
           <ha-icon icon="mdi:plus"></ha-icon><span>${t(lang, "lb_new")}</span></button>`}
       </div>
-      ${chosen && !this.compact && !this._creating ? html`<div class="edit">
-        <button class="pen" aria-label=${t(lang, "rename_label")} title=${t(lang, "rename_label")} ?disabled=${this.disabled}
-          @click=${() => this._startEdit()}><ha-icon icon="mdi:pencil"></ha-icon></button>
-        ${labelUsers(this.data, chosen.id).some((n) => n !== this.program.name) ? html`<span class="shared">${t(lang, "shared")}</span>` : nothing}
-      </div>` : nothing}
       ${this._creating ? html`<div class="form">
         <div class="field"><label for="lb-name">${t(lang, "lb_name")}</label>
           <input id="lb-name" type="text" maxlength="30" .value=${this._name}
@@ -145,23 +140,39 @@ export class WpLabelPicker extends LitElement {
           <button class="btn" @click=${() => (this._creating = false)}>${t(lang, "cancel")}</button>
         </div>
       </div>` : nothing}
-      ${chosen && !this._creating && !this.compact ? html`
-        ${this.entityIds.map((eid) => {
-          const open = this._valueFor === eid;
-          const own = hasOverride(this.program, eid, chosen.id);
-          return html`<div class="dev">
-            <div class="sum"><span class="what">${actionText(this.hass, lang, entityAction(this.program, eid, chosen))}</span>
-              ${this.entityIds.length > 1 ? html`<span class="who">${friendlyName(this.hass, eid)}</span>` : nothing}</div>
-            <button class="link ${own ? "own" : ""}" ?disabled=${this.disabled} aria-expanded=${open}
-              @click=${() => (this._valueFor = open ? null : eid)}>${t(lang, "lb_value_here")}</button>
-            ${open ? this._valueEditor(eid) : nothing}
-          </div>`;
-        })}` : nothing}`;
+      ${chosen && !this._creating ? html`
+        <!-- the settings of the chosen label, framed in its colour so they clearly belong to it -->
+        <div class="details" style="--lc:${chosen.color}">
+          <div class="dhead">
+            <i class="dot" style="background:${chosen.color}"></i><b>${chosen.name}</b>
+            ${labelUsers(this.data, chosen.id).some((n) => n !== this.program.name) ? html`<span class="shared">${t(lang, "shared")}</span>` : nothing}
+            <button class="pen" aria-label=${t(lang, "rename_label")} title=${t(lang, "rename_label")} ?disabled=${this.disabled}
+              @click=${() => this._startEdit()}><ha-icon icon="mdi:pencil"></ha-icon></button>
+          </div>
+          ${this.entityIds.map((eid) => {
+            const open = this._valueFor === eid;
+            const own = hasOverride(this.program, eid, chosen.id);
+            return html`<div class="dev">
+              <div class="sum"><span class="k">${t(lang, "action")} :</span> <span class="what">${actionText(this.hass, lang, entityAction(this.program, eid, chosen))}</span>
+                ${this.entityIds.length > 1 ? html`<span class="who">${friendlyName(this.hass, eid)}</span>` : nothing}</div>
+              <button class="link ${own ? "own" : ""}" ?disabled=${this.disabled} aria-expanded=${open}
+                @click=${() => (this._valueFor = open ? null : eid)}>${t(lang, "lb_value_here")}</button>
+              ${open ? this._valueEditor(eid) : nothing}
+            </div>`;
+          })}
+        </div>` : nothing}`;
   }
 
   static styles = [editorStyles, css`
     :host { display: block; }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .details {
+      margin-top: 10px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--lc);
+      border-left-width: 4px; background: color-mix(in srgb, var(--lc) 10%, transparent);
+    }
+    .dhead { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+    .dhead b { flex: 1; min-width: 0; }
+    .details .k { color: var(--secondary-text-color); }
     .chip {
       display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 16px; border-radius: 24px;
       border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); font: inherit; font-size: 15px;

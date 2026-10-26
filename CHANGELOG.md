@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-26
+
+### Changed
+- The chosen label's settings (action, value for this device, pencil) are framed in the label's colour under its name, also in the strip under a bar.
+
 ## [0.7.0] - 2026-10-26
 
 ### Added
