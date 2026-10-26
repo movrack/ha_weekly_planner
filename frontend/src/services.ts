@@ -133,7 +133,8 @@ export function serviceFields(hass: HomeAssistant, id: string): ServiceField[] {
       out.push({
         key,
         selector: field.selector ?? { text: {} },
-        required: Boolean(field.required),
+        // The mode of a "set mode" service is always needed, whatever the description says.
+        required: Boolean(field.required) || (domain === "climate" && service === `set_${key}` && key in LIST_ATTRIBUTE),
         default: (field as { default?: unknown }).default,
         label: translate(hass, `component.${domain}.services.${service}.fields.${key}.name`) || field.name || key,
       });
