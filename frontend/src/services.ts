@@ -91,8 +91,8 @@ function accepts(filters: EntityFilter | EntityFilter[] | undefined, entity: Has
   });
 }
 
-/** Services offered for an entity, sorted by their translated name. */
-export function servicesFor(hass: HomeAssistant, entityId: string): ServiceChoice[] {
+/** Services offered for an entity, sorted by their translated name; `allowed` (non empty) restricts them. */
+export function servicesFor(hass: HomeAssistant, entityId: string, allowed?: string[]): ServiceChoice[] {
   const domain = entityDomain(entityId);
   const entity = hass.states[entityId];
   const out: ServiceChoice[] = [];
@@ -107,6 +107,7 @@ export function servicesFor(hass: HomeAssistant, entityId: string): ServiceChoic
       const fields = Object.values(info.fields ?? {}) as { required?: boolean; selector?: Record<string, unknown> }[];
       if (fields.some((f) => f.required && (!f.selector || "text" in f.selector || "object" in f.selector))) continue;
       const id = `${d}.${service}`;
+      if (allowed?.length && !allowed.includes(id)) continue;
       out.push({ id, domain: d, service, label: serviceLabel(hass, id) });
     }
   }
@@ -182,4 +183,39 @@ export function missingFields(hass: HomeAssistant, id: string, data: Record<stri
   return serviceFields(hass, id)
     .filter((f) => f.required && (data?.[f.key] === undefined || data[f.key] === "" || data[f.key] === null))
     .map((f) => f.label);
+}
+
+/** Attribute listing the possible values of a field, for the services that pick one of the device's modes. */
+export const LIST_ATTRIBUTE: Record<string, string> = {
+  hvac_mode: "hvac_modes", preset_mode: "preset_modes", fan_mode: "fan_modes", swing_mode: "swing_modes",
+  swing_horizontal_mode: "swing_horizontal_modes",
+};
+
+/**
+ * Options (value + translated label) of a "pick one of the device's modes" field, read from the device's
+ * attribute list; undefined when the field is not one or the device lists nothing.
+ */
+export function deviceOptions(hass: HomeAssistant, entityId: string, field: ServiceField): { value: string; label: string }[] | undefined {
+  const sel = field.selector;
+  const state = sel.state as { attribute?: string } | undefined;
+  if (!state && !sel.select) return undefined;
+  const attribute = state?.attribute ?? LIST_ATTRIBUTE[field.key];
+  const stateObj = hass.states[entityId];
+  const list = attribute ? stateObj?.attributes[attribute] : undefined;
+  if (!Array.isArray(list) || !list.length) return undefined;
+  const h = hass as unknown as {
+    formatEntityState?: (s: HassEntity, v?: string) => string;
+    formatEntityAttributeValue?: (s: HassEntity, a: string, v?: unknown) => string;
+  };
+  const single = attribute!.replace(/_list$/, "").replace(/s$/, "");
+  return list.map((value) => {
+    const v = String(value);
+    let label = "";
+    try {
+      label = field.key === "hvac_mode" ? h.formatEntityState?.(stateObj, v) ?? "" : h.formatEntityAttributeValue?.(stateObj, single, v) ?? "";
+    } catch {
+      label = "";
+    }
+    return { value: v, label: label || v };
+  });
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  PALETTE, actionText, actionValue, compatible, entityAction, hasOverride, labelUsers, labelsFor, nextColor,
+  PALETTE, actionText, allowedOf, actionValue, compatible, entityAction, hasOverride, labelUsers, labelsFor, nextColor,
 } from "../labels";
 import type { Action, HomeAssistant, Label, PlannerData, Program } from "../types";
 
@@ -32,6 +32,17 @@ describe("labels offered for a device", () => {
     const data = { labels: [label("t21", temp(21)), label("on", { kind: "service", service: "light.turn_on" })] } as PlannerData;
     expect(labelsFor(hass, data, ["climate.a"]).map((l) => l.id)).toEqual(["t21"]);
     expect(labelsFor(hass, data, ["light.a"]).map((l) => l.id)).toEqual(["on"]);
+  });
+
+  it("keeps only the labels whose service is allowed for the device (scenes stay)", () => {
+    const data = { labels: [label("t21", temp(21)), label("mode", { kind: "service", service: "climate.set_hvac_mode" }),
+      label("soir", { kind: "scene", scene: "scene.soir" })] } as PlannerData;
+    const p = program();
+    expect(labelsFor(hass, data, ["climate.a"], p).map((l) => l.id)).toEqual(["t21", "mode", "soir"]);
+    p.entities[0].allowed_services = ["climate.set_temperature"];
+    expect(labelsFor(hass, data, ["climate.a"], p).map((l) => l.id)).toEqual(["t21", "soir"]);
+    expect(allowedOf(p, "climate.a")).toEqual(["climate.set_temperature"]);
+    expect(allowedOf(p, "light.a")).toEqual([]);
   });
 
   it("accepts a scene only when it contains the device", () => {

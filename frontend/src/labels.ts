@@ -27,19 +27,24 @@ export function scenesOf(hass: HomeAssistant, entityId: string): HassEntity[] {
     .sort((a, b) => String(a.attributes.friendly_name ?? a.entity_id).localeCompare(String(b.attributes.friendly_name ?? b.entity_id)));
 }
 
-/** Can this action be applied to the entity? (service target accepts it, scene contains it) */
-export function compatible(hass: HomeAssistant, entityId: string, action: Action): boolean {
+/** Services the owner offers for a device of a program (empty: all). */
+export const allowedOf = (program: Program | null | undefined, entityId: string): string[] =>
+  program?.entities.find((e) => e.entity_id === entityId)?.allowed_services ?? [];
+
+/** Can this action be applied to the entity? (service target accepts it, scene contains it, service allowed) */
+export function compatible(hass: HomeAssistant, entityId: string, action: Action, allowed: string[] = []): boolean {
   if (action.kind === "scene") {
     const members = hass.states[action.scene]?.attributes.entity_id;
     return Array.isArray(members) ? members.includes(entityId) : true;
   }
+  if (allowed.length && !allowed.includes(action.service)) return false;
   if (action.service.split(".")[0] === entityId.split(".")[0]) return true;
   return servicesFor(hass, entityId).some((s) => s.id === action.service);
 }
 
 /** Labels offered for devices: compatible with at least one of them. */
-export function labelsFor(hass: HomeAssistant, data: PlannerData, entityIds: string[]): Label[] {
-  return data.labels.filter((l) => entityIds.some((e) => compatible(hass, e, l.action)));
+export function labelsFor(hass: HomeAssistant, data: PlannerData, entityIds: string[], program?: Program | null): Label[] {
+  return data.labels.filter((l) => entityIds.some((e) => compatible(hass, e, l.action, allowedOf(program, e))));
 }
 
 /** What a label does to an entity of a program: its own value for the device, else the label's. */
