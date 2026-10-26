@@ -1,7 +1,6 @@
 // User-facing texts (fr / en). Keys are short and stable.
 
 const en = {
-  now: "Now",
   edited: "Changed",
   undo: "Undo",
   cut: "Split",
@@ -198,7 +197,6 @@ const fr: typeof en = {
   lb_err_name: "Donnez-lui un nom.",
   lb_err_action: "Choisissez l'action.",
   lb_err_fields: "Remplissez les champs obligatoires.",
-  now: "Maintenant",
   edited: "Modifié",
   undo: "Annuler",
   cut: "Couper",
