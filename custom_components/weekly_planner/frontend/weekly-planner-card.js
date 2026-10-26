@@ -3778,11 +3778,11 @@ let V = class extends E {
       <button class="weekbtn" aria-expanded=${n} @click=${o}>
         <ha-icon icon=${n ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>${c(r, "week")}</button>
       ${n ? l`<div class="week">
-        ${[1, 2, 3, 4, 5, 6].map((d) => {
-      const _ = be(this._dateAt(d), this._tz);
-      return l`<button class="wday" aria-label=${a[_]} @click=${() => this._open(s, { weekday: _, offset: d })}>
-            <span class="wname">${a[_]}</span>
-            <wp-day-bar notches .spans=${this._spans(t, i, d)}></wp-day-bar></button>`;
+        ${[0, 1, 2, 3, 4, 5, 6].map((d) => {
+      const _ = (d - be(this._now, this._tz) + 7) % 7;
+      return l`<button class="wday" aria-label=${a[d]} @click=${() => this._open(s, { weekday: d, offset: _ })}>
+            <span class="wname ${_ === 0 ? "today" : ""}">${a[d]}</span>
+            <wp-day-bar notches .spans=${this._spans(t, i, _)}></wp-day-bar></button>`;
     })}
       </div>` : h}`;
   }
@@ -3896,6 +3896,7 @@ V.styles = T`
     .wday:hover { background: var(--secondary-background-color); }
     .wname { flex: none; width: 36px; font-size: 14px; color: var(--secondary-text-color); }
     .wday wp-day-bar, .today wp-day-bar { flex: 1; min-width: 0; }
+    .wname.today { color: var(--primary-text-color); font-weight: 600; }
     .today { display: flex; align-items: flex-start; gap: 8px; }
     .today .wname { line-height: 28px; margin-top: 2px; }
     .prog { padding: 8px 0 4px; border-top: 1px solid var(--divider-color); }

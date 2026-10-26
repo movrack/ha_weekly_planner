@@ -230,10 +230,11 @@ export class WeeklyPlannerCard extends LitElement {
       <button class="weekbtn" aria-expanded=${open} @click=${toggle}>
         <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>${t(lang, "week")}</button>
       ${open ? html`<div class="week">
-        ${[1, 2, 3, 4, 5, 6].map((o) => {
-          const weekday = localWeekday(this._dateAt(o), this._tz);
+        ${[0, 1, 2, 3, 4, 5, 6].map((weekday) => {
+          // the whole week, Monday to Sunday, each day at its next occurrence (today included)
+          const o = (weekday - localWeekday(this._now, this._tz) + 7) % 7;
           return html`<button class="wday" aria-label=${days[weekday]} @click=${() => this._open(scope, { weekday, offset: o })}>
-            <span class="wname">${days[weekday]}</span>
+            <span class="wname ${o === 0 ? "today" : ""}">${days[weekday]}</span>
             <wp-day-bar notches .spans=${this._spans(entityId, programs, o)}></wp-day-bar></button>`;
         })}
       </div>` : nothing}`;
@@ -360,6 +361,7 @@ export class WeeklyPlannerCard extends LitElement {
     .wday:hover { background: var(--secondary-background-color); }
     .wname { flex: none; width: 36px; font-size: 14px; color: var(--secondary-text-color); }
     .wday wp-day-bar, .today wp-day-bar { flex: 1; min-width: 0; }
+    .wname.today { color: var(--primary-text-color); font-weight: 600; }
     .today { display: flex; align-items: flex-start; gap: 8px; }
     .today .wname { line-height: 28px; margin-top: 2px; }
     .prog { padding: 8px 0 4px; border-top: 1px solid var(--divider-color); }
