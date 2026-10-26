@@ -106,11 +106,12 @@ NAMES = {
 }
 
 
-def _number(value: Any) -> str:
-    return f"{value:g}" if isinstance(value, (int, float)) else str(value)
+def _number(value: Any, language: str = "en") -> str:
+    text = f"{value:g}" if isinstance(value, (int, float)) else str(value)
+    return text.replace(".", ",") if language.startswith("fr") else text
 
 
-def label_name(action: dict, language: str = "en") -> str:
+def label_name(action: dict, language: str = "en", names: dict[str, str] | None = None) -> str:
     """Short name generated from an action: "18 °C", "Fermer", "Position 30 %", the scene name…"""
     words = NAMES["fr" if language.startswith("fr") else "en"]
     if action["kind"] == "scene":
@@ -118,19 +119,19 @@ def label_name(action: dict, language: str = "en") -> str:
     service, data = action["service"], action.get("data") or {}
     name = service.split(".", 1)[1]
     if service.endswith(".set_temperature") and "temperature" in data:
-        return f"{_number(data['temperature'])} °C"
+        return f"{_number(data['temperature'], language)} °C"
     if service == "cover.open_cover":
         return words["open"]
     if service == "cover.close_cover":
         return words["close"]
     if service == "cover.set_cover_position" and "position" in data:
-        return words["position"].format(n=_number(data["position"]))
+        return words["position"].format(n=_number(data["position"], language))
     if name in ("turn_on", "turn_off") and service.split(".")[0] in ("light", "switch", "input_boolean", "fan"):
         text = words["on" if name == "turn_on" else "off"]
         if "brightness_pct" in data:
-            text += f" {_number(data['brightness_pct'])} %"
+            text += f" {_number(data['brightness_pct'], language)} %"
         return text
-    return service
+    return (names or {}).get(service, service)
 
 
 def label_color(action: dict, position: int) -> str:
@@ -146,7 +147,7 @@ def label_color(action: dict, position: int) -> str:
     return PALETTE[position % len(PALETTE)]
 
 
-TEMPERATURE_STOPS = ((10, (33, 150, 243)), (17, (255, 193, 7)), (21, (255, 152, 0)), (24, (244, 67, 54)))
+TEMPERATURE_STOPS = ((10, (21, 101, 192)), (16, (66, 165, 245)), (18, (255, 193, 7)), (21, (255, 152, 0)), (24, (244, 67, 54)))
 
 
 def _temperature_color(value: float) -> str:
@@ -159,7 +160,7 @@ def _temperature_color(value: float) -> str:
     return "#f44336"
 
 
-def migrate_config_v1(data: dict, language: str = "en") -> dict:
+def migrate_config_v1(data: dict, language: str = "en", names: dict[str, str] | None = None) -> dict:
     """Configuration of version 1 -> version 2: modes resolved and setpoints converted to actions,
     identical actions merged into ONE shared label, slots and defaults pointing at labels."""
     data = deepcopy(data)
@@ -174,13 +175,10 @@ def migrate_config_v1(data: dict, language: str = "en") -> dict:
 
         key = json.dumps(action, sort_keys=True)
         if key not in by_action:
-            name = label_name(action, language)
-            taken = {x["name"] for x in labels}
-            suffix = 2
-            unique = name
-            while unique in taken:
-                unique, suffix = f"{name} ({suffix})", suffix + 1
-            by_action[key] = {"id": uuid.uuid4().hex[:12], "name": unique,
+            name = label_name(action, language, names)
+            # Same names are fine ("Allumer" for a lamp and for a plug): a device only lists the
+            # labels it is compatible with.
+            by_action[key] = {"id": uuid.uuid4().hex[:12], "name": name,
                               "color": label_color(action, len(labels)), "action": action}
             labels.append(by_action[key])
         return by_action[key]["id"]

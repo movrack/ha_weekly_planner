@@ -185,3 +185,14 @@ async def test_version_one_file_is_migrated_on_load_and_works(hass, hass_storage
     names = by_name(store.config)
     assert "modes" not in store.config and "18 °C" in names
     assert store.programs[0]["entities"][0]["default_label"] == names["15 °C"]["id"]
+
+
+def test_label_names_in_french_and_from_service_names():
+    from custom_components.weekly_planner.migration import label_name
+
+    temp = {"kind": "service", "service": "climate.set_temperature", "data": {"temperature": 18.5}}
+    assert label_name(temp, "fr") == "18,5 °C"
+    assert label_name(temp, "en") == "18.5 °C"
+    start = {"kind": "service", "service": "vacuum.start", "data": {}}
+    assert label_name(start, "fr", {"vacuum.start": "Démarrer"}) == "Démarrer"
+    assert label_name(start, "fr") == "vacuum.start"
