@@ -8,6 +8,7 @@ import { repeat } from "lit/directives/repeat.js";
 import "./day-bar";
 import "./dialog";
 import "./label-picker";
+import { confirmAction } from "./confirm";
 import { sunDir } from "./day-bar";
 import type { BarSpan } from "./day-bar";
 import {
@@ -447,10 +448,11 @@ export class WpBarEditor extends LitElement {
     if (target.kind === "gap") this._selected = { kind: "slot", id };
   }
 
-  private _nothing(): void {
+  private async _nothing(): Promise<void> {
     const sel = this._sel;
     if (!sel?.slot) return;
     const id = sel.slot.id;
+    if (!(await confirmAction(this, t(this.lang, "w_confirm_slot"), t(this.lang, "yes"), t(this.lang, "no")))) return;
     this._selected = null;
     void this._commit((days) => this._with(days, this.weekday, removeSlot(days[this.weekday], id)), [this.weekday]);
   }
@@ -563,7 +565,7 @@ export class WpBarEditor extends LitElement {
       <wp-label-picker compact .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${[this.entityId]}
         .value=${sel.slot?.label ?? null} @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._pickLabel(e.detail); }}></wp-label-picker>
       <div class="acts">
-        ${sel.slot ? html`<button class="act" @click=${() => this._nothing()}><ha-icon icon="mdi:close-circle-outline"></ha-icon>${t(lang, "rest_none_short")}</button>` : nothing}
+        ${sel.slot ? html`<button class="act" @click=${() => void this._nothing()}><ha-icon icon="mdi:close-circle-outline"></ha-icon>${t(lang, "rest_none_short")}</button>` : nothing}
         <button class="act" ?disabled=${!canCut} aria-label=${t(lang, "cut")} title=${t(lang, "cut")} @click=${() => this._cut()}>
           <ha-icon icon="mdi:content-cut"></ha-icon></button>
         ${sel.slot ? html`<button class="act ${this._copyOpen ? "on" : ""}" aria-expanded=${this._copyOpen}
