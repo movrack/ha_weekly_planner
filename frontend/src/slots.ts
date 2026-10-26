@@ -32,8 +32,15 @@ export function findOverlap(slots: Slot[]): [Slot, Slot] | null {
     .map((slot) => ({ slot, iv: fixedInterval(slot) }))
     .filter((x): x is { slot: Slot; iv: [number, number] } => x.iv !== null)
     .sort((a, b) => a.iv[0] - b.iv[0]);
+  // compare with the slot that ends last so far (a long slot may swallow several short ones)
+  let reach = timed[0]?.iv[1] ?? 0;
+  let owner = timed[0]?.slot;
   for (let i = 1; i < timed.length; i++) {
-    if (timed[i].iv[0] < timed[i - 1].iv[1]) return [timed[i - 1].slot, timed[i].slot];
+    if (timed[i].iv[0] < reach) return [owner, timed[i].slot];
+    if (timed[i].iv[1] > reach) {
+      reach = timed[i].iv[1];
+      owner = timed[i].slot;
+    }
   }
   return null;
 }
