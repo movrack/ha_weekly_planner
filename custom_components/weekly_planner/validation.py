@@ -74,6 +74,8 @@ ENTITY = vol.Schema({
     vol.Required("entity_id"): cv.entity_id,
     vol.Optional("default_label", default=None): vol.Any(None, str),
     vol.Optional("label_overrides", default=dict): {str: ACTION},
+    # Services offered for this device in the card; empty = all.
+    vol.Optional("allowed_services", default=list): [vol.All(str, vol.Match(r"^[a-z0-9_]+\.[a-z0-9_]+$"))],
 })
 
 PROGRAM = vol.Schema({
