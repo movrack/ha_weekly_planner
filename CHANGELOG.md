@@ -6,6 +6,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-26
+
+### BREAKING
+- **One model for every device.** A slot is a start, an optional end, days and a **label**. A label is shared by all programs and holds one action: a Home Assistant service on the device or a scene (the services offered come from the generic picker). A device can have its own value for a label. "The rest of the time" is a label too, sent when a slot with an end finishes; a slot without an end runs once and is never run again.
+- Removed: typed setpoints (temperature, preset, HVAC, position, open/close, on/off, brightness, colour temperature, effect), common modes and their options flow, the "Automatic" light and everything Adaptive Lighting, the Evohome "permanent" option and the Versatile Thermostat special cases (lock, underlying devices, `requested_state`).
+- Removed: manual-change detection, overrides, the `weekly_planner.override` and `weekly_planner.resume` services, the "Set by hand" line, state comparison and state-based retries. Retries after a failed service call (1, 2, 5, 10, 15 min, none for a refused value) and the notification are kept.
+- Storage version 2: existing programs are converted automatically (typed setpoints and modes become actions, identical actions become one label named after the action, e.g. "18 °C", "Fermer"); a copy of the old file is kept next to it. The default "previous state" no longer exists (logged once).
+
+### Added
+- Labels: label picker with inline creation, value for one device, "Labels" screen (rename, recolour, change the action, delete refused while used), colours from a 12-colour palette on the day and week bars and the chart.
+- A chart for every device: the Home Assistant history of the day (curve or band of states), the planned actions with their value, a "now" line, a tap opens the Home Assistant history of the day.
+- Changes made by hand shown in red on the chart (display only; from the logbook and the Weekly Planner journal).
+- Card line: icon, program name, translated state and the next action ("→ label, time").
+- Option "send the current action again after a restart or an edit" now sends the action of the current slot or the rest of the time (never a one-shot).
+
 ## [0.5.3] - 2026-10-26
 
 ### Added

@@ -5,31 +5,36 @@ English | [Français](README.fr.md)
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A weekly time-slot planner for Home Assistant. Program thermostats, covers, lights, plugs and fans with
-colored weekly schedules, shared modes and sensible handling of manual changes. One install gives you
-both the engine (integration) and the card.
+A weekly time-slot planner for Home Assistant. Program any entity (thermostats, covers, lights, plugs, vacuums...)
+with colored weekly schedules built from shared labels. One install gives you both the engine
+(integration) and the card.
 
 <!-- screenshot: docs/images/card-overview.png — the card in consultation mode (week bars + current mode) -->
 
 ## Why Weekly Planner?
 
-- **Slots have a start and an end.** When a slot ends, the entity returns to its **default state**
-  (a mode, the state it had before, or nothing).
-- **Manual changes are respected.** If you touch a device during a slot, Weekly Planner notices, leaves it
-  alone and shows an override badge ("Resume" puts the schedule back). The slot end still applies.
-- **Shared modes per entity type.** "Comfort", "Eco", "Closed"... are defined once per type and reused by
-  every program, with exceptions per entity.
+- **One way of working for every device.** A slot has a start, an optional end, days and a **label**. A label is
+  a name and a color for an action: any Home Assistant service accepting the device (`climate.set_temperature`,
+  `cover.close_cover`, `vacuum.start`...) or a scene. "Comfort" = 19 °C, defined once, used in every slot.
+- **Labels are shared.** Change what "Comfort" does and every slot using it follows. A device can have its own
+  value for a label (19 °C everywhere, 22 °C in the bathroom).
+- **"The rest of the time".** Each device can have a label applied when a slot with an end finishes. A slot without
+  an end is a one-shot action: it runs once, at its start, and is never run again.
 - **Profiles.** Several week layouts per program (Winter, Summer, Remote work) and a `select` to switch.
-- **Solar times with bounds.** Dawn, sunrise, sunset, dusk, plus an offset, "no earlier than" and
-  "no later than".
-- **Priorities and conditions.** Several programs can target the same entity; the highest priority wins
-  and the other takes over when it ends. Conditions work per program and per slot.
+- **Solar times with bounds.** Dawn, sunrise, sunset, dusk, plus an offset, "no earlier than" and "no later than".
+- **Priorities and conditions.** Several programs can target the same entity; the highest priority wins and
+  the other takes over when it ends. Conditions work per program and per slot.
 - **Vacation switch.** One switch suspends every program and applies the defaults.
-- **Survives restarts.** The wanted state is recalculated, overrides are remembered, missed slot ends are
-  caught up.
-- **Planned vs actual chart.** A 24 h chart per entity shows the planned setpoint, what was applied and
-  the measurement.
+- **Survives restarts.** Optionally the action in progress is sent again after a restart or an edit
+  (never the one-shots); missed slot ends are caught up.
+- **History chart for every device.** The Home Assistant history of the day (a curve for a number, a band of
+  states otherwise), the planned actions, "now", and the changes made by hand in red. A tap opens the Home
+  Assistant history.
 - **One installation.** The integration ships its own card: no second HACS repository.
+
+> **0.6.0 is a breaking change.** Typed setpoints, common modes, manual-change detection ("overrides") and the
+> Evohome / Adaptive Lighting / Versatile Thermostat special cases are gone. Stored programs are converted
+> automatically (a backup of the old file is kept next to it). See the [changelog](CHANGELOG.md).
 
 ## Installation
 
@@ -73,41 +78,40 @@ title: Heating
 | `filter.types` | Entity types to list (`climate`, `cover`, `light`...). |
 | `filter.area` | Only programs that contain entities of this area. |
 | `title` | Card title. |
-| `show_chart` | Show the planned/measured chart in the schedule screen (default on). |
+| `show_chart` | Show the history chart in the schedule screen (default on). |
 
-The card is a planner, not a remote control: one compact line per device (state, next scheduled action,
-day bar) and a **Schedule** button. The schedule screen lists the slots one per row (tap to edit in place:
-start, optional end, days, action), the rest of the time, a planned/measured chart, a pause switch and a
-confirmed delete. The gear (administrators only) opens the owner settings. The common modes (Night,
-Comfort...) are edited in the integration options.
+The card is a planner, not a remote control: one line per device (icon, program name, state, the next
+scheduled action and time) with its day bar, the week and a **Schedule** button. The schedule screen lists the
+slots one per row (tap to edit in place: start, optional end, days, label), "The rest of the time", the chart of
+the day, a pause switch and a confirmed delete. The gear (administrators only) opens the program settings
+(name, icon, priority, conditions, "send the current action again after a restart", devices, seasons); the
+list button of the card header opens the **Labels** screen.
 
-<!-- screenshot: docs/images/card-day-editor.png — the day editor with draggable slot edges -->
-<!-- screenshot: docs/images/card-chart.png — the planned/actual chart -->
+<!-- screenshot: docs/images/card-overview.png — the card -->
+<!-- screenshot: docs/images/card-chart.png — the history chart -->
 
 ## Concepts
 
 - **Program**: a named set of entities plus a week of slots and settings. One switch per program.
-- **Slot**: an interval `[start, end)` of a day (or a one-shot slot: start only). It carries an action per
-  entity type (a mode) or per entity (a setpoint).
-- **Mode**: a named, colored setpoint shared by an entity type (a common value plus per-entity exceptions).
-- **Setpoint**: the concrete action on an entity (`preset = eco`, `position = 30`, a scene...).
-- **Default state**: what an entity receives when a slot ends: a mode/setpoint, the state it had before the
-  slot, or nothing.
-- **Override**: a change to an entity that does not come from Weekly Planner. It is kept until the next
-  transition of the winning program.
-- **Profile**: one of several week layouts of a program. Entities, defaults, conditions and priority are
-  shared.
+- **Slot**: an interval `[start, end)` of a day, or a one-shot (start only), with a label.
+- **Label**: shared by every program: a name, a color and an action. The action is a service call on the
+  device (`{"kind": "service", "service": "climate.set_temperature", "data": {"temperature": 19}}`) or a scene.
+  A label is offered for a device when its service accepts it (or the scene contains it); a device that does
+  not suit a slot's label is skipped for that slot and the card warns you.
+- **Value for a device**: a device's own action for a label.
+- **The rest of the time**: the label a device receives when a slot with an end finishes (or nothing).
+- **Profile**: one of several week layouts of a program. Entities, defaults, conditions and priority are shared.
 - **Priority**: when several active programs target the same entity, the lowest number wins.
 
-Rules in short: the engine does not replay events; it recalculates the wanted state and acts only at
-transitions (slot start or end, condition change, program on/off, vacation, edit). Then it leaves the
-entity alone.
+Rules in short: the engine does not replay events; it recalculates the wanted action and acts only at
+transitions (slot start or end, condition change, program on/off, vacation, edit). It does not watch what a
+device does afterwards: a change made by hand is neither detected nor corrected (the chart only shows it).
 
 ## Entities created
 
 | Entity | Role |
 |---|---|
-| `switch.weekly_planner_<program>` | Turns a program on or off. Attributes: current mode, current slot, next change, entities in override, conflicts, alerts. |
+| `switch.weekly_planner_<program>` | Turns a program on or off. Attributes: current slots, next change, next actions, skip, active profile. |
 | `switch.weekly_planner_vacation` | Suspends all programs and applies their defaults. Entity ids follow the instance language (French: `switch.weekly_planner_vacances`). |
 | `select.weekly_planner_profile_<program>` | Chooses the active profile (French: `select.weekly_planner_profil_<program>`). |
 
@@ -116,23 +120,7 @@ Entity ids follow the entity names, so they depend on the language of your accou
 ## Services
 
 ```yaml
-# Cancel overrides and apply the schedule again (entities or a whole program)
-action: weekly_planner.resume
-data:
-  program_id: office-heating
-```
-
-```yaml
-# Apply a setpoint for a while, then return to the schedule
-action: weekly_planner.override
-data:
-  entity_id: climate.office
-  setpoint: {kind: preset, preset: boost}
-  duration: "02:00:00"      # or: until: "2026-10-26 18:00:00"
-```
-
-```yaml
-# Apply what the program wants right now (entities without override)
+# Send now what the program wants for its entities
 action: weekly_planner.apply_now
 data:
   program_id: office-heating
@@ -155,56 +143,35 @@ Settings > Devices & services > Weekly Planner > **Configure**.
 
 | Option | Default | Meaning |
 |---|---|---|
-| Only administrators can edit | off | Locks program and mode editing. Reading, switches, Resume, Override and profile change stay open. Scripts, HA actions, advanced values and sensitive domains (`homeassistant`, `hassio`, `alarm_control_panel`, `lock`) are always admin-only. |
-| Re-apply after a restart or a change | on | Default for new programs: apply the current slot again at startup, activation or edit. |
-| Notify delay (min) | 30 | Persistent notification if the wanted state is not reached after this time. |
+| Only administrators can edit | off | Locks program and label editing. Reading, switches and profile change stay open. Actions on sensitive domains (`homeassistant`, `hassio`, `alarm_control_panel`, `lock`) are always admin-only. |
+| Re-apply after a restart or a change | on | Default for new programs: send the current action again at startup, activation or edit (never a one-shot). |
+| Notify delay (min) | 30 | Persistent notification if a device is still unavailable after this time. |
 | Condition debounce (min) | 2 | A condition must hold this long before it starts or ends a slot. |
 
-## Compatibility
+## Supported entities
 
-- **Versatile Thermostat >= 10.6**: schedule the VT entity itself, never its underlying devices. Disable its
-  automatic manual-override return (`manual_override_duration_min` = 0), otherwise it undoes your overrides.
-  The card warns you when you add a VT. Window, safety and load-shedding changes are not treated as overrides.
-- **Evohome**: option "permanent override" (preset `permanent`, then the setpoint). When an entity leaves
-  Weekly Planner, it goes back to following the Evohome program. Under a VT, keep the zone's internal
-  Evohome program empty or flat.
-- **Adaptive Lighting >= 1.32**: the "Automatic" light setpoint turns on an Adaptive Lighting switch (or runs a
-  script). For a fixed setpoint on a light covered by Adaptive Lighting, Weekly Planner sets manual control
-  for the slot and gives the light back at the end.
-
-## Supported entity types and setpoints
-
-| Type | Setpoints |
-|---|---|
-| `climate` | temperature, preset, HVAC mode, off |
-| `cover` | open, close, position %, tilt %, "favorite" (adjustable position) |
-| `light` | on/off, brightness, color/white, effect, **Automatic** |
-| `switch`, `input_boolean` | on, off |
-| `fan` | on/off, speed %, preset |
-| `water_heater` | operation mode, temperature |
-| `media_player` | on/off, volume, source, play media |
-| `input_number`, `input_select` | value, option |
-| Any other entity (`vacuum`, `lock`, `button`, `humidifier`...) | any Home Assistant service accepting the entity (e.g. a vacuum: clean area, start, return to base), run once at its start time; scene, script, advanced value |
-
-Choices (presets, HVAC modes, effects) are read from the entity and validated on save.
-Generic service actions have no end and no default; if a call fails (other than a refused value) it is retried after 1, 2, 5, 10 and 15 minutes.
-One-shot actions (script, scene, action, service) are never re-applied after a restart.
+Every entity. The actions offered for a device are the Home Assistant services whose target accepts it
+(with their translated names and input fields) and the scenes that contain it; technical services (a required
+free text or raw object) are hidden. If a call fails (other than a value refused by the device) it is retried
+after 1, 2, 5, 10 and 15 minutes, then a persistent notification appears. A refused value gives a notification
+at once. Weekly Planner knows nothing special about Versatile Thermostat, Evohome or Adaptive Lighting: they
+are scheduled like any other entity.
 
 ## FAQ
 
 **What happens when Home Assistant restarts?**
-After a 30 s settling time, the wanted state is recalculated. With "re-apply" on, the current slot is applied
-to entities that are not in override; with it off, nothing is sent until the next transition. Overrides are
-remembered, a slot end missed while HA was down is caught up, and one-shot actions are not replayed.
+After a 30 s settling time, the wanted action is recalculated. With "send the current action again" on, the action
+of the current slot (or "the rest of the time") is sent; with it off, nothing is sent until the next transition.
+A slot end missed while HA was down is caught up; one-shots are not replayed.
 
 **What if I change a device by hand?**
-It is recorded as an override: Weekly Planner does not fight you. It lasts until the slot ends (then the
-default state applies), or until you press **Resume**.
+Nothing: Weekly Planner does not detect it. The next slot start or end sends its action as planned. The chart
+shows the changes made by a person in red (from the logbook; a change that only touches attributes, such as a
+thermostat setpoint, is only guessed from the difference with what Weekly Planner sent).
 
 **What if a device is unreachable?**
-The action waits. When the device is back, the wanted state is recalculated (the slot start if still inside,
-otherwise the default). After the notify delay, a persistent notification appears, removed once the target is
-reached.
+The action waits. When the device is back, the wanted action is recalculated and sent. After the notify delay,
+a persistent notification appears.
 
 **What about daylight saving time?**
 Hours are built in local time and normalized through UTC. A non-existent hour moves forward (02:30 becomes

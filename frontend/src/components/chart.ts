@@ -63,7 +63,7 @@ interface Model {
   kind: "curve" | "band";
   /** Curves: measured (climate), set (climate) or the single main one. */
   lines: { key: "measured" | "set" | "main"; pts: Pt[] }[];
-  bands: { s: number; e: number; text: string; on: boolean }[];
+  bands: { s: number; e: number; state: string; text: string; on: boolean }[];
   markers: Marker[];
   manual: Span[];
   lo: number;
@@ -71,7 +71,7 @@ interface Model {
   unit: string;
 }
 
-const NEAR = 60_000; // a change within a minute of an action of Weekly Planner is its own
+const NEAR = 60_000; // a change within a minute of a decision or an action of Weekly Planner (its journal) is its own
 const cache = new Map<string, { at: number; p: Promise<any> }>();
 function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
   const hit = cache.get(key);
@@ -109,6 +109,13 @@ function parseLogbook(raw: unknown): LogEntry[] {
       context: Boolean(e.context_event_type || e.context_domain || e.context_service || e.context_entity_id || e.context_message),
     };
   }).filter((e) => !Number.isNaN(e.t));
+}
+
+/** The text cut to the room it has (about 6 px a letter), empty when there is no room for a few letters. */
+function fitText(text: string, width: number): string {
+  const max = Math.floor((width - 8) / 6);
+  if (max < 4) return "";
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
 
 const isBad = (s: string) => s === "unavailable" || s === "unknown" || s === "";
@@ -198,7 +205,7 @@ export class WpChart extends LitElement {
       this._loaded = {
         hist: parseHistory(hist[this.entityId]),
         log: parseLogbook(log),
-        sent: (jour.segments ?? []).filter((e: any) => e.sent && e.entity_id === this.entityId).map((e: any) => Date.parse(e.at)),
+        sent: (jour.segments ?? []).filter((e: any) => e.entity_id === this.entityId).map((e: any) => Date.parse(e.at)),
       };
     } catch {
       if (token === this._token) this._failed = true;
@@ -299,11 +306,15 @@ export class WpChart extends LitElement {
       loaded.hist.forEach((p, i) => {
         const s = Math.max(0, toM(p.t));
         const e = i + 1 < loaded.hist.length ? toM(loaded.hist[i + 1].t) : pastEnd;
-        if (e > s && !isBad(p.s)) {
-          const st = this.hass.states[this.entityId];
-          bands.push({ s, e, on: ON_STATES.has(p.s),
-            text: st ? (this.hass.formatEntityState?.({ ...st, state: p.s, attributes: p.a }, p.s) ?? p.s) : p.s });
+        if (e <= s || isBad(p.s)) return;
+        const last = bands[bands.length - 1];
+        if (last && last.state === p.s && Math.abs(last.e - s) < 0.5) {
+          last.e = e; // same state again (only an attribute changed): one band
+          return;
         }
+        const st = this.hass.states[this.entityId];
+        bands.push({ s, e, state: p.s, on: ON_STATES.has(p.s),
+          text: st ? (this.hass.formatEntityState?.({ ...st, state: p.s, attributes: p.a }, p.s) ?? p.s) : p.s });
       });
     }
 
@@ -468,7 +479,7 @@ export class WpChart extends LitElement {
           ${model.bands.map((b) => {
             const w = x(b.e) - x(b.s);
             return svg`<rect class="band ${b.on ? "on" : ""}" x=${x(b.s)} y=${bandY} width=${Math.max(1, w)} height=${bandH}></rect>
-              ${w > b.text.length * 6.5 + 8 ? svg`<text class="btxt" x=${x(b.s) + w / 2} y=${bandY + bandH / 2 + 4} text-anchor="middle">${b.text}</text>` : nothing}`;
+              ${fitText(b.text, w) ? svg`<text class="btxt" x=${x(b.s) + w / 2} y=${bandY + bandH / 2 + 4} text-anchor="middle">${fitText(b.text, w)}</text>` : nothing}`;
           })}
           ${model.manual.map(([a, b]) => svg`<rect class="red-band" x=${x(a)} y=${bandY} width=${Math.max(3, x(b) - x(a))} height=${bandH}></rect>`)}`}
         ${curve ? model.lines.map((l) => svg`<path class="line ${l.key}" d=${this._path(l.pts, model, x, y, l.key === "set")}></path>`) : nothing}
@@ -500,8 +511,8 @@ export class WpChart extends LitElement {
     .line.main { stroke: var(--primary-color); stroke-width: 2; }
     .line.red { stroke: var(--error-color, #db4437); stroke-width: 3; stroke-dasharray: none; }
     .reddot { fill: var(--error-color, #db4437); }
-    .track { fill: var(--divider-color, rgba(127, 127, 127, 0.2)); }
-    .band { fill: var(--secondary-text-color); opacity: 0.18; stroke: var(--card-background-color); stroke-width: 1; }
+    .track { fill: var(--divider-color, rgba(127, 127, 127, 0.2)); opacity: 0.5; }
+    .band { fill: var(--secondary-text-color); opacity: 0.35; stroke: var(--card-background-color); stroke-width: 1; }
     .band.on { fill: var(--primary-color); opacity: 0.4; }
     .red-band { fill: var(--error-color, #db4437); opacity: 0.55; }
     .drop { stroke: var(--secondary-text-color); stroke-width: 1; stroke-dasharray: 1 3; opacity: 0.6; }
