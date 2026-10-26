@@ -1,5 +1,7 @@
 # Contributing
 
+The working rules (model, UI, checks, deployment) are in [AGENTS.md](AGENTS.md); read them first.
+
 ## Versions
 The project follows [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
 `0.x` while the first version is being built, `1.0.0` once everything works. The version lives in
