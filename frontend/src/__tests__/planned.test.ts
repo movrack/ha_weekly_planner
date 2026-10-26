@@ -73,3 +73,71 @@ describe("planned staircase", () => {
     expect(p.steps.map((s) => [s.from, s.to])).toEqual([[0, 480], [600, 1440]]);
   });
 });
+
+import { activePeriods, buildPlanned as bp, isActive, shadeActive } from "../planned";
+
+describe("is the device active", () => {
+  it("climate: hvac_action first", () => {
+    expect(isActive("climate", "heat", { hvac_action: "heating" })).toBe(true);
+    expect(isActive("climate", "heat", { hvac_action: "idle", temperature: 20, current_temperature: 15 })).toBe(false);
+    expect(isActive("climate", "heat", { hvac_action: "cooling" })).toBe(true);
+    expect(isActive("climate", "off", { hvac_action: "off" })).toBe(false);
+  });
+  it("climate without hvac_action: set minus measured above 0.3", () => {
+    expect(isActive("climate", "heat", { temperature: 18, current_temperature: 17.5 })).toBe(true);
+    expect(isActive("climate", "heat", { temperature: 18, current_temperature: 17.8 })).toBe(false);
+    expect(isActive("climate", "heat", { temperature: 18, current_temperature: 19 })).toBe(false);
+    expect(isActive("climate", "cool", { temperature: 22, current_temperature: 23 })).toBe(true);
+    expect(isActive("climate", "cool", { temperature: 22, current_temperature: 21 })).toBe(false);
+    expect(isActive("climate", "off", { temperature: 18, current_temperature: 10 })).toBe(false);
+    expect(isActive("climate", "heat", {})).toBe(false);
+  });
+  it("on/off devices, covers, vacuums, players, others", () => {
+    expect(isActive("switch", "on", {})).toBe(true);
+    expect(isActive("light", "off", {})).toBe(false);
+    expect(isActive("cover", "closing", {})).toBe(true);
+    expect(isActive("cover", "open", {})).toBe(false);
+    expect(isActive("vacuum", "cleaning", {})).toBe(true);
+    expect(isActive("vacuum", "returning", {})).toBe(true);
+    expect(isActive("vacuum", "docked", {})).toBe(false);
+    expect(isActive("media_player", "playing", {})).toBe(true);
+    expect(isActive("media_player", "paused", {})).toBe(false);
+    expect(isActive("water_heater", "performance", {})).toBe(true);
+    for (const s of ["off", "idle", "unavailable", "unknown", "docked"]) expect(isActive("water_heater", s, {})).toBe(false);
+  });
+});
+
+describe("shading under the planned line", () => {
+  const plan = bp([{ start: 720, end: 1080, color: Y, value: 18 }], dflt, 1440);
+  const h = (m: number, temperature: number, current: number) => ({ m, state: "heat", attrs: { temperature, current_temperature: current } });
+
+  it("owner's example: active only 13:00-13:30, yellow, up to now (14:00)", () => {
+    const hist = [h(0, 15, 15), h(780, 18, 17), h(810, 18, 19)];
+    const periods = activePeriods(hist, "climate", 840);
+    expect(periods).toEqual([[780, 810]]);
+    expect(shadeActive(periods, plan.zones, 840)).toEqual([{ from: 780, to: 810, color: Y, value: 18 }]);
+  });
+  it("never goes past now", () => {
+    const periods = activePeriods([{ m: 0, state: "on", attrs: {} }], "switch", 600);
+    expect(periods).toEqual([[0, 600]]);
+    expect(shadeActive(periods, plan.zones, 600).slice(-1)[0].to).toBe(600);
+  });
+  it("cuts a period along the label in force", () => {
+    const shade = shadeActive([[660, 780]], plan.zones, 900);
+    expect(shade).toEqual([
+      { from: 660, to: 720, color: B, value: 15 },
+      { from: 720, to: 780, color: Y, value: 18 },
+    ]);
+  });
+  it("vacuum: cleaning then returning is one period", () => {
+    const hist = [
+      { m: 0, state: "docked", attrs: {} }, { m: 540, state: "cleaning", attrs: {} },
+      { m: 600, state: "returning", attrs: {} }, { m: 615, state: "docked", attrs: {} },
+    ];
+    expect(activePeriods(hist, "vacuum", 700)).toEqual([[540, 615]]);
+  });
+  it("no history, nothing active", () => {
+    expect(activePeriods([], "climate", 600)).toEqual([]);
+    expect(shadeActive([], plan.zones, 600)).toEqual([]);
+  });
+});
