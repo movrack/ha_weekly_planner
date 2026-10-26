@@ -138,9 +138,7 @@ def label_color(action: dict, position: int) -> str:
     if action["kind"] == "service":
         service, data = action["service"], action.get("data") or {}
         if service.endswith(".set_temperature") and isinstance(data.get("temperature"), (int, float)):
-            value = max(10, min(24, data["temperature"]))
-            hue = round(210 - (value - 10) / 14 * 210)
-            return _hsl_hex(hue, 0.7, 0.5)
+            return _temperature_color(data["temperature"])
         if service in ("cover.open_cover",) or service.endswith(".turn_on"):
             return "#ffb300"
         if service in ("cover.close_cover",) or service.endswith(".turn_off"):
@@ -148,11 +146,17 @@ def label_color(action: dict, position: int) -> str:
     return PALETTE[position % len(PALETTE)]
 
 
-def _hsl_hex(h: int, s: float, l: float) -> str:
-    import colorsys
+TEMPERATURE_STOPS = ((10, (33, 150, 243)), (17, (255, 193, 7)), (21, (255, 152, 0)), (24, (244, 67, 54)))
 
-    r, g, b = colorsys.hls_to_rgb(h / 360, l, s)
-    return "#{:02x}{:02x}{:02x}".format(round(r * 255), round(g * 255), round(b * 255))
+
+def _temperature_color(value: float) -> str:
+    """Blue when cold, amber then orange, red when hot (linear between fixed stops)."""
+    value = max(TEMPERATURE_STOPS[0][0], min(TEMPERATURE_STOPS[-1][0], value))
+    for (t0, c0), (t1, c1) in zip(TEMPERATURE_STOPS, TEMPERATURE_STOPS[1:]):
+        if value <= t1:
+            f = (value - t0) / (t1 - t0)
+            return "#{:02x}{:02x}{:02x}".format(*(round(a + (b - a) * f) for a, b in zip(c0, c1)))
+    return "#f44336"
 
 
 def migrate_config_v1(data: dict, language: str = "en") -> dict:
