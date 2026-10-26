@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.7.8] - 2026-10-26
+
+### Added
+- Copy conflicts: each day shows its bar before and after the copy, following the choice (replace or skip).
+
 ## [0.7.7] - 2026-10-26
 
 ### Added
