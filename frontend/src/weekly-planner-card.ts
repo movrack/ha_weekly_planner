@@ -4,7 +4,9 @@
 import { LitElement, css, html, nothing } from "lit";
 import { keyed } from "lit/directives/keyed.js";
 import { customElement, property, state } from "lit/decorators.js";
+import "./components/bar-editor";
 import "./components/day-bar";
+import { sunDir } from "./components/day-bar";
 import "./components/dialog";
 import "./components/labels-dialog";
 import "./components/schedule-dialog";
@@ -16,6 +18,7 @@ import { nb } from "./actions";
 import { actionText, entityAction, labelOf } from "./labels";
 import { strings, t } from "./i18n";
 import { loadServiceNames } from "./services";
+import { reloadIfOutdated } from "./update";
 import { activeProfile, entityDomain, filterPrograms, friendlyName, subscribePlanner } from "./planner";
 import { formatWhen, localDateIso, localMinutes, localWeekday, nominal, spillover, DAY } from "./time";
 import type { CardConfig, HomeAssistant, PlannerData, PreviewSlot, Program, Slot } from "./types";
@@ -44,6 +47,10 @@ export class WeeklyPlannerCard extends LitElement {
   @state() private _preview: Record<string, Record<string, PreviewSlot[]>> = {};
   @state() private _now = new Date();
   @state() private _week = new Set<string>();
+  /** Bar being edited in place (null: none), and the "Changed · Undo" bar. */
+  @state() private _edit: string | null = null;
+  @state() private _snack: { undo: () => Promise<boolean> } | null = null;
+  private _snackTimer?: number;
   private _unsub?: () => void;
   private _clock?: number;
   private _previewKey = "";
@@ -70,17 +77,51 @@ export class WeeklyPlannerCard extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
-    this._clock = window.setInterval(() => (this._now = new Date()), 60_000);
+    this._clock = window.setInterval(() => {
+      this._now = new Date();
+      this._checkVersion();
+    }, 60_000);
+    document.addEventListener("visibilitychange", this._visible);
+  }
+
+  private _visible = (): void => {
+    if (!document.hidden) this._checkVersion();
+  };
+
+  /** Page at rest: nothing open and no edit in progress. */
+  private get _idle(): boolean {
+    return !this._dialog && this._edit === null && !this._snack;
+  }
+
+  /** The integration serves a newer card: reload by itself once the page is idle (never in a loop). */
+  private _checkVersion(): void {
+    reloadIfOutdated(this._data?.card_version, this._idle);
+  }
+
+  private _showSnack(undo: () => Promise<boolean>): void {
+    this._snack = { undo };
+    window.clearTimeout(this._snackTimer);
+    this._snackTimer = window.setTimeout(() => (this._snack = null), 6000);
+  }
+
+  private async _undo(): Promise<void> {
+    const snack = this._snack;
+    window.clearTimeout(this._snackTimer);
+    this._snack = null;
+    await snack?.undo();
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
+    window.clearTimeout(this._snackTimer);
+    document.removeEventListener("visibilitychange", this._visible);
     this._unsub?.();
     this._unsub = undefined;
     window.clearInterval(this._clock);
   }
 
   updated(changed: Map<string, unknown>): void {
+    if (this._idle && this._data?.card_version) this._checkVersion();
     if (changed.has("hass") && this.hass && !this._unsub) {
       this._unsub = subscribePlanner(this.hass, (data) => {
         this._data = data;
@@ -142,10 +183,11 @@ export class WeeklyPlannerCard extends LitElement {
       const of = (slot: Slot) => entityAction(program, entityId, labelOf(data, slot.label));
       const mk = (slot: Slot, start: number, end: number, extra: Partial<BarSpan> = {}): BarSpan => {
         const label = labelOf(data, slot.label)!;
-        return { start, end, color: label.color, label: label.name, ...extra };
+        return { start, end, color: label.color, label: label.name, slotId: slot.id, startSun: sunDir(slot.start),
+          endSun: slot.end ? sunDir(slot.end) : null, marker: !slot.end, ...extra };
       };
       for (const { slot, end } of spillover(profile.days[(today + 6) % 7])) {
-        if (of(slot)) spans.push(mk(slot, 0, end));
+        if (of(slot)) spans.push(mk(slot, 0, end, { spill: true, startSun: null }));
       }
       const resolved = preview[program.id];
       for (const slot of profile.days[today]) {
@@ -183,6 +225,22 @@ export class WeeklyPlannerCard extends LitElement {
 
   /* ---- render ---- */
 
+  /** A bar that can be edited in place: today's (`kind` "today") or one of the week's. */
+  private _bar(entityId: string, program: Program, offset: number, kind: "today" | "week", openDay: () => void) {
+    const at = this._dateAt(offset);
+    const weekday = localWeekday(at, this._tz);
+    const date = localDateIso(at, this._tz);
+    const key = `${program.id}|${entityId}|${kind}|${weekday}`;
+    const programs = [program];
+    return html`<wp-bar-editor .hass=${this.hass} .data=${this._data} .program=${program} entity-id=${entityId}
+      weekday=${weekday} .spans=${this._spans(entityId, programs, offset)} .preview=${this._preview[date]?.[program.id]}
+      .now=${offset === 0 ? localMinutes(this._now, this._tz) : null} ?hours=${kind === "today"}
+      ?editing=${this._edit === key} ?editable=${Boolean(this._data?.can_edit) && !this._data?.read_only}
+      lang=${this._lang} tz=${this._tz}
+      @edit-request=${() => (this._edit = key)} @edit-exit=${() => { if (this._edit === key) this._edit = null; }}
+      @open-day=${openDay} @edited=${(e: CustomEvent<{ undo: () => Promise<boolean> }>) => this._showSnack(e.detail.undo)}></wp-bar-editor>`;
+  }
+
   private _line(entityId: string, programs: Program[], opts: { name: string | null; icon?: string; button: Scope | null; open: Scope }) {
     const lang = this._lang;
     const data = this._data!;
@@ -209,8 +267,7 @@ export class WeeklyPlannerCard extends LitElement {
         </div>
         <div class="today">
           <span class="wname">${t(lang, "today_short")}</span>
-          <wp-day-bar show-hours notches .spans=${this._spans(entityId, programs)} .now=${localMinutes(this._now, this._tz)}
-            @click=${open}></wp-day-bar>
+          ${this._bar(entityId, programs[0], 0, "today", open)}
         </div>
         ${this._weekRows(`${scopeKey(opts.open)}|${entityId}`, entityId, programs, opts.open)}
       </div>`;
@@ -234,9 +291,11 @@ export class WeeklyPlannerCard extends LitElement {
         ${[0, 1, 2, 3, 4, 5, 6].map((weekday) => {
           // the whole week, Monday to Sunday, each day at its next occurrence (today included)
           const o = (weekday - localWeekday(this._now, this._tz) + 7) % 7;
-          return html`<button class="wday" aria-label=${days[weekday]} @click=${() => this._open(scope, { weekday, offset: o })}>
-            <span class="wname ${o === 0 ? "today" : ""}">${days[weekday]}</span>
-            <wp-day-bar notches .spans=${this._spans(entityId, programs, o)}></wp-day-bar></button>`;
+          const openDay = () => this._open(scope, { weekday, offset: o });
+          return html`<div class="wday">
+            <button class="wnamebtn" aria-label=${days[weekday]} @click=${openDay}>
+              <span class="wname ${o === 0 ? "today" : ""}">${days[weekday]}</span></button>
+            ${this._bar(entityId, programs[0], o, "week", openDay)}</div>`;
         })}
       </div>` : nothing}`;
   }
@@ -285,6 +344,8 @@ export class WeeklyPlannerCard extends LitElement {
         ${data && !programs.length ? html`<div class="empty">${t(lang, "no_program")}</div>` : nothing}
         ${data ? this._bySchedule(programs) : nothing}
       </ha-card>
+      ${this._snack ? html`<div class="snack" role="status"><span>${t(lang, "edited")} ·</span>
+        <button @click=${() => void this._undo()}>${t(lang, "undo")}</button></div>` : nothing}
       ${this._renderDialog()}`;
   }
 
@@ -349,27 +410,38 @@ export class WeeklyPlannerCard extends LitElement {
     }
     button.hours:hover { background: var(--secondary-background-color); }
     .line button.hours { margin: -12px 0; }
-    wp-day-bar { cursor: pointer; margin-top: 2px; }
+    wp-bar-editor { margin-top: 2px; }
     .weekbtn {
       display: inline-flex; align-items: center; gap: 4px; min-height: 48px; padding: 0 8px 0 0; border: none;
       background: none; color: var(--primary-color); font: inherit; font-size: 14px; cursor: pointer; --mdc-icon-size: 20px;
     }
     .week { display: flex; flex-direction: column; gap: 0; padding-bottom: 4px; }
-    .wday {
-      display: flex; align-items: center; gap: 8px; min-height: 48px; width: 100%; padding: 0; border: none; border-radius: 8px;
-      background: none; color: inherit; font: inherit; cursor: pointer; text-align: left;
+    .wday { display: flex; align-items: flex-start; gap: 8px; min-height: 48px; width: 100%; }
+    .wnamebtn {
+      flex: none; width: 44px; height: 48px; padding: 0; border: none; border-radius: 8px; background: none; color: inherit;
+      font: inherit; cursor: pointer; text-align: left; display: flex; align-items: center;
     }
-    .wday:hover { background: var(--secondary-background-color); }
+    .wnamebtn:hover .wname { text-decoration: underline; }
+    .wday wp-bar-editor { margin: 10px 0; }
     .wname { flex: none; width: 36px; font-size: 14px; color: var(--secondary-text-color); }
-    .wday wp-day-bar, .today wp-day-bar { flex: 1; min-width: 0; }
+    .wday wp-bar-editor, .today wp-bar-editor { flex: 1; min-width: 0; }
     .wname.today { color: var(--primary-text-color); font-weight: 600; }
-    .today { display: flex; align-items: flex-start; gap: 8px; }
+    .today { display: flex; align-items: flex-start; gap: 8px; padding-top: 12px; }
     .today .wname { line-height: 28px; margin-top: 2px; }
     .prog { padding: 8px 0 4px; border-top: 1px solid var(--divider-color); }
     .prog:first-of-type, .head + .prog { border-top: none; }
     .prog .block { border-top: none; padding: 2px 0 4px; }
     .phead { display: flex; align-items: center; gap: 10px; min-height: 48px; --mdc-icon-size: 24px; }
     .phead h2 { flex: 1; min-width: 0; margin: 0; font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
+    .snack {
+      position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 8; display: flex; align-items: center; gap: 12px;
+      min-height: 48px; padding: 0 8px 0 16px; border-radius: 24px; font-size: 15px; white-space: nowrap;
+      background: var(--primary-text-color); color: var(--card-background-color, #fff); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    }
+    .snack button {
+      min-height: 48px; padding: 0 12px; border: none; background: none; font: inherit; font-weight: 600; cursor: pointer;
+      color: inherit; text-decoration: underline; border-radius: 24px;
+    }
     .empty { color: var(--primary-text-color); opacity: 0.8; padding: 16px 0; text-align: center; }
     .error { color: var(--error-color, #db4437); font-size: 14px; margin: 8px 0; }
     .adm { display: flex; flex-direction: column; gap: 8px; }
