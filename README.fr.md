@@ -198,8 +198,8 @@ python3 scripts/dev_onboard.py            # initialise l'instance locale (utilis
 ```
 
 `npm run watch` reconstruit à chaque modification, `npm run typecheck` vérifie les types. La spécification
-complète est dans [docs/SPEC.md](docs/SPEC.md) ; les procédures manuelles dans
-[docs/test-reel.md](docs/test-reel.md) et [docs/controle-visuel.md](docs/controle-visuel.md).
+complète est dans [docs/SPEC.md](docs/SPEC.md) ; le contrôle visuel manuel dans
+[docs/controle-visuel.md](docs/controle-visuel.md).
 
 ## Licence
 
