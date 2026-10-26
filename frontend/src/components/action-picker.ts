@@ -1,28 +1,20 @@
-// "What happens" for one device: the choices of its type (own modes, scenes, common modes) and the
-// few inputs the chosen one needs (temperature, position, light settings).
+// "What it does" for one device: a Home Assistant service accepting the device (with the input fields of
+// the chosen one, as `ha-selector`s), or a scene that contains it. Emits `action-change`.
 
 import { LitElement, css, html, nothing } from "lit";
-import type { TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { actionChoices, selectedChoice } from "../actions";
-import type { Act, Choice } from "../actions";
+import { scenesOf } from "../labels";
 import { t } from "../i18n";
-import { ensureHaSelector, entityDomain, fmtNum } from "../planner";
-import { isGenericEntity, loadServiceNames, serviceDomains, serviceFields, servicesFor, shortLabels } from "../services";
-import { editorStyles, langOf } from "../editors/setpoint-editor";
-import type { HomeAssistant, PlannerData, Setpoint } from "../types";
-
-const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
-const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
+import { ensureHaSelector } from "../planner";
+import { loadServiceNames, serviceDomains, serviceFields, servicesFor, shortLabels, startData } from "../services";
+import { editorStyles, langOf } from "../editors/shared";
+import type { Action, HomeAssistant } from "../types";
 
 @customElement("wp-action-picker")
 export class WpActionPicker extends LitElement {
   @property({ attribute: false }) hass!: HomeAssistant;
-  @property({ attribute: false }) data!: PlannerData;
   @property({ attribute: "entity-id" }) entityId = "";
-  @property({ attribute: false }) act: Act | null = null;
-  /** "The rest of the time": adds "do nothing" and "previous state", without scenes. */
-  @property({ type: Boolean }) rest = false;
+  @property({ attribute: false }) action: Action | null = null;
   @property({ type: Boolean }) disabled = false;
 
   /** Services shown as chips before "More actions". */
@@ -34,41 +26,50 @@ export class WpActionPicker extends LitElement {
   private get _lang(): string { return langOf(this.hass); }
 
   updated(): void {
-    if (!this.hass || !this.entityId || this.rest || !isGenericEntity(this.entityId) || this._loadedFor === this.entityId) return;
+    if (!this.hass || !this.entityId || this._loadedFor === this.entityId) return;
     this._loadedFor = this.entityId;
     void loadServiceNames(this.hass, serviceDomains(this.hass, this.entityId)).then((ok) => ok && this.requestUpdate());
     if (!this._selector) void ensureHaSelector().then((ok) => (this._selector = ok));
   }
 
+  private _emit(action: Action): void {
+    this.dispatchEvent(new CustomEvent("action-change", { detail: action, bubbles: true, composed: true }));
+  }
+
   private _setData(key: string, value: unknown): void {
-    const sp = this.act?.sp;
-    if (!sp) return;
-    const data = { ...((sp.data as Record<string, unknown> | undefined) ?? {}) };
+    if (this.action?.kind !== "service") return;
+    const data = { ...(this.action.data ?? {}) };
     const empty = value === undefined || value === null || value === "" || (Array.isArray(value) && !value.length);
     if (empty) delete data[key];
     else data[key] = value;
-    this._emit({ sp: { ...sp, data } });
+    this._emit({ ...this.action, data });
   }
 
-  /** Generic actions: the services accepting the entity, then the inputs of the chosen one. */
-  private _services(): unknown {
+  render() {
+    if (!this.hass || !this.entityId) return nothing;
     const lang = this._lang;
     const found = servicesFor(this.hass, this.entityId);
     const short = shortLabels(found.map((s) => s.label));
     const all = found.map((s, i) => ({ ...s, label: short[i] }));
-    const current = this.act?.sp.kind === "service" ? String(this.act.sp.service) : "";
+    const current = this.action?.kind === "service" ? this.action.service : "";
     const index = all.findIndex((s) => s.id === current);
     const open = this._more || index >= WpActionPicker.SHOWN;
     const shown = open ? all : all.slice(0, WpActionPicker.SHOWN);
-    const data = ((this.act?.sp as Record<string, unknown> | undefined)?.data ?? {}) as Record<string, unknown>;
+    const data = (this.action?.kind === "service" ? this.action.data ?? {} : {}) as Record<string, unknown>;
     const fields = current ? serviceFields(this.hass, current) : [];
-    const chip = (label: string, on: boolean, click: () => void) => html`
-      <button class="chip ${on ? "on" : ""}" role="radio" aria-checked=${on} ?disabled=${this.disabled} @click=${click}><span>${label}</span></button>`;
+    const scenes = scenesOf(this.hass, this.entityId);
+    const chip = (label: string, on: boolean, click: () => void, icon?: string) => html`
+      <button class="chip ${on ? "on" : ""}" role="radio" aria-checked=${on} ?disabled=${this.disabled} @click=${click}>
+        ${icon ? html`<ha-icon icon=${icon}></ha-icon>` : nothing}<span>${label}</span></button>`;
     return html`
       <div class="chips" role="radiogroup" aria-label=${t(lang, "action")}>
-        ${shown.map((s) => chip(s.label, s.id === current, () => this._emit({ sp: { kind: "service", service: s.id, data: {} } })))}
+        ${shown.map((s) => chip(s.label, s.id === current, () =>
+          this._emit({ kind: "service", service: s.id, data: startData(this.hass, s.id, this.entityId) })))}
         ${!open && all.length > WpActionPicker.SHOWN
           ? html`<button class="chip add" ?disabled=${this.disabled} @click=${() => (this._more = true)}>${t(lang, "more_actions")}</button>` : nothing}
+        ${scenes.map((s) => chip(String(s.attributes.friendly_name ?? s.entity_id),
+          this.action?.kind === "scene" && this.action.scene === s.entity_id,
+          () => this._emit({ kind: "scene", scene: s.entity_id }), "mdi:palette-outline"))}
       </div>
       ${fields.map((f) => this._selector
         ? html`<ha-selector class="fld" .hass=${this.hass} .selector=${f.selector} .value=${data[f.key]} .label=${f.label}
@@ -78,115 +79,7 @@ export class WpActionPicker extends LitElement {
             @change=${(e: Event) => this._setData(f.key, (e.target as HTMLInputElement).value)} /></div>`)}`;
   }
 
-  private _emit(act: Act): void {
-    this.dispatchEvent(new CustomEvent("act-change", { detail: act, bubbles: true, composed: true }));
-  }
-
-  private _choices(): Choice[] {
-    return actionChoices(this.hass, this._lang, this.data.modes, this.entityId, !this.rest);
-  }
-
-  private _pick(choice: Choice): void {
-    this._emit({ ...choice.act, sp: structuredClone(choice.act.sp) });
-  }
-
-  private _patch(patch: Record<string, unknown>, drop: string[] = []): void {
-    const sp = { ...(this.act?.sp ?? { kind: "on" }), ...patch } as Record<string, unknown>;
-    for (const key of drop) delete sp[key];
-    this._emit({ sp: sp as Setpoint });
-  }
-
-  private _stepper(
-    label: string, value: string, onMinus: () => void, onPlus: () => void, onClear?: () => void,
-  ): TemplateResult {
-    return html`<div class="stepper" role="group" aria-label=${label}>
-      <span class="lbl">${label}</span>
-      <button class="ibtn round" ?disabled=${this.disabled} aria-label="−" @click=${onMinus}><ha-icon icon="mdi:minus"></ha-icon></button>
-      <output>${value}</output>
-      <button class="ibtn round" ?disabled=${this.disabled} aria-label="+" @click=${onPlus}><ha-icon icon="mdi:plus"></ha-icon></button>
-      ${onClear ? html`<button class="ibtn round" ?disabled=${this.disabled} aria-label=${t(this._lang, "clear")} @click=${onClear}><ha-icon icon="mdi:close"></ha-icon></button>` : nothing}
-    </div>`;
-  }
-
-  private _params(choice: Choice | undefined): unknown {
-    if (!choice?.param || !this.act) return nothing;
-    const lang = this._lang;
-    const a = this.hass.states[this.entityId]?.attributes ?? {};
-    const sp = this.act.sp as Record<string, unknown>;
-    if (choice.param === "temperature") {
-      const min = num(a.min_temp) ?? 5;
-      const max = num(a.max_temp) ?? 35;
-      const v = num(sp.temperature) ?? 19;
-      const set = (n: number) => this._patch({ temperature: clamp(Math.round(n * 2) / 2, min, max) });
-      return this._stepper(t(lang, "act_temp"), `${fmtNum(lang, v)} °C`, () => set(v - 0.5), () => set(v + 0.5));
-    }
-    if (choice.param === "position") {
-      const v = num(sp.position) ?? 50;
-      const set = (n: number) => this._patch({ position: clamp(Math.round(n / 5) * 5, 0, 100) });
-      return html`${this._stepper(t(lang, "act_pos"), `${v} %`, () => set(v - 10), () => set(v + 10))}
-        <input type="range" min="0" max="100" step="5" .value=${String(v)} ?disabled=${this.disabled}
-          aria-label=${t(lang, "act_pos")} @change=${(e: Event) => set(Number((e.target as HTMLInputElement).value))} />`;
-    }
-    // light: brightness, colour temperature and effect, each optional and collapsed until set
-    const modes = (a.supported_color_modes as string[] | undefined) ?? [];
-    const effects = ((a.effect_list as string[] | undefined) ?? []).filter((x) => x !== "off");
-    const rows: TemplateResult[] = [];
-    const adders: TemplateResult[] = [];
-    const adder = (name: string, patch: Record<string, unknown>) => adders.push(html`
-      <button class="chip add" ?disabled=${this.disabled} @click=${() => this._patch(patch)}>${t(lang, "add_param", { name })}</button>`);
-    if (modes.some((m) => m !== "onoff")) {
-      const b = num(sp.brightness);
-      const set = (n: number) => this._patch({ brightness: clamp(Math.round(n / 5) * 5, 5, 100) });
-      if (b === null) adder(t(lang, "act_brightness"), { brightness: 80 });
-      else rows.push(this._stepper(t(lang, "act_brightness"), `${b} %`, () => set(b - 10), () => set(b + 10), () => this._patch({}, ["brightness"])));
-    }
-    if (modes.includes("color_temp")) {
-      const lo = num(a.min_color_temp_kelvin) ?? 2000;
-      const hi = num(a.max_color_temp_kelvin) ?? 6500;
-      const k = num(sp.color_temp_kelvin);
-      const set = (n: number) => this._patch({ color_temp_kelvin: clamp(Math.round(n / 100) * 100, lo, hi) });
-      if (k === null) adder(t(lang, "act_kelvin"), { color_temp_kelvin: clamp(2700, lo, hi) });
-      else rows.push(this._stepper(t(lang, "act_kelvin"), `${k} K`, () => set(k - 200), () => set(k + 200), () => this._patch({}, ["color_temp_kelvin"])));
-    }
-    if (effects.length) {
-      if (!sp.effect) adder(t(lang, "act_effect"), { effect: effects[0] });
-      else rows.push(html`<div class="stepper"><span class="lbl">${t(lang, "act_effect")}</span>
-        <select class="grow" ?disabled=${this.disabled} aria-label=${t(lang, "act_effect")}
-          @change=${(e: Event) => this._patch({ effect: (e.target as HTMLSelectElement).value })}>
-          ${effects.map((x) => html`<option value=${x} ?selected=${x === sp.effect}>${x}</option>`)}
-        </select>
-        <button class="ibtn round" ?disabled=${this.disabled} aria-label=${t(lang, "clear")} @click=${() => this._patch({}, ["effect"])}><ha-icon icon="mdi:close"></ha-icon></button></div>`);
-    }
-    return html`${rows}${adders.length ? html`<div class="chips adders">${adders}</div>` : nothing}`;
-  }
-
-  render() {
-    if (!this.hass || !this.data || !this.entityId) return nothing;
-    const lang = this._lang;
-    const choices = this._choices();
-    const chosen = this.act?.special ? undefined : selectedChoice(choices, this.act);
-    const custom = this.act && !this.act.special && !chosen;
-    const domain = entityDomain(this.entityId);
-    const generic = !this.rest && isGenericEntity(this.entityId);
-    if (generic && !choices.length) return this._services();
-    const chip = (label: string, on: boolean, click: () => void, icon?: string) => html`
-      <button class="chip ${on ? "on" : ""}" role="radio" aria-checked=${on} ?disabled=${this.disabled} @click=${click}>
-        ${icon ? html`<ha-icon icon=${icon}></ha-icon>` : nothing}<span>${label}</span></button>`;
-    return html`
-      <div class="chips" role="radiogroup" aria-label=${t(lang, "action")}>
-        ${custom ? chip(t(lang, "act_custom"), true, () => undefined) : nothing}
-        ${choices.map((c) => chip(c.label, chosen?.id === c.id, () => this._pick(c),
-          c.group === "scene" ? "mdi:palette-outline" : undefined))}
-        ${this.rest ? html`
-          ${chip(t(lang, "rest_none"), this.act?.special === "none", () => this._emit({ sp: { kind: "off" }, special: "none" }))}
-          ${chip(t(lang, "rest_previous"), this.act?.special === "previous", () => this._emit({ sp: { kind: "off" }, special: "previous" }))}` : nothing}
-      </div>
-      ${domain ? this._params(chosen) : nothing}
-      ${generic ? this._services() : nothing}`;
-  }
-
   static styles = [editorStyles, css`
-    .chip span { white-space: normal; text-align: left; overflow-wrap: anywhere; }
     :host { display: block; }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; }
     .chip {
@@ -197,14 +90,7 @@ export class WpActionPicker extends LitElement {
     .chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .chip.on { background: var(--primary-color); border-color: var(--primary-color); color: var(--text-primary-color, #fff); font-weight: 600; }
     .chip:disabled { opacity: 0.5; cursor: default; }
-    .stepper { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-    .stepper .lbl { flex: 1 1 100%; font-size: 13px; color: var(--secondary-text-color); }
-    .stepper output { min-width: 84px; text-align: center; font-size: 22px; font-weight: 600; }
-    .ibtn.round { border: 1px solid var(--divider-color); }
-    input[type="range"] { width: 100%; min-height: 48px; margin: 4px 0 0; accent-color: var(--primary-color); }
-    .adders { margin-top: 8px; }
-    .chip.add { border-style: dashed; color: var(--primary-color); min-height: 48px; }
-    .stepper select { flex: 1; min-width: 0; }
+    .chip.add { border-style: dashed; color: var(--primary-color); }
     .fld { display: block; margin-top: 8px; }
   `];
 }

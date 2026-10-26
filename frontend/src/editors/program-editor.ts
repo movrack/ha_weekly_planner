@@ -1,29 +1,20 @@
-// Program editor: General / Entities / Week tabs. Works on a copy and only saves on "Save".
+// Program settings: General / Devices / Seasons tabs. Works on a copy and only saves on "Save".
+// The slots themselves are edited in the schedule screen.
 
 import { LitElement, css, html, nothing, unsafeCSS } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { keyed } from "lit/directives/keyed.js";
-import "../components/day-bar";
 import "../components/dialog";
 import { confirmAction } from "../components/confirm";
 import { displayName, scrollHintCss, trackScrollHints } from "../components/gestures";
 import { strings, t } from "../i18n";
-import { isGenericEntity } from "../services";
-import { ensureHaSelector, entityDomain, newId } from "../planner";
-import { spillover } from "../time";
-import type {
-  Condition, HomeAssistant, PlannerData, Profile, Program, ProgramEntity, Setpoint, Slot,
-} from "../types";
-import { daySpans, findOverlap, sortSlots } from "./day-editor";
-import "./day-editor";
-import "./slot-editor";
-import "./setpoint-editor";
-import {
-  defaultSetpoint, editorStyles, langOf, modeTypeOf, typeLabel,
-} from "./setpoint-editor";
-import type { K } from "./setpoint-editor";
+import { ensureHaSelector, newId } from "../planner";
+import type { Condition, HomeAssistant, PlannerData, Profile, Program, ProgramEntity, Slot } from "../types";
+import "./shared";
+import { editorStyles, langOf } from "./shared";
+import type { K } from "./shared";
 
-type Tab = "general" | "entities" | "week";
+type Tab = "general" | "entities" | "seasons";
 type Closable = HTMLElement & { close(): void };
 
 const EMPTY_DAYS = (): Slot[][] => [[], [], [], [], [], [], []];
@@ -38,14 +29,11 @@ export class WpProgramEditor extends LitElement {
   @property({ attribute: false }) data!: PlannerData;
   @property({ attribute: false }) program?: Program;
   @property({ attribute: false }) defaultTypes: string[] = [];
-  @property({ type: Number }) day?: number;
 
   @state() private _p!: Program;
   @state() private _isNew = true;
   @state() private _tab: Tab = "general";
   @state() private _profileId = "";
-  @state() private _dayView?: number;
-  @state() private _slotEdit?: { slot: Slot; isNew: boolean };
   @state() private _error = "";
   @state() private _saving = false;
   @state() private _picker = Boolean(customElements.get("ha-selector"));
@@ -54,7 +42,6 @@ export class WpProgramEditor extends LitElement {
     super.connectedCallback();
     if (!this._picker) void ensureHaSelector().then((ok) => (this._picker = ok));
   }
-  @state() private _copy?: { from: number; targets: number[]; profileId: string; slotId?: string };
   @state() private _profileForm?: { mode: "add" | "rename" | "copy"; name: string };
   private _ready = false;
 
@@ -77,14 +64,13 @@ export class WpProgramEditor extends LitElement {
       const pid = newId();
       this._p = {
         id: "", revision: 0, name: "", icon: "mdi:calendar-clock", priority: 10, enabled: true, reapply: true,
-        main_type: this.defaultTypes[0] ?? null, conditions: [], entities: [], active_profile: pid,
+        conditions: [], entities: [], active_profile: pid,
         profiles: [{ id: pid, name: this._tr("profile_default"), days: EMPTY_DAYS() }],
       };
       this._isNew = true;
     }
     this._profileId = this._activeId();
-    this._dayView = this.day;
-    this._tab = this.day !== undefined ? "week" : "general";
+    this._tab = "general";
   }
 
   private _activeId(): string {
@@ -102,13 +88,6 @@ export class WpProgramEditor extends LitElement {
     this._error = "";
   }
 
-  private _types(): string[] {
-    const set = new Set<string>();
-    if (this._p.main_type) set.add(this._p.main_type);
-    for (const e of this._p.entities) set.add(modeTypeOf(entityDomain(e.entity_id)));
-    return [...set];
-  }
-
   private _canEdit(): boolean {
     return this.data.can_edit && !this.data.read_only;
   }
@@ -117,18 +96,6 @@ export class WpProgramEditor extends LitElement {
 
   private _setProfile(profile: Profile): void {
     this._patch({ profiles: this._p.profiles.map((x) => (x.id === profile.id ? profile : x)) });
-  }
-
-  private _setDay(day: number, slots: Slot[], profileId = this._profileId): void {
-    const profile = this._p.profiles.find((x) => x.id === profileId);
-    if (!profile) return;
-    const days = profile.days.map((d, i) => (i === day ? sortSlots(this.hass, slots) : d));
-    this._setProfile({ ...profile, days });
-  }
-
-  private _spill(profile: Profile, day: number): number {
-    const prev = profile.days[(day + 6) % 7] ?? [];
-    return spillover(prev).reduce((m, x) => Math.max(m, x.end), 0);
   }
 
   private _submitProfileForm(): void {
@@ -163,47 +130,6 @@ export class WpProgramEditor extends LitElement {
     if (!profiles.some((x) => x.id === this._profileId)) this._profileId = profiles[0].id;
   }
 
-  private _applyCopy(): void {
-    const copy = this._copy;
-    if (!copy) return;
-    const source = this._profile.days[copy.from] ?? [];
-    const one = copy.slotId ? source.find((x) => x.id === copy.slotId) : undefined;
-    const skipped: number[] = [];
-    let p = this._p;
-    for (const target of copy.targets) {
-      if (target === copy.from && copy.profileId === this._profileId) continue;
-      p = {
-        ...p,
-        profiles: p.profiles.map((x) => {
-          if (x.id !== copy.profileId) return x;
-          return {
-            ...x,
-            days: x.days.map((d, i) => {
-              if (i !== target) return d;
-              if (!one) return cloneSlots(source);
-              const next = sortSlots(this.hass, [...d, ...cloneSlots([one])]);
-              if (findOverlap(next)) { skipped.push(target); return d; }
-              return next;
-            }),
-          };
-        }),
-      };
-    }
-    this._p = p;
-    this._copy = undefined;
-    this._error = skipped.length
-      ? this._tr("copy_slot_overlap", { days: skipped.map((d) => this._long(d)).join(", ") })
-      : "";
-  }
-
-  private _saveSlot(slot: Slot): void {
-    const day = this._dayView;
-    if (day === undefined) return;
-    const slots = this._profile.days[day];
-    const exists = slots.some((s) => s.id === slot.id);
-    this._setDay(day, exists ? slots.map((s) => (s.id === slot.id ? slot : s)) : [...slots, slot]);
-  }
-
   /* ---- entities ---- */
 
   private _setEntity(index: number, patch: Partial<ProgramEntity>): void {
@@ -212,25 +138,8 @@ export class WpProgramEditor extends LitElement {
 
   private _addEntity(entityId: string): void {
     if (!entityId || this._p.entities.some((e) => e.entity_id === entityId)) return;
-    const type = modeTypeOf(entityDomain(entityId));
-    // propose a sensible default: the "eco"/"off"/"closed" mode of the type when there is one
-    const modes = this.data.modes.filter((m) => m.type === type);
-    const preferred = modes.find((m) => /eco|off|closed/.test(m.id)) ?? modes[0];
-    const def = preferred ? { kind: "mode" as const, value: preferred.id } : { kind: "none" as const };
     this._pickerKey += 1;
-    this._patch({
-      entities: [...this._p.entities, { entity_id: entityId, default: def, force_permanent: false }],
-      main_type: this._p.main_type || type,
-    });
-  }
-
-  private _setDefaultKind(index: number, kind: ProgramEntity["default"]["kind"]): void {
-    const entity = this._p.entities[index];
-    const type = modeTypeOf(entityDomain(entity.entity_id));
-    let value: ProgramEntity["default"]["value"] = undefined;
-    if (kind === "mode") value = this.data.modes.find((m) => m.type === type)?.id ?? "";
-    if (kind === "setpoint") value = defaultSetpoint(this.hass, entity.entity_id);
-    this._setEntity(index, { default: value === undefined ? { kind } : { kind, value } });
+    this._patch({ entities: [...this._p.entities, { entity_id: entityId, default_label: null, label_overrides: {} }] });
   }
 
   /* ---- save / delete ---- */
@@ -242,13 +151,6 @@ export class WpProgramEditor extends LitElement {
     if (p.conditions.some((c) => !c.entity_id)) return this._tr("err_incomplete");
     const names = p.profiles.map((x) => x.name.trim());
     if (new Set(names).size !== names.length) return this._tr("err_profile_name");
-    for (const profile of p.profiles) {
-      for (let d = 0; d < 7; d++) {
-        if (findOverlap(profile.days[d])) {
-          return this._tr("err_overlap_day", { profile: profile.name, day: this._long(d) });
-        }
-      }
-    }
     return "";
   }
 
@@ -256,16 +158,8 @@ export class WpProgramEditor extends LitElement {
     const p = structuredClone(this._p);
     const ids = new Set(p.entities.map((e) => e.entity_id));
     p.name = p.name.trim();
-    p.profiles = p.profiles.map((profile) => ({
-      ...profile,
-      days: profile.days.map((slots) =>
-        slots.map((slot) => {
-          const by_entity = Object.fromEntries(Object.entries(slot.actions.by_entity).filter(([id]) => ids.has(id)));
-          return { ...slot, actions: { ...slot.actions, by_entity } };
-        })),
-    }));
+    p.entities = p.entities.filter((e) => ids.has(e.entity_id));
     if (this._isNew) delete (p as Partial<Program>).id;
-    if (!p.main_type) p.main_type = null;
     return p;
   }
 
@@ -350,7 +244,6 @@ export class WpProgramEditor extends LitElement {
 
   private _renderGeneral() {
     const p = this._p;
-    const types = this._types();
     return html`
       <div class="field"><label for="f-name">${this._tr("pe_name")}</label>
         <input id="f-name" type="text" maxlength="60" .value=${p.name}
@@ -373,12 +266,6 @@ export class WpProgramEditor extends LitElement {
       <label class="check"><input type="checkbox" .checked=${p.reapply}
         @change=${(e: Event) => this._patch({ reapply: (e.target as HTMLInputElement).checked })} /> ${this._tr("pe_reapply")}</label>
       <p class="hint">${this._tr("pe_reapply_hint")}</p>
-      ${types.length
-        ? html`<div class="field"><label for="f-main">${this._tr("pe_main_type")}</label>
-            <select id="f-main" @change=${(e: Event) => this._patch({ main_type: (e.target as HTMLSelectElement).value })}>
-              ${types.map((ty) => html`<option value=${ty} ?selected=${ty === (p.main_type || types[0])}>${typeLabel(this._lang, ty)}</option>`)}
-            </select></div>`
-        : nothing}
       <h3>${this._tr("pe_conditions")}</h3>
       <p class="hint">${this._tr("pe_conditions_hint")}</p>
       <wp-conditions-editor .hass=${this.hass} .conditions=${p.conditions as Condition[]}
@@ -408,11 +295,6 @@ export class WpProgramEditor extends LitElement {
   }
 
   private _renderEntity(e: ProgramEntity, index: number) {
-    const type = modeTypeOf(entityDomain(e.entity_id));
-    const attrs = this.hass.states[e.entity_id]?.attributes ?? {};
-    const hasPermanent = Array.isArray(attrs.preset_modes) && attrs.preset_modes.includes("permanent");
-    const modes = this.data.modes.filter((m) => m.type === type);
-    const kind = e.default?.kind ?? "none";
     return html`
       <div class="card">
         <div class="row" style="flex-wrap:nowrap">
@@ -421,34 +303,10 @@ export class WpProgramEditor extends LitElement {
           <button class="ibtn" aria-label=${`${this._tr("delete")} ${displayName(this.hass, e.entity_id)}`}
             @click=${() => void this._askDeleteEntity(index)}><ha-icon icon="mdi:delete"></ha-icon></button>
         </div>
-        ${isGenericEntity(e.entity_id) ? nothing : html`<div class="field"><label>${this._tr("pe_default")}</label>
-          <select @change=${(ev: Event) => this._setDefaultKind(index, (ev.target as HTMLSelectElement).value as ProgramEntity["default"]["kind"])}>
-            <option value="none" ?selected=${kind === "none"}>${this._tr("pe_default_none")}</option>
-            <option value="previous" ?selected=${kind === "previous"}>${this._tr("pe_default_previous")}</option>
-            <option value="mode" ?selected=${kind === "mode"}>${this._tr("pe_default_mode")}</option>
-            <option value="setpoint" ?selected=${kind === "setpoint"}>${this._tr("pe_default_setpoint")}</option>
-          </select></div>`}
-        ${kind === "mode"
-          ? html`<div class="field"><select aria-label=${this._tr("pe_default_mode")}
-              @change=${(ev: Event) => this._setEntity(index, { default: { kind: "mode", value: (ev.target as HTMLSelectElement).value } })}>
-              ${modes.map((m) => html`<option value=${m.id} ?selected=${m.id === e.default.value}>${m.name}</option>`)}
-            </select></div>`
-          : nothing}
-        ${kind === "setpoint"
-          ? html`<wp-setpoint-editor .hass=${this.hass} entity-id=${e.entity_id} .admin=${Boolean(this.data.is_admin)}
-              .value=${(e.default.value as Setpoint | null) ?? null}
-              @wp-change=${(ev: CustomEvent) => { ev.stopPropagation(); this._setEntity(index, { default: { kind: "setpoint", value: ev.detail } }); }}></wp-setpoint-editor>`
-          : nothing}
-        ${hasPermanent || e.force_permanent
-          ? html`<label class="check"><input type="checkbox" .checked=${Boolean(e.force_permanent)}
-              @change=${(ev: Event) => this._setEntity(index, { force_permanent: (ev.target as HTMLInputElement).checked })} />
-              ${this._tr("pe_permanent")}</label>
-              <p class="hint">${this._tr("pe_permanent_hint")}</p>`
-          : nothing}
       </div>`;
   }
 
-  private _renderWeek() {
+  private _renderSeasons() {
     const p = this._p;
     const profile = this._profile;
     const active = this._activeId();
@@ -456,7 +314,7 @@ export class WpProgramEditor extends LitElement {
     return html`
       <div class="row profile-bar">
         <div class="field" style="flex:1 1 160px"><label for="f-profile">${this._tr("profile")}</label>
-          <select id="f-profile" @change=${(e: Event) => { this._profileId = (e.target as HTMLSelectElement).value; this._dayView = undefined; }}>
+          <select id="f-profile" @change=${(e: Event) => { this._profileId = (e.target as HTMLSelectElement).value; }}>
             ${p.profiles.map((x) => html`<option value=${x.id} ?selected=${x.id === profile.id}>${x.name}${x.id === active ? ` (${this._tr("profile_active")})` : ""}</option>`)}
           </select></div>
         <button class="ibtn" aria-label=${this._tr("profile_add")} title=${this._tr("profile_add")}
@@ -481,80 +339,13 @@ export class WpProgramEditor extends LitElement {
               <button class="btn" @click=${() => (this._profileForm = undefined)}>${this._tr("cancel")}</button></div>
           </div>`
         : nothing}
-      ${this._dayView === undefined ? this._renderDays(profile) : this._renderDayEditor(profile, this._dayView)}
     `;
-  }
-
-  private _renderDays(profile: Profile) {
-    return html`${profile.days.map((slots, d) => {
-      const spans = daySpans(this.hass, this.data, this._p, slots, this._spill(profile, d));
-      const name = this._long(d);
-      return html`
-        <div class="dayrow">
-          <button class="dname" @click=${() => (this._dayView = d)} aria-label=${`${this._tr("edit")} ${name}`}>${this._short(d)}</button>
-          <div class="grow bar" @click=${() => (this._dayView = d)}><wp-day-bar .spans=${spans}></wp-day-bar></div>
-          <button class="ibtn" aria-label=${`${this._tr("edit")} ${name}`} @click=${() => (this._dayView = d)}><ha-icon icon="mdi:pencil"></ha-icon></button>
-          <button class="ibtn" aria-label=${`${this._tr("copy_day")} ${name}`} title=${this._tr("copy_day")}
-            @click=${() => (this._copy = { from: d, targets: [], profileId: profile.id })}><ha-icon icon="mdi:content-copy"></ha-icon></button>
-        </div>`;
-    })}`;
-  }
-
-  private _renderDayEditor(profile: Profile, day: number) {
-    return html`
-      <div class="row daynav">
-        <button class="btn" @click=${() => (this._dayView = undefined)}><ha-icon icon="mdi:arrow-left"></ha-icon> ${this._tr("week")}</button>
-        <span class="grow"></span>
-        <button class="ibtn" aria-label=${this._tr("previous_day")} @click=${() => (this._dayView = (day + 6) % 7)}><ha-icon icon="mdi:chevron-left"></ha-icon></button>
-        <strong>${this._long(day)}</strong>
-        <button class="ibtn" aria-label=${this._tr("next_day")} @click=${() => (this._dayView = (day + 1) % 7)}><ha-icon icon="mdi:chevron-right"></ha-icon></button>
-      </div>
-      <wp-day-editor .hass=${this.hass} .data=${this.data} .program=${this._p} .day=${day}
-        .slots=${profile.days[day]} .spill=${this._spill(profile, day)}
-        @wp-change=${(e: CustomEvent) => { e.stopPropagation(); this._setDay(day, e.detail); }}
-        @edit-slot=${(e: CustomEvent) => { e.stopPropagation(); this._slotEdit = e.detail; }}
-        @copy-slot=${(e: CustomEvent) => {
-          e.stopPropagation();
-          this._copy = { from: day, targets: [], profileId: profile.id, slotId: (e.detail.slot as Slot).id };
-        }}></wp-day-editor>
-    `;
-  }
-
-  /* ---- render: dialogs ---- */
-
-  private _renderCopy() {
-    const copy = this._copy;
-    if (!copy) return nothing;
-    const set = (targets: number[]) => (this._copy = { ...copy, targets });
-    const days = [0, 1, 2, 3, 4, 5, 6];
-    return html`
-      <wp-dialog open heading=${copy.slotId ? this._tr("copy_slot") : `${this._tr("copy_day")} — ${this._long(copy.from)}`}
-        @closed=${(e: Event) => { e.stopPropagation(); this._copy = undefined; }}>
-        <div class="row">
-          <button class="btn" @click=${() => set([0, 1, 2, 3, 4])}>${this._tr("copy_mon")} <ha-icon icon="mdi:arrow-right"></ha-icon> ${this._tr("copy_fri")}</button>
-          <button class="btn" @click=${() => set([5, 6])}>${this._tr("copy_weekend")}</button>
-          <button class="btn" @click=${() => set(days)}>${this._tr("copy_all")}</button>
-        </div>
-        <div class="row" role="group" aria-label=${this._tr("copy_choose")}>
-          ${days.map((d) => html`<label class="check"><input type="checkbox" .checked=${copy.targets.includes(d)}
-            @change=${(e: Event) => set((e.target as HTMLInputElement).checked ? [...copy.targets, d] : copy.targets.filter((x) => x !== d))} />
-            ${this._short(d)}</label>`)}
-        </div>
-        <div class="field"><label>${this._tr("profile")}</label>
-          <select @change=${(e: Event) => (this._copy = { ...copy, profileId: (e.target as HTMLSelectElement).value })}>
-            ${this._p.profiles.map((x) => html`<option value=${x.id} ?selected=${x.id === copy.profileId}>${x.name}</option>`)}
-          </select></div>
-        <p class="hint">${this._tr(copy.slotId ? "copy_slot_hint" : "copy_warning")}</p>
-        <button slot="footer" class="btn" @click=${() => (this._copy = undefined)}>${this._tr("cancel")}</button>
-        <button slot="footer" class="btn primary" ?disabled=${!copy.targets.length} @click=${() => this._applyCopy()}>${this._tr("copy")}</button>
-      </wp-dialog>`;
   }
 
   render() {
     if (!this._p) return nothing;
-    const tabs: [Tab, K][] = [["general", "tab_general"], ["entities", "tab_entities"], ["week", "tab_week"]];
+    const tabs: [Tab, K][] = [["general", "tab_general"], ["entities", "tab_entities"], ["seasons", "tab_seasons"]];
     const editable = this._canEdit();
-    const day = this._dayView;
     return html`
       <wp-dialog id="main" open wide heading=${this._isNew ? this._tr("new_program") : this._p.name || this._tr("title")}>
         ${!editable ? html`<p class="error" role="alert">${this._tr("read_only")}</p>` : nothing}
@@ -563,7 +354,7 @@ export class WpProgramEditor extends LitElement {
             @click=${() => (this._tab = id)}>${this._tr(label)}</button>`)}
         </div>
         <div role="tabpanel">
-          ${this._tab === "general" ? this._renderGeneral() : this._tab === "entities" ? this._renderEntities() : this._renderWeek()}
+          ${this._tab === "general" ? this._renderGeneral() : this._tab === "entities" ? this._renderEntities() : this._renderSeasons()}
         </div>
         ${this._error ? html`<p class="error" role="alert">${this._error}</p>` : nothing}
         ${!this._isNew
@@ -577,13 +368,6 @@ export class WpProgramEditor extends LitElement {
               @click=${() => void this._askDelete()}><ha-icon icon="mdi:delete"></ha-icon> ${this._tr("delete")}</button>`
           : nothing}
       </wp-dialog>
-      ${this._renderCopy()}
-      ${this._slotEdit && day !== undefined
-        ? html`<wp-slot-editor .hass=${this.hass} .data=${this.data} .program=${this._p} .entry=${this._slotEdit.slot}
-            .others=${this._profile.days[day].filter((s) => s.id !== this._slotEdit!.slot.id)}
-            @wp-save=${(e: CustomEvent) => { e.stopPropagation(); this._saveSlot(e.detail); }}
-            @closed=${(e: Event) => { e.stopPropagation(); this._slotEdit = undefined; }}></wp-slot-editor>`
-        : nothing}
     `;
   }
 
@@ -607,13 +391,6 @@ export class WpProgramEditor extends LitElement {
       }
       @media (min-width: 521px) { .del { order: -1; margin-right: auto; } }
       .profile-bar { align-items: flex-end; gap: 4px; }
-      .dayrow { display: flex; align-items: center; gap: 4px; padding: 4px 0; }
-      .dname {
-        flex: none; width: 44px; min-height: 48px; border: none; background: none; color: inherit;
-        font-weight: 600; text-align: left; cursor: pointer;
-      }
-      .bar { cursor: pointer; }
-      .daynav { margin: 8px 0; }
       @media (max-width: 480px) { .btn { padding: 0 12px; } }
     `,
   ];

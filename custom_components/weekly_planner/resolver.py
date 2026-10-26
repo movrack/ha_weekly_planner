@@ -33,7 +33,8 @@ class Segment:
     key: tuple  # identity: ("slot", program, slot, start_iso) | ("default", program) | ("free",)
     program_id: str | None
     slot_id: str | None
-    action: dict | None  # None: nothing to send (free entity, or no default action)
+    action: dict | None  # None: nothing to send (free entity, or no default label / incompatible)
+    label: str | None = None  # id of the label the action comes from
     start: datetime | None = None
     end: datetime | None = None
 
@@ -126,12 +127,14 @@ def resolve_entity(
                 program["id"],
                 slot["id"],
                 resolve(program, entity_id, slot.get("label")),
+                slot.get("label"),
                 start=occ.start,
                 end=occ.end,
             )
 
     owner = candidates[0]
-    return Segment(("default", owner["id"]), owner["id"], None, resolve(owner, entity_id, default_label(owner, entity_id)))
+    label = default_label(owner, entity_id)
+    return Segment(("default", owner["id"]), owner["id"], None, resolve(owner, entity_id, label), label)
 
 
 def next_transition(

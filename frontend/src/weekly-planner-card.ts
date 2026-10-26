@@ -6,12 +6,14 @@ import { keyed } from "lit/directives/keyed.js";
 import { customElement, property, state } from "lit/decorators.js";
 import "./components/day-bar";
 import "./components/dialog";
+import "./components/labels-dialog";
 import "./components/schedule-dialog";
 import "./editors/program-editor";
 import type { BarSpan } from "./components/day-bar";
 import { scopeKey } from "./components/schedule-dialog";
 import type { Scope } from "./components/schedule-dialog";
-import { actColor, actText, nb, readAct, stateText } from "./actions";
+import { nb } from "./actions";
+import { actionText, entityAction, labelOf } from "./labels";
 import { strings, t } from "./i18n";
 import { loadServiceNames } from "./services";
 import { activeProfile, entityDomain, filterPrograms, friendlyName, subscribePlanner } from "./planner";
@@ -22,6 +24,7 @@ type Dialog =
   | { kind: "schedule"; scope: Scope; day?: { weekday: number; offset: number } }
   | { kind: "program"; program?: Program }
   | { kind: "admin" }
+  | { kind: "labels" }
   | null;
 
 const ICONS: Record<string, string> = {
@@ -101,21 +104,10 @@ export class WeeklyPlannerCard extends LitElement {
     return new Date(this._now.getTime() + offset * 86_400_000);
   }
 
-  /** Translated names of the services used by the programs. */
+  /** Translated names of the services used by the labels. */
   private async _loadNames(data: PlannerData): Promise<void> {
-    const domains = new Set<string>();
-    for (const p of data.programs) {
-      for (const profile of p.profiles) {
-        for (const day of profile.days) {
-          for (const slot of day) {
-            for (const sp of Object.values(slot.actions.by_entity)) {
-              if (sp.kind === "service") domains.add(String(sp.service).split(".")[0]);
-            }
-          }
-        }
-      }
-    }
-    if (await loadServiceNames(this.hass, [...domains])) this.requestUpdate();
+    const domains = data.labels.flatMap((l) => (l.action.kind === "service" ? [l.action.service.split(".")[0]] : []));
+    if (await loadServiceNames(this.hass, domains)) this.requestUpdate();
   }
 
   /** Resolved slots of the coming 7 days (sun times), reloaded only when a program changes. */
@@ -139,18 +131,17 @@ export class WeeklyPlannerCard extends LitElement {
   /** Spans of a day (`offset` days from today) for a device, from every program that schedules it. */
   private _spans(entityId: string, programs: Program[], offset = 0): BarSpan[] {
     const data = this._data!;
-    const lang = this._lang;
     const at = this._dateAt(offset);
     const today = localWeekday(at, this._tz);
     const preview = this._preview[localDateIso(at, this._tz)] ?? {};
     const spans: BarSpan[] = [];
-    const of = (slot: Slot) => readAct(slot, entityId, data.modes);
     for (const program of [...programs].reverse()) {
       if (!program.enabled) continue;
       const profile = activeProfile(program, data);
+      const of = (slot: Slot) => entityAction(program, entityId, labelOf(data, slot.label));
       const mk = (slot: Slot, start: number, end: number, extra: Partial<BarSpan> = {}): BarSpan => {
-        const act = of(slot)!;
-        return { start, end, color: actColor(data.modes, entityId, act), label: actText(this.hass, lang, data.modes, entityId, act), ...extra };
+        const label = labelOf(data, slot.label)!;
+        return { start, end, color: label.color, label: label.name, ...extra };
       };
       for (const { slot, end } of spillover(profile.days[(today + 6) % 7])) {
         if (of(slot)) spans.push(mk(slot, 0, end));
@@ -185,14 +176,6 @@ export class WeeklyPlannerCard extends LitElement {
 
   /* ---- actions ---- */
 
-  private async _cancelOverride(entityId: string): Promise<void> {
-    try {
-      await this.hass.callService("weekly_planner", "resume", { entity_id: [entityId] });
-    } catch (err) {
-      this._error = (err as { message?: string })?.message ?? String(err);
-    }
-  }
-
   private _open(scope: Scope, day?: { weekday: number; offset: number }): void {
     this._dialog = { kind: "schedule", scope, day };
   }
@@ -203,15 +186,11 @@ export class WeeklyPlannerCard extends LitElement {
     const lang = this._lang;
     const data = this._data!;
     const next = this._next(entityId, programs);
+    const nextLabel = labelOf(data, next?.label);
     const paused = programs.length > 0 && programs.every((p) => !p.enabled);
-    const override = data.entities[entityId]?.override;
-    const icon = opts.icon ?? this.hass.states[entityId]?.attributes.icon ?? ICONS[entityDomain(entityId)] ?? "mdi:calendar-clock";
+    const stateObj = this.hass.states[entityId];
+    const icon = opts.icon ?? stateObj?.attributes.icon ?? ICONS[entityDomain(entityId)] ?? "mdi:calendar-clock";
     const open = () => this._open(opts.open);
-    const sub = override
-      ? override.origin === "voluntary" && override.until
-        ? t(lang, "overridden_until", { time: nb(formatWhen(override.until, this._tz, lang, this._now)) })
-        : t(lang, "overridden")
-      : "";
     return html`
       <div class="block">
         <div class="line">
@@ -219,8 +198,8 @@ export class WeeklyPlannerCard extends LitElement {
           <div class="info">
             ${opts.name ? html`<span class="name">${opts.name}</span>` : nothing}
             <span class="now">
-              <span class="nw">${stateText(this.hass, lang, entityId)}</span>
-              ${next ? html`<span class="nw">→ ${actText(this.hass, lang, data.modes, entityId, next.setpoint)}
+              <span class="nw">${stateObj ? (this.hass.formatEntityState?.(stateObj) ?? stateObj.state) : "—"}</span>
+              ${next ? html`<span class="nw">→ ${nextLabel?.name ?? actionText(this.hass, lang, next.action)}
                 <span class="when">${nb(formatWhen(next.at, this._tz, lang, this._now))}</span></span>` : nothing}
             </span>
           </div>
@@ -232,9 +211,6 @@ export class WeeklyPlannerCard extends LitElement {
           <wp-day-bar show-hours notches .spans=${this._spans(entityId, programs)} .now=${localMinutes(this._now, this._tz)}
             @click=${open}></wp-day-bar>
         </div>
-        ${override ? html`<div class="manual"><ha-icon icon="mdi:hand-back-right"></ha-icon><span>${sub}</span>
-          <button class="x" aria-label=${t(lang, "cancel_manual")} @click=${() => void this._cancelOverride(entityId)}>
-            <ha-icon icon="mdi:close"></ha-icon></button></div>` : nothing}
         ${this._weekRows(`${scopeKey(opts.open)}|${entityId}`, entityId, programs, opts.open)}
       </div>`;
   }
@@ -324,11 +300,15 @@ export class WeeklyPlannerCard extends LitElement {
           }}></wp-schedule>`);
       case "program":
         return html`<wp-program-editor .hass=${this.hass} .data=${this._data} .program=${d.program}
-          .defaultTypes=${this._config.filter?.types ?? []} @closed=${close}></wp-program-editor>`;
+          @closed=${close}></wp-program-editor>`;
+      case "labels":
+        return html`<wp-labels .hass=${this.hass} .data=${this._data} @closed=${close}></wp-labels>`;
       case "admin": {
         const lang = this._lang;
         return html`<wp-dialog open heading=${t(lang, "all_programs")} @closed=${close}>
           <div class="adm">
+            <button class="admrow" @click=${() => (this._dialog = { kind: "labels" })}>
+              <ha-icon icon="mdi:label-multiple-outline"></ha-icon><span>${t(lang, "labels")}</span><ha-icon icon="mdi:chevron-right"></ha-icon></button>
             ${this._data.programs.map((p) => html`<button class="admrow" @click=${() => (this._dialog = { kind: "program", program: p })}>
               <ha-icon icon=${p.icon ?? "mdi:calendar-clock"}></ha-icon><span>${p.name}</span><ha-icon icon="mdi:chevron-right"></ha-icon></button>`)}
             <button class="admrow add" @click=${() => (this._dialog = { kind: "program" })}>
@@ -343,11 +323,11 @@ export class WeeklyPlannerCard extends LitElement {
     .head { display: flex; align-items: center; gap: 8px; min-height: 48px; }
     h1 { flex: 1; min-width: 0; margin: 0; font-size: 20px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .chip { display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 14px; font-size: 14px; padding: 2px 10px; border-radius: 12px; background: var(--warning-color, #ff9800); color: #fff; }
-    .gear, .x {
+    .gear {
       border: none; background: none; color: inherit; width: 48px; height: 48px; border-radius: 24px; cursor: pointer;
       display: inline-flex; align-items: center; justify-content: center; --mdc-icon-size: 22px; flex: none;
     }
-    .gear:hover, .x:hover { background: var(--secondary-background-color); }
+    .gear:hover { background: var(--secondary-background-color); }
     .block { padding: 8px 0; border-top: 1px solid var(--divider-color); }
     .block:first-of-type, .head + .block { border-top: none; }
     .line { display: flex; align-items: flex-start; gap: 10px; min-height: 28px; }
@@ -381,8 +361,6 @@ export class WeeklyPlannerCard extends LitElement {
     .wday wp-day-bar, .today wp-day-bar { flex: 1; min-width: 0; }
     .today { display: flex; align-items: flex-start; gap: 8px; }
     .today .wname { line-height: 28px; margin-top: 2px; }
-    .manual { display: flex; align-items: center; gap: 8px; font-size: 14px; --mdc-icon-size: 20px; margin-top: 2px; }
-    .manual span { flex: 1; min-width: 0; }
     .prog { padding: 8px 0 4px; border-top: 1px solid var(--divider-color); }
     .prog:first-of-type, .head + .prog { border-top: none; }
     .prog .block { border-top: none; padding: 2px 0 4px; }

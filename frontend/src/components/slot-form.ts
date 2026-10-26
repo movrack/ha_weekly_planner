@@ -1,14 +1,13 @@
-// The form of one schedule row, the same for every device type: start, optional end, days, action.
+// The form of one schedule row, the same for every device: start, optional end, days, label.
 
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import "./action-picker";
-import { ALL_DAYS, WEEKDAYS, WEEKEND, isServiceAct, readAct, shiftSpec, specText, writeAct } from "../actions";
-import type { Act, SlotGroup } from "../actions";
+import "./label-picker";
+import { ALL_DAYS, WEEKDAYS, WEEKEND, shiftSpec, specText } from "../actions";
+import type { SlotGroup } from "../actions";
 import { strings, t } from "../i18n";
-import { entityDomain, friendlyName } from "../planner";
 import { DAY, clockToMinutes, minutesToClock } from "../time";
-import { editorStyles, langOf } from "../editors/setpoint-editor";
+import { editorStyles, langOf } from "../editors/shared";
 import type { HomeAssistant, PlannerData, Program, TimeSpec } from "../types";
 
 type Which = "start" | "end";
@@ -97,19 +96,6 @@ export class WpSlotForm extends LitElement {
     this._set({}, days.sort((a, b) => a - b));
   }
 
-  /* ---- action ---- */
-
-  private _setAct(entityId: string, act: Act): void {
-    const slot = writeAct(this.group.slot, this.program, entityId, act);
-    // a service runs once: no end
-    this._set(isServiceAct(act) ? { ...slot, end: null } : { ...slot });
-  }
-
-  /** A slot with a service action has no end. */
-  private _oneShot(): boolean {
-    return this.entityIds.some((e) => isServiceAct(readAct(this.group.slot, e, this.data.modes)));
-  }
-
   render() {
     if (!this.group || !this.program) return nothing;
     const lang = this._lang;
@@ -124,7 +110,7 @@ export class WpSlotForm extends LitElement {
         <h4>${t(lang, "start")}</h4>
         ${this._timeBlock("start", t(lang, "start"))}
       </section>
-      ${this._oneShot() ? nothing : html`<section>
+      <section>
         <h4>${t(lang, "end")}</h4>
         <div class="chips">
           <button class="chip ${slot.end ? "" : "on"}" aria-pressed=${!slot.end} ?disabled=${this.disabled}
@@ -133,7 +119,7 @@ export class WpSlotForm extends LitElement {
             @click=${() => this._toggleEnd(true)}>${t(lang, "with_end")}</button>
         </div>
         ${slot.end ? this._timeBlock("end", t(lang, "end")) : nothing}
-      </section>`}
+      </section>
       <section>
         <h4>${t(lang, "days_label")}</h4>
         ${this.dayOnly !== null && !this._more && eq(days, [this.dayOnly])
@@ -150,11 +136,9 @@ export class WpSlotForm extends LitElement {
       </section>
       <section>
         <h4>${t(lang, "action")}</h4>
-        ${this.entityIds.map((eid) => html`
-          ${this.entityIds.length > 1 ? html`<div class="dev"><ha-icon icon=${this.hass.states[eid]?.attributes.icon ?? `mdi:${entityDomain(eid) === "climate" ? "thermostat" : "devices"}`}></ha-icon>${friendlyName(this.hass, eid)}</div>` : nothing}
-          <wp-action-picker .hass=${this.hass} .data=${this.data} entity-id=${eid} ?disabled=${this.disabled}
-            .act=${readAct(slot, eid, this.data.modes)}
-            @act-change=${(e: CustomEvent<Act>) => { e.stopPropagation(); this._setAct(eid, e.detail); }}></wp-action-picker>`)}
+        <wp-label-picker .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${this.entityIds}
+          .value=${slot.label || null} ?disabled=${this.disabled}
+          @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._set({ label: e.detail ?? "" }); }}></wp-label-picker>
       </section>`;
   }
 
@@ -198,7 +182,6 @@ export class WpSlotForm extends LitElement {
       background: none; color: var(--primary-text-color); font: inherit; font-size: 14px; cursor: pointer;
       display: flex; flex-direction: column; align-items: center; justify-content: center; --mdc-icon-size: 14px;
     }
-    .dev { display: flex; align-items: center; gap: 8px; margin: 8px 0 4px; font-weight: 600; --mdc-icon-size: 20px; }
   `];
 }
 
