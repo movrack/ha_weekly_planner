@@ -39,7 +39,7 @@ with colored weekly schedules built from shared labels. One install gives you bo
 ## Installation
 
 1. In HACS, open the menu > **Custom repositories**.
-2. Add `https://github.com/movrack/ha_Weekly_planner` with category **Integration**.
+2. Add `https://github.com/movrack/ha_weekly_planner` with category **Integration**.
 3. Install **Weekly Planner** and restart Home Assistant.
 4. Go to **Settings > Devices & services > Add integration**, and add **Weekly Planner**
    (a single instance is allowed).

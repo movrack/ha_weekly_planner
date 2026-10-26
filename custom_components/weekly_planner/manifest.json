@@ -15,10 +15,10 @@
     "http",
     "websocket_api"
   ],
-  "documentation": "https://github.com/movrack/ha_Weekly_planner",
+  "documentation": "https://github.com/movrack/ha_weekly_planner",
   "integration_type": "service",
   "iot_class": "calculated",
-  "issue_tracker": "https://github.com/movrack/ha_Weekly_planner/issues",
+  "issue_tracker": "https://github.com/movrack/ha_weekly_planner/issues",
   "requirements": [],
   "single_config_entry": true,
   "version": "0.7.8"
