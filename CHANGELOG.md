@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-10-26
+
+### Added
+- "Duplicate" in an open slot: a new slot like it, right after it (same length, days and action), ready to adjust.
+
 ## [0.5.2] - 2026-10-26
 
 ### Fixed

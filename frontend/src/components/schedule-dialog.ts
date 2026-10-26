@@ -8,7 +8,7 @@ import "./chart";
 import "./dialog";
 import "./slot-form";
 import {
-  actColor, actText, daysText, groupSlots, readAct, readDefault, specText, writeDefault, writeGroups, ALL_DAYS,
+  actColor, actText, daysText, groupSlots, readAct, readDefault, shiftSpec, specText, writeDefault, writeGroups, ALL_DAYS,
 } from "../actions";
 import type { Act, SlotGroup } from "../actions";
 import { addDaysIso } from "./chart";
@@ -199,6 +199,21 @@ export class WpSchedule extends LitElement {
     this._expand("new", program, { slot, days: [...days], ids: {}, fresh: true });
   }
 
+  /** A new slot like the open one (as edited), right after it: same length, same days and action. */
+  private _duplicate(): void {
+    const program = this._programs.find((p) => p.id === this._programId);
+    const g = this._group;
+    if (!program || !g) return;
+    const { start, end } = g.slot;
+    const length = end ? Math.max(15, specMinutes(this.hass, end) - specMinutes(this.hass, start)) : 60;
+    const slot: Slot = {
+      ...structuredClone(g.slot), id: newId(),
+      start: shiftSpec(start, length), end: end ? shiftSpec(end, length) : null,
+    };
+    this._expand("new", program, { slot, days: [...g.days], ids: {}, fresh: true });
+    this._rest = null;
+  }
+
   /* ---- saving ---- */
 
   private async _saveProgram(program: Program): Promise<boolean> {
@@ -387,6 +402,8 @@ export class WpSchedule extends LitElement {
         <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRow()}>${t(lang, "save")}</button>
         <button class="btn" @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
       </div>
+      ${isNew ? nothing : html`<button class="btn dup" ?disabled=${!this._canEdit} @click=${() => this._duplicate()}>
+        <ha-icon icon="mdi:content-copy"></ha-icon>${t(lang, "duplicate")}</button>`}
       ${isNew ? nothing : html`<button class="btn danger-line alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteRow()}>
         <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete")}</button>`}
     </div>`;
@@ -495,6 +512,7 @@ export class WpSchedule extends LitElement {
     .btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
     .btns .btn { flex: 1 1 120px; }
     .btn.alone { width: 100%; margin-top: 32px; }
+    .btn.dup { width: 100%; margin-top: 8px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; --mdc-icon-size: 20px; }
     .editor { scroll-margin-top: 8px; }
     .btn.danger-line { color: var(--error-color, #db4437); border-color: var(--error-color, #db4437); }
     .btn.danger { background: var(--error-color, #db4437); border-color: var(--error-color, #db4437); color: #fff; }
