@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-10-26
+
+### Fixed
+- A second schedule on the same day no longer replaces the first: tapping a day in the week list now shows that day's slots with an explicit "Add a schedule on <day>" button (new slot starting after the last one) instead of silently editing the existing slot.
+- "Add a schedule" in the full screen always creates a new slot on all days; days already busy are dropped with a short note instead of refusing the save.
+- Opening another row while editing no longer carries over the previous day-only state (could duplicate or refuse slots).
+- Duplicate now keeps the edits made to the original slot.
+- Overlaps hidden behind a long slot are detected.
+- Saving builds the change on the current program and retries once on a revision mismatch; unrelated concurrent changes never block it. A changed slot shows its new version instead of a "reload" message.
+
 ## [0.6.4] - 2026-10-26
 
 ### Fixed
