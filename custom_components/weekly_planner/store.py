@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime, timedelta
+import inspect
 import logging
 from pathlib import Path
 import shutil
@@ -17,9 +18,11 @@ import uuid
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
+from homeassistant.helpers.translation import async_get_translations
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, STORAGE_MINOR_VERSION, STORAGE_VERSION
+
 from .migration import migrate_config_v1, migrate_runtime_v1
 
 _LOGGER = logging.getLogger(__name__)
@@ -54,7 +57,8 @@ class _VersionedStore(Store):
             if await self.hass.async_add_executor_job(path.exists):
                 await self.hass.async_add_executor_job(
                     shutil.copy2, path, path.with_name(f"{path.name}.v{old_major}-backup-{stamp}"))
-            return self._migrate(old_data)
+            result = self._migrate(old_data)
+            return await result if inspect.isawaitable(result) else result
         return old_data
 
 
@@ -65,7 +69,7 @@ class PlannerStore:
         self.hass = hass
         self._config = _VersionedStore(hass, STORAGE_VERSION, DOMAIN,
                                        minor_version=STORAGE_MINOR_VERSION, atomic_writes=True,
-                                       migrate=lambda data: migrate_config_v1(data, hass.config.language))
+                                       migrate=self._migrate_config)
         self._runtime = _VersionedStore(hass, 2, f"{DOMAIN}.runtime", atomic_writes=True,
                                         migrate=migrate_runtime_v1)
         self._journal = _VersionedStore(hass, 1, f"{DOMAIN}.journal", atomic_writes=True)
@@ -73,6 +77,20 @@ class PlannerStore:
         self.runtime: dict[str, Any] = {"entities": {}, "programs": {}}
         self.journal: list[dict[str, Any]] = []
         self.read_only = False
+
+    async def _migrate_config(self, data: dict) -> dict:
+        """Version 1 -> 2, label names of other actions taken from the translated service names."""
+        language = self.hass.config.language
+        try:
+            texts = await async_get_translations(self.hass, language, "services")
+        except Exception:  # noqa: BLE001 - names are a nicety, the ids are a fine fallback
+            texts = {}
+        names = {
+            f"{key.split('.')[1]}.{key.split('.')[3]}": value
+            for key, value in texts.items()
+            if key.startswith("component.") and key.count(".") == 4 and key.endswith(".name")
+        }
+        return migrate_config_v1(data, language, names)
 
     @property
     def _config_path(self) -> Path:
@@ -89,7 +107,7 @@ class PlannerStore:
             # Home Assistant renamed a corrupt file aside: never start from scratch silently.
             self.read_only = True
             raise ConfigStoreError("configuration file unreadable")
-        self.config = data if data is not None else empty_config(self.hass.config.language)
+        self.config = data if data is not None else empty_config()
         self.runtime = await self._runtime.async_load() or self.runtime
         self.journal = (await self._journal.async_load() or {}).get("segments", [])
 
