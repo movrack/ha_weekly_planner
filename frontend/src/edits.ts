@@ -307,15 +307,18 @@ const sameKind = (a: Slot, b: Slot): boolean =>
   a.label === b.label && stableJson(a.conditions ?? []) === stableJson(b.conditions ?? []) && (a.color ?? null) === (b.color ?? null);
 const stableJson = (v: unknown): string => JSON.stringify(v);
 
-/** Merges neighbours with the same label where the end of the first is the start of the second. */
-export function mergeAdjacent(slots: Slot[], ctx: DayCtx): Slot[] {
+/**
+ * Merges neighbours with the same label where the end of the first is the start of the second.
+ * Slots whose id is in `keep` are never merged (the two pieces of a slot just cut, until the user chose their labels).
+ */
+export function mergeAdjacent(slots: Slot[], ctx: DayCtx, keep: ReadonlySet<string> = new Set()): Slot[] {
   const out: Slot[] = [];
   for (const slot of sortByStart(slots, ctx)) {
     const prev = out[out.length - 1];
     if (prev && prev.end && slot.end) {
       const a = eff(prev, ctx.at);
       const b = eff(slot, ctx.at);
-      if (!a.wrap && a.end === b.start && sameKind(prev, slot)) {
+      if (!a.wrap && a.end === b.start && sameKind(prev, slot) && !keep.has(prev.id) && !keep.has(slot.id)) {
         out[out.length - 1] = { ...prev, end: slot.end };
         continue;
       }
