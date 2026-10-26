@@ -199,8 +199,8 @@ export class WeeklyPlannerCard extends LitElement {
             ${opts.name ? html`<span class="name">${opts.name}</span>` : nothing}
             <span class="now">
               <span class="nw">${stateObj ? (this.hass.formatEntityState?.(stateObj) ?? stateObj.state) : "—"}</span>
-              ${next ? html`<span class="nw">→ ${nextLabel?.name ?? actionText(this.hass, lang, next.action)}
-                <span class="when">${nb(formatWhen(next.at, this._tz, lang, this._now))}</span></span>` : nothing}
+              ${next ? html`<span class="next">→ ${nextLabel?.name ?? actionText(this.hass, lang, next.action)}
+                <span class="when nw">${nb(formatWhen(next.at, this._tz, lang, this._now))}</span></span>` : nothing}
             </span>
           </div>
           ${paused ? html`<ha-icon class="pause" icon="mdi:pause-circle-outline" title=${t(lang, "paused")}></ha-icon>` : nothing}
@@ -336,6 +336,7 @@ export class WeeklyPlannerCard extends LitElement {
     .name { font-size: 17px; font-weight: 600; }
     .now { font-size: 15px; display: flex; flex-wrap: wrap; column-gap: 6px; color: var(--primary-text-color); }
     .nw { white-space: nowrap; }
+    .next { min-width: 0; overflow-wrap: anywhere; }
     .when { opacity: 0.8; }
     .pause { --mdc-icon-size: 20px; color: var(--secondary-text-color); flex: none; margin-top: 2px; }
     .name, .now { line-height: 24px; }

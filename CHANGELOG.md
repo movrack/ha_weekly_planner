@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-26
+
+### Fixed
+- Chart: the value carried over from the previous day is no longer shown as a manual change; round values on the vertical axis.
+- Card: a long next action wraps instead of overflowing; a change a week or more ahead shows its date.
+- Label names in French (decimal comma) and from the translated service names; same names allowed across devices; first install without a configuration file.
+
 ## [0.6.0] - 2026-10-26
 
 ### BREAKING

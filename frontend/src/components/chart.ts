@@ -348,7 +348,8 @@ export class WpChart extends LitElement {
       ...starts];
     const manual: Span[] = [];
     for (const s of starts) {
-      if (s < 0 || s > pastEnd) continue;
+      // the value carried over from the day before is not a change of this day
+      if (s <= 1 || s > pastEnd) continue;
       const next = stops.filter((x) => x > s + 0.5).sort((a, b) => a - b)[0];
       const e = Math.min(next ?? pastEnd, pastEnd);
       if (e > s) manual.push([s, e]);
@@ -452,7 +453,13 @@ export class WpChart extends LitElement {
       .format(new Date(startMs + m * 60_000));
     const ticksX: number[] = [];
     for (let m = 0; m <= model.span; m += 180) ticksX.push(m);
-    const ticksY = curve ? [0, 1, 2, 3].map((i) => model.lo + ((model.hi - model.lo) * i) / 3) : [];
+    // round values on the vertical axis (1, 2, 5, 10… apart), never 17.3 or 20.7
+    const ticksY: number[] = [];
+    if (curve) {
+      const range = model.hi - model.lo;
+      const step = [1, 2, 5, 10, 20, 25, 50].find((x) => range / x <= 4) ?? 100;
+      for (let v = Math.ceil(model.lo / step) * step; v <= model.hi + 1e-9; v += step) ticksY.push(v);
+    }
     const top = PAD.t - 12;
     const bandY = PAD.t;
     const bandH = H - PAD.t - PAD.b;
