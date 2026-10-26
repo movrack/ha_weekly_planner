@@ -572,6 +572,10 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Tests vitest et pytest, vérification navigateur (360 px et ≥ 1400 px), captures
 - [x] Version 0.7.3 (manifest, pyproject, package.json, lock), CHANGELOG
 
+### 14.12 À faire
+- [ ] Barres sur mobile : un simple toucher affiche 2 s « Restez appuyé pour modifier » (les 3 premières fois
+      seulement, mémorisé par appareil), puis ouvre l'écran du jour comme aujourd'hui.
+
 ## 15. v2 (hors périmètre)
 - Import des programmes `scheduler-component` (`.storage/scheduler.storage`, version 3) — nécessite plages ponctuelles et défaut « rien » (présents en v1).
 - Import des automatisations HA à déclencheur horaire / solaire (conversion assistée ; l'automatisation d'origine est désactivée, pas supprimée).
