@@ -286,7 +286,7 @@ It.elementStyles = [], It.shadowRootOptions = { mode: "open" }, It[Wt("elementPr
  */
 const Ht = globalThis, ui = (t) => t, ue = Ht.trustedTypes, _i = ue ? ue.createPolicy("lit-html", { createHTML: (t) => t }) : void 0, Gi = "$lit$", dt = `lit$${Math.random().toFixed(9).slice(2)}$`, Xi = "?" + dt, Os = `<${Xi}>`, Et = document, Vt = () => Et.createComment(""), Jt = (t) => t === null || typeof t != "object" && typeof t != "function", Je = Array.isArray, Ds = (t) => Je(t) || typeof (t == null ? void 0 : t[Symbol.iterator]) == "function", Se = `[ 	
 \f\r]`, Bt = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, fi = /-->/g, mi = />/g, bt = RegExp(`>|${Se}(?:([^\\s"'>=/]+)(${Se}*=${Se}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g"), gi = /'/g, yi = /"/g, Yi = /^(?:script|style|textarea|title)$/i, Qi = (t) => (e, ...i) => ({ _$litType$: t, strings: e, values: i }), c = Qi(1), z = Qi(2), Ct = Symbol.for("lit-noChange"), h = Symbol.for("lit-nothing"), bi = /* @__PURE__ */ new WeakMap(), xt = Et.createTreeWalker(Et, 129);
+\f\r"'\`<>=]|("|')|))|$)`, "g"), gi = /'/g, yi = /"/g, Yi = /^(?:script|style|textarea|title)$/i, Qi = (t) => (e, ...i) => ({ _$litType$: t, strings: e, values: i }), d = Qi(1), z = Qi(2), Ct = Symbol.for("lit-noChange"), h = Symbol.for("lit-nothing"), bi = /* @__PURE__ */ new WeakMap(), xt = Et.createTreeWalker(Et, 129);
 function Zi(t, e) {
   if (!Je(t) || !t.hasOwnProperty("raw")) throw Error("invalid template strings array");
   return _i !== void 0 ? _i.createHTML(e) : e;
@@ -1086,7 +1086,7 @@ const xi = (t, e, i) => {
 function F(t) {
   return t.startsWith("fr") ? Gs : Ks;
 }
-function d(t, e, i = {}) {
+function c(t, e, i = {}) {
   let s = F(t)[e];
   for (const [r, n] of Object.entries(i)) s = s.replace(`{${r}}`, n);
   return s;
@@ -1174,30 +1174,30 @@ let Q = class extends O {
     const t = [];
     for (const e of this.spans)
       e.startSun && t.push({ m: e.start, dir: e.startSun }), e.endSun && e.end < S && t.push({ m: e.end, dir: e.endSun });
-    return t.map((e) => c`<span class="sunic" style="left:clamp(10px, ${e.m / S * 100}%, calc(100% - 10px))"
+    return t.map((e) => d`<span class="sunic" style="left:clamp(10px, ${e.m / S * 100}%, calc(100% - 10px))"
       data-sun=${e.dir}><ha-icon icon=${e.dir === "up" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down"}></ha-icon></span>`);
   }
   render() {
     const t = (i) => `${i / S * 100}%`, e = this.now;
-    return c`
+    return d`
       <div class="wrap">
         <div class="bar ${this.thin ? "thin" : ""} ${this.tall ? "tall" : ""}" role="img"
           aria-label=${this.spans.map((i) => i.label).join(", ")}>
-          ${this.notches ? [6, 12, 18].map((i) => c`<i class="tick" style="left:${t(i * 60)}"></i>`) : h}
+          ${this.notches ? [6, 12, 18].map((i) => d`<i class="tick" style="left:${t(i * 60)}"></i>`) : h}
           ${this.spans.map(
-      (i) => c`<div
+      (i) => d`<div
               class="span ${i.ignored ? "ignored" : ""}"
               style="left:${t(i.start)};width:${t(Math.max(i.end - i.start, 5))};--c:${i.color}"
               title=${i.label}
-            >${this._fits(i) ? c`<span>${i.label}</span>` : h}</div>`
+            >${this._fits(i) ? d`<span>${i.label}</span>` : h}</div>`
     )}
         </div>
         <div class="icons">${this._sunIcons()}</div>
         <slot></slot>
-        ${e !== null ? c`<div class="nowline" style="left:${t(e)}">
-          <ha-icon class="nowic" icon="mdi:clock-outline" role="img" aria-label=${d(this.lang, "now")}></ha-icon></div>` : h}
+        ${e !== null ? d`<div class="nowline" style="left:${t(e)}">
+          <ha-icon class="nowic" icon="mdi:clock-outline" role="img" aria-label=${c(this.lang, "now")}></ha-icon></div>` : h}
       </div>
-      ${this.showHours ? c`<div class="hours">${[0, 6, 12, 18, 24].map((i) => c`<span style="left:${t(i * 60)}">${i} h</span>`)}</div>` : h}
+      ${this.showHours ? d`<div class="hours">${[0, 6, 12, 18, 24].map((i) => d`<span style="left:${t(i * 60)}">${i} h</span>`)}</div>` : h}
     `;
   }
 };
@@ -1334,7 +1334,7 @@ let jt = class extends O {
   }
   render() {
     var t;
-    return this.open ? c`
+    return this.open ? d`
       <div class="backdrop" @click=${() => this.close()}></div>
       <div class="panel ${this.wide ? "wide" : ""}" role="dialog" aria-modal="true"
         aria-label=${this.heading} tabindex="-1">
@@ -1348,7 +1348,7 @@ let jt = class extends O {
         <div class="content"><slot></slot></div>
         <footer><slot name="footer"></slot></footer>
       </div>
-    ` : c``;
+    ` : d``;
   }
 };
 jt.styles = U`
@@ -1675,7 +1675,7 @@ let lt = class extends O {
   render() {
     if (customElements.get("ha-entity-picker")) {
       const e = this.filter;
-      return c`<ha-entity-picker
+      return d`<ha-entity-picker
         .hass=${this.hass} .value=${this.value} .label=${this.label}
         .includeDomains=${this.domains.length ? this.domains : void 0}
         .excludeEntities=${this.exclude}
@@ -1685,9 +1685,9 @@ let lt = class extends O {
       }}></ha-entity-picker>`;
     }
     const t = this._ids().slice(0, 600);
-    return c`
+    return d`
       <div class="field">
-        ${this.label ? c`<label>${this.label}</label>` : h}
+        ${this.label ? d`<label>${this.label}</label>` : h}
         <input type="text" list=${this._listId} .value=${this.value} autocomplete="off"
           aria-label=${this.label || "entity"} placeholder="domain.entity"
           @change=${(e) => {
@@ -1699,7 +1699,7 @@ let lt = class extends O {
       this.hass.states[i] && i !== this.value && this._emit(i);
     }} />
         <datalist id=${this._listId}>
-          ${t.map((e) => c`<option value=${e}>${_t(this.hass, e)}</option>`)}
+          ${t.map((e) => d`<option value=${e}>${_t(this.hass, e)}</option>`)}
         </datalist>
       </div>`;
   }
@@ -1734,7 +1734,7 @@ let Xt = class extends O {
     return gt(this.hass);
   }
   _tr(t) {
-    return d(this._lang, t);
+    return c(this._lang, t);
   }
   _set(t) {
     ds(this, "wp-change", t);
@@ -1747,9 +1747,9 @@ let Xt = class extends O {
     return i !== "" && !Number.isNaN(Number(i)) ? Number(i) : e && i === "true" ? !0 : e && i === "false" ? !1 : t;
   }
   render() {
-    return c`
+    return d`
       ${this.conditions.map(
-      (t, e) => c`
+      (t, e) => d`
           <div class="card">
             <wp-entity-picker .hass=${this.hass} .value=${t.entity_id} .label=${this._tr("entity")}
               @wp-change=${(i) => {
@@ -1766,7 +1766,7 @@ let Xt = class extends O {
                 <select aria-label=${this._tr("cond_op")}
                   @change=${(i) => this._patch(e, { op: i.target.value })}>
                   ${["eq", "ne", "lt", "gt"].map(
-        (i) => c`<option value=${i} ?selected=${(t.op ?? "eq") === i}>${{ eq: "=", ne: "≠", lt: "<", gt: ">" }[i]}</option>`
+        (i) => d`<option value=${i} ?selected=${(t.op ?? "eq") === i}>${{ eq: "=", ne: "≠", lt: "<", gt: ">" }[i]}</option>`
       )}
                 </select>
               </div>
@@ -1823,13 +1823,13 @@ let H = class extends O {
   render() {
     var _, f;
     if (!this.hass || !this.entityId) return h;
-    const t = this._lang, e = Ge(this.hass, this.entityId), i = lr(e.map((b) => b.label)), s = e.map((b, x) => ({ ...b, label: i[x] })), r = ((_ = this.action) == null ? void 0 : _.kind) === "service" ? this.action.service : "", n = s.findIndex((b) => b.id === r), o = this._more || n >= H.SHOWN, a = o ? s : s.slice(0, H.SHOWN), l = ((f = this.action) == null ? void 0 : f.kind) === "service" ? this.action.data ?? {} : {}, u = r ? Xe(this.hass, r) : [], p = hr(this.hass, this.entityId), g = (b, x, A, m) => c`
+    const t = this._lang, e = Ge(this.hass, this.entityId), i = lr(e.map((b) => b.label)), s = e.map((b, x) => ({ ...b, label: i[x] })), r = ((_ = this.action) == null ? void 0 : _.kind) === "service" ? this.action.service : "", n = s.findIndex((b) => b.id === r), o = this._more || n >= H.SHOWN, a = o ? s : s.slice(0, H.SHOWN), l = ((f = this.action) == null ? void 0 : f.kind) === "service" ? this.action.data ?? {} : {}, u = r ? Xe(this.hass, r) : [], p = hr(this.hass, this.entityId), g = (b, x, A, m) => d`
       <button class="chip ${x ? "on" : ""}" role="radio" aria-checked=${x} ?disabled=${this.disabled} @click=${A}>
-        ${m ? c`<ha-icon icon=${m}></ha-icon>` : h}<span>${b}</span></button>`;
-    return c`
-      <div class="chips" role="radiogroup" aria-label=${d(t, "action")}>
+        ${m ? d`<ha-icon icon=${m}></ha-icon>` : h}<span>${b}</span></button>`;
+    return d`
+      <div class="chips" role="radiogroup" aria-label=${c(t, "action")}>
         ${a.map((b) => g(b.label, b.id === r, () => this._emit({ kind: "service", service: b.id, data: cr(this.hass, b.id, this.entityId) })))}
-        ${!o && s.length > H.SHOWN ? c`<button class="chip add" ?disabled=${this.disabled} @click=${() => this._more = !0}>${d(t, "more_actions")}</button>` : h}
+        ${!o && s.length > H.SHOWN ? d`<button class="chip add" ?disabled=${this.disabled} @click=${() => this._more = !0}>${c(t, "more_actions")}</button>` : h}
         ${p.map((b) => {
       var x;
       return g(
@@ -1840,11 +1840,11 @@ let H = class extends O {
       );
     })}
       </div>
-      ${u.map((b) => this._selector ? c`<ha-selector class="fld" .hass=${this.hass} .selector=${b.selector} .value=${l[b.key]} .label=${b.label}
+      ${u.map((b) => this._selector ? d`<ha-selector class="fld" .hass=${this.hass} .selector=${b.selector} .value=${l[b.key]} .label=${b.label}
             .required=${b.required} ?disabled=${this.disabled}
             @value-changed=${(x) => {
       x.stopPropagation(), this._setData(b.key, x.detail.value);
-    }}></ha-selector>` : c`<div class="field"><label>${b.label}</label><input type="text" .value=${String(l[b.key] ?? "")} ?disabled=${this.disabled}
+    }}></ha-selector>` : d`<div class="field"><label>${b.label}</label><input type="text" .value=${String(l[b.key] ?? "")} ?disabled=${this.disabled}
             @change=${(x) => this._setData(b.key, x.target.value)} /></div>`)}`;
   }
 };
@@ -1909,7 +1909,7 @@ let D = class extends O {
   }
   get _formProblem() {
     const t = this._lang;
-    return this._name.trim() ? this._action ? this._action.kind === "service" && cs(this.hass, this._action.service, this._action.data).length ? d(t, "lb_err_fields") : "" : d(t, "lb_err_action") : d(t, "lb_err_name");
+    return this._name.trim() ? this._action ? this._action.kind === "service" && cs(this.hass, this._action.service, this._action.data).length ? c(t, "lb_err_fields") : "" : c(t, "lb_err_action") : c(t, "lb_err_name");
   }
   async _create() {
     const t = this._formProblem;
@@ -1926,7 +1926,7 @@ let D = class extends O {
       this._creating = !1, this._emit("label-change", e.label.id);
     } catch (e) {
       const i = e;
-      this._error = (i == null ? void 0 : i.code) === "unauthorized" ? d(this._lang, "err_unauthorized") : d(this._lang, "lb_err_save");
+      this._error = (i == null ? void 0 : i.code) === "unauthorized" ? c(this._lang, "err_unauthorized") : c(this._lang, "lb_err_save");
     } finally {
       this._saving = !1;
     }
@@ -1935,71 +1935,82 @@ let D = class extends O {
     const e = this._lang, i = W(this.data, this.value);
     if (!i) return h;
     const s = pt(this.program, t, i) ?? null;
-    return c`<div class="valbox">
+    return d`<div class="valbox">
       <wp-action-picker .hass=${this.hass} entity-id=${t} .action=${s} ?disabled=${this.disabled}
         @action-change=${(r) => {
       r.stopPropagation(), this._emit("override-change", { entityId: t, labelId: i.id, action: r.detail });
     }}></wp-action-picker>
-      ${ki(this.program, t, i.id) ? c`<button class="btn" ?disabled=${this.disabled}
+      ${ki(this.program, t, i.id) ? d`<button class="btn" ?disabled=${this.disabled}
             @click=${() => this._emit("override-change", { entityId: t, labelId: i.id, action: null })}>
-            <ha-icon icon="mdi:undo"></ha-icon>${d(e, "lb_common_value")}</button>` : h}
+            <ha-icon icon="mdi:undo"></ha-icon>${c(e, "lb_common_value")}</button>` : h}
     </div>`;
   }
   render() {
     if (!this.hass || !this.data) return h;
-    const t = this._lang, e = Ye(this.hass, this.data, this.entityIds), i = W(this.data, this.value), s = (r, n, o, a) => c`
+    const t = this._lang, e = Ye(this.hass, this.data, this.entityIds), i = W(this.data, this.value), s = (r, n, o, a) => d`
       <button class="chip ${n ? "on" : ""}" role="radio" aria-checked=${n} ?disabled=${this.disabled} @click=${o}>
-        ${a ? c`<i class="dot" style="background:${a}"></i>` : h}<span>${r}</span></button>`;
-    return c`
-      <div class="chips" role="radiogroup" aria-label=${d(t, "action")}>
-        ${this.allowNone ? s(d(t, "rest_none"), this.value === null, () => this._emit("label-change", null)) : h}
+        ${a ? d`<i class="dot" style="background:${a}"></i>` : h}<span>${r}</span></button>`;
+    return d`
+      <div class="chips" role="radiogroup" aria-label=${c(t, "action")}>
+        ${this.allowNone ? s(c(t, "rest_none"), this.value === null, () => this._emit("label-change", null)) : h}
         ${e.map((r) => s(r.name, r.id === this.value, () => this._emit("label-change", r.id), r.color))}
         ${this.value && !i ? s("?", !0, () => {
     }) : h}
-        ${this.compact ? h : c`<button class="chip add" ?disabled=${this.disabled} @click=${() => this._startCreate()}>
-          <ha-icon icon="mdi:plus"></ha-icon><span>${d(t, "lb_new")}</span></button>`}
+        ${this.compact ? h : d`<button class="chip add" ?disabled=${this.disabled} @click=${() => this._startCreate()}>
+          <ha-icon icon="mdi:plus"></ha-icon><span>${c(t, "lb_new")}</span></button>`}
       </div>
-      ${i && !this.compact && !this._creating ? c`<div class="edit">
-        <button class="pen" aria-label=${d(t, "rename_label")} title=${d(t, "rename_label")} ?disabled=${this.disabled}
-          @click=${() => this._startEdit()}><ha-icon icon="mdi:pencil"></ha-icon></button>
-        ${de(this.data, i.id).some((r) => r !== this.program.name) ? c`<span class="shared">${d(t, "shared")}</span>` : h}
-      </div>` : h}
-      ${this._creating ? c`<div class="form">
-        <div class="field"><label for="lb-name">${d(t, "lb_name")}</label>
+      ${this._creating ? d`<div class="form">
+        <div class="field"><label for="lb-name">${c(t, "lb_name")}</label>
           <input id="lb-name" type="text" maxlength="30" .value=${this._name}
             @input=${(r) => {
       this._name = r.target.value, this._error = "";
     }} /></div>
-        <div class="swatches" role="radiogroup" aria-label=${d(t, "lb_color")}>
-          ${qt.map((r) => c`<button class="sw ${r === this._color ? "on" : ""}" role="radio" aria-checked=${r === this._color}
+        <div class="swatches" role="radiogroup" aria-label=${c(t, "lb_color")}>
+          ${qt.map((r) => d`<button class="sw ${r === this._color ? "on" : ""}" role="radio" aria-checked=${r === this._color}
             aria-label=${r} style="background:${r}" @click=${() => this._color = r}></button>`)}
         </div>
         <wp-action-picker .hass=${this.hass} entity-id=${this.entityIds[0] ?? ""} .action=${this._action}
           @action-change=${(r) => {
       r.stopPropagation(), this._action = r.detail, this._error = "";
     }}></wp-action-picker>
-        ${this._error ? c`<p class="err" role="alert">${this._error}</p>` : h}
+        ${this._error ? d`<p class="err" role="alert">${this._error}</p>` : h}
         <div class="btns">
-          <button class="btn primary" ?disabled=${this._saving} @click=${() => void this._create()}>${d(t, "save")}</button>
-          <button class="btn" @click=${() => this._creating = !1}>${d(t, "cancel")}</button>
+          <button class="btn primary" ?disabled=${this._saving} @click=${() => void this._create()}>${c(t, "save")}</button>
+          <button class="btn" @click=${() => this._creating = !1}>${c(t, "cancel")}</button>
         </div>
       </div>` : h}
-      ${i && !this._creating && !this.compact ? c`
-        ${this.entityIds.map((r) => {
+      ${i && !this._creating ? d`
+        <!-- the settings of the chosen label, framed in its colour so they clearly belong to it -->
+        <div class="details" style="--lc:${i.color}">
+          <div class="dhead">
+            <i class="dot" style="background:${i.color}"></i><b>${i.name}</b>
+            ${de(this.data, i.id).some((r) => r !== this.program.name) ? d`<span class="shared">${c(t, "shared")}</span>` : h}
+            <button class="pen" aria-label=${c(t, "rename_label")} title=${c(t, "rename_label")} ?disabled=${this.disabled}
+              @click=${() => this._startEdit()}><ha-icon icon="mdi:pencil"></ha-icon></button>
+          </div>
+          ${this.entityIds.map((r) => {
       const n = this._valueFor === r, o = ki(this.program, r, i.id);
-      return c`<div class="dev">
-            <div class="sum"><span class="what">${Qe(this.hass, t, pt(this.program, r, i))}</span>
-              ${this.entityIds.length > 1 ? c`<span class="who">${_t(this.hass, r)}</span>` : h}</div>
-            <button class="link ${o ? "own" : ""}" ?disabled=${this.disabled} aria-expanded=${n}
-              @click=${() => this._valueFor = n ? null : r}>${d(t, "lb_value_here")}</button>
-            ${n ? this._valueEditor(r) : h}
-          </div>`;
-    })}` : h}`;
+      return d`<div class="dev">
+              <div class="sum"><span class="k">${c(t, "action")} :</span> <span class="what">${Qe(this.hass, t, pt(this.program, r, i))}</span>
+                ${this.entityIds.length > 1 ? d`<span class="who">${_t(this.hass, r)}</span>` : h}</div>
+              <button class="link ${o ? "own" : ""}" ?disabled=${this.disabled} aria-expanded=${n}
+                @click=${() => this._valueFor = n ? null : r}>${c(t, "lb_value_here")}</button>
+              ${n ? this._valueEditor(r) : h}
+            </div>`;
+    })}
+        </div>` : h}`;
   }
 };
 D.styles = [it, U`
     :host { display: block; }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .details {
+      margin-top: 10px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--lc);
+      border-left-width: 4px; background: color-mix(in srgb, var(--lc) 10%, transparent);
+    }
+    .dhead { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+    .dhead b { flex: 1; min-width: 0; }
+    .details .k { color: var(--secondary-text-color); }
     .chip {
       display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 16px; border-radius: 24px;
       border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); font: inherit; font-size: 15px;
@@ -2096,7 +2107,7 @@ function Re(t, e, i) {
     const [n, o] = e.time.split(":").map(Number);
     return Le(n * 60 + o >= S ? "24 h" : Ke(t, n * 60 + o));
   }
-  const s = d(t, e.sun === "sunrise" || e.sun === "sunset" ? `sun_${e.sun}_short` : `sun_${e.sun}`), r = e.offset ? ` ${vr(t, e.offset)}` : "";
+  const s = c(t, e.sun === "sunrise" || e.sun === "sunset" ? `sun_${e.sun}_short` : `sun_${e.sun}`), r = e.offset ? ` ${vr(t, e.offset)}` : "";
   return Le(`${s}${r}`);
 }
 function Ai(t, e) {
@@ -2109,7 +2120,7 @@ function Ai(t, e) {
 const ps = [0, 1, 2, 3, 4], us = [5, 6], ve = [0, 1, 2, 3, 4, 5, 6];
 function $r(t, e, i) {
   const s = [...i].sort((r, n) => r - n);
-  return Me(s, ve) ? d(t, "all_days_text") : Me(s, ps) ? `${e[0]}–${e[4]}` : Me(s, us) ? d(t, "weekend") : s.map((r) => e[r]).join(hs);
+  return Me(s, ve) ? c(t, "all_days_text") : Me(s, ps) ? `${e[0]}–${e[4]}` : Me(s, us) ? c(t, "weekend") : s.map((r) => e[r]).join(hs);
 }
 function Ue(t) {
   if (Array.isArray(t)) return `[${t.map(Ue).join(",")}]`;
@@ -2600,7 +2611,7 @@ let E = class extends O {
             }
           } catch {
           }
-        return this._dropDraft(), this._fail((r = f == null ? void 0 : f.message) != null && r.includes("overlapping_slots") ? d(this.lang, "w_err_overlap") : (f == null ? void 0 : f.code) === "unauthorized" ? d(this.lang, "err_unauthorized") : d(this.lang, "ss_err_save")), !1;
+        return this._dropDraft(), this._fail((r = f == null ? void 0 : f.message) != null && r.includes("overlapping_slots") ? c(this.lang, "w_err_overlap") : (f == null ? void 0 : f.code) === "unauthorized" ? c(this.lang, "err_unauthorized") : c(this.lang, "ss_err_save")), !1;
       }
     }
     return !1;
@@ -2692,25 +2703,25 @@ let E = class extends O {
   }
   _overlay_() {
     const t = this._day, e = this._ctx(), i = (n) => `${n / S * 100}%`, s = this._sel, r = Fe(t, e);
-    return c`<div class="ov ${this._hover ? "grab" : ""}"
+    return d`<div class="ov ${this._hover ? "grab" : ""}"
       @pointerdown=${this._ovDown} @pointermove=${this._ovMove} @pointerup=${this._ovUp} @pointercancel=${this._ovCancel}
       @pointerleave=${() => this._hover = !1}>
-      ${s && s.end !== null ? c`<div class="selbox ${s.slot ? "" : "gap"}"
+      ${s && s.end !== null ? d`<div class="selbox ${s.slot ? "" : "gap"}"
         style="left:${i(s.start)};width:${i(s.end - s.start)}"></div>` : h}
-      ${s != null && s.slot && s.end === null ? c`<div class="selpoint" style="left:${i(s.start)}"></div>` : h}
+      ${s != null && s.slot && s.end === null ? d`<div class="selpoint" style="left:${i(s.start)}"></div>` : h}
       ${Js(r, (n) => n.refs.map((o) => `${o.id}:${o.edge}`).join("+"), (n) => {
       const o = n.refs[0], a = this._hsel && n.refs.some((l) => {
         var u, p;
         return l.id === ((u = this._hsel) == null ? void 0 : u.id) && l.edge === ((p = this._hsel) == null ? void 0 : p.edge);
       });
-      return c`<button class="hd ${n.oneShot ? "dot" : ""} ${a ? "on" : ""}" style="left:clamp(0px, ${i(n.m)}, 100%)"
+      return d`<button class="hd ${n.oneShot ? "dot" : ""} ${a ? "on" : ""}" style="left:clamp(0px, ${i(n.m)}, 100%)"
           role="slider" aria-orientation="horizontal" aria-valuemin="0" aria-valuemax="1440" aria-valuenow=${n.m}
-          aria-valuetext=${this._clock(n.m)} aria-label=${d(this.lang, "handle", { time: this._clock(n.m) })}
+          aria-valuetext=${this._clock(n.m)} aria-label=${c(this.lang, "handle", { time: this._clock(n.m) })}
           data-h=${n.refs.map((l) => `${l.id}:${l.edge}`).join(" ")}
           @keydown=${(l) => this._key(l, o)} @focus=${() => this._hsel = o}
           ><i></i></button>`;
     })}
-      ${this._bubble ? c`<div class="bubble" style="left:clamp(28px, ${i(this._bubble.m)}, calc(100% - 28px))">${this._clock(this._bubble.m)}</div>` : h}
+      ${this._bubble ? d`<div class="bubble" style="left:clamp(28px, ${i(this._bubble.m)}, calc(100% - 28px))">${this._clock(this._bubble.m)}</div>` : h}
     </div>`;
   }
   _strip() {
@@ -2718,25 +2729,25 @@ let E = class extends O {
     const t = this._sel;
     if (!t) return h;
     const e = this.lang, i = this._ctx(), s = t.end !== null && (t.slot ? !!t.slot.end : !!i.defaultLabel) && We(t.start, t.end) !== null, r = F(e).days_short;
-    return c`<div class="strip" role="group">
+    return d`<div class="strip" role="group">
       <wp-label-picker compact .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${[this.entityId]}
         .value=${((n = t.slot) == null ? void 0 : n.label) ?? null} @label-change=${(o) => {
       o.stopPropagation(), this._pickLabel(o.detail);
     }}></wp-label-picker>
       <div class="acts">
-        ${t.slot ? c`<button class="act" @click=${() => this._nothing()}><ha-icon icon="mdi:close-circle-outline"></ha-icon>${d(e, "rest_none_short")}</button>` : h}
-        <button class="act" ?disabled=${!s} aria-label=${d(e, "cut")} title=${d(e, "cut")} @click=${() => this._cut()}>
+        ${t.slot ? d`<button class="act" @click=${() => this._nothing()}><ha-icon icon="mdi:close-circle-outline"></ha-icon>${c(e, "rest_none_short")}</button>` : h}
+        <button class="act" ?disabled=${!s} aria-label=${c(e, "cut")} title=${c(e, "cut")} @click=${() => this._cut()}>
           <ha-icon icon="mdi:content-cut"></ha-icon></button>
-        ${t.slot ? c`<button class="act ${this._copyOpen ? "on" : ""}" aria-expanded=${this._copyOpen}
+        ${t.slot ? d`<button class="act ${this._copyOpen ? "on" : ""}" aria-expanded=${this._copyOpen}
           @click=${() => {
       this._copyOpen = !this._copyOpen, this._copyDays = [];
-    }}><ha-icon icon="mdi:content-copy"></ha-icon>${d(e, "copy_to")}</button>` : h}
+    }}><ha-icon icon="mdi:content-copy"></ha-icon>${c(e, "copy_to")}</button>` : h}
       </div>
-      ${this._copyOpen && t.slot ? c`<div class="copy">
-        ${r.map((o, a) => a === this.weekday ? h : c`<button class="dchip ${this._copyDays.includes(a) ? "on" : ""}"
+      ${this._copyOpen && t.slot ? d`<div class="copy">
+        ${r.map((o, a) => a === this.weekday ? h : d`<button class="dchip ${this._copyDays.includes(a) ? "on" : ""}"
           role="checkbox" aria-checked=${this._copyDays.includes(a)} @click=${() => this._toggleDay(a)}>${o}</button>`)}
-        <button class="act go" ?disabled=${!this._copyDays.length} aria-label=${d(e, "copy_go")} title=${d(e, "copy_go")}
-          @click=${() => this._copyGo()}><ha-icon icon="mdi:check"></ha-icon>${d(e, "copy_go")}</button>
+        <button class="act go" ?disabled=${!this._copyDays.length} aria-label=${c(e, "copy_go")} title=${c(e, "copy_go")}
+          @click=${() => this._copyGo()}><ha-icon icon="mdi:check"></ha-icon>${c(e, "copy_go")}</button>
       </div>` : h}
     </div>`;
   }
@@ -2746,32 +2757,32 @@ let E = class extends O {
     const e = this.lang, i = F(e).days, s = (n, o) => {
       this._conflict = { ...t, skip: o ? [...t.skip.filter((a) => a !== n), n] : t.skip.filter((a) => a !== n) };
     }, r = t.to.every((n) => t.skip.includes(n));
-    return c`<wp-dialog open heading=${d(e, "conflict_title")} @closed=${(n) => {
+    return d`<wp-dialog open heading=${c(e, "conflict_title")} @closed=${(n) => {
       n.stopPropagation(), this._conflict = null;
     }}>
       <div class="cf">
-        ${t.days.map((n) => c`<div class="cfrow"><strong>${i[n]}</strong>
+        ${t.days.map((n) => d`<div class="cfrow"><strong>${i[n]}</strong>
           <div class="seg2" role="radiogroup" aria-label=${i[n]}>
-            <button role="radio" aria-checked=${!t.skip.includes(n)} class=${t.skip.includes(n) ? "" : "on"} @click=${() => s(n, !1)}>${d(e, "replace")}</button>
-            <button role="radio" aria-checked=${t.skip.includes(n)} class=${t.skip.includes(n) ? "on" : ""} @click=${() => s(n, !0)}>${d(e, "skip_day")}</button>
+            <button role="radio" aria-checked=${!t.skip.includes(n)} class=${t.skip.includes(n) ? "" : "on"} @click=${() => s(n, !1)}>${c(e, "replace")}</button>
+            <button role="radio" aria-checked=${t.skip.includes(n)} class=${t.skip.includes(n) ? "on" : ""} @click=${() => s(n, !0)}>${c(e, "skip_day")}</button>
           </div></div>`)}
       </div>
-      <button slot="footer" class="btn" @click=${() => this._conflict = null}>${d(e, "cancel")}</button>
-      <button slot="footer" class="btn primary" ?disabled=${r} @click=${() => void this._doCopy(t.id, t.to, t.skip)}>${d(e, "copy_go")}</button>
+      <button slot="footer" class="btn" @click=${() => this._conflict = null}>${c(e, "cancel")}</button>
+      <button slot="footer" class="btn primary" ?disabled=${r} @click=${() => void this._doCopy(t.id, t.to, t.skip)}>${c(e, "copy_go")}</button>
     </wp-dialog>`;
   }
   render() {
-    return !this.hass || !this.data || !this.program ? h : c`
+    return !this.hass || !this.data || !this.program ? h : d`
       <div class="zone ${this.editing ? "editing" : ""}"
         @pointerdown=${this._zoneDown} @pointermove=${this._zoneMove} @pointerup=${this._zoneUp}
         @pointercancel=${this._zoneCancel} @contextmenu=${(t) => {
       this._press && !this._press.mouse && t.preventDefault();
     }}>
         <wp-day-bar ?show-hours=${this.hours} notches lang=${this.lang} ?tall=${this.editing} .spans=${this._spansNow()} .now=${this.now}
-          aria-label=${d(this.lang, "edit_bar")}>${this.editing ? this._overlay_() : h}</wp-day-bar>
+          aria-label=${c(this.lang, "edit_bar")}>${this.editing ? this._overlay_() : h}</wp-day-bar>
       </div>
       ${this.editing ? this._strip() : h}
-      ${this._error ? c`<p class="err" role="alert">${this._error}</p>` : h}
+      ${this._error ? d`<p class="err" role="alert">${this._error}</p>` : h}
       ${this._conflictDialog()}`;
   }
 };
@@ -2919,7 +2930,7 @@ let Pt = class extends O {
   }
   render() {
     const t = F(this.lang);
-    return c`
+    return d`
       <wp-dialog open heading=${t.cf_title} @closed=${this._closed}>
         <p class="msg">${this.message}</p>
         <div slot="footer" class="foot">
@@ -2994,18 +3005,18 @@ let K = class extends O {
     var i;
     const e = this._lang;
     if (!this._name.trim()) {
-      this._error = d(e, "lb_err_name");
+      this._error = c(e, "lb_err_name");
       return;
     }
     if (((i = this._action) == null ? void 0 : i.kind) === "service" && cs(this.hass, this._action.service, this._action.data).length) {
-      this._error = d(e, "lb_err_fields");
+      this._error = c(e, "lb_err_fields");
       return;
     }
     this._saving = !0;
     try {
       await this.hass.callWS({ type: "weekly_planner/label/save", label: { id: t.id, name: this._name.trim(), color: this._color, action: this._action } }), this._open = null;
     } catch {
-      this._error = d(e, "lb_err_save");
+      this._error = c(e, "lb_err_save");
     } finally {
       this._saving = !1;
     }
@@ -3013,56 +3024,56 @@ let K = class extends O {
   async _delete(t) {
     const e = this._lang, i = de(this.data, t.id);
     if (i.length) {
-      this._error = d(e, "lb_in_use", { programs: i.join(", ") });
+      this._error = c(e, "lb_in_use", { programs: i.join(", ") });
       return;
     }
-    if (await At(this, d(e, "confirm_delete", { name: t.name }), d(e, "delete"), d(e, "cancel")))
+    if (await At(this, c(e, "confirm_delete", { name: t.name }), c(e, "delete"), c(e, "cancel")))
       try {
         await this.hass.callWS({ type: "weekly_planner/label/delete", label_id: t.id }), this._open = null;
       } catch (s) {
         const r = s;
-        this._error = (r == null ? void 0 : r.code) === "in_use" ? d(e, "lb_in_use", { programs: r.message ?? "" }) : d(e, "lb_err_save");
+        this._error = (r == null ? void 0 : r.code) === "in_use" ? c(e, "lb_in_use", { programs: r.message ?? "" }) : c(e, "lb_err_save");
       }
   }
   render() {
     if (!this.hass || !this.data) return h;
     const t = this._lang;
-    return c`<wp-dialog open heading=${d(t, "labels")}>
-      ${this.data.labels.length ? h : c`<p class="muted">${d(t, "lb_none")}</p>`}
+    return d`<wp-dialog open heading=${c(t, "labels")}>
+      ${this.data.labels.length ? h : d`<p class="muted">${c(t, "lb_none")}</p>`}
       <div class="list">
         ${this.data.labels.map((e) => {
       const i = de(this.data, e.id).length;
       if (this._open !== e.id)
-        return c`<button class="row" @click=${() => this._expand(e)}>
+        return d`<button class="row" @click=${() => this._expand(e)}>
               <i class="dot" style="background:${e.color}"></i>
-              <span class="txt"><b>${e.name}</b><span class="sub">${Qe(this.hass, t, e.action)} · ${d(t, "lb_uses", { n: String(i) })}</span></span>
+              <span class="txt"><b>${e.name}</b><span class="sub">${Qe(this.hass, t, e.action)} · ${c(t, "lb_uses", { n: String(i) })}</span></span>
               <ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
       const s = this._entities(e);
-      return c`<div class="editor">
-            <div class="field"><label for="lbe-name">${d(t, "lb_name")}</label>
+      return d`<div class="editor">
+            <div class="field"><label for="lbe-name">${c(t, "lb_name")}</label>
               <input id="lbe-name" type="text" maxlength="30" .value=${this._name}
                 @input=${(r) => {
         this._name = r.target.value, this._error = "";
       }} /></div>
-            <div class="swatches" role="radiogroup" aria-label=${d(t, "lb_color")}>
-              ${qt.map((r) => c`<button class="sw ${r === this._color ? "on" : ""}" role="radio" aria-checked=${r === this._color}
+            <div class="swatches" role="radiogroup" aria-label=${c(t, "lb_color")}>
+              ${qt.map((r) => d`<button class="sw ${r === this._color ? "on" : ""}" role="radio" aria-checked=${r === this._color}
                 aria-label=${r} style="background:${r}" @click=${() => this._color = r}></button>`)}
             </div>
-            ${s.length > 1 ? c`<div class="field"><label for="lbe-ent">${d(t, "lb_device")}</label>
+            ${s.length > 1 ? d`<div class="field"><label for="lbe-ent">${c(t, "lb_device")}</label>
               <select id="lbe-ent" @change=${(r) => this._entity = r.target.value}>
-                ${s.map((r) => c`<option value=${r} ?selected=${r === this._entity}>${_t(this.hass, r)}</option>`)}
+                ${s.map((r) => d`<option value=${r} ?selected=${r === this._entity}>${_t(this.hass, r)}</option>`)}
               </select></div>` : h}
             <wp-action-picker .hass=${this.hass} entity-id=${this._entity} .action=${this._action}
               @action-change=${(r) => {
         r.stopPropagation(), this._action = r.detail, this._error = "";
       }}></wp-action-picker>
-            ${this._error ? c`<p class="err" role="alert">${this._error}</p>` : h}
+            ${this._error ? d`<p class="err" role="alert">${this._error}</p>` : h}
             <div class="btns">
-              <button class="btn primary" ?disabled=${this._saving} @click=${() => void this._save(e)}>${d(t, "save")}</button>
-              <button class="btn" @click=${() => this._open = null}>${d(t, "cancel")}</button>
+              <button class="btn primary" ?disabled=${this._saving} @click=${() => void this._save(e)}>${c(t, "save")}</button>
+              <button class="btn" @click=${() => this._open = null}>${c(t, "cancel")}</button>
             </div>
             <button class="btn danger-line alone" @click=${() => void this._delete(e)}>
-              <ha-icon icon="mdi:delete-outline"></ha-icon>${d(t, "delete")}</button>
+              <ha-icon icon="mdi:delete-outline"></ha-icon>${c(t, "delete")}</button>
           </div>`;
     })}
       </div>
@@ -3503,16 +3514,16 @@ let G = class extends O {
     if (!this.hass || !this.data) return h;
     const t = this._lang, e = this._model;
     let i;
-    return this._failed ? i = c`<div class="note">${d(t, "no_data")}</div>` : e ? i = this._renderChart(e) : i = c`<div class="note">${d(t, "chart_loading")}</div>`, c`<div class="box">${i}</div>${e ? this._legend(e) : h}`;
+    return this._failed ? i = d`<div class="note">${c(t, "no_data")}</div>` : e ? i = this._renderChart(e) : i = d`<div class="note">${c(t, "chart_loading")}</div>`, d`<div class="box">${i}</div>${e ? this._legend(e) : h}`;
   }
   _legend(t) {
-    const e = this._lang, i = (r, n, o) => c`<span class="key"><i class=${r} style=${""}></i>${n}</span>`, s = (r) => t.lines.some((n) => n.key === r);
-    return c`<div class="legend">
-      ${t.markers.length || t.planned.steps.length ? i("planned", d(e, "planned")) : h}
-      ${s("measured") ? i("measured", d(e, "measured")) : h}
-      ${s("set") ? i("set", d(e, "ch_set")) : h}
-      ${t.shade.length ? i("active", d(e, "active_key")) : h}
-      ${t.manual.length ? i("manual", d(e, "manual")) : h}
+    const e = this._lang, i = (r, n, o) => d`<span class="key"><i class=${r} style=${""}></i>${n}</span>`, s = (r) => t.lines.some((n) => n.key === r);
+    return d`<div class="legend">
+      ${t.markers.length || t.planned.steps.length ? i("planned", c(e, "planned")) : h}
+      ${s("measured") ? i("measured", c(e, "measured")) : h}
+      ${s("set") ? i("set", c(e, "ch_set")) : h}
+      ${t.shade.length ? i("active", c(e, "active_key")) : h}
+      ${t.manual.length ? i("manual", c(e, "manual")) : h}
     </div>`;
   }
   _renderChart(t) {
@@ -3530,10 +3541,10 @@ let G = class extends O {
         <circle class="mk ${m.end ? "end" : ""}" cx=${o(m.m)} cy=${k} r="5" style="--c:${j}"></circle>
         ${m.value !== null ? z`<text class="val" x=${Math.min(Math.max(o(m.m), 14), i - 14)} y=${Math.max(k - 8, 9)} text-anchor="middle">${Number(m.value.toFixed(1))}</text>` : h}`;
     }, A = t.isToday ? z`<line class="now" x1=${o(t.pastEnd)} x2=${o(t.pastEnd)} y1=${n.t - 4} y2=${r - n.b}></line>
-        <g class="nowicon" role="img" aria-label=${d(e, "now")} transform="translate(${o(t.pastEnd) - 6}, ${n.t - 17}) scale(0.5)"><title>${d(e, "now")}</title><path d=${nn}></path></g>` : h;
-    return c`
+        <g class="nowicon" role="img" aria-label=${c(e, "now")} transform="translate(${o(t.pastEnd) - 6}, ${n.t - 17}) scale(0.5)"><title>${c(e, "now")}</title><path d=${nn}></path></g>` : h;
+    return d`
       <svg width=${i} height=${r} viewBox="0 0 ${i} ${r}" tabindex="0" role="button"
-        aria-label=${d(e, "chart_open", { name: _t(this.hass, this.entityId) })}
+        aria-label=${c(e, "chart_open", { name: _t(this.hass, this.entityId) })}
         @click=${() => this._open()}
         @keydown=${(m) => {
       (m.key === "Enter" || m.key === " ") && (m.preventDefault(), this._open());
@@ -3670,17 +3681,17 @@ let X = class extends O {
     const i = this.group.slot[t];
     if (!i) return h;
     const s = this._lang, r = F(s), n = this.disabled;
-    return c`
+    return d`
       <div class="time" role="group" aria-label=${e}>
-        <button class="step" ?disabled=${n} aria-label=${d(s, "minus15")} title=${d(s, "minus15")} @click=${() => this._update(t, Ai(i, -15))}><ha-icon icon="mdi:minus"></ha-icon></button>
-        ${"time" in i ? c`<input type="time" step="300" .value=${i.time === "24:00" ? "00:00" : i.time} ?disabled=${n}
-              aria-label=${e} @change=${(o) => this._fromInput(t, o.target.value)} />` : c`<output class="sun">${Re(s, i)}</output>`}
-        <button class="step" ?disabled=${n} aria-label=${d(s, "plus15")} title=${d(s, "plus15")} @click=${() => this._update(t, Ai(i, 15))}><ha-icon icon="mdi:plus"></ha-icon></button>
+        <button class="step" ?disabled=${n} aria-label=${c(s, "minus15")} title=${c(s, "minus15")} @click=${() => this._update(t, Ai(i, -15))}><ha-icon icon="mdi:minus"></ha-icon></button>
+        ${"time" in i ? d`<input type="time" step="300" .value=${i.time === "24:00" ? "00:00" : i.time} ?disabled=${n}
+              aria-label=${e} @change=${(o) => this._fromInput(t, o.target.value)} />` : d`<output class="sun">${Re(s, i)}</output>`}
+        <button class="step" ?disabled=${n} aria-label=${c(s, "plus15")} title=${c(s, "plus15")} @click=${() => this._update(t, Ai(i, 15))}><ha-icon icon="mdi:plus"></ha-icon></button>
       </div>
       <div class="chips">
         ${cn.map((o) => {
       const a = "sun" in i && i.sun === o;
-      return c`<button class="chip ${a ? "on" : ""}" aria-pressed=${a} ?disabled=${n}
+      return d`<button class="chip ${a ? "on" : ""}" aria-pressed=${a} ?disabled=${n}
             @click=${() => this._toggleSun(t, o)}><ha-icon icon=${o === "sunrise" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down"}></ha-icon>${r[`sun_${o}_short`] ?? o}</button>`;
     })}
       </div>`;
@@ -3697,37 +3708,37 @@ let X = class extends O {
   }
   render() {
     if (!this.group || !this.program) return h;
-    const t = this._lang, e = F(t), i = this.group.slot, s = this.group.days, r = (o, a) => o.length === a.length && a.every((l) => o.includes(l)), n = (o, a) => c`<button class="chip small ${r(s, a) ? "on" : ""}"
-      aria-pressed=${r(s, a)} ?disabled=${this.disabled} @click=${() => this._set({}, [...a])}>${r(s, a) ? c`<ha-icon icon="mdi:check"></ha-icon>` : h}${o}</button>`;
-    return c`
+    const t = this._lang, e = F(t), i = this.group.slot, s = this.group.days, r = (o, a) => o.length === a.length && a.every((l) => o.includes(l)), n = (o, a) => d`<button class="chip small ${r(s, a) ? "on" : ""}"
+      aria-pressed=${r(s, a)} ?disabled=${this.disabled} @click=${() => this._set({}, [...a])}>${r(s, a) ? d`<ha-icon icon="mdi:check"></ha-icon>` : h}${o}</button>`;
+    return d`
       <section>
-        <h4>${d(t, "start")}</h4>
-        ${this._timeBlock("start", d(t, "start"))}
+        <h4>${c(t, "start")}</h4>
+        ${this._timeBlock("start", c(t, "start"))}
       </section>
       <section>
-        <h4>${d(t, "end")}</h4>
+        <h4>${c(t, "end")}</h4>
         <div class="chips">
           <button class="chip ${i.end ? "" : "on"}" aria-pressed=${!i.end} ?disabled=${this.disabled}
-            @click=${() => this._toggleEnd(!1)}>${d(t, "no_end")}</button>
+            @click=${() => this._toggleEnd(!1)}>${c(t, "no_end")}</button>
           <button class="chip ${i.end ? "on" : ""}" aria-pressed=${!!i.end} ?disabled=${this.disabled}
-            @click=${() => this._toggleEnd(!0)}>${d(t, "with_end")}</button>
+            @click=${() => this._toggleEnd(!0)}>${c(t, "with_end")}</button>
         </div>
-        ${i.end ? this._timeBlock("end", d(t, "end")) : h}
+        ${i.end ? this._timeBlock("end", c(t, "end")) : h}
       </section>
       <section>
-        <h4>${d(t, "days_label")}</h4>
-        ${this.dayOnly !== null && !this._more && r(s, [this.dayOnly]) ? c`<div class="chips"><span class="only">${e.days[this.dayOnly]}</span>
+        <h4>${c(t, "days_label")}</h4>
+        ${this.dayOnly !== null && !this._more && r(s, [this.dayOnly]) ? d`<div class="chips"><span class="only">${e.days[this.dayOnly]}</span>
               <button class="chip" ?disabled=${this.disabled} @click=${() => this._more = !0}>
-                <ha-icon icon="mdi:calendar-plus"></ha-icon>${d(t, "apply_other_days")}</button></div>` : c`<div class="days" role="group" aria-label=${d(t, "days_label")}>
-          ${e.days_short.map((o, a) => c`<button class="day ${s.includes(a) ? "on" : ""}" aria-pressed=${s.includes(a)}
-            aria-label=${e.days[a]} ?disabled=${this.disabled} @click=${() => this._toggleDay(a)}>${s.includes(a) ? c`<ha-icon icon="mdi:check"></ha-icon>` : h}<span>${o}</span></button>`)}
+                <ha-icon icon="mdi:calendar-plus"></ha-icon>${c(t, "apply_other_days")}</button></div>` : d`<div class="days" role="group" aria-label=${c(t, "days_label")}>
+          ${e.days_short.map((o, a) => d`<button class="day ${s.includes(a) ? "on" : ""}" aria-pressed=${s.includes(a)}
+            aria-label=${e.days[a]} ?disabled=${this.disabled} @click=${() => this._toggleDay(a)}>${s.includes(a) ? d`<ha-icon icon="mdi:check"></ha-icon>` : h}<span>${o}</span></button>`)}
         </div>
         <div class="chips">
-          ${n(d(t, "all_days"), ve)}${n(d(t, "weekdays"), ps)}${n(d(t, "weekend"), us)}
+          ${n(c(t, "all_days"), ve)}${n(c(t, "weekdays"), ps)}${n(c(t, "weekend"), us)}
         </div>`}
       </section>
       <section>
-        <h4>${d(t, "action")}</h4>
+        <h4>${c(t, "action")}</h4>
         <wp-label-picker .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${this.entityIds}
           .value=${i.label || null} ?disabled=${this.disabled}
           @label-change=${(o) => {
@@ -3958,7 +3969,7 @@ let M = class extends O {
       return s != null && s.program && (this._saved[t.id] = s.program), "ok";
     } catch (s) {
       const r = s;
-      return (r == null ? void 0 : r.code) === "conflict" ? "conflict" : ((r == null ? void 0 : r.code) === "unauthorized" ? this._error = d(this._lang, "err_unauthorized") : (e = r == null ? void 0 : r.message) != null && e.includes("unknown_label") ? this._error = d(this._lang, "err_label") : (i = r == null ? void 0 : r.message) != null && i.includes("overlapping_slots") ? this._error = d(this._lang, "w_err_overlap") : this._error = d(this._lang, "ss_err_save"), "error");
+      return (r == null ? void 0 : r.code) === "conflict" ? "conflict" : ((r == null ? void 0 : r.code) === "unauthorized" ? this._error = c(this._lang, "err_unauthorized") : (e = r == null ? void 0 : r.message) != null && e.includes("unknown_label") ? this._error = c(this._lang, "err_label") : (i = r == null ? void 0 : r.message) != null && i.includes("overlapping_slots") ? this._error = c(this._lang, "w_err_overlap") : this._error = c(this._lang, "ss_err_save"), "error");
     } finally {
       this._saving = !1;
     }
@@ -3984,7 +3995,7 @@ let M = class extends O {
         break;
       }
     }
-    return this._error = d(this._lang, "ss_err_save"), !1;
+    return this._error = c(this._lang, "ss_err_save"), !1;
   }
   /** The entities of the current program with the label values set on this screen. */
   _withOverrides(t, e = t.entities) {
@@ -3999,7 +4010,7 @@ let M = class extends O {
   }
   _problem(t) {
     const e = this._lang, i = this._group;
-    return i ? i.days.length ? i.slot.end && JSON.stringify(i.slot.start) === JSON.stringify(i.slot.end) ? d(e, "w_err_same") : W(this.data, i.slot.label) ? "" : d(e, "err_action") : d(e, "err_days") : "";
+    return i ? i.days.length ? i.slot.end && JSON.stringify(i.slot.start) === JSON.stringify(i.slot.end) ? c(e, "w_err_same") : W(this.data, i.slot.label) ? "" : c(e, "err_action") : c(e, "err_days") : "";
   }
   /**
    * The group being edited against the current profile: unchanged, merged when only its other days moved,
@@ -4012,7 +4023,7 @@ let M = class extends O {
     if (r === "same") return "ok";
     if (r === "days" && s && this._dayOnly !== null && s.days.includes(this._dayOnly))
       return this._rest = Ci(s, this._dayOnly).rest, this._origin = structuredClone(s), "ok";
-    const n = d(this._lang, "ss_changed");
+    const n = c(this._lang, "ss_changed");
     if (s) {
       const o = this._open ?? `${e.id}|${Ei(s)}`;
       this._openRow(o, e, s);
@@ -4039,16 +4050,16 @@ let M = class extends O {
       let p = t;
       if (r = [], this._dropBusy) {
         const { free: _, busy: f } = Mr(u, s, this._minutes, t.slot, t.days);
-        if (!_.length) return { error: d(this._lang, "w_err_overlap") };
+        if (!_.length) return { error: c(this._lang, "w_err_overlap") };
         p = { ...t, days: _ }, r = f;
       }
       const g = Oe(u, s, this._minutes, { openId: this._openId, rest: this._rest, draft: p });
-      return Pr(g) !== null ? { error: d(this._lang, "w_err_overlap") } : { program: { ...a, entities: this._withOverrides(a), profiles: a.profiles.map((_) => _.id === l.id ? g : _) } };
-    }) && !n && (this._cancel(), r.length && (this._note = d(this._lang, "w_dropped", { days: r.map((a) => F(this._lang).days_short[a]).join(" ") })));
+      return Pr(g) !== null ? { error: c(this._lang, "w_err_overlap") } : { program: { ...a, entities: this._withOverrides(a), profiles: a.profiles.map((_) => _.id === l.id ? g : _) } };
+    }) && !n && (this._cancel(), r.length && (this._note = c(this._lang, "w_dropped", { days: r.map((a) => F(this._lang).days_short[a]).join(" ") })));
   }
   async _deleteRow() {
     const t = this._live(this._programId);
-    if (!t || this._open === "new" || !this._openId || !await At(this, d(this._lang, "w_confirm_slot"), d(this._lang, "yes"), d(this._lang, "no"))) return;
+    if (!t || this._open === "new" || !this._openId || !await At(this, c(this._lang, "w_confirm_slot"), c(this._lang, "yes"), c(this._lang, "no"))) return;
     await this._commit(t.id, (i) => {
       const s = ot(i, this.data);
       if (this._checkOrigin(s, i) === "changed") return { changed: !0 };
@@ -4071,7 +4082,7 @@ let M = class extends O {
     return this._programs.some((t) => t.enabled);
   }
   async _setEnabled(t, e) {
-    if (!t && !await At(this, d(this._lang, "confirm_pause", { name: this._title }), d(this._lang, "yes"), d(this._lang, "no"))) {
+    if (!t && !await At(this, c(this._lang, "confirm_pause", { name: this._title }), c(this._lang, "yes"), c(this._lang, "no"))) {
       e.checked = !0;
       return;
     }
@@ -4079,11 +4090,11 @@ let M = class extends O {
       for (const i of this._programs)
         await this.hass.callWS({ type: "weekly_planner/program/set_enabled", program_id: i.id, enabled: t });
     } catch (i) {
-      this._error = d(this._lang, "error", { message: (i == null ? void 0 : i.message) ?? String(i) });
+      this._error = c(this._lang, "error", { message: (i == null ? void 0 : i.message) ?? String(i) });
     }
   }
   async _deleteAll() {
-    if (await At(this, d(this._lang, "confirm_delete_schedule", { name: this._title }), d(this._lang, "yes"), d(this._lang, "no")))
+    if (await At(this, c(this._lang, "confirm_delete_schedule", { name: this._title }), c(this._lang, "yes"), c(this._lang, "no")))
       try {
         for (const t of this._programs) {
           const e = this.scope.kind === "device" ? this.scope.entityId : null;
@@ -4096,7 +4107,7 @@ let M = class extends O {
         }
         this._closeDialog();
       } catch (t) {
-        this._error = d(this._lang, "error", { message: (t == null ? void 0 : t.message) ?? String(t) });
+        this._error = c(this._lang, "error", { message: (t == null ? void 0 : t.message) ?? String(t) });
       }
   }
   /** Leave the screen and open the Home Assistant history of the device (navigate: pushState + location-changed). */
@@ -4128,14 +4139,14 @@ let M = class extends O {
     const { program: e, group: i, key: s } = t;
     if (this._open === s && this._group) return this._renderEditor(e, s);
     const { text: r, days: n, color: o } = this._rowText(i);
-    return c`<button class="row" aria-expanded="false" @click=${() => this._openRow(s, e, i)}>
+    return d`<button class="row" aria-expanded="false" @click=${() => this._openRow(s, e, i)}>
       <span class="dot" style="background:${o}"></span>
-      <span class="txt"><span class="l1">${r}</span>${this._focus === null ? c`<span class="l2">${n}</span>` : h}${this._programs.length > 1 ? c`<small>${e.name}</small>` : h}</span>
+      <span class="txt"><span class="l1">${r}</span>${this._focus === null ? d`<span class="l2">${n}</span>` : h}${this._programs.length > 1 ? d`<small>${e.name}</small>` : h}</span>
       <ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
   }
   _renderEditor(t, e) {
     const i = this._lang, s = e === "new", r = this._entities.filter((n) => t.entities.some((o) => o.entity_id === n));
-    return c`<div class="editor">
+    return d`<div class="editor">
       <wp-slot-form .hass=${this.hass} .data=${this.data} .program=${this._draft ?? t} .group=${this._group} .entityIds=${r}
         .dayOnly=${this._dayOnly} ?disabled=${!this._canEdit}
         @override-change=${(n) => {
@@ -4144,23 +4155,23 @@ let M = class extends O {
         @group-change=${(n) => {
       n.stopPropagation(), this._group = n.detail, this._error = "";
     }}></wp-slot-form>
-      ${this._error ? c`<p class="err" role="alert">${this._error}</p>` : h}
+      ${this._error ? d`<p class="err" role="alert">${this._error}</p>` : h}
       <div class="btns">
-        <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRow()}>${d(i, "save")}</button>
-        <button class="btn" @click=${() => this._cancel()}>${d(i, "cancel")}</button>
+        <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRow()}>${c(i, "save")}</button>
+        <button class="btn" @click=${() => this._cancel()}>${c(i, "cancel")}</button>
       </div>
-      ${s ? h : c`<button class="btn dup" ?disabled=${!this._canEdit} @click=${() => this._duplicate()}>
-        <ha-icon icon="mdi:content-copy"></ha-icon>${d(i, "duplicate")}</button>`}
-      ${s ? h : c`<button class="btn danger-line alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteRow()}>
-        <ha-icon icon="mdi:delete-outline"></ha-icon>${d(i, "delete")}</button>`}
+      ${s ? h : d`<button class="btn dup" ?disabled=${!this._canEdit} @click=${() => this._duplicate()}>
+        <ha-icon icon="mdi:content-copy"></ha-icon>${c(i, "duplicate")}</button>`}
+      ${s ? h : d`<button class="btn danger-line alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteRow()}>
+        <ha-icon icon="mdi:delete-outline"></ha-icon>${c(i, "delete")}</button>`}
     </div>`;
   }
   _renderRest() {
     const t = this._lang, e = this._programs[0];
     return e ? this._entities.filter((i) => e.entities.some((s) => s.entity_id === i)).map((i) => {
-      const s = e.entities.find((a) => a.entity_id === i), r = `rest:${i}`, n = this._entities.length > 1 ? `${d(t, "rest_of_time")} · ${_t(this.hass, i)}` : d(t, "rest_of_time");
+      const s = e.entities.find((a) => a.entity_id === i), r = `rest:${i}`, n = this._entities.length > 1 ? `${c(t, "rest_of_time")} · ${_t(this.hass, i)}` : c(t, "rest_of_time");
       if (this._open === r)
-        return c`<div class="editor"><h4>${n}</h4>
+        return d`<div class="editor"><h4>${n}</h4>
           <wp-label-picker allow-none .hass=${this.hass} .data=${this.data} .program=${this._draft ?? e} .entityIds=${[i]}
             .value=${this._restLabel} ?disabled=${!this._canEdit}
             @override-change=${(a) => {
@@ -4169,28 +4180,28 @@ let M = class extends O {
             @label-change=${(a) => {
           a.stopPropagation(), this._restLabel = a.detail;
         }}></wp-label-picker>
-          ${this._error ? c`<p class="err" role="alert">${this._error}</p>` : h}
+          ${this._error ? d`<p class="err" role="alert">${this._error}</p>` : h}
           <div class="btns">
-            <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRest(i)}>${d(t, "save")}</button>
-            <button class="btn" @click=${() => this._cancel()}>${d(t, "cancel")}</button>
+            <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRest(i)}>${c(t, "save")}</button>
+            <button class="btn" @click=${() => this._cancel()}>${c(t, "cancel")}</button>
           </div></div>`;
       const o = W(this.data, s.default_label);
-      return c`<button class="row rest" aria-expanded="false" @click=${() => this._expand(r, e, null, { restLabel: s.default_label ?? null })}>
-        ${o ? c`<span class="dot" style="background:${o.color}"></span>` : c`<ha-icon icon="mdi:update"></ha-icon>`}
-        <span class="txt">${n} · <b>${o ? o.name : d(t, "rest_none_short")}</b></span><ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
+      return d`<button class="row rest" aria-expanded="false" @click=${() => this._expand(r, e, null, { restLabel: s.default_label ?? null })}>
+        ${o ? d`<span class="dot" style="background:${o.color}"></span>` : d`<ha-icon icon="mdi:update"></ha-icon>`}
+        <span class="txt">${n} · <b>${o ? o.name : c(t, "rest_none_short")}</b></span><ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
     }) : h;
   }
   _renderChart() {
     const t = this._lang, e = this._programs[0];
     if (!this.chart || !e || !this._chartEntity) return h;
     const i = this._date, s = new Intl.DateTimeFormat(t, { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" }).format(/* @__PURE__ */ new Date(`${i}T12:00:00Z`));
-    return c`<section class="chart">
-      ${this._entities.length > 1 ? c`<select aria-label=${d(t, "chart")} @change=${(r) => this._chartEntity = r.target.value}>
-        ${this._entities.map((r) => c`<option value=${r} ?selected=${r === this._chartEntity}>${_t(this.hass, r)}</option>`)}</select>` : h}
+    return d`<section class="chart">
+      ${this._entities.length > 1 ? d`<select aria-label=${c(t, "chart")} @change=${(r) => this._chartEntity = r.target.value}>
+        ${this._entities.map((r) => d`<option value=${r} ?selected=${r === this._chartEntity}>${_t(this.hass, r)}</option>`)}</select>` : h}
       <div class="nav">
-        <button class="ibtn" ?disabled=${this._offset <= -14} aria-label=${d(t, "previous_day")} @click=${() => this._go(-1)}><ha-icon icon="mdi:chevron-left"></ha-icon></button>
-        <span>${this._offset === 0 ? d(t, "today") : s}</span>
-        <button class="ibtn" ?disabled=${this._offset >= Ne} aria-label=${d(t, "next_day")} @click=${() => this._go(1)}><ha-icon icon="mdi:chevron-right"></ha-icon></button>
+        <button class="ibtn" ?disabled=${this._offset <= -14} aria-label=${c(t, "previous_day")} @click=${() => this._go(-1)}><ha-icon icon="mdi:chevron-left"></ha-icon></button>
+        <span>${this._offset === 0 ? c(t, "today") : s}</span>
+        <button class="ibtn" ?disabled=${this._offset >= Ne} aria-label=${c(t, "next_day")} @click=${() => this._go(1)}><ha-icon icon="mdi:chevron-right"></ha-icon></button>
       </div>
       <wp-chart .hass=${this.hass} .data=${this.data} .program=${e} entity-id=${this._chartEntity} date=${i}
         .slots=${this._slots} @open-history=${(r) => this._openHistory(r.detail)}></wp-chart>
@@ -4201,38 +4212,38 @@ let M = class extends O {
     if (!this.hass || !this.data || !this.scope) return h;
     const t = this._lang;
     if (!this._programs.length)
-      return c`<wp-dialog open heading=${this._title}><p class="muted">${d(t, "no_program")}</p></wp-dialog>`;
+      return d`<wp-dialog open heading=${this._title}><p class="muted">${c(t, "no_program")}</p></wp-dialog>`;
     const e = this._rows(), i = !!((s = this.hass.user) != null && s.is_admin) && this.data.can_edit;
-    return c`
+    return d`
       <wp-dialog open heading=${this._title}>
-        ${i ? c`<button slot="header-actions" class="gear" aria-label=${d(t, "settings")} @click=${() => this._settings()}>
+        ${i ? d`<button slot="header-actions" class="gear" aria-label=${c(t, "settings")} @click=${() => this._settings()}>
           <ha-icon icon="mdi:cog"></ha-icon></button>` : h}
-        ${this._canEdit ? h : c`<p class="err" role="alert">${d(t, "read_only")}</p>`}
-        ${this._error && !this._open ? c`<p class="err" role="alert">${this._error}</p>` : h}
-        ${this._focus !== null && this._open === null ? c`<div class="focus">
+        ${this._canEdit ? h : d`<p class="err" role="alert">${c(t, "read_only")}</p>`}
+        ${this._error && !this._open ? d`<p class="err" role="alert">${this._error}</p>` : h}
+        ${this._focus !== null && this._open === null ? d`<div class="focus">
           <button class="chip back" @click=${() => {
       this._focus = null, this._note = "";
     }}>
-            <ha-icon icon="mdi:arrow-left"></ha-icon>${d(t, "w_whole_week")}</button>
+            <ha-icon icon="mdi:arrow-left"></ha-icon>${c(t, "w_whole_week")}</button>
           <h3>${F(t).days[this._focus]}</h3></div>` : h}
-        ${this._note && this._open === null ? c`<p class="muted note">${this._note}</p>` : h}
+        ${this._note && this._open === null ? d`<p class="muted note">${this._note}</p>` : h}
         <div class="list">
-          ${e.length ? e.map((r) => this._renderRow(r)) : this._open === "new" ? h : c`<p class="muted">${d(t, "w_none")}</p>`}
+          ${e.length ? e.map((r) => this._renderRow(r)) : this._open === "new" ? h : d`<p class="muted">${c(t, "w_none")}</p>`}
           ${this._open === "new" && this._group ? this._renderEditor(this._programs[0], "new") : h}
-          ${this._open === null ? c`<button class="row add" ?disabled=${!this._canEdit} @click=${() => this._add()}>
-            <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${this._focus === null ? d(t, "w_add") : d(t, "w_add_day", { day: F(t).days[this._focus].toLocaleLowerCase(t) })}</span></button>` : h}
+          ${this._open === null ? d`<button class="row add" ?disabled=${!this._canEdit} @click=${() => this._add()}>
+            <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${this._focus === null ? c(t, "w_add") : c(t, "w_add_day", { day: F(t).days[this._focus].toLocaleLowerCase(t) })}</span></button>` : h}
           ${this._renderRest()}
         </div>
-        ${this._open !== null ? h : c`${this._renderChart()}
+        ${this._open !== null ? h : d`${this._renderChart()}
         <label class="switch">
-          <span class="grow">${d(t, "schedule_on")}</span>
-          <span class="state">${this._enabled ? d(t, "running") : d(t, "stopped")}</span>
+          <span class="grow">${c(t, "schedule_on")}</span>
+          <span class="state">${this._enabled ? c(t, "running") : c(t, "stopped")}</span>
           <input type="checkbox" .checked=${this._enabled} ?disabled=${!this._canEdit}
             @change=${(r) => void this._setEnabled(r.target.checked, r.target)} />
           <span class="track"></span>
         </label>
         <button class="btn danger-line alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteAll()}>
-          <ha-icon icon="mdi:delete-outline"></ha-icon>${d(t, "delete_schedule")}</button>`}
+          <ha-icon icon="mdi:delete-outline"></ha-icon>${c(t, "delete_schedule")}</button>`}
       </wp-dialog>`;
   }
 };
@@ -4386,7 +4397,7 @@ let R = class extends O {
     return gt(this.hass);
   }
   _tr(t, e) {
-    return d(this._lang, t, e);
+    return c(this._lang, t, e);
   }
   _long(t) {
     return F(this._lang).days[t];
@@ -4541,15 +4552,15 @@ let R = class extends O {
   /* ---- render: tabs ---- */
   _renderGeneral() {
     const t = this._p;
-    return c`
+    return d`
       <div class="field"><label for="f-name">${this._tr("pe_name")}</label>
         <input id="f-name" type="text" maxlength="60" .value=${t.name}
           @input=${(e) => this._patch({ name: e.target.value })} /></div>
       <div class="row">
         <div class="field"><label for="f-icon">${this._tr("pe_icon")}</label>
-          ${this._picker ? c`<ha-selector id="f-icon" .hass=${this.hass} .selector=${{ icon: {} }} .value=${t.icon ?? ""}
-                @value-changed=${(e) => this._patch({ icon: e.detail.value || null })}></ha-selector>` : c`<div class="row" style="flex-wrap:nowrap">
-                ${t.icon && customElements.get("ha-icon") ? c`<ha-icon .icon=${t.icon}></ha-icon>` : h}
+          ${this._picker ? d`<ha-selector id="f-icon" .hass=${this.hass} .selector=${{ icon: {} }} .value=${t.icon ?? ""}
+                @value-changed=${(e) => this._patch({ icon: e.detail.value || null })}></ha-selector>` : d`<div class="row" style="flex-wrap:nowrap">
+                ${t.icon && customElements.get("ha-icon") ? d`<ha-icon .icon=${t.icon}></ha-icon>` : h}
                 <input id="f-icon" type="text" placeholder="mdi:thermometer" .value=${t.icon ?? ""}
                   @input=${(e) => this._patch({ icon: e.target.value.trim() || null })} />
               </div>`}</div>
@@ -4574,14 +4585,14 @@ let R = class extends O {
   }
   _renderEntities() {
     const t = this._p;
-    return c`
-      ${t.entities.length === 0 ? c`<p class="muted">${this._tr("pe_no_entity")}</p>` : h}
+    return d`
+      ${t.entities.length === 0 ? d`<p class="muted">${this._tr("pe_no_entity")}</p>` : h}
       ${t.entities.map((e, i) => this._renderEntity(e, i))}
-      ${ss(this._pickerKey, this._picker ? c`<ha-selector .hass=${this.hass} .selector=${{ entity: { exclude_entities: t.entities.map((e) => e.entity_id) } }}
+      ${ss(this._pickerKey, this._picker ? d`<ha-selector .hass=${this.hass} .selector=${{ entity: { exclude_entities: t.entities.map((e) => e.entity_id) } }}
             .label=${this._tr("pe_add_entity")} .value=${""}
             @value-changed=${(e) => {
       e.stopPropagation(), this._addEntity(e.detail.value ?? "");
-    }}></ha-selector>` : c`<wp-entity-picker .hass=${this.hass} .value=${""} .label=${this._tr("pe_add_entity")}
+    }}></ha-selector>` : d`<wp-entity-picker .hass=${this.hass} .value=${""} .label=${this._tr("pe_add_entity")}
         .exclude=${t.entities.map((e) => e.entity_id)}
         @wp-change=${(e) => {
       e.stopPropagation(), this._addEntity(e.detail);
@@ -4589,11 +4600,11 @@ let R = class extends O {
     `;
   }
   _renderEntity(t, e) {
-    return c`
+    return d`
       <div class="card">
         <div class="row" style="flex-wrap:nowrap">
           <div class="grow"><strong>${Te(this.hass, t.entity_id)}</strong>
-            ${this.hass.states[t.entity_id] ? h : c`<div class="muted small">${this._tr("pe_unknown_entity")}</div>`}</div>
+            ${this.hass.states[t.entity_id] ? h : d`<div class="muted small">${this._tr("pe_unknown_entity")}</div>`}</div>
           <button class="ibtn" aria-label=${`${this._tr("delete")} ${Te(this.hass, t.entity_id)}`}
             @click=${() => void this._askDeleteEntity(e)}><ha-icon icon="mdi:delete"></ha-icon></button>
         </div>
@@ -4601,13 +4612,13 @@ let R = class extends O {
   }
   _renderSeasons() {
     const t = this._p, e = this._profile, i = this._activeId(), s = this._profileForm;
-    return c`
+    return d`
       <div class="row profile-bar">
         <div class="field" style="flex:1 1 160px"><label for="f-profile">${this._tr("profile")}</label>
           <select id="f-profile" @change=${(r) => {
       this._profileId = r.target.value;
     }}>
-            ${t.profiles.map((r) => c`<option value=${r.id} ?selected=${r.id === e.id}>${r.name}${r.id === i ? ` (${this._tr("profile_active")})` : ""}</option>`)}
+            ${t.profiles.map((r) => d`<option value=${r.id} ?selected=${r.id === e.id}>${r.name}${r.id === i ? ` (${this._tr("profile_active")})` : ""}</option>`)}
           </select></div>
         <button class="ibtn" aria-label=${this._tr("profile_add")} title=${this._tr("profile_add")}
           @click=${() => this._profileForm = { mode: "add", name: "" }}><ha-icon icon="mdi:plus"></ha-icon></button>
@@ -4619,15 +4630,15 @@ let R = class extends O {
           ?disabled=${t.profiles.length < 2 || e.id === i}
           @click=${() => void this._askDeleteProfile(e)}><ha-icon icon="mdi:delete"></ha-icon></button>
       </div>
-      ${e.id === i ? c`<p class="hint"><ha-icon icon="mdi:star"></ha-icon> ${this._tr("profile_active_hint")}</p>` : h}
-      ${s ? c`<div class="card">
+      ${e.id === i ? d`<p class="hint"><ha-icon icon="mdi:star"></ha-icon> ${this._tr("profile_active_hint")}</p>` : h}
+      ${s ? d`<div class="card">
             <div class="field"><label for="f-pname">${this._tr(s.mode === "rename" ? "profile_rename" : s.mode === "copy" ? "profile_copy" : "profile_add")}</label>
               <input id="f-pname" type="text" maxlength="40" .value=${s.name}
                 @input=${(r) => this._profileForm = { ...s, name: r.target.value }}
                 @keydown=${(r) => {
       r.key === "Enter" && this._submitProfileForm();
     }} /></div>
-            ${s.mode === "rename" ? c`<p class="hint">${this._tr("profile_rename_warning")}</p>` : h}
+            ${s.mode === "rename" ? d`<p class="hint">${this._tr("profile_rename_warning")}</p>` : h}
             <div class="row"><button class="btn primary" @click=${() => this._submitProfileForm()}>${this._tr("ok")}</button>
               <button class="btn" @click=${() => this._profileForm = void 0}>${this._tr("cancel")}</button></div>
           </div>` : h}
@@ -4636,21 +4647,21 @@ let R = class extends O {
   render() {
     if (!this._p) return h;
     const t = [["general", "tab_general"], ["entities", "tab_entities"], ["seasons", "tab_seasons"]], e = this._canEdit();
-    return c`
+    return d`
       <wp-dialog id="main" open wide heading=${this._isNew ? this._tr("new_program") : this._p.name || this._tr("title")}>
-        ${e ? h : c`<p class="error" role="alert">${this._tr("read_only")}</p>`}
+        ${e ? h : d`<p class="error" role="alert">${this._tr("read_only")}</p>`}
         <div class="tabs" role="tablist" aria-label=${this._tr("tab_scroll")}>
-          ${t.map(([i, s]) => c`<button role="tab" aria-selected=${this._tab === i} class="tab ${this._tab === i ? "on" : ""}"
+          ${t.map(([i, s]) => d`<button role="tab" aria-selected=${this._tab === i} class="tab ${this._tab === i ? "on" : ""}"
             @click=${() => this._tab = i}>${this._tr(s)}</button>`)}
         </div>
         <div role="tabpanel">
           ${this._tab === "general" ? this._renderGeneral() : this._tab === "entities" ? this._renderEntities() : this._renderSeasons()}
         </div>
-        ${this._error ? c`<p class="error" role="alert">${this._error}</p>` : h}
-        ${this._isNew ? h : c`<button slot="footer" class="btn" @click=${() => this._duplicate()}>${this._tr("duplicate")}</button>`}
+        ${this._error ? d`<p class="error" role="alert">${this._error}</p>` : h}
+        ${this._isNew ? h : d`<button slot="footer" class="btn" @click=${() => this._duplicate()}>${this._tr("duplicate")}</button>`}
         <button slot="footer" class="btn" @click=${() => this._close()}>${this._tr("cancel")}</button>
         <button slot="footer" class="btn primary" ?disabled=${!e || this._saving} @click=${() => void this._save()}>${this._tr("save")}</button>
-        ${this._isNew ? h : c`<span slot="footer" class="break" aria-hidden="true"></span>
+        ${this._isNew ? h : d`<span slot="footer" class="break" aria-hidden="true"></span>
             <button slot="footer" class="btn danger del" ?disabled=${!e}
               @click=${() => void this._askDelete()}><ha-icon icon="mdi:delete"></ha-icon> ${this._tr("delete")}</button>`}
       </wp-dialog>
@@ -4906,7 +4917,7 @@ let q = class extends O {
   _bar(t, e, i, s, r) {
     var p, g, _;
     const n = this._dateAt(i), o = ce(n, this._tz), a = ht(n, this._tz), l = `${e.id}|${t}|${s}|${o}`, u = [e];
-    return c`<wp-bar-editor .hass=${this.hass} .data=${this._data} .program=${e} entity-id=${t}
+    return d`<wp-bar-editor .hass=${this.hass} .data=${this._data} .program=${e} entity-id=${t}
       weekday=${o} .spans=${this._spans(t, u, i)} .preview=${(p = this._preview[a]) == null ? void 0 : p[e.id]}
       .now=${i === 0 ? St(this._now, this._tz) : null} ?hours=${s === "today"}
       ?editing=${this._edit === l} ?editable=${!!((g = this._data) != null && g.can_edit) && !((_ = this._data) != null && _.read_only)}
@@ -4919,23 +4930,23 @@ let q = class extends O {
   _line(t, e, i) {
     var g, _;
     const s = this._lang, r = this._data, n = this._next(t, e), o = W(r, n == null ? void 0 : n.label), a = e.length > 0 && e.every((f) => !f.enabled), l = this.hass.states[t], u = i.icon ?? (l == null ? void 0 : l.attributes.icon) ?? vn[zt(t)] ?? "mdi:calendar-clock", p = () => this._open(i.open);
-    return c`
+    return d`
       <div class="block">
         <div class="line">
           <ha-icon class="dev" icon=${u}></ha-icon>
           <div class="info">
-            ${i.name ? c`<span class="name">${i.name}</span>` : h}
+            ${i.name ? d`<span class="name">${i.name}</span>` : h}
             <span class="now">
               <span class="nw">${l ? ((_ = (g = this.hass).formatEntityState) == null ? void 0 : _.call(g, l)) ?? l.state : "—"}</span>
-              ${n ? c`<span class="next">→ ${(o == null ? void 0 : o.name) ?? Qe(this.hass, s, n.action)}
+              ${n ? d`<span class="next">→ ${(o == null ? void 0 : o.name) ?? Qe(this.hass, s, n.action)}
                 <span class="when nw">${Le(Xs(n.at, this._tz, s, this._now))}</span></span>` : h}
             </span>
           </div>
-          ${a ? c`<ha-icon class="pause" icon="mdi:pause-circle-outline" title=${d(s, "paused")}></ha-icon>` : h}
-          ${i.button ? c`<button class="hours" aria-label=${d(s, "hours")} title=${d(s, "hours")} @click=${p}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>` : h}
+          ${a ? d`<ha-icon class="pause" icon="mdi:pause-circle-outline" title=${c(s, "paused")}></ha-icon>` : h}
+          ${i.button ? d`<button class="hours" aria-label=${c(s, "hours")} title=${c(s, "hours")} @click=${p}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>` : h}
         </div>
         <div class="today">
-          <span class="wname">${d(s, "today_short")}</span>
+          <span class="wname">${c(s, "today_short")}</span>
           ${this._bar(t, e[0], 0, "today", p)}
         </div>
         ${this._weekRows(`${Ui(i.open)}|${t}`, t, e, i.open)}
@@ -4947,13 +4958,13 @@ let q = class extends O {
       const l = new Set(this._week);
       n ? l.delete(t) : l.add(t), this._week = l;
     }, a = F(r).days_short;
-    return c`
+    return d`
       <button class="weekbtn" aria-expanded=${n} @click=${o}>
-        <ha-icon icon=${n ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>${d(r, "week")}</button>
-      ${n ? c`<div class="week">
+        <ha-icon icon=${n ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>${c(r, "week")}</button>
+      ${n ? d`<div class="week">
         ${[0, 1, 2, 3, 4, 5, 6].map((l) => {
       const u = (l - ce(this._now, this._tz) + 7) % 7, p = () => this._open(s, { weekday: l, offset: u });
-      return c`<div class="wday">
+      return d`<div class="wday">
             <button class="wnamebtn" aria-label=${a[l]} @click=${p}>
               <span class="wname ${u === 0 ? "today" : ""}">${a[l]}</span></button>
             ${this._bar(e, i[0], u, "week", p)}</div>`;
@@ -4964,13 +4975,13 @@ let q = class extends O {
     const e = this._lang;
     return t.map((i) => {
       const s = { kind: "program", programId: i.id };
-      return i.entities.length === 1 ? this._line(i.entities[0].entity_id, [i], { name: i.name, icon: i.icon ?? void 0, button: s, open: s }) : c`
+      return i.entities.length === 1 ? this._line(i.entities[0].entity_id, [i], { name: i.name, icon: i.icon ?? void 0, button: s, open: s }) : d`
       <section class="prog">
         <div class="phead">
           <ha-icon icon=${i.icon ?? "mdi:calendar-clock"}></ha-icon>
           <h2>${i.name}</h2>
-          ${i.enabled ? h : c`<ha-icon class="pause" icon="mdi:pause-circle-outline" title=${d(e, "paused")}></ha-icon>`}
-          <button class="hours" aria-label=${d(e, "hours")} title=${d(e, "hours")} @click=${() => this._open(s)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
+          ${i.enabled ? h : d`<ha-icon class="pause" icon="mdi:pause-circle-outline" title=${c(e, "paused")}></ha-icon>`}
+          <button class="hours" aria-label=${c(e, "hours")} title=${c(e, "hours")} @click=${() => this._open(s)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
         </div>
         ${i.entities.map((r) => this._line(r.entity_id, [i], { name: _t(this.hass, r.entity_id), button: null, open: s }))}
       </section>`;
@@ -4980,22 +4991,22 @@ let q = class extends O {
     var n;
     if (!this._config || !this.hass) return h;
     const t = this._lang, e = this._data, i = e ? wi(e, this._config) : [], s = !!e && !!((n = this.hass.user) != null && n.is_admin) && !!(e != null && e.can_edit), r = this._config.title !== void 0 && this._config.title !== "";
-    return c`
+    return d`
       <ha-card>
-        ${r || s || e != null && e.vacation ? c`<div class="head">
+        ${r || s || e != null && e.vacation ? d`<div class="head">
               <h1>${this._config.title ?? ""}</h1>
-              ${e != null && e.vacation ? c`<span class="chip"><ha-icon icon="mdi:bag-suitcase"></ha-icon> ${d(t, "vacation")}</span>` : h}
-              ${s ? c`<button class="gear" aria-label=${d(t, "all_programs")} @click=${() => this._dialog = { kind: "admin" }}>
+              ${e != null && e.vacation ? d`<span class="chip"><ha-icon icon="mdi:bag-suitcase"></ha-icon> ${c(t, "vacation")}</span>` : h}
+              ${s ? d`<button class="gear" aria-label=${c(t, "all_programs")} @click=${() => this._dialog = { kind: "admin" }}>
                 <ha-icon icon="mdi:format-list-bulleted"></ha-icon></button>` : h}
             </div>` : h}
-        ${this._error ? c`<div class="error">${d(t, "error", { message: this._error })}</div>` : h}
-        ${e != null && e.read_only ? c`<div class="error">${d(t, "read_only")}</div>` : h}
-        ${e ? h : c`<div class="empty">…</div>`}
-        ${e && !i.length ? c`<div class="empty">${d(t, "no_program")}</div>` : h}
+        ${this._error ? d`<div class="error">${c(t, "error", { message: this._error })}</div>` : h}
+        ${e != null && e.read_only ? d`<div class="error">${c(t, "read_only")}</div>` : h}
+        ${e ? h : d`<div class="empty">…</div>`}
+        ${e && !i.length ? d`<div class="empty">${c(t, "no_program")}</div>` : h}
         ${e ? this._bySchedule(i) : h}
       </ha-card>
-      ${this._snack ? c`<div class="snack" role="status"><span>${d(t, "edited")} ·</span>
-        <button @click=${() => void this._undo()}>${d(t, "undo")}</button></div>` : h}
+      ${this._snack ? d`<div class="snack" role="status"><span>${c(t, "edited")} ·</span>
+        <button @click=${() => void this._undo()}>${c(t, "undo")}</button></div>` : h}
       ${this._renderDialog()}`;
   }
   _renderDialog() {
@@ -5004,27 +5015,27 @@ let q = class extends O {
     const e = () => this._dialog = null;
     switch (t.kind) {
       case "schedule":
-        return ss(Ui(t.scope), c`<wp-schedule .hass=${this.hass} .data=${this._data} .scope=${t.scope} .day=${t.day ?? null}
+        return ss(Ui(t.scope), d`<wp-schedule .hass=${this.hass} .data=${this._data} .scope=${t.scope} .day=${t.day ?? null}
           .chart=${this._config.show_chart !== !1} @closed=${e}
           @open-settings=${(i) => {
           const s = this._data.programs.find((r) => r.id === i.detail.programId);
           s && (this._dialog = { kind: "program", program: s });
         }}></wp-schedule>`);
       case "program":
-        return c`<wp-program-editor .hass=${this.hass} .data=${this._data} .program=${t.program}
+        return d`<wp-program-editor .hass=${this.hass} .data=${this._data} .program=${t.program}
           @closed=${e}></wp-program-editor>`;
       case "labels":
-        return c`<wp-labels .hass=${this.hass} .data=${this._data} @closed=${e}></wp-labels>`;
+        return d`<wp-labels .hass=${this.hass} .data=${this._data} @closed=${e}></wp-labels>`;
       case "admin": {
         const i = this._lang;
-        return c`<wp-dialog open heading=${d(i, "all_programs")} @closed=${e}>
+        return d`<wp-dialog open heading=${c(i, "all_programs")} @closed=${e}>
           <div class="adm">
             <button class="admrow" @click=${() => this._dialog = { kind: "labels" }}>
-              <ha-icon icon="mdi:label-multiple-outline"></ha-icon><span>${d(i, "labels")}</span><ha-icon icon="mdi:chevron-right"></ha-icon></button>
-            ${this._data.programs.map((s) => c`<button class="admrow" @click=${() => this._dialog = { kind: "program", program: s }}>
+              <ha-icon icon="mdi:label-multiple-outline"></ha-icon><span>${c(i, "labels")}</span><ha-icon icon="mdi:chevron-right"></ha-icon></button>
+            ${this._data.programs.map((s) => d`<button class="admrow" @click=${() => this._dialog = { kind: "program", program: s }}>
               <ha-icon icon=${s.icon ?? "mdi:calendar-clock"}></ha-icon><span>${s.name}</span><ha-icon icon="mdi:chevron-right"></ha-icon></button>`)}
             <button class="admrow add" @click=${() => this._dialog = { kind: "program" }}>
-              <ha-icon icon="mdi:plus"></ha-icon><span>${d(i, "new_program")}</span></button>
+              <ha-icon icon="mdi:plus"></ha-icon><span>${c(i, "new_program")}</span></button>
           </div></wp-dialog>`;
       }
     }
@@ -5151,7 +5162,7 @@ let Lt = class extends O {
     return gt(this.hass);
   }
   _tr(t, e) {
-    return d(this._lang, t, e);
+    return c(this._lang, t, e);
   }
   updated(t) {
     t.has("hass") && this.hass && !this._loaded && (this._loaded = !0, this.hass.callWS({ type: "weekly_planner/get" }).then((e) => this._programs = e.programs.map((i) => ({ id: i.id, name: i.name }))).catch(() => this._loaded = !1));
@@ -5181,7 +5192,7 @@ let Lt = class extends O {
   render() {
     var i, s;
     const t = this._config, e = ((i = t.filter) == null ? void 0 : i.types) ?? [];
-    return c`
+    return d`
       <div class="field"><label for="ce-title">${this._tr("ce_title")}</label>
         <input id="ce-title" type="text" .value=${t.title ?? ""} @input=${(r) => this._set("title", r.target.value)} /></div>
 
@@ -5190,15 +5201,15 @@ let Lt = class extends O {
         <label class="check"><input type="radio" name="ce-mode" .checked=${!this._isProgram} @change=${() => this._setMode(!1)} /> ${this._tr("ce_filtered")}</label>
       </div>
 
-      ${this._isProgram ? c`<div class="field"><label for="ce-program">${this._tr("ce_program")}</label>
+      ${this._isProgram ? d`<div class="field"><label for="ce-program">${this._tr("ce_program")}</label>
             <select id="ce-program" @change=${(r) => this._set("program", r.target.value)}>
-              ${this._programs.length === 0 ? c`<option value="">${this._tr("no_program")}</option>` : h}
-              ${!this._programs.some((r) => r.id === t.program) && t.program ? c`<option value=${t.program} selected>${t.program}</option>` : h}
-              ${this._programs.map((r) => c`<option value=${r.id} ?selected=${r.id === t.program}>${r.name}</option>`)}
-            </select></div>` : c`
+              ${this._programs.length === 0 ? d`<option value="">${this._tr("no_program")}</option>` : h}
+              ${!this._programs.some((r) => r.id === t.program) && t.program ? d`<option value=${t.program} selected>${t.program}</option>` : h}
+              ${this._programs.map((r) => d`<option value=${r.id} ?selected=${r.id === t.program}>${r.name}</option>`)}
+            </select></div>` : d`
             <div class="label">${this._tr("ce_types")}</div>
             <div class="row" role="group" aria-label=${this._tr("ce_types")}>
-              ${wn.map((r) => c`<label class="check" style="flex:1 1 150px"><input type="checkbox" .checked=${e.includes(r)}
+              ${wn.map((r) => d`<label class="check" style="flex:1 1 150px"><input type="checkbox" .checked=${e.includes(r)}
                 @change=${(n) => this._setFilter({ types: n.target.checked ? [...e, r] : e.filter((o) => o !== r) })} />
                 ${fr(this._lang, r)}</label>`)}
             </div>
