@@ -4,8 +4,8 @@ import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { t } from "./i18n";
 import type { CardConfig, HomeAssistant, PlannerData } from "./types";
-import { editorStyles, langOf, typeLabel } from "./editors/setpoint-editor";
-import type { K } from "./editors/setpoint-editor";
+import { editorStyles, langOf, typeLabel } from "./editors/shared";
+import type { K } from "./editors/shared";
 
 const TYPES = ["climate", "cover", "light", "switch", "fan", "water_heater", "media_player", "input_boolean", "input_number", "input_select"];
 

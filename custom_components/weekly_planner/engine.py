@@ -195,7 +195,7 @@ class PlannerEngine:
         }
 
     def next_action(self, entity_id: str) -> dict[str, Any] | None:
-        """Next thing the plan does to an entity: ``{"at": iso, "action": {...}}``.
+        """Next thing the plan does to an entity: ``{"at": iso, "action": {...}, "label": id}``.
 
         Looks at the next days of the enabled programs: a slot gives its action at its start and,
         when it has an end, the default action at its end.
@@ -218,9 +218,9 @@ class PlannerEngine:
                 if action is None:
                     continue
                 if occ.start > now:
-                    edges[occ.start] = {"oneshot": occ.end is None, "action": action}
+                    edges[occ.start] = {"oneshot": occ.end is None, "action": action, "label": slot.get("label")}
                 if occ.end is not None and occ.end > now:
-                    edges.setdefault(occ.end, {"oneshot": False, "action": None})
+                    edges.setdefault(occ.end, {"oneshot": False, "action": None, "label": None})
         for moment in sorted(edges):
             seg = self.segment(entity_id, moment)
             edge = edges[moment]
@@ -228,7 +228,8 @@ class PlannerEngine:
             changed = seg.key != previous_key
             previous_key = seg.key
             if action is not None and (edge["oneshot"] or changed):
-                return {"at": moment.isoformat(), "action": action}
+                return {"at": moment.isoformat(), "action": action,
+                        "label": edge["label"] if edge["oneshot"] else seg.label}
         return None
 
     # ------------------------------------------------------------------ subscriptions

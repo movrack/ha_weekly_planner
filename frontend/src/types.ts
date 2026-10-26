@@ -30,9 +30,17 @@ export type TimeSpec =
   | { time: string }
   | { sun: "dawn" | "sunrise" | "sunset" | "dusk"; offset?: number; earliest?: string; latest?: string };
 
-export interface Setpoint {
-  kind: string;
-  [key: string]: unknown;
+/** What a label does: a service called on the entity, or a scene. */
+export type Action =
+  | { kind: "service"; service: string; data?: Record<string, unknown> }
+  | { kind: "scene"; scene: string };
+
+/** Shared by every program (spec § 6): slots and defaults only point at labels. */
+export interface Label {
+  id: string;
+  name: string;
+  color: string;
+  action: Action;
 }
 
 export interface Condition {
@@ -48,7 +56,8 @@ export interface Slot {
   end?: TimeSpec | null;
   conditions?: Condition[];
   color?: string | null;
-  actions: { by_type: Record<string, string>; by_entity: Record<string, Setpoint> };
+  /** Id of the label this slot applies. */
+  label: string;
 }
 
 export interface Profile {
@@ -59,9 +68,10 @@ export interface Profile {
 
 export interface ProgramEntity {
   entity_id: string;
-  default: { kind: "mode" | "setpoint" | "previous" | "none"; value?: string | Setpoint | null };
-  grace_s?: number | null;
-  force_permanent?: boolean;
+  /** "The rest of the time": label applied when a slot with an end finishes (null: nothing). */
+  default_label: string | null;
+  /** Value of a label for this device only. */
+  label_overrides: Record<string, Action>;
 }
 
 export interface Program {
@@ -74,21 +84,10 @@ export interface Program {
   priority: number;
   enabled: boolean;
   reapply: boolean;
-  main_type?: string | null;
   conditions: Condition[];
   entities: ProgramEntity[];
   active_profile?: string | null;
   profiles: Profile[];
-}
-
-export interface Mode {
-  id: string;
-  type: string;
-  name: string;
-  color: string;
-  icon?: string | null;
-  value: Setpoint;
-  exceptions: Record<string, Setpoint>;
 }
 
 export interface ProgramStatus {
@@ -96,25 +95,15 @@ export interface ProgramStatus {
   active_profile: string | null;
   current_slots: Record<string, string>;
   next_change: string | null;
-  entities_overridden: string[];
   skip_next: string | null;
-  next_actions?: Record<string, { at: string; setpoint: Setpoint }>;
-}
-
-export interface EntityRuntime {
-  segment: (string | null)[] | null;
-  target: Setpoint | null;
-  override: { origin: "external" | "voluntary"; until?: string | null; setpoint?: Setpoint } | null;
-  suppressed?: boolean;
-  pending?: boolean;
+  next_actions?: Record<string, { at: string; action: Action; label: string | null }>;
 }
 
 export interface PlannerData {
   vacation: boolean;
-  modes: Mode[];
+  labels: Label[];
   programs: Program[];
   status: Record<string, ProgramStatus>;
-  entities: Record<string, EntityRuntime>;
   warnings?: Record<string, { entity_id: string; code: string; detail: string }[]>;
   read_only: boolean;
   can_edit: boolean;
@@ -137,5 +126,4 @@ export interface CardConfig {
   show_week?: boolean;
   show_chart?: boolean;
   show_advanced?: boolean;
-  /** One block per device (default) or per schedule. */
 }

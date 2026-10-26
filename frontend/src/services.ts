@@ -1,7 +1,7 @@
 // Generic actions: the Home Assistant services whose target accepts an entity (`hass.services`),
 // their translated names and the input fields of each one.
 
-import { entityDomain } from "./planner";
+const entityDomain = (entityId: string): string => entityId.split(".")[0];
 import type { HassEntity, HomeAssistant } from "./types";
 
 type Localize = (key: string, ...args: unknown[]) => string;
@@ -38,13 +38,8 @@ export interface ServiceField {
   selector: Record<string, unknown>;
   required: boolean;
   label: string;
+  default?: unknown;
 }
-
-/** Domains whose actions are the rich, built-in ones (end time, default, override detection). */
-export const SPECIFIC_DOMAINS = ["climate", "cover", "light", "switch", "input_boolean", "fan"];
-
-export const isGenericDomain = (domain: string): boolean => !SPECIFIC_DOMAINS.includes(domain);
-export const isGenericEntity = (entityId: string): boolean => isGenericDomain(entityDomain(entityId));
 
 const TARGET_FIELDS = new Set(["entity_id", "device_id", "area_id", "floor_id", "label_id"]);
 let loaded: Localize | undefined;
@@ -138,6 +133,7 @@ export function serviceFields(hass: HomeAssistant, id: string): ServiceField[] {
         key,
         selector: field.selector ?? { text: {} },
         required: Boolean(field.required),
+        default: (field as { default?: unknown }).default,
         label: translate(hass, `component.${domain}.services.${service}.fields.${key}.name`) || field.name || key,
       });
     }
@@ -165,4 +161,25 @@ export function shortLabels(labels: string[]): string[] {
     while (cut.length > 1 && LINK_WORDS.has(cut[cut.length - 1].toLowerCase())) cut.pop();
     return cut.join(" ");
   });
+}
+
+/** Data to start from when a service is chosen: its required fields get a usable value. */
+export function startData(hass: HomeAssistant, id: string, entityId: string): Record<string, unknown> {
+  const attrs = hass.states[entityId]?.attributes ?? {};
+  const data: Record<string, unknown> = {};
+  for (const f of serviceFields(hass, id)) {
+    if (!f.required) continue;
+    const number = f.selector.number as { min?: number } | undefined;
+    if (f.default !== undefined) data[f.key] = f.default;
+    else if (f.key === "temperature") data[f.key] = typeof attrs.temperature === "number" ? attrs.temperature : 19;
+    else if (number) data[f.key] = f.key === "position" ? 50 : number.min ?? 0;
+  }
+  return data;
+}
+
+/** Required fields still empty (labels of them), so a form does not save a call that must fail. */
+export function missingFields(hass: HomeAssistant, id: string, data: Record<string, unknown> | undefined): string[] {
+  return serviceFields(hass, id)
+    .filter((f) => f.required && (data?.[f.key] === undefined || data[f.key] === "" || data[f.key] === null))
+    .map((f) => f.label);
 }

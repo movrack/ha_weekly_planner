@@ -1,25 +1,24 @@
 // The one screen of a device or a schedule: its slots (one per row, expanded in place), the rest of
-// the time, a Planned / Measured chart, the pause switch and the delete button.
+// the time, the chart of the day, the pause switch and the delete button.
 
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import "./action-picker";
 import "./chart";
 import "./dialog";
+import "./label-picker";
 import "./slot-form";
-import {
-  actColor, actText, daysText, groupSlots, readAct, readDefault, shiftSpec, specText, writeDefault, writeGroups, ALL_DAYS,
-} from "../actions";
-import type { Act, SlotGroup } from "../actions";
+import { daysText, groupSlots, shiftSpec, specText, writeGroups, ALL_DAYS } from "../actions";
+import type { SlotGroup } from "../actions";
+import { labelOf, labelsFor } from "../labels";
 import { addDaysIso } from "./chart";
 import { confirmAction } from "./confirm";
 import { strings, t } from "../i18n";
-import { isGenericEntity, loadServiceNames } from "../services";
+import { loadServiceNames } from "../services";
 import { activeProfile, friendlyName, newId } from "../planner";
 import { localDateIso } from "../time";
-import { findOverlap, specMinutes } from "../editors/day-editor";
-import { editorStyles, langOf } from "../editors/setpoint-editor";
-import type { HomeAssistant, PlannerData, PreviewSlot, Program, Slot, TimeSpec } from "../types";
+import { findOverlap, specMinutes } from "../slots";
+import { editorStyles, langOf } from "../editors/shared";
+import type { Action, HomeAssistant, PlannerData, PreviewSlot, Program, Slot, TimeSpec } from "../types";
 
 export type Scope = { kind: "device"; entityId: string } | { kind: "program"; programId: string };
 
@@ -43,7 +42,9 @@ export class WpSchedule extends LitElement {
   /** Editing one day of a group: that day, and the rest of the group kept as it is. */
   @state() private _dayOnly: number | null = null;
   private _rest: SlotGroup | null = null;
-  @state() private _act: Act | null = null;
+  /** Program being edited: the saved one plus the values of labels set for a device (saved with the row). */
+  @state() private _draft: Program | null = null;
+  @state() private _restLabel: string | null = null;
   @state() private _programId = "";
   @state() private _error = "";
   @state() private _saving = false;
@@ -77,10 +78,8 @@ export class WpSchedule extends LitElement {
     return this._programs[0]?.name ?? "";
   }
 
-  private _include(program: Program): (slot: Slot) => boolean {
-    const ids = this._entities.filter((e) => program.entities.some((x) => x.entity_id === e));
-    return (slot) => ids.some((e) => readAct(slot, e, this.data.modes) !== null);
-  }
+  /** A slot applies to every device of its program. */
+  private _include = (_slot: Slot): boolean => true;
 
   private _minutes = (spec: TimeSpec): number => specMinutes(this.hass, spec);
 
@@ -88,7 +87,7 @@ export class WpSchedule extends LitElement {
     const out: { program: Program; group: SlotGroup; key: string }[] = [];
     for (const program of this._programs) {
       const profile = activeProfile(program, this.data);
-      for (const group of groupSlots(profile, this._include(program), this._minutes)) {
+      for (const group of groupSlots(profile, this._include, this._minutes)) {
         out.push({ program, group, key: `${program.id}|${group.ids[group.days[0]]}` });
       }
     }
@@ -115,18 +114,10 @@ export class WpSchedule extends LitElement {
     }
   }
 
-  /** Translated service names of the generic actions of this scope. */
+  /** Translated service names of the actions of the labels. */
   private _loadNames(): void {
     const domains = new Set<string>();
-    for (const p of this._programs) {
-      for (const day of activeProfile(p, this.data).days) {
-        for (const slot of day) {
-          for (const sp of Object.values(slot.actions.by_entity)) {
-            if (sp.kind === "service") domains.add(String(sp.service).split(".")[0]);
-          }
-        }
-      }
-    }
+    for (const l of this.data.labels) if (l.action.kind === "service") domains.add(l.action.service.split(".")[0]);
     void loadServiceNames(this.hass, [...domains]).then((ok) => ok && this.requestUpdate());
   }
 
@@ -168,11 +159,12 @@ export class WpSchedule extends LitElement {
     return this.data.can_edit && !this.data.read_only;
   }
 
-  private _expand(key: string, program: Program, group: SlotGroup | null, act: Act | null = null): void {
+  private _expand(key: string, program: Program, group: SlotGroup | null, restLabel: string | null = null): void {
     this._open = key;
     this._programId = program.id;
     this._group = group ? structuredClone(group) : null;
-    this._act = act;
+    this._restLabel = restLabel;
+    this._draft = structuredClone(program);
     this._error = "";
     // Show the top of the opened row, not the bottom of its form.
     void this.updateComplete.then(() => requestAnimationFrame(() =>
@@ -184,18 +176,32 @@ export class WpSchedule extends LitElement {
     this._group = null;
     this._dayOnly = null;
     this._rest = null;
-    this._act = null;
+    this._draft = null;
+    this._restLabel = null;
     this._error = "";
+  }
+
+  private _onOverride(detail: { entityId: string; labelId: string; action: Action | null }): void {
+    const draft = this._draft;
+    if (!draft) return;
+    this._draft = {
+      ...draft,
+      entities: draft.entities.map((e) => {
+        if (e.entity_id !== detail.entityId) return e;
+        const overrides = { ...(e.label_overrides ?? {}) };
+        if (detail.action) overrides[detail.labelId] = detail.action;
+        else delete overrides[detail.labelId];
+        return { ...e, label_overrides: overrides };
+      }),
+    };
   }
 
   private _add(days: number[] = ALL_DAYS): void {
     const program = this._programs[0];
     const eid = this._entities[0];
     if (!program || !eid) return;
-    const slot: Slot = {
-      id: newId(), start: { time: "08:00" }, end: this._entities.every(isGenericEntity) ? null : { time: "09:00" }, conditions: [],
-      actions: { by_type: {}, by_entity: {} },
-    };
+    const first = labelsFor(this.hass, this.data, this._entities)[0];
+    const slot: Slot = { id: newId(), start: { time: "08:00" }, end: { time: "09:00" }, conditions: [], label: first?.id ?? "" };
     this._expand("new", program, { slot, days: [...days], ids: {}, fresh: true });
   }
 
@@ -225,7 +231,7 @@ export class WpSchedule extends LitElement {
       const e = err as { code?: string; message?: string };
       if (e?.code === "conflict") this._error = t(this._lang, "ss_conflict");
       else if (e?.code === "unauthorized") this._error = t(this._lang, "err_unauthorized");
-      else if (e?.message?.includes("service_has_no_end")) this._error = t(this._lang, "err_service_end");
+      else if (e?.message?.includes("unknown_label")) this._error = t(this._lang, "err_label");
       else if (e?.message?.includes("overlapping_slots")) this._error = t(this._lang, "w_err_overlap");
       else this._error = t(this._lang, "ss_err_save");
       return false;
@@ -240,9 +246,7 @@ export class WpSchedule extends LitElement {
     if (!g) return "";
     if (!g.days.length) return t(lang, "err_days");
     if (g.slot.end && JSON.stringify(g.slot.start) === JSON.stringify(g.slot.end)) return t(lang, "w_err_same");
-    if (!this._entities.some((e) => program.entities.some((x) => x.entity_id === e) && readAct(g.slot, e, this.data.modes))) {
-      return t(lang, "err_action");
-    }
+    if (!labelOf(this.data, g.slot.label)) return t(lang, "err_action");
     return "";
   }
 
@@ -265,7 +269,7 @@ export class WpSchedule extends LitElement {
       return;
     }
     const profile = activeProfile(program, this.data);
-    const include = this._include(program);
+    const include = this._include;
     const groups = groupSlots(profile, include, this._minutes)
       .filter((g) => `${program.id}|${g.ids[g.days[0]]}` !== this._open);
     groups.push(...this._kept(draft.days), draft);
@@ -276,7 +280,8 @@ export class WpSchedule extends LitElement {
         return;
       }
     }
-    const saved = await this._saveProgram({ ...program, profiles: program.profiles.map((p) => (p.id === profile.id ? next : p)) });
+    const entities = this._draft?.entities ?? program.entities;
+    const saved = await this._saveProgram({ ...program, entities, profiles: program.profiles.map((p) => (p.id === profile.id ? next : p)) });
     if (saved) this._cancel();
   }
 
@@ -285,7 +290,7 @@ export class WpSchedule extends LitElement {
     if (!program || this._open === "new") return;
     if (!(await confirmAction(this, t(this._lang, "w_confirm_slot"), t(this._lang, "yes"), t(this._lang, "no")))) return;
     const profile = activeProfile(program, this.data);
-    const include = this._include(program);
+    const include = this._include;
     const groups = groupSlots(profile, include, this._minutes)
       .filter((g) => `${program.id}|${g.ids[g.days[0]]}` !== this._open);
     groups.push(...this._kept([]));
@@ -295,9 +300,8 @@ export class WpSchedule extends LitElement {
 
   private async _saveRest(eid: string): Promise<void> {
     const program = this._programs[0];
-    const act = this._act;
-    if (!program || !act) return;
-    const entities = program.entities.map((e) => (e.entity_id === eid ? { ...e, default: writeDefault(act) } : e));
+    if (!program) return;
+    const entities = (this._draft ?? program).entities.map((e) => (e.entity_id === eid ? { ...e, default_label: this._restLabel } : e));
     if (await this._saveProgram({ ...program, entities })) this._cancel();
   }
 
@@ -332,18 +336,19 @@ export class WpSchedule extends LitElement {
         }
         const clean = structuredClone(program);
         clean.entities = clean.entities.filter((e) => e.entity_id !== eid);
-        for (const profile of clean.profiles) {
-          for (const day of profile.days) {
-            for (const slot of day) delete slot.actions.by_entity[eid];
-          }
-          profile.days = profile.days.map((d) => d.filter((s) => Object.keys(s.actions.by_entity).length || Object.keys(s.actions.by_type).length));
-        }
         await this.hass.callWS({ type: "weekly_planner/program/save", program: clean });
       }
       this._closeDialog();
     } catch (err) {
       this._error = t(this._lang, "error", { message: (err as { message?: string })?.message ?? String(err) });
     }
+  }
+
+  /** Leave the screen and open the Home Assistant history of the device (navigate: pushState + location-changed). */
+  private _openHistory(path: string): void {
+    this._closeDialog();
+    window.history.pushState(null, "", path);
+    window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
   }
 
   private _closeDialog(): void {
@@ -364,25 +369,21 @@ export class WpSchedule extends LitElement {
     return slot.end ? `${start}–${specText(lang, slot.end)}` : start;
   }
 
-  private _rowText(program: Program, group: SlotGroup): { text: string; days: string; color: string } {
+  private _rowText(group: SlotGroup): { text: string; days: string; color: string } {
     const lang = this._lang;
-    const ids = this._entities.filter((e) => program.entities.some((x) => x.entity_id === e));
-    const withAct = ids.map((e) => ({ e, act: readAct(group.slot, e, this.data.modes) })).filter((x) => x.act);
-    const first = withAct[0];
-    const what = first ? actText(this.hass, lang, this.data.modes, first.e, first.act!) : "";
-    const more = withAct.length > 1 ? ` +${withAct.length - 1}` : "";
+    const label = labelOf(this.data, group.slot.label);
     const days = daysText(lang, strings(lang).days_short, group.days);
     return {
-      text: [`${what}${more}`, this._when(group.slot)].filter(Boolean).join(" · "),
+      text: [label?.name ?? "", this._when(group.slot)].filter(Boolean).join(" · "),
       days,
-      color: first ? actColor(this.data.modes, first.e, first.act) : "var(--disabled-text-color)",
+      color: label?.color ?? "var(--disabled-text-color)",
     };
   }
 
   private _renderRow(row: { program: Program; group: SlotGroup; key: string }) {
     const { program, group, key } = row;
     if (this._open === key && this._group) return this._renderEditor(program, key);
-    const { text, days, color } = this._rowText(program, group);
+    const { text, days, color } = this._rowText(group);
     return html`<button class="row" aria-expanded="false" @click=${() => this._expand(key, program, group)}>
       <span class="dot" style="background:${color}"></span>
       <span class="txt"><span class="l1">${text}</span><span class="l2">${days}</span>${this._programs.length > 1 ? html`<small>${program.name}</small>` : nothing}</span>
@@ -394,8 +395,9 @@ export class WpSchedule extends LitElement {
     const isNew = key === "new";
     const ids = this._entities.filter((e) => program.entities.some((x) => x.entity_id === e));
     return html`<div class="editor">
-      <wp-slot-form .hass=${this.hass} .data=${this.data} .program=${program} .group=${this._group!} .entityIds=${ids}
+      <wp-slot-form .hass=${this.hass} .data=${this.data} .program=${this._draft ?? program} .group=${this._group!} .entityIds=${ids}
         .dayOnly=${this._dayOnly} ?disabled=${!this._canEdit}
+        @override-change=${(e: CustomEvent) => { e.stopPropagation(); this._onOverride(e.detail); }}
         @group-change=${(e: CustomEvent<SlotGroup>) => { e.stopPropagation(); this._group = e.detail; this._error = ""; }}></wp-slot-form>
       ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
       <div class="btns">
@@ -413,26 +415,26 @@ export class WpSchedule extends LitElement {
     const lang = this._lang;
     const program = this._programs[0];
     if (!program) return nothing;
-    return this._entities.filter((e) => !isGenericEntity(e) && program.entities.some((x) => x.entity_id === e)).map((eid) => {
+    return this._entities.filter((e) => program.entities.some((x) => x.entity_id === e)).map((eid) => {
       const entity = program.entities.find((x) => x.entity_id === eid)!;
-      const act = readDefault(entity, this.data.modes);
       const key = `rest:${eid}`;
-      const label = this._entities.length > 1 ? `${t(lang, "rest_of_time")} · ${friendlyName(this.hass, eid)}` : t(lang, "rest_of_time");
+      const title = this._entities.length > 1 ? `${t(lang, "rest_of_time")} · ${friendlyName(this.hass, eid)}` : t(lang, "rest_of_time");
       if (this._open === key) {
-        return html`<div class="editor"><h4>${label}</h4>
-          <wp-action-picker rest .hass=${this.hass} .data=${this.data} entity-id=${eid} .act=${this._act} ?disabled=${!this._canEdit}
-            @act-change=${(e: CustomEvent<Act>) => { e.stopPropagation(); this._act = e.detail; }}></wp-action-picker>
+        return html`<div class="editor"><h4>${title}</h4>
+          <wp-label-picker allow-none .hass=${this.hass} .data=${this.data} .program=${this._draft ?? program} .entityIds=${[eid]}
+            .value=${this._restLabel} ?disabled=${!this._canEdit}
+            @override-change=${(e: CustomEvent) => { e.stopPropagation(); this._onOverride(e.detail); }}
+            @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._restLabel = e.detail; }}></wp-label-picker>
           ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
           <div class="btns">
             <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRest(eid)}>${t(lang, "save")}</button>
             <button class="btn" @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
           </div></div>`;
       }
-      const text = act.special === "none" ? t(lang, "rest_none_short") : act.special === "previous" ? t(lang, "rest_previous_short")
-        : actText(this.hass, lang, this.data.modes, eid, act);
-      return html`<button class="row rest" aria-expanded="false" @click=${() => this._expand(key, program, null, act)}>
-        <ha-icon icon="mdi:update"></ha-icon>
-        <span class="txt">${label} · <b>${text}</b></span><ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
+      const label = labelOf(this.data, entity.default_label);
+      return html`<button class="row rest" aria-expanded="false" @click=${() => this._expand(key, program, null, entity.default_label ?? null)}>
+        ${label ? html`<span class="dot" style="background:${label.color}"></span>` : html`<ha-icon icon="mdi:update"></ha-icon>`}
+        <span class="txt">${title} · <b>${label ? label.name : t(lang, "rest_none_short")}</b></span><ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
     });
   }
 
@@ -451,8 +453,8 @@ export class WpSchedule extends LitElement {
         <span>${this._offset === 0 ? t(lang, "today") : label}</span>
         <button class="ibtn" ?disabled=${this._offset >= AHEAD} aria-label=${t(lang, "next_day")} @click=${() => this._go(1)}><ha-icon icon="mdi:chevron-right"></ha-icon></button>
       </div>
-      <wp-chart simple .hass=${this.hass} .data=${this.data} .program=${owner} entity-id=${this._chartEntity} date=${date}
-        .slots=${this._slots}></wp-chart>
+      <wp-chart .hass=${this.hass} .data=${this.data} .program=${owner} entity-id=${this._chartEntity} date=${date}
+        .slots=${this._slots} @open-history=${(e: CustomEvent<string>) => this._openHistory(e.detail)}></wp-chart>
     </section>`;
   }
 

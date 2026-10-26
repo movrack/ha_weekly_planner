@@ -1,20 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { stepTemperature, presetLabel, filterPrograms } from "../planner";
+import { filterPrograms } from "../planner";
 import { clockToMinutes, minutesToClock, localMinutes, localWeekday, localDateIso, spillover } from "../time";
 import type { PlannerData, Program, Slot } from "../types";
 
 const TZ = "Europe/Brussels";
-
-describe("warmer / colder", () => {
-  it("moves by half a degree and rounds to 0.5", () => {
-    expect(stepTemperature(19, 1)).toBe(19.5);
-    expect(stepTemperature(19.3, -1)).toBe(19);
-  });
-  it("stays within the thermostat limits", () => {
-    expect(stepTemperature(30, 1, 7, 30)).toBe(30);
-    expect(stepTemperature(7, -1, 7, 30)).toBe(7);
-  });
-});
 
 describe("server time zone", () => {
   it("uses the house zone, not the browser's", () => {
@@ -31,20 +20,16 @@ describe("server time zone", () => {
 
 describe("slots crossing midnight", () => {
   it("spill onto the next morning", () => {
-    const night: Slot = { id: "n", start: { time: "22:00" }, end: { time: "06:00" }, actions: { by_type: {}, by_entity: {} } };
+    const night: Slot = { id: "n", start: { time: "22:00" }, end: { time: "06:00" }, label: "l" };
     expect(spillover([night])).toEqual([{ slot: night, end: 360 }]);
   });
 });
 
-describe("labels and filters", () => {
-  it("translates presets", () => {
-    expect(presetLabel("fr", "comfort")).toBe("Confort");
-    expect(presetLabel("en", "eco")).toMatch(/eco/i);
-  });
+describe("filters", () => {
   it("filters programs by entity type", () => {
     const p = (id: string, e: string, priority = 10): Program => ({
       id, revision: 1, name: id, priority, enabled: true, reapply: true, conditions: [],
-      entities: [{ entity_id: e, default: { kind: "none" } }], profiles: [],
+      entities: [{ entity_id: e, default_label: null, label_overrides: {} }], profiles: [],
     });
     const data = { programs: [p("b", "cover.x", 2), p("a", "climate.y", 1)] } as unknown as PlannerData;
     expect(filterPrograms(data, { filter: { types: ["climate"] } }).map((x) => x.id)).toEqual(["a"]);
@@ -58,5 +43,15 @@ describe("spoken clock", () => {
     expect(fmtClock("fr", 22 * 60)).toBe("22 h");
     expect(fmtClock("fr", 8 * 60 + 30)).toBe("8 h 30");
     expect(fmtClock("en", 22 * 60)).toMatch(/^10\s?pm$/);
+  });
+});
+
+describe("day of the chart", () => {
+  it("has the real length of a time-change day", async () => {
+    const { dayBounds } = await import("../components/chart");
+    const hours = (d: string) => { const b = dayBounds(d, TZ); return (b.endMs - b.startMs) / 3_600_000; };
+    expect(hours("2026-10-26")).toBe(24);
+    expect(hours("2026-10-25")).toBe(25); // end of summer time
+    expect(hours("2026-03-29")).toBe(23);
   });
 });
