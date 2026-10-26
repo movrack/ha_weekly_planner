@@ -77,6 +77,28 @@ export function actionText(hass: HomeAssistant, lang: string, action: Action | u
   return serviceLabel(hass, action.service);
 }
 
+/**
+ * Translated service and its main values, for a read-only summary: "Set target temperature · 19 °C".
+ * Scenes give their name; values that are not plain (objects) are left out.
+ */
+export function actionSummary(hass: HomeAssistant, lang: string, action: Action | undefined, entityId?: string): string {
+  if (!action) return "";
+  if (action.kind === "scene") return actionText(hass, lang, action);
+  const values: string[] = [];
+  const stateObj = entityId ? hass.states[entityId] : undefined;
+  const fmt = (hass as unknown as { formatEntityState?: (s: HassEntity, v?: string) => string }).formatEntityState;
+  for (const [key, value] of Object.entries(action.data ?? {})) {
+    if (typeof value === "number") {
+      values.push(key === "temperature" ? `${fmtNum(lang, value)} °C` : key === "position" || key === "brightness_pct" ? `${value} %` : fmtNum(lang, value));
+    } else if (typeof value === "string" && value) {
+      let text = value;
+      try { if (key === "hvac_mode" && stateObj && fmt) text = fmt(stateObj, value) || value; } catch { text = value; }
+      values.push(text);
+    }
+  }
+  return [serviceLabel(hass, action.service), ...values].join(" · ");
+}
+
 /** Names of the programs using a label (slots of any profile, defaults, values for a device). */
 export function labelUsers(data: PlannerData, labelId: string): string[] {
   return data.programs.filter((p) =>
