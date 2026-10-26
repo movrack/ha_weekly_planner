@@ -29,11 +29,23 @@ TIME_SPEC = vol.Any(
     }),
 )
 
+# The device is the only target of an action: service data may not redirect it elsewhere.
+TARGET_KEYS = ("entity_id", "device_id", "area_id", "floor_id", "label_id")
+
+
+def _service_data(value: Any) -> dict:
+    if not isinstance(value, dict):
+        raise vol.Invalid("invalid_service_data")
+    if any(key in value for key in TARGET_KEYS):
+        raise vol.Invalid("service_data_target")
+    return value
+
+
 ACTION = vol.Any(
     vol.Schema({
         vol.Required("kind"): "service",
         vol.Required("service"): str,
-        vol.Optional("data", default=dict): dict,
+        vol.Optional("data", default=dict): _service_data,
     }),
     vol.Schema({
         vol.Required("kind"): "scene",
@@ -59,7 +71,7 @@ SLOT = vol.Schema({
     vol.Required("id"): str,
     vol.Required("start"): TIME_SPEC,
     vol.Optional("end"): vol.Any(None, TIME_SPEC),
-    vol.Optional("conditions", default=list): [CONDITION],
+    vol.Optional("conditions", default=list): vol.All([CONDITION], vol.Length(max=10)),
     vol.Optional("color"): vol.Any(None, str),
     vol.Required("label"): str,
 })
@@ -67,7 +79,7 @@ SLOT = vol.Schema({
 PROFILE = vol.Schema({
     vol.Required("id"): str,
     vol.Required("name"): vol.All(str, vol.Length(min=1, max=40)),
-    vol.Required("days"): vol.All([[SLOT]], vol.Length(min=7, max=7)),
+    vol.Required("days"): vol.All([vol.All([SLOT], vol.Length(max=50))], vol.Length(min=7, max=7)),
 })
 
 ENTITY = vol.Schema({
@@ -89,9 +101,9 @@ PROGRAM = vol.Schema({
     vol.Optional("enabled", default=True): bool,
     vol.Optional("reapply", default=True): bool,
     vol.Optional("conditions", default=list): [CONDITION],
-    vol.Required("entities"): vol.All([ENTITY], vol.Length(min=1)),
+    vol.Required("entities"): vol.All([ENTITY], vol.Length(min=1, max=100)),
     vol.Optional("active_profile"): vol.Any(None, str),
-    vol.Required("profiles"): vol.All([PROFILE], vol.Length(min=1)),
+    vol.Required("profiles"): vol.All([PROFILE], vol.Length(min=1, max=20)),
 })
 
 class ProgramError(vol.Invalid):

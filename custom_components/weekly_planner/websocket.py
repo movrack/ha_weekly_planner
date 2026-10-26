@@ -219,7 +219,7 @@ async def ws_label_delete(hass, connection, msg) -> None:
 @websocket_api.websocket_command({
     vol.Required("type"): f"{DOMAIN}/preview",
     vol.Required("program_id"): str,
-    vol.Optional("date"): str,
+    vol.Optional("date"): vol.Match(r"^\d{4}-\d{2}-\d{2}$"),
     vol.Optional("profile_id"): str,
 })
 @callback
