@@ -57,3 +57,6 @@ captures/
 *.swp
 *.tmp
 .python-version
+
+# Integration brand images (HACS / Home Assistant)
+!custom_components/weekly_planner/brand/*.png
