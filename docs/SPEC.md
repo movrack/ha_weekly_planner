@@ -341,6 +341,7 @@ SVG maison, un jour (précédent / suivant).
   les attributs (consigne d'un thermostat resté en « chauffe », luminosité d'une lampe déjà allumée) n'y figure pas :
   ils sont repérés seulement par l'écart avec les actions de Weekly Planner (± 1 min), sans pouvoir dire qui les a faits.
   **Le moteur n'est pas concerné.**
+- **Valeur prévue en escalier (0.7.0)** : pour toute action numérique, ligne horizontale par palier dans la couleur de son étiquette, raccords verticaux fins, retour à la valeur par défaut (aussi avant le premier horaire et jusqu'à la fin du jour) ; point plein + valeur au début de chaque horaire ; cercle creux seulement là où la valeur revient vraiment au défaut (fin d'une suite d'horaires contigus). Actions non numériques : repères seuls.
 - **Légende minimale** : « Mesuré », « Réglé » (courbes), « Prévu », et « Manuel » en rouge ; aucune couleur inexpliquée.
 
 ### 10.5 Exigences transverses
@@ -549,6 +550,7 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [ ] Icône « maintenant » au-dessus du trait (barres et graphique)
 - [ ] Renommer une étiquette sur place (crayon, « Partagé »)
 - [ ] `card_version` (serveur + test pytest) et rechargement automatique de la carte
+- [ ] Graphique : valeur PRÉVUE en escalier (couleur de l'étiquette par palier), cercle creux seulement au vrai retour au défaut, légende « Prévu » en trait + tests du constructeur d'escalier
 - [ ] Version 0.7.0, CHANGELOG, vérification dans le navigateur (360 px tactile, ≥ 1400 px souris), captures
 
 ## 15. v2 (hors périmètre)
