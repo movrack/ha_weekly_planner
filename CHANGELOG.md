@@ -6,6 +6,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-10-26
+
+### Added
+- « Offered actions » per device (settings, Devices tab): a checklist of the services a device may be given; the action picker and the labels offered follow it, and the server skips a label whose service is not allowed for a device (with a warning). Empty means all.
+- Tooltips on the sun and « now » icons of the bars and the chart (sun event, offset and resolved time; hover, keyboard focus, or a 2 s tap), with the same text as accessible name.
+
+### Changed
+- The chosen label is shown read-only; one pencil opens one form (name, colour, action, value for this device). Inside a schedule row the form has no buttons of its own: the row's Save saves the label then the row, its Cancel discards both.
+
+### Fixed
+- The mode list (e.g. HVAC mode) of an action was empty: fields now get the device context and list the modes of the device.
+
 ## [0.7.2] - 2026-10-26
 
 ### Changed
