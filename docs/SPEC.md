@@ -355,6 +355,27 @@ en mode YAML ; garde `customElements.get()` avant `define`.
 Conservé de cette revue : persona « Mamy », écran 360 × 780, vocabulaire sans jargon, cibles tactiles ≥ 48 px,
 suppression toujours confirmée et séparée d'Enregistrer / Annuler.
 
+### 10.8 Édition directe sur les barres (0.7.0)
+Barre « Auj. » et sept barres de la semaine, doigt et souris (événements pointeur, `touch-action` géré, clavier).
+- **Entrer** : appui long ~450 ms (doigt) ou clic (souris) ; la barre passe à ~44 px et chaque frontière reçoit une poignée
+  (zone ≥ 44 px, la plus proche du doigt gagne). **Sortir** : toucher à côté ou Échap. Un appui court au doigt ouvre toujours l'écran d'horaires.
+- **Glisser** : bulle d'heure (pas de 15 min), bornée par les frontières voisines, une frontière solaire devient une heure fixe ;
+  un repère ponctuel (sans fin) est une poignée unique. Clavier : flèches ±15 min sur la poignée sélectionnée.
+- **Enregistrer** au relâcher, **pour ce jour seulement** (jour de la semaine de la date dans le profil actif) ; changement refait sur les
+  données COURANTES, un conflit de révision est retenté une fois, jamais de « rechargez ». Bandeau « Modifié · Annuler » ~6 s ;
+  « Annuler » remet les horaires précédents de ces jours. Deux horaires voisins de même étiquette (fin == début) sont fusionnés.
+- **Sélection** (toucher un horaire ou un trou) : bande sous la barre avec les étiquettes compatibles, « Rien », ciseaux
+  (`mdi:content-cut`, coupe au milieu, pas de 15 min) et « Copier vers… » (`mdi:content-copy`) : pastilles Lun…Dim sans le jour courant ;
+  sans chevauchement la copie est directe ; sinon petite fenêtre listant les jours en conflit, chacun « Remplacer » (défaut) ou
+  « Ne pas copier ce jour ». « Remplacer » rogne ou coupe les horaires existants autour de la plage (mer. 8 h 45–17 h 18 °C + copie de
+  12–14 h 19 °C = 8 h 45–12 h 18 °C, 12–14 h 19 °C, 14–17 h 18 °C).
+- **Logique pure** (`edits.ts`, tests vitest) : `moveBoundary`, `splitAt`, `setLabel`, `removeSlot`, `copyConflicts` / `copyToDays`, `mergeAdjacent`.
+- **Icônes solaires** : `mdi:weather-sunset-up` / `-down` à la position de toute frontière ou repère dépendant du soleil.
+- **Trait « maintenant »** : icône `mdi:clock-outline` (12–14 px) centrée au-dessus, hors de la barre, `aria-label` « Maintenant » ; aussi sur le graphique.
+- **Renommer une étiquette sur place** (écran d'horaires) : crayon `mdi:pencil`, nom + couleur + action, `weekly_planner/label/save`, « Partagé » si utilisée ailleurs.
+- **Mise à jour automatique de la carte** : `card_version` dans `get` / `subscribe` ; différent de celui du bundle chargé et page au repos → rechargement
+  unique (mémorisé dans `sessionStorage`).
+
 ## 11. Compatibilité
 
 Weekly Planner est générique : il ne connaît **ni Versatile Thermostat, ni Evohome, ni Adaptive Lighting** (retirés en
@@ -518,6 +539,17 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Tests pytest (migration, défaut à la fin, ponctuels jamais refaits, `reapply` oui / non, aucune dérogation) et tests de la carte verts
 - [x] Instance de test locale : programmes migrés (Bureau, Lampe, Prise, Volet, Rocky) ; captures 360 × 780
 - [x] Version 0.6.0 (manifest, pyproject, package.json), CHANGELOG « BREAKING », deux README
+
+### 14.9 Version 0.7.0
+- [ ] Logique pure d'édition de journée dans `edits.ts` + tests (`moveBoundary`, `splitAt`, `setLabel`, `removeSlot`, `copyConflicts`, `copyToDays`, `mergeAdjacent`)
+- [ ] Composant d'édition des barres (appui long / clic, poignées, bulle, enregistrement au relâcher, clavier)
+- [ ] Bande de sélection (étiquettes, « Rien », ciseaux), « Copier vers… » et fenêtre de conflits
+- [ ] Bandeau « Modifié · Annuler » (enregistrement sur les données courantes, une reprise)
+- [ ] Icônes solaires sur les barres (dont le volet bureau)
+- [ ] Icône « maintenant » au-dessus du trait (barres et graphique)
+- [ ] Renommer une étiquette sur place (crayon, « Partagé »)
+- [ ] `card_version` (serveur + test pytest) et rechargement automatique de la carte
+- [ ] Version 0.7.0, CHANGELOG, vérification dans le navigateur (360 px tactile, ≥ 1400 px souris), captures
 
 ## 15. v2 (hors périmètre)
 - Import des programmes `scheduler-component` (`.storage/scheduler.storage`, version 3) — nécessite plages ponctuelles et défaut « rien » (présents en v1).
