@@ -12,6 +12,9 @@ export class WpTip extends LitElement {
   @property() text = "";
   /** Does not catch the pointer (the handles below the icon have priority); keyboard and the bubble stay. */
   @property({ type: Boolean }) passive = false;
+  /** A mouse press goes through to what is below (hover still shows the text); a touch shows it, as usual. */
+  @property({ type: Boolean }) through = false;
+  private _mouse = false;
   @state() private _show = false;
   @state() private _shift = 0;
   private _timer?: ReturnType<typeof setTimeout>;
@@ -31,6 +34,8 @@ export class WpTip extends LitElement {
   }
 
   private _down(e: PointerEvent): void {
+    this._mouse = e.pointerType === "mouse";
+    if (this.through && this._mouse) return;
     e.stopPropagation();
     if (e.pointerType === "mouse") return;
     this._on();
@@ -59,8 +64,8 @@ export class WpTip extends LitElement {
         @pointerleave=${(e: PointerEvent) => { if (e.pointerType === "mouse") this._off(); }}
         @focus=${() => this._on()} @blur=${() => this._off()}
         @pointerdown=${(e: PointerEvent) => this._down(e)}
-        @pointerup=${(e: Event) => e.stopPropagation()}
-        @click=${(e: Event) => e.stopPropagation()}
+        @pointerup=${(e: Event) => { if (!(this.through && this._mouse)) e.stopPropagation(); }}
+        @click=${(e: Event) => { if (!(this.through && this._mouse)) e.stopPropagation(); }}
         @contextmenu=${(e: Event) => e.preventDefault()}
         @keydown=${(e: KeyboardEvent) => { if (e.key === "Escape") this._off(); }}>
         <slot></slot></span>
