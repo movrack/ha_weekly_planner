@@ -51,6 +51,7 @@ export class WeeklyPlannerCard extends LitElement {
   @state() private _edit: string | null = null;
   @state() private _snack: { undo: () => Promise<boolean> } | null = null;
   private _snackTimer?: number;
+  private _ticks = 0;
   private _unsub?: () => void;
   private _clock?: number;
   private _previewKey = "";
@@ -80,12 +81,13 @@ export class WeeklyPlannerCard extends LitElement {
     this._clock = window.setInterval(() => {
       this._now = new Date();
       this._checkVersion();
+      if (++this._ticks % 5 === 0) void this._pollVersion();
     }, 60_000);
     document.addEventListener("visibilitychange", this._visible);
   }
 
   private _visible = (): void => {
-    if (!document.hidden) this._checkVersion();
+    if (!document.hidden) void this._pollVersion();
   };
 
   /** Page at rest: nothing open and no edit in progress. */
@@ -96,6 +98,16 @@ export class WeeklyPlannerCard extends LitElement {
   /** The integration serves a newer card: reload by itself once the page is idle (never in a loop). */
   private _checkVersion(): void {
     reloadIfOutdated(this._data?.card_version, this._idle);
+  }
+
+  /** Asks the server for the served version (a reload of the integration does not push new data to old subscriptions). */
+  private async _pollVersion(): Promise<void> {
+    try {
+      const fresh = await this.hass.callWS<PlannerData>({ type: "weekly_planner/get" });
+      reloadIfOutdated(fresh.card_version, this._idle);
+    } catch {
+      /* offline: the next tick tries again */
+    }
   }
 
   private _showSnack(undo: () => Promise<boolean>): void {
@@ -418,7 +430,7 @@ export class WeeklyPlannerCard extends LitElement {
     .week { display: flex; flex-direction: column; gap: 0; padding-bottom: 4px; }
     .wday { display: flex; align-items: flex-start; gap: 8px; min-height: 48px; width: 100%; }
     .wnamebtn {
-      flex: none; width: 44px; height: 48px; padding: 0; border: none; border-radius: 8px; background: none; color: inherit;
+      flex: none; width: 36px; height: 48px; padding: 0; border: none; border-radius: 8px; background: none; color: inherit;
       font: inherit; cursor: pointer; text-align: left; display: flex; align-items: center;
     }
     .wnamebtn:hover .wname { text-decoration: underline; }

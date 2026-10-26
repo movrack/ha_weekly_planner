@@ -542,18 +542,18 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Instance de test locale : programmes migrés (Bureau, Lampe, Prise, Volet, Rocky) ; captures 360 × 780
 - [x] Version 0.6.0 (manifest, pyproject, package.json), CHANGELOG « BREAKING », deux README
 
-### 14.9 Version 0.7.0
-- [ ] Logique pure d'édition de journée dans `edits.ts` + tests (`moveBoundary`, `splitAt`, `setLabel`, `removeSlot`, `copyConflicts`, `copyToDays`, `mergeAdjacent`)
-- [ ] Composant d'édition des barres (appui long / clic, poignées, bulle, enregistrement au relâcher, clavier)
-- [ ] Bande de sélection (étiquettes, « Rien », ciseaux), « Copier vers… » et fenêtre de conflits
-- [ ] Bandeau « Modifié · Annuler » (enregistrement sur les données courantes, une reprise)
-- [ ] Icônes solaires sur les barres (dont le volet bureau)
-- [ ] Icône « maintenant » au-dessus du trait (barres et graphique)
-- [ ] Renommer une étiquette sur place (crayon, « Partagé »)
-- [ ] `card_version` (serveur + test pytest) et rechargement automatique de la carte
-- [ ] Graphique : valeur PRÉVUE en escalier (couleur de l'étiquette par palier), cercle creux seulement au vrai retour au défaut, légende « Prévu » en trait + tests du constructeur d'escalier
-- [ ] Graphique : zone ombrée sous l'escalier prévu, seulement quand l'appareil était réellement ACTIF (jusqu'à maintenant), légende « Actif », constructeur testé
-- [ ] Version 0.7.0, CHANGELOG, vérification dans le navigateur (360 px tactile, ≥ 1400 px souris), captures
+### 14.10 Version 0.7.0
+- [x] Logique pure d'édition de journée dans `edits.ts` + tests (`moveBoundary`, `splitAt`, `setLabel`, `removeSlot`, `copyConflicts`, `copyToDays`, `mergeAdjacent`)
+- [x] Composant d'édition des barres (appui long / clic, poignées, bulle, enregistrement au relâcher, clavier)
+- [x] Bande de sélection (étiquettes, « Rien », ciseaux), « Copier vers… » et fenêtre de conflits
+- [x] Bandeau « Modifié · Annuler » (enregistrement sur les données courantes, une reprise)
+- [x] Icônes solaires sur les barres (dont le volet bureau)
+- [x] Icône « maintenant » au-dessus du trait (barres et graphique)
+- [x] Renommer une étiquette sur place (crayon, « Partagé »)
+- [x] `card_version` (serveur + test pytest) et rechargement automatique de la carte
+- [x] Graphique : valeur PRÉVUE en escalier (couleur de l'étiquette par palier), cercle creux seulement au vrai retour au défaut, légende « Prévu » en trait + tests du constructeur d'escalier
+- [x] Graphique : zone ombrée sous l'escalier prévu, seulement quand l'appareil était réellement ACTIF (jusqu'à maintenant), légende « Actif », constructeur testé
+- [x] Version 0.7.0, CHANGELOG, vérification dans le navigateur (360 px tactile, ≥ 1400 px souris), captures
 
 ## 15. v2 (hors périmètre)
 - Import des programmes `scheduler-component` (`.storage/scheduler.storage`, version 3) — nécessite plages ponctuelles et défaut « rien » (présents en v1).
