@@ -80,3 +80,20 @@ async def test_warnings(hass, hass_storage, freezer, hass_ws_client):
     await ws.send_json_auto_id({"type": f"{DOMAIN}/get"})
     codes = {w["code"] for w in (await ws.receive_json())["result"]["warnings"]["office"]}
     assert "scheduler" in codes
+
+
+async def test_card_version_in_get_and_subscribe(hass, hass_storage, freezer, hass_ws_client):
+    """The data carries the version of the card the integration serves (hash of the bundle)."""
+    from hashlib import sha256
+
+    from custom_components.weekly_planner.frontend import CARD_FILE
+
+    Recorder(hass)
+    await setup(hass, hass_storage, freezer, [program()], None)
+    expected = sha256(CARD_FILE.read_bytes()).hexdigest()[:12]
+    ws = await _client(hass, hass_ws_client)
+    await ws.send_json_auto_id({"type": f"{DOMAIN}/get"})
+    assert (await ws.receive_json())["result"]["card_version"] == expected
+    await ws.send_json_auto_id({"type": f"{DOMAIN}/subscribe"})
+    assert (await ws.receive_json())["success"]
+    assert (await ws.receive_json())["event"]["card_version"] == expected

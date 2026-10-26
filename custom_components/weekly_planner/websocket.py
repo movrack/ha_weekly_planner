@@ -15,6 +15,7 @@ from homeassistant.util import dt as dt_util
 from .const import CONF_ADMIN_ONLY, DOMAIN
 from .checks import program_warnings
 from .engine import PlannerEngine
+from .frontend import CARD_VERSION_KEY
 from .resolver import active_profile, occurrences_around
 from .store import new_id
 from .actions import needs_admin
@@ -63,6 +64,7 @@ def _snapshot(engine: PlannerEngine) -> dict[str, Any]:
         "entities": entities,
         "read_only": engine.store.read_only,
         "can_edit": True,
+        "card_version": engine.hass.data.get(CARD_VERSION_KEY),
     }
 
 
