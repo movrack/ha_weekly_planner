@@ -17,7 +17,16 @@ from .checks import program_warnings
 from .engine import PlannerEngine
 from .resolver import active_profile, occurrences_around
 from .store import new_id
-from .validation import MODE, ProgramError, admin_required, check_program, unsupported_presets
+from .actions import needs_admin
+from .validation import ProgramError, admin_required, check_label, check_program, label_users
+
+
+async def _descriptions(hass: HomeAssistant) -> dict | None:
+    """Service descriptions (which entity a service suits); None when they cannot be read."""
+    try:
+        return await async_get_all_descriptions(hass)
+    except Exception:  # noqa: BLE001 - without them every service is accepted
+        return None
 
 
 def _engine(hass: HomeAssistant) -> PlannerEngine | None:
@@ -34,22 +43,22 @@ def _may_edit(hass: HomeAssistant, connection) -> bool:
 
 @callback
 def async_register(hass: HomeAssistant) -> None:
-    for handler in (ws_get, ws_subscribe, ws_program_save, ws_program_delete, ws_mode_save,
-                    ws_mode_delete, ws_preview, ws_journal, ws_set_enabled):
+    for handler in (ws_get, ws_subscribe, ws_program_save, ws_program_delete, ws_label_save,
+                    ws_label_delete, ws_preview, ws_journal, ws_set_enabled):
         websocket_api.async_register_command(hass, handler)
 
 
 def _snapshot(engine: PlannerEngine) -> dict[str, Any]:
     entities = {
-        eid: {k: rt.get(k) for k in ("segment", "target", "override", "suppressed", "pending")}
+        eid: {k: rt.get(k) for k in ("segment", "target", "suppressed", "pending")}
         for eid, rt in engine.store.runtime["entities"].items()
     }
     return {
         "vacation": engine.store.config.get("vacation", False),
-        "modes": engine.store.config["modes"],
+        "labels": engine.store.config.get("labels", []),
         "programs": engine.store.programs,
         "status": {p["id"]: engine.program_status(p["id"]) for p in engine.store.programs},
-        "warnings": {p["id"]: program_warnings(engine.hass, engine.store.programs, p)
+        "warnings": {p["id"]: program_warnings(engine.hass, engine.store.programs, p, engine)
                      for p in engine.store.programs},
         "entities": entities,
         "read_only": engine.store.read_only,
@@ -89,16 +98,6 @@ def ws_subscribe(hass, connection, msg) -> None:
     forward()
 
 
-def _uses_services(program: dict) -> bool:
-    return any(
-        isinstance(sp, dict) and sp.get("kind") == "service"
-        for profile in program.get("profiles", []) if isinstance(profile, dict)
-        for day in profile.get("days", []) if isinstance(day, list)
-        for slot in day if isinstance(slot, dict)
-        for sp in (slot.get("actions") or {}).get("by_entity", {}).values()
-    )
-
-
 @websocket_api.websocket_command({
     vol.Required("type"): f"{DOMAIN}/program/save",
     vol.Required("program"): dict,
@@ -120,18 +119,13 @@ async def ws_program_save(hass, connection, msg) -> None:
         connection.send_error(msg["id"], "conflict", "Modified elsewhere, reload")  # S34
         return
     try:
-        descriptions = None
-        if _uses_services(program):
-            descriptions = await async_get_all_descriptions(hass)
-        program = check_program(program, engine.store.modes, hass, descriptions)
+        descriptions = await _descriptions(hass)
+        program = check_program(program, engine.labels, hass, descriptions)
     except vol.Invalid as err:
         connection.send_error(msg["id"], "invalid", str(err))
         return
-    if problems := unsupported_presets(program, engine.store.modes, hass.states.get):
-        connection.send_error(msg["id"], "unsupported_preset", "; ".join(problems))
-        return
-    if admin_required(program, engine.store.modes) and not connection.user.is_admin:
-        connection.send_error(msg["id"], "unauthorized", "Scripts and actions are reserved to administrators")
+    if admin_required(program, engine.labels) and not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Sensitive actions are reserved to administrators")
         return
     program["revision"] = program.get("revision", 0) + 1
     program.setdefault("created_at", existing.get("created_at") if existing else dt_util.utcnow().isoformat())
@@ -168,48 +162,53 @@ async def ws_program_delete(hass, connection, msg) -> None:
 
 
 @websocket_api.websocket_command({
-    vol.Required("type"): f"{DOMAIN}/mode/save",
-    vol.Required("mode"): dict,
+    vol.Required("type"): f"{DOMAIN}/label/save",
+    vol.Required("label"): dict,
 })
 @websocket_api.async_response
-async def ws_mode_save(hass, connection, msg) -> None:
+async def ws_label_save(hass, connection, msg) -> None:
+    """Create or change a label (shared by every program)."""
     engine = _engine(hass)
     if engine is None or not _may_edit(hass, connection):
         connection.send_error(msg["id"], "unauthorized", "Editing is reserved to administrators")
         return
-    mode = dict(msg["mode"])
-    mode.setdefault("id", new_id())
+    label = dict(msg["label"])
+    label.setdefault("id", new_id())
     try:
-        mode = MODE(mode)
+        label = check_label(label, hass, await _descriptions(hass))
     except vol.Invalid as err:
         connection.send_error(msg["id"], "invalid", str(err))
         return
-    modes = engine.store.config["modes"]
-    index = next((i for i, m in enumerate(modes) if m["id"] == mode["id"]), None)
+    if needs_admin(label["action"]) and not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Sensitive actions are reserved to administrators")
+        return
+    labels = engine.store.config.setdefault("labels", [])
+    index = next((i for i, x in enumerate(labels) if x["id"] == label["id"]), None)
     if index is None:
-        modes.append(mode)
+        labels.append(label)
     else:
-        modes[index] = mode
+        labels[index] = label
     engine.store.save_config()
     await engine.async_config_changed()
-    connection.send_result(msg["id"], {"mode": mode})
+    connection.send_result(msg["id"], {"label": label})
 
 
 @websocket_api.websocket_command({
-    vol.Required("type"): f"{DOMAIN}/mode/delete",
-    vol.Required("mode_id"): str,
+    vol.Required("type"): f"{DOMAIN}/label/delete",
+    vol.Required("label_id"): str,
 })
 @websocket_api.async_response
-async def ws_mode_delete(hass, connection, msg) -> None:
+async def ws_label_delete(hass, connection, msg) -> None:
+    """Delete a label, refused while a program uses it."""
     engine = _engine(hass)
     if engine is None or not _may_edit(hass, connection):
         connection.send_error(msg["id"], "unauthorized", "Editing is reserved to administrators")
         return
-    users = engine.mode_users(msg["mode_id"])
+    users = label_users(engine.store.programs, msg["label_id"])
     if users:
         connection.send_error(msg["id"], "in_use", ", ".join(users))
         return
-    engine.store.config["modes"] = [m for m in engine.store.config["modes"] if m["id"] != msg["mode_id"]]
+    engine.store.config["labels"] = [x for x in engine.store.config.get("labels", []) if x["id"] != msg["label_id"]]
     engine.store.save_config()
     await engine.async_config_changed()
     connection.send_result(msg["id"])
