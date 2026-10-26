@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.7.10] - 2026-10-26
+
+### Fixed
+- CI: a valid `setup-uv` version.
+- Manifest: the `categories` field is removed (refused by hassfest for custom integrations).
+
 ## [0.7.9] - 2026-10-26
 
 ### Added
