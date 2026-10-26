@@ -123,7 +123,8 @@ export class WeeklyPlannerCard extends LitElement {
       this.hass.callWS<{ slots: PreviewSlot[] }>({ type: "weekly_planner/preview", program_id: p.id, date })
         .then((res) => { (previews[date] ??= {})[p.id] = res.slots; })
         .catch(() => undefined))));
-    this._preview = previews;
+    // a newer edit started its own loading meanwhile: these previews are stale
+    if (key === this._previewKey) this._preview = previews;
   }
 
   /* ---- blocks ---- */

@@ -3699,7 +3699,7 @@ let V = class extends E {
     await Promise.all(e.flatMap((r) => t.map((n) => this.hass.callWS({ type: "weekly_planner/preview", program_id: n.id, date: r }).then((o) => {
       (s[r] ?? (s[r] = {}))[n.id] = o.slots;
     }).catch(() => {
-    })))), this._preview = s;
+    })))), i === this._previewKey && (this._preview = s);
   }
   /* ---- blocks ---- */
   /** Spans of a day (`offset` days from today) for a device, from every program that schedules it. */
