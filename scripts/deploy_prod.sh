@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Copy the integration to a Home Assistant host over SSH (used while the repository is private).
+# Copy the integration to a Home Assistant host over SSH (for testing on your own instance).
 #
 #   scripts/deploy_prod.sh            # dry run: show what would change
 #   scripts/deploy_prod.sh --apply    # copy the files
 #
-# Environment: WP_HOST (SSH alias, default ha-ccode), WP_CONFIG (default /config).
+# Environment: WP_HOST (SSH host or alias, required), WP_CONFIG (default /config).
 # Nothing is restarted: a first install or a Python change needs a Home Assistant restart,
 # a card-only change only needs `weekly_planner.reload` and a browser refresh.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-HOST="${WP_HOST:-ha-ccode}"
+HOST="${WP_HOST:?Set WP_HOST to the SSH host or alias of your Home Assistant}"
 DEST="${WP_CONFIG:-/config}/custom_components/weekly_planner/"
 SRC="custom_components/weekly_planner/"
 MODE="${1:---dry-run}"
