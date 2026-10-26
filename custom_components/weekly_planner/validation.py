@@ -10,7 +10,7 @@ import voluptuous as vol
 
 from homeassistant.helpers import config_validation as cv
 
-from .setpoints import is_one_shot, needs_admin
+from .actions import needs_admin
 from .timeline import SUN_EVENTS, day_occurrences, parse_clock
 
 
@@ -29,12 +29,24 @@ TIME_SPEC = vol.Any(
     }),
 )
 
-SETPOINT = vol.Schema({
-    vol.Required("kind"): str,
-    vol.Optional("brightness"): vol.All(vol.Coerce(int), vol.Range(min=1, max=100)),
-    vol.Optional("color_temp_kelvin"): vol.All(vol.Coerce(int), vol.Range(min=1000, max=12000)),
-    vol.Optional("effect"): str,
-}, extra=vol.ALLOW_EXTRA)
+ACTION = vol.Any(
+    vol.Schema({
+        vol.Required("kind"): "service",
+        vol.Required("service"): str,
+        vol.Optional("data", default=dict): dict,
+    }),
+    vol.Schema({
+        vol.Required("kind"): "scene",
+        vol.Required("scene"): vol.Match(r"^scene\.[a-z0-9_]+$"),
+    }),
+)
+
+LABEL = vol.Schema({
+    vol.Required("id"): str,
+    vol.Required("name"): vol.All(str, vol.Length(min=1, max=30)),
+    vol.Optional("color", default="#9e9e9e"): vol.Match(r"^#[0-9a-fA-F]{6}$"),
+    vol.Required("action"): ACTION,
+})
 
 CONDITION = vol.Schema({
     vol.Required("entity_id"): cv.entity_id,
@@ -49,10 +61,7 @@ SLOT = vol.Schema({
     vol.Optional("end"): vol.Any(None, TIME_SPEC),
     vol.Optional("conditions", default=list): [CONDITION],
     vol.Optional("color"): vol.Any(None, str),
-    vol.Required("actions"): vol.Schema({
-        vol.Optional("by_type", default=dict): {str: str},
-        vol.Optional("by_entity", default=dict): {cv.entity_id: SETPOINT},
-    }),
+    vol.Required("label"): str,
 })
 
 PROFILE = vol.Schema({
@@ -61,16 +70,10 @@ PROFILE = vol.Schema({
     vol.Required("days"): vol.All([[SLOT]], vol.Length(min=7, max=7)),
 })
 
-DEFAULT = vol.Schema({
-    vol.Required("kind"): vol.In(("mode", "setpoint", "previous", "none")),
-    vol.Optional("value"): vol.Any(None, str, SETPOINT),
-})
-
 ENTITY = vol.Schema({
     vol.Required("entity_id"): cv.entity_id,
-    vol.Optional("default", default={"kind": "none"}): DEFAULT,
-    vol.Optional("grace_s"): vol.Any(None, vol.All(int, vol.Range(min=0, max=3600))),
-    vol.Optional("force_permanent", default=False): bool,
+    vol.Optional("default_label", default=None): vol.Any(None, str),
+    vol.Optional("label_overrides", default=dict): {str: ACTION},
 })
 
 PROGRAM = vol.Schema({
@@ -83,43 +86,37 @@ PROGRAM = vol.Schema({
     vol.Optional("priority", default=10): vol.All(int, vol.Range(min=1, max=100)),
     vol.Optional("enabled", default=True): bool,
     vol.Optional("reapply", default=True): bool,
-    vol.Optional("main_type"): vol.Any(None, str),
     vol.Optional("conditions", default=list): [CONDITION],
     vol.Required("entities"): vol.All([ENTITY], vol.Length(min=1)),
     vol.Optional("active_profile"): vol.Any(None, str),
     vol.Required("profiles"): vol.All([PROFILE], vol.Length(min=1)),
 })
 
-MODE = vol.Schema({
-    vol.Required("id"): str,
-    vol.Required("type"): str,
-    vol.Required("name"): vol.All(str, vol.Length(min=1, max=40)),
-    vol.Optional("color", default="#9e9e9e"): str,
-    vol.Optional("icon"): vol.Any(None, str),
-    vol.Required("value"): SETPOINT,
-    vol.Optional("exceptions", default=dict): {cv.entity_id: SETPOINT},
-})
-
-
 class ProgramError(vol.Invalid):
     """A program breaks a rule that the schema cannot express."""
 
 
-def _check_service(hass: Any, descriptions: dict | None, entity_id: str, setpoint: dict) -> None:
-    """A generic service setpoint: known service, usable on the entity, data is a dict."""
-    service = setpoint.get("service")
+def _check_service(hass: Any, descriptions: dict | None, entity_id: str | None, action: dict) -> None:
+    """A service action: known service, data is a dict, usable on the entity (when there is one)."""
+    service = action.get("service")
     if not isinstance(service, str) or service.count(".") != 1:
         raise ProgramError(f"unknown_service:{service}")
-    if not isinstance(setpoint.get("data", {}), dict):
+    if not isinstance(action.get("data", {}), dict):
         raise ProgramError(f"invalid_service_data:{service}")
     if hass is None:
         return
     domain, name = service.split(".")
     if not hass.services.has_service(domain, name):
         raise ProgramError(f"unknown_service:{service}")
-    entity_domain = entity_id.split(".", 1)[0]
-    if domain != entity_domain and not _target_accepts(descriptions, domain, name, entity_domain):
+    if entity_id is not None and not service_accepts(descriptions, service, entity_id):
         raise ProgramError(f"service_not_for_entity:{service}:{entity_id}")
+
+
+def service_accepts(descriptions: dict | None, service: str, entity_id: str) -> bool:
+    """Does the service suit the entity: its own domain, or a target that accepts the domain."""
+    domain, _, name = service.partition(".")
+    entity_domain = entity_id.split(".", 1)[0]
+    return domain == entity_domain or _target_accepts(descriptions, domain, name, entity_domain)
 
 
 def _target_accepts(descriptions: dict | None, domain: str, name: str, entity_domain: str) -> bool:
@@ -138,26 +135,34 @@ def _as_list(value: Any) -> list:
     return value if isinstance(value, list) else [value]
 
 
-def check_program(program: dict, modes: dict[str, dict], hass: Any = None, descriptions: dict | None = None) -> dict:
-    """Schema + semantic rules: unique profile names, known modes, no overlap on a day."""
+def check_label(label: dict, hass: Any = None, descriptions: dict | None = None) -> dict:
+    """Schema of a label; its service must exist (the entity is checked where it is used)."""
+    label = LABEL(label)
+    if label["action"]["kind"] == "service":
+        _check_service(hass, descriptions, None, label["action"])
+    return label
+
+
+def check_program(program: dict, labels: dict[str, dict], hass: Any = None, descriptions: dict | None = None) -> dict:
+    """Schema + semantic rules: unique profile names, known labels, valid overrides, no overlap on a day."""
     program = PROGRAM(program)
     names = [p["name"] for p in program["profiles"]]
     if len(set(names)) != len(names):
         raise ProgramError("duplicate_profile_name")
-    entity_ids = {e["entity_id"] for e in program["entities"]}
+    for entity in program["entities"]:
+        label_id = entity["default_label"]
+        if label_id is not None and label_id not in labels:
+            raise ProgramError(f"unknown_label:{label_id}")
+        for label_id, action in entity["label_overrides"].items():
+            if label_id not in labels:
+                raise ProgramError(f"unknown_label:{label_id}")
+            if action["kind"] == "service":
+                _check_service(hass, descriptions, entity["entity_id"], action)
     for profile in program["profiles"]:
         for day_slots in profile["days"]:
             for slot in day_slots:
-                for mode_id in slot["actions"]["by_type"].values():
-                    if mode_id not in modes:
-                        raise ProgramError(f"unknown_mode:{mode_id}")
-                for eid, setpoint in slot["actions"]["by_entity"].items():
-                    if eid not in entity_ids:
-                        raise ProgramError(f"entity_not_in_program:{eid}")
-                    if setpoint["kind"] == "service":
-                        if slot.get("end") is not None:
-                            raise ProgramError(f"service_has_no_end:{eid}")
-                        _check_service(hass, descriptions, eid, setpoint)
+                if slot["label"] not in labels:
+                    raise ProgramError(f"unknown_label:{slot['label']}")
             _check_overlaps(day_slots)
     return program
 
@@ -176,36 +181,22 @@ def _trimmed(slots: list[dict], occ: list) -> bool:
     return any(o.runs and o.start.strftime("%H:%M") != starts[o.slot_id] for o in occ)
 
 
-def admin_required(program: dict, modes: dict[str, dict]) -> bool:
-    """Does the program contain setpoints only an administrator may schedule?"""
-    for profile in program["profiles"]:
-        for day_slots in profile["days"]:
-            for slot in day_slots:
-                if any(needs_admin(sp) for sp in slot["actions"]["by_entity"].values()):
-                    return True
-    return any(needs_admin(e.get("default", {}).get("value")) for e in program["entities"]
-               if isinstance(e.get("default", {}).get("value"), dict))
+def admin_required(program: dict, labels: dict[str, dict]) -> bool:
+    """Does the program use actions only an administrator may schedule (through a label or an override)?"""
+    if any(needs_admin(a) for e in program["entities"] for a in e["label_overrides"].values()):
+        return True
+    used = {e["default_label"] for e in program["entities"]}
+    used |= {s["label"] for p in program["profiles"] for d in p["days"] for s in d}
+    return any(needs_admin((labels.get(label_id) or {}).get("action")) for label_id in used)
 
 
-def unsupported_presets(program: dict, modes: dict[str, dict], get_state) -> list[str]:
-    """Presets the program would send to an entity that does not offer them (spec § 6)."""
-    from .resolver import default_of, slot_setpoint
-
-    problems: set[str] = set()
-
-    def check(entity_id: str, setpoint: dict | None) -> None:
-        if not setpoint or setpoint.get("kind") != "preset":
-            return
-        state = get_state(entity_id)
-        offered = (state.attributes.get("preset_modes") or []) if state else None
-        if offered is not None and setpoint["preset"] not in offered:
-            problems.add(f"{entity_id}: {setpoint['preset']}")
-
-    for entity in program["entities"]:
-        eid = entity["entity_id"]
-        check(eid, default_of(program, eid, modes)[1])
-        for profile in program["profiles"]:
-            for day in profile["days"]:
-                for slot in day:
-                    check(eid, slot_setpoint(slot, eid, modes))
-    return sorted(problems)
+def label_users(programs: list[dict], label_id: str) -> list[str]:
+    """Names of the programs using a label (slots of any profile, defaults, overrides)."""
+    users = []
+    for program in programs:
+        used = any(e.get("default_label") == label_id or label_id in (e.get("label_overrides") or {})
+                   for e in program["entities"])
+        used = used or any(s.get("label") == label_id for p in program["profiles"] for d in p["days"] for s in d)
+        if used:
+            users.append(program["name"])
+    return users

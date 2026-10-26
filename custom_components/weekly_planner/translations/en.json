@@ -14,44 +14,13 @@
     "step": {
       "init": {
         "title": "Weekly Planner",
-        "menu_options": {
-          "settings": "Settings",
-          "modes": "Common modes"
-        }
-      },
-      "settings": {
-        "title": "Settings",
         "data": {
-          "admin_only": "Only administrators can edit programs and modes",
-          "reapply_default": "Re-apply the current slot after a restart or a change (default for new programs)",
-          "notify_delay_min": "Notify when a device has not reached its target after (minutes)",
+          "admin_only": "Only administrators can edit programs",
+          "reapply_default": "Send the current action again after a restart or a change (default for new programs)",
+          "notify_delay_min": "Notify when a device is still unavailable after (minutes)",
           "debounce_min": "Minimum time a condition must hold before it starts or ends a slot (minutes)"
         }
-      },
-      "modes": {
-        "title": "Common modes",
-        "description": "Shared by all schedules. Pick one to change it, or + to add one.",
-        "data": {
-          "mode": "Mode"
-        }
-      },
-      "mode": {
-        "title": "Mode",
-        "description": "Name, device type and what it does. Temperature or brightness goes in Value.",
-        "data": {
-          "name": "Name",
-          "type": "Device type",
-          "kind": "Action",
-          "value": "Value (°C, % or brightness)",
-          "preset": "Preset name",
-          "delete": "Delete this mode"
-        }
       }
-    },
-    "error": {
-      "mode_in_use": "This mode is used by a schedule.",
-      "invalid_mode": "This mode is not valid.",
-      "kind_not_for_type": "This action does not fit this device type."
     },
     "abort": {
       "not_loaded": "Weekly Planner is not loaded."
@@ -70,42 +39,6 @@
     }
   },
   "services": {
-    "resume": {
-      "name": "Resume schedule",
-      "description": "Cancel overrides and apply the schedule again.",
-      "fields": {
-        "entity_id": {
-          "name": "Entities",
-          "description": "Entities to resume."
-        },
-        "program_id": {
-          "name": "Program",
-          "description": "Resume every entity of this program."
-        }
-      }
-    },
-    "override": {
-      "name": "Override",
-      "description": "Apply a setpoint for a while, then return to the schedule.",
-      "fields": {
-        "entity_id": {
-          "name": "Entities",
-          "description": "Entities to override."
-        },
-        "setpoint": {
-          "name": "Setpoint",
-          "description": "What to apply, for example a preset or a temperature."
-        },
-        "duration": {
-          "name": "Duration",
-          "description": "How long the override lasts."
-        },
-        "until": {
-          "name": "Until",
-          "description": "When the override ends."
-        }
-      }
-    },
     "apply_now": {
       "name": "Apply now",
       "description": "Apply what the program wants right now to its entities.",
