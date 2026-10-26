@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.7.7] - 2026-10-26
+
+### Added
+- Bars: a one-shot (a thin line) shows its label and time in a tooltip on hover or tap; a mouse click still goes to the bar.
+
 ## [0.7.6] - 2026-10-26
 
 ### Added

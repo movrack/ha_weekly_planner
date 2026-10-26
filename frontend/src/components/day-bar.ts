@@ -100,15 +100,24 @@ export class WpDayBar extends LitElement {
 
   /** Sun icons at the start / end of the spans that follow the sun (visible even when the label does not fit). */
   private _sunIcons() {
-    const icons: { m: number; dir: "up" | "down"; spec?: TimeSpec | null }[] = [];
+    const icons: { m: number; dir: "up" | "down"; spec?: TimeSpec | null; label?: string }[] = [];
     for (const s of this.spans) {
-      if (s.startSun) icons.push({ m: s.start, dir: s.startSun, spec: s.startSpec });
+      // a one-shot is only a thin line: its icon also says what it does
+      if (s.startSun) icons.push({ m: s.start, dir: s.startSun, spec: s.startSpec, label: s.marker ? s.label : undefined });
       if (s.endSun && s.end < DAY) icons.push({ m: s.end, dir: s.endSun, spec: s.endSpec });
     }
     // While editing, the handles below keep the pointer; the icon is still read by keyboard and screen readers.
-    return icons.map((i) => html`<wp-tip class="sunic" ?passive=${this.tall} text=${sunTip(this.lang, i.spec, i.m)}
+    return icons.map((i) => html`<wp-tip class="sunic" ?passive=${this.tall}
+      text=${`${i.label ? `${i.label} · ` : ""}${sunTip(this.lang, i.spec, i.m)}`}
       style="left:clamp(16px, ${(i.m / DAY) * 100}%, calc(100% - 16px))" data-sun=${i.dir}>
       <span class="sunc"><ha-icon icon=${i.dir === "up" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down"}></ha-icon></span></wp-tip>`);
+  }
+
+  /** A one-shot is a thin line: a wider invisible target over it shows its label and time. */
+  private _markerTips() {
+    return this.spans.filter((s) => s.marker && !s.startSun && !this.thin).map((s) => html`<wp-tip class="mktip" through
+      ?passive=${this.tall} text=${`${s.label} · ${fmtClock(this.lang, s.start)}`}
+      style="left:clamp(12px, ${(s.start / DAY) * 100}%, calc(100% - 12px))"></wp-tip>`);
   }
 
   render() {
@@ -128,7 +137,7 @@ export class WpDayBar extends LitElement {
             >${box ? html`<span class="name" style="left:${box.left}%;width:${box.width}%">${s.label}</span>` : nothing}</div>`;
           })}
         </div>
-        <div class="icons">${this._sunIcons()}</div>
+        <div class="icons">${this._markerTips()}${this._sunIcons()}</div>
         <slot></slot>
         ${now !== null ? html`<div class="nowline" style="left:${pct(now)}">
           <wp-tip class="nowic" text=${nowTip(this.lang, now)}><ha-icon icon="mdi:clock-outline"></ha-icon></wp-tip></div>` : nothing}
@@ -169,6 +178,7 @@ export class WpDayBar extends LitElement {
     }
     .icons { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
     .sunic { position: absolute; top: 50%; transform: translate(-50%, -50%); }
+    .mktip { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 24px; height: 28px; }
     .sunc {
       width: 18px; height: 18px; border-radius: 9px;
       display: flex; align-items: center; justify-content: center; --mdc-icon-size: 14px;
