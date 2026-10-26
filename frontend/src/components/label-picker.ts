@@ -4,7 +4,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "./action-picker";
-import { actionText, entityAction, hasOverride, labelOf, labelsFor, nextColor, PALETTE } from "../labels";
+import { actionText, entityAction, hasOverride, labelOf, labelsFor, labelUsers, nextColor, PALETTE } from "../labels";
 import { t } from "../i18n";
 import { friendlyName } from "../planner";
 import { missingFields } from "../services";
@@ -21,8 +21,12 @@ export class WpLabelPicker extends LitElement {
   /** "The rest of the time": a "Nothing" choice is added. */
   @property({ type: Boolean, attribute: "allow-none" }) allowNone = false;
   @property({ type: Boolean }) disabled = false;
+  /** Only the chips (no creation, no pencil, no value for a device): the strip under a bar. */
+  @property({ type: Boolean }) compact = false;
 
   @state() private _creating = false;
+  /** Id of the label being edited in place (null: a new label is being created). */
+  @state() private _editId: string | null = null;
   @state() private _name = "";
   @state() private _color = "";
   @state() private _action: Action | null = null;
@@ -36,7 +40,20 @@ export class WpLabelPicker extends LitElement {
     this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
   }
 
+  /** Edits the chosen label in place: name, colour and action (the label is shared by every program). */
+  private _startEdit(): void {
+    const label = labelOf(this.data, this.value);
+    if (!label) return;
+    this._creating = true;
+    this._editId = label.id;
+    this._name = label.name;
+    this._color = label.color;
+    this._action = structuredClone(label.action);
+    this._error = "";
+  }
+
   private _startCreate(): void {
+    this._editId = null;
     this._creating = true;
     this._name = "";
     this._color = nextColor(this.data.labels);
@@ -64,7 +81,7 @@ export class WpLabelPicker extends LitElement {
     try {
       const res = await this.hass.callWS<{ label: { id: string } }>({
         type: "weekly_planner/label/save",
-        label: { name: this._name.trim(), color: this._color, action: this._action },
+        label: { ...(this._editId ? { id: this._editId } : {}), name: this._name.trim(), color: this._color, action: this._action },
       });
       this._creating = false;
       this._emit("label-change", res.label.id);
@@ -104,9 +121,14 @@ export class WpLabelPicker extends LitElement {
         ${this.allowNone ? chip(t(lang, "rest_none"), this.value === null, () => this._emit("label-change", null)) : nothing}
         ${labels.map((l) => chip(l.name, l.id === this.value, () => this._emit("label-change", l.id), l.color))}
         ${this.value && !chosen ? chip("?", true, () => undefined) : nothing}
-        <button class="chip add" ?disabled=${this.disabled} @click=${() => this._startCreate()}>
-          <ha-icon icon="mdi:plus"></ha-icon><span>${t(lang, "lb_new")}</span></button>
+        ${this.compact ? nothing : html`<button class="chip add" ?disabled=${this.disabled} @click=${() => this._startCreate()}>
+          <ha-icon icon="mdi:plus"></ha-icon><span>${t(lang, "lb_new")}</span></button>`}
       </div>
+      ${chosen && !this.compact && !this._creating ? html`<div class="edit">
+        <button class="pen" aria-label=${t(lang, "rename_label")} title=${t(lang, "rename_label")} ?disabled=${this.disabled}
+          @click=${() => this._startEdit()}><ha-icon icon="mdi:pencil"></ha-icon></button>
+        ${labelUsers(this.data, chosen.id).some((n) => n !== this.program.name) ? html`<span class="shared">${t(lang, "shared")}</span>` : nothing}
+      </div>` : nothing}
       ${this._creating ? html`<div class="form">
         <div class="field"><label for="lb-name">${t(lang, "lb_name")}</label>
           <input id="lb-name" type="text" maxlength="30" .value=${this._name}
@@ -123,7 +145,7 @@ export class WpLabelPicker extends LitElement {
           <button class="btn" @click=${() => (this._creating = false)}>${t(lang, "cancel")}</button>
         </div>
       </div>` : nothing}
-      ${chosen && !this._creating ? html`
+      ${chosen && !this._creating && !this.compact ? html`
         ${this.entityIds.map((eid) => {
           const open = this._valueFor === eid;
           const own = hasOverride(this.program, eid, chosen.id);
@@ -149,6 +171,13 @@ export class WpLabelPicker extends LitElement {
     .chip.on { border: 2px solid var(--primary-color); font-weight: 600; }
     .chip.add { border-style: dashed; color: var(--primary-color); }
     .chip:disabled { opacity: 0.5; cursor: default; }
+    .edit { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+    .pen {
+      width: 48px; height: 48px; border: none; border-radius: 24px; background: none; color: var(--secondary-text-color);
+      cursor: pointer; --mdc-icon-size: 20px; display: inline-flex; align-items: center; justify-content: center;
+    }
+    .pen:hover { background: var(--secondary-background-color); }
+    .shared { font-size: 12px; color: var(--secondary-text-color); }
     .dot { width: 14px; height: 14px; border-radius: 7px; flex: none; }
     .form { margin-top: 12px; padding: 12px; border: 1px solid var(--divider-color); border-radius: 12px; }
     .swatches { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
