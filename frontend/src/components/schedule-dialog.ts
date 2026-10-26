@@ -3,6 +3,7 @@
 
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { keyed } from "lit/directives/keyed.js";
 import "./chart";
 import "./dialog";
 import "./label-picker";
@@ -12,6 +13,7 @@ import type { SlotGroup } from "../actions";
 import { applyEdit, compareOrigin, dayView, findGroup, freshGroup, groupId, nextTimes, overlapDay, splitBusyDays } from "../edits";
 import type { RowEdit } from "../edits";
 import { labelOf, labelsFor } from "../labels";
+import type { LabelDraft } from "./label-picker";
 import { addDaysIso } from "./chart";
 import { confirmAction } from "./confirm";
 import { strings, t } from "../i18n";
@@ -62,6 +64,12 @@ export class WpSchedule extends LitElement {
   /** Program being edited: the saved one plus the values of labels set for a device (saved with the row). */
   @state() private _draft: Program | null = null;
   @state() private _restLabel: string | null = null;
+  /** The label form open in the row (edit of its label, or a new one): saved first by the row's Save. */
+  @state() private _labelDraft: LabelDraft | null = null;
+  /** Changes when the label picker must start afresh (its form was saved with the row's Save). */
+  @state() private _pickerKey = 0;
+  /** Labels created from here, possibly not in the pushed data yet. */
+  private _fresh = new Set<string>();
   @state() private _programId = "";
   @state() private _error = "";
   @state() private _saving = false;
@@ -183,6 +191,7 @@ export class WpSchedule extends LitElement {
     this._base = null;
     this._origin = opts.origin ? structuredClone(opts.origin) : null;
     this._overrides = [];
+    this._labelDraft = null;
     this._dropBusy = false;
     this._draft = structuredClone(program);
     this._error = "";
@@ -212,6 +221,7 @@ export class WpSchedule extends LitElement {
     this._base = null;
     this._origin = null;
     this._overrides = [];
+    this._labelDraft = null;
     this._dropBusy = false;
     this._draft = null;
     this._restLabel = null;
@@ -354,7 +364,7 @@ export class WpSchedule extends LitElement {
     if (!g) return "";
     if (!g.days.length) return t(lang, "err_days");
     if (g.slot.end && JSON.stringify(g.slot.start) === JSON.stringify(g.slot.end)) return t(lang, "w_err_same");
-    if (!labelOf(this.data, g.slot.label)) return t(lang, "err_action");
+    if (!labelOf(this.data, g.slot.label) && !this._fresh.has(g.slot.label)) return t(lang, "err_action");
     return "";
   }
 
@@ -385,7 +395,42 @@ export class WpSchedule extends LitElement {
     return "changed";
   }
 
+  /**
+   * The label form of the open row is part of the row: saved first (then its values for a device become part
+   * of the row's draft). False: stop, the error is shown.
+   */
+  private async _saveLabelDraft(): Promise<boolean> {
+    const d = this._labelDraft;
+    if (!d) return true;
+    if (d.problem) {
+      this._error = d.problem;
+      return false;
+    }
+    this._saving = true;
+    try {
+      const res = await this.hass.callWS<{ label: { id: string } }>({
+        type: "weekly_planner/label/save",
+        label: { ...(d.id ? { id: d.id } : {}), name: d.name, color: d.color, action: d.action },
+      });
+      for (const o of d.overrides) this._onOverride({ entityId: o.entityId, labelId: res.label.id, action: o.action });
+      if (!d.id) {
+        if (this._open?.startsWith("rest:")) this._restLabel = res.label.id;
+        else if (this._group) this._group = { ...this._group, slot: { ...this._group.slot, label: res.label.id } };
+      }
+      this._fresh.add(res.label.id);
+      this._labelDraft = null;
+      this._pickerKey += 1;
+      return true;
+    } catch (err) {
+      this._error = (err as { code?: string })?.code === "unauthorized" ? t(this._lang, "err_unauthorized") : t(this._lang, "lb_err_save");
+      return false;
+    } finally {
+      this._saving = false;
+    }
+  }
+
   private async _saveRow(): Promise<void> {
+    if (!(await this._saveLabelDraft())) return;
     const draft = this._group;
     const program = this._live(this._programId);
     if (!program || !draft) return;
@@ -437,6 +482,7 @@ export class WpSchedule extends LitElement {
   }
 
   private async _saveRest(eid: string): Promise<void> {
+    if (!(await this._saveLabelDraft())) return;
     const program = this._live(this._programId) ?? this._programs[0];
     if (!program) return;
     const ok = await this._commit(program.id, (live) => ({
@@ -538,18 +584,18 @@ export class WpSchedule extends LitElement {
     const isNew = key === "new";
     const ids = this._entities.filter((e) => program.entities.some((x) => x.entity_id === e));
     return html`<div class="editor">
-      <wp-slot-form .hass=${this.hass} .data=${this.data} .program=${this._draft ?? program} .group=${this._group!} .entityIds=${ids}
+      ${keyed(this._pickerKey, html`<wp-slot-form .hass=${this.hass} .data=${this.data} .program=${this._draft ?? program} .group=${this._group!} .entityIds=${ids}
         .dayOnly=${this._dayOnly} ?disabled=${!this._canEdit}
-        @override-change=${(e: CustomEvent) => { e.stopPropagation(); this._onOverride(e.detail); }}
-        @group-change=${(e: CustomEvent<SlotGroup>) => { e.stopPropagation(); this._group = e.detail; this._error = ""; }}></wp-slot-form>
+        @label-draft=${(e: CustomEvent<LabelDraft | null>) => { e.stopPropagation(); this._labelDraft = e.detail; this._error = ""; }}
+        @group-change=${(e: CustomEvent<SlotGroup>) => { e.stopPropagation(); this._group = e.detail; this._error = ""; }}></wp-slot-form>`)}
       ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
       <div class="btns">
         <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRow()}>${t(lang, "save")}</button>
         <button class="btn" @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
       </div>
-      ${isNew ? nothing : html`<button class="btn dup" ?disabled=${!this._canEdit} @click=${() => this._duplicate()}>
+      ${isNew || this._labelDraft ? nothing : html`<button class="btn dup" ?disabled=${!this._canEdit} @click=${() => this._duplicate()}>
         <ha-icon icon="mdi:content-copy"></ha-icon>${t(lang, "duplicate")}</button>`}
-      ${isNew ? nothing : html`<button class="btn danger-line alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteRow()}>
+      ${isNew || this._labelDraft ? nothing : html`<button class="btn danger-line alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteRow()}>
         <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete")}</button>`}
     </div>`;
   }
@@ -564,10 +610,10 @@ export class WpSchedule extends LitElement {
       const title = this._entities.length > 1 ? `${t(lang, "rest_of_time")} · ${friendlyName(this.hass, eid)}` : t(lang, "rest_of_time");
       if (this._open === key) {
         return html`<div class="editor"><h4>${title}</h4>
-          <wp-label-picker allow-none .hass=${this.hass} .data=${this.data} .program=${this._draft ?? program} .entityIds=${[eid]}
+          ${keyed(this._pickerKey, html`<wp-label-picker embedded allow-none .hass=${this.hass} .data=${this.data} .program=${this._draft ?? program} .entityIds=${[eid]}
             .value=${this._restLabel} ?disabled=${!this._canEdit}
-            @override-change=${(e: CustomEvent) => { e.stopPropagation(); this._onOverride(e.detail); }}
-            @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._restLabel = e.detail; }}></wp-label-picker>
+            @label-draft=${(e: CustomEvent<LabelDraft | null>) => { e.stopPropagation(); this._labelDraft = e.detail; this._error = ""; }}
+            @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._restLabel = e.detail; }}></wp-label-picker>`)}
           ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
           <div class="btns">
             <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRest(eid)}>${t(lang, "save")}</button>

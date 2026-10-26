@@ -91,3 +91,29 @@ describe("colours and use", () => {
     expect(labelUsers(data, "unused")).toEqual([]);
   });
 });
+
+import { actionSummary } from "../labels";
+
+describe("action summary", () => {
+  it("gives the service and its main values", () => {
+    expect(actionSummary(hass, "fr", temp(19))).toBe("climate.set_temperature · 19 °C");
+    expect(actionSummary(hass, "fr", { kind: "service", service: "climate.set_hvac_mode", data: { hvac_mode: "heat" } })).toBe("climate.set_hvac_mode · heat");
+    expect(actionSummary(hass, "fr", { kind: "scene", scene: "scene.soir" })).toBe("Soir");
+  });
+});
+
+import { nowTip, sunTip } from "../components/day-bar";
+
+describe("tooltips of the bar icons", () => {
+  it("names the sun event, its offset and the resolved time", () => {
+    expect(sunTip("fr", { sun: "sunset", offset: 0 }, 17 * 60 + 25)).toBe("Coucher du soleil · 17 h 25");
+    expect(sunTip("fr", { sun: "sunset", offset: 30 }, 17 * 60 + 55)).toBe("Coucher du soleil + 30 min · 17 h 55");
+    expect(sunTip("fr", { sun: "sunrise", offset: -15 }, 7 * 60 + 43)).toBe("Lever du soleil - 15 min · 7 h 43");
+    expect(sunTip("en", { sun: "sunset" }, 17 * 60 + 25)).toBe("Sunset · 5:25 pm");
+    expect(sunTip("fr", { time: "08:00" }, 480)).toBe("");
+  });
+  it("says now with the time", () => {
+    expect(nowTip("fr", 14 * 60 + 5)).toBe("Maintenant · 14 h 05");
+    expect(nowTip("en", 14 * 60 + 5)).toBe("Now · 2:05 pm");
+  });
+});

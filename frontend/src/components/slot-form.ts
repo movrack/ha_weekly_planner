@@ -136,7 +136,7 @@ export class WpSlotForm extends LitElement {
       </section>
       <section>
         <h4>${t(lang, "action")}</h4>
-        <wp-label-picker .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${this.entityIds}
+        <wp-label-picker embedded .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${this.entityIds}
           .value=${slot.label || null} ?disabled=${this.disabled}
           @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._set({ label: e.detail ?? "" }); }}></wp-label-picker>
       </section>`;
