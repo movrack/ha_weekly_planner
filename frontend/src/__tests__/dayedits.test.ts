@@ -138,6 +138,11 @@ describe("mergeAdjacent", () => {
     expect(show(mergeAdjacent([slot("1", "20:00", "22:00"), slot("2", "22:00", "24:00")], ctx()))).toEqual(["20:00-24:00:a"]);
     expect(show(mergeAdjacent([slot("1", "08:00", { sun: "sunset" }), slot("2", { sun: "sunset" }, "22:00")], ctx()))).toEqual(["08:00-22:00:a"]);
   });
+  it("never merges the slots listed in `keep` (the two pieces of a cut)", () => {
+    const d = [slot("1", "08:00", "10:00"), slot("2", "10:00", "12:00"), slot("3", "12:00", "14:00")];
+    expect(show(mergeAdjacent(d, ctx(), new Set(["2"])))).toEqual(["08:00-10:00:a", "10:00-12:00:a", "12:00-14:00:a"]);
+    expect(show(mergeAdjacent(d, ctx(), new Set(["3"])))).toEqual(["08:00-12:00:a", "12:00-14:00:a"]);
+  });
   it("keeps neighbours that differ by their conditions", () => {
     const b = { ...slot("2", "10:00", "12:00"), conditions: [{ entity_id: "x.y", value: "on" }] };
     expect(mergeAdjacent([slot("1", "08:00", "10:00"), b], ctx())).toHaveLength(2);
