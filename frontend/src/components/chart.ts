@@ -3,8 +3,8 @@
 // line, and the manual changes in red. Tapping the chart opens the Home Assistant history. Hand-made SVG.
 // The x axis is in real minutes from the server-zone midnight, so a time-change day is 23 or 25 h.
 
-import { buildPlanned } from "../planned";
-import type { Planned } from "../planned";
+import { activePeriods, buildPlanned, shadeActive } from "../planned";
+import type { Planned, Shade } from "../planned";
 import { LitElement, css, html, nothing, svg } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { t } from "../i18n";
@@ -68,6 +68,7 @@ interface Model {
   bands: { s: number; e: number; state: string; text: string; on: boolean }[];
   markers: Marker[];
   planned: Planned;
+  shade: Shade[];
   manual: Span[];
   lo: number;
   hi: number;
@@ -301,6 +302,9 @@ export class WpChart extends LitElement {
       span,
     );
     for (const m of planned.returns) add(m, defaultLabel, true);
+    // real activity of the device (display only): shaded under the planned line, past only
+    const shade = shadeActive(
+      activePeriods(loaded.hist.map((p) => ({ m: toM(p.t), state: p.s, attrs: p.a })), domain, pastEnd), planned.zones, pastEnd);
     markers.sort((a, b) => a.m - b.m);
 
     // history
@@ -392,7 +396,7 @@ export class WpChart extends LitElement {
     const unit = domain === "climate" ? "°C" : domain === "cover" || domain === "light" ? "%"
       : (this.hass.states[this.entityId]?.attributes.unit_of_measurement ?? "");
     return { span, pastEnd, isToday: startMs <= now && now < endMs, kind: numeric ? "curve" : "band",
-      lines, bands, markers, planned, manual, lo, hi, unit };
+      lines, bands, markers, planned, shade, manual, lo, hi, unit };
   }
 
   // ---- interaction ----
@@ -457,6 +461,7 @@ export class WpChart extends LitElement {
       ${model.markers.length || model.planned.steps.length ? item("planned", t(lang, "planned")) : nothing}
       ${has("measured") ? item("measured", t(lang, "measured")) : nothing}
       ${has("set") ? item("set", t(lang, "ch_set")) : nothing}
+      ${model.shade.length ? item("active", t(lang, "active_key")) : nothing}
       ${model.manual.length ? item("manual", t(lang, "manual")) : nothing}
     </div>`;
   }
@@ -519,6 +524,9 @@ export class WpChart extends LitElement {
           return svg`${base ? svg`<path class="line red" d=${this._path(base.pts, model, x, y, base.key === "set", span)}></path>` : nothing}
             ${dot !== null ? svg`<circle class="reddot" cx=${x(span[0])} cy=${y(dot)} r="3.5"></circle>` : nothing}`;
         }) : nothing}
+        ${model.shade.map((sh) => curve
+          ? (sh.value === null ? nothing : svg`<rect class="shade" x=${x(sh.from)} y=${y(sh.value)} width=${Math.max(1, x(sh.to) - x(sh.from))} height=${Math.max(0, H - PAD.b - y(sh.value))} style="--c:${sh.color}"></rect>`)
+          : svg`<rect class="shade" x=${x(sh.from)} y=${bandY} width=${Math.max(1, x(sh.to) - x(sh.from))} height=${bandH} style="--c:${sh.color}"></rect>`)}
         ${curve ? model.planned.steps.map((st) => svg`<path class="plan" d="M${x(st.from).toFixed(1)},${y(st.value).toFixed(1)}H${x(st.to).toFixed(1)}" style="--c:${st.color}"></path>`) : nothing}
         ${curve ? model.planned.risers.map((r) => svg`<line class="riser" x1=${x(r.m)} x2=${x(r.m)} y1=${y(r.from)} y2=${y(r.to)} style="--c:${r.color}"></line>`) : nothing}
         ${model.markers.map(mark)}
@@ -546,6 +554,8 @@ export class WpChart extends LitElement {
     .band { fill: var(--secondary-text-color); opacity: 0.35; stroke: var(--card-background-color); stroke-width: 1; }
     .band.on { fill: var(--primary-color); opacity: 0.4; }
     .red-band { fill: var(--error-color, #db4437); opacity: 0.55; }
+    .shade { fill: var(--c); opacity: 0.25; }
+    .key i.active { width: 14px; height: 10px; border-radius: 2px; background: var(--secondary-text-color); opacity: 0.35; }
     .plan { fill: none; stroke: var(--c); stroke-width: 3; stroke-linecap: butt; }
     .riser { stroke: var(--c); stroke-width: 1.2; opacity: 0.8; }
     .drop { stroke: var(--secondary-text-color); stroke-width: 1; stroke-dasharray: 1 3; opacity: 0.6; }

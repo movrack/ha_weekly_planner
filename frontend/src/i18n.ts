@@ -2,6 +2,7 @@
 
 const en = {
   edited: "Changed",
+  active_key: "Active",
   undo: "Undo",
   cut: "Split",
   copy_to: "Copy to…",
@@ -198,6 +199,7 @@ const fr: typeof en = {
   lb_err_action: "Choisissez l'action.",
   lb_err_fields: "Remplissez les champs obligatoires.",
   edited: "Modifié",
+  active_key: "Actif",
   undo: "Annuler",
   cut: "Couper",
   copy_to: "Copier vers…",
