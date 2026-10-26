@@ -68,7 +68,7 @@ export class WpSlotForm extends LitElement {
       <div class="time" role="group" aria-label=${title}>
         <button class="step" ?disabled=${dis} aria-label=${t(lang, "minus15")} title=${t(lang, "minus15")} @click=${() => this._update(which, shiftSpec(spec, -15))}><ha-icon icon="mdi:minus"></ha-icon></button>
         ${"time" in spec
-          ? html`<input type="time" step="300" .value=${spec.time === "24:00" ? "00:00" : spec.time} ?disabled=${dis}
+          ? html`<input type="time" step="60" .value=${spec.time === "24:00" ? "00:00" : spec.time} ?disabled=${dis}
               aria-label=${title} @change=${(e: Event) => this._fromInput(which, (e.target as HTMLInputElement).value)} />`
           : html`<output class="sun">${specText(lang, spec)}</output>`}
         <button class="step" ?disabled=${dis} aria-label=${t(lang, "plus15")} title=${t(lang, "plus15")} @click=${() => this._update(which, shiftSpec(spec, 15))}><ha-icon icon="mdi:plus"></ha-icon></button>

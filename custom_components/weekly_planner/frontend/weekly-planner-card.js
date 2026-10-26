@@ -3962,7 +3962,7 @@ let G = class extends I {
     return c`
       <div class="time" role="group" aria-label=${e}>
         <button class="step" ?disabled=${n} aria-label=${d(s, "minus15")} title=${d(s, "minus15")} @click=${() => this._update(t, Di(i, -15))}><ha-icon icon="mdi:minus"></ha-icon></button>
-        ${"time" in i ? c`<input type="time" step="300" .value=${i.time === "24:00" ? "00:00" : i.time} ?disabled=${n}
+        ${"time" in i ? c`<input type="time" step="60" .value=${i.time === "24:00" ? "00:00" : i.time} ?disabled=${n}
               aria-label=${e} @change=${(o) => this._fromInput(t, o.target.value)} />` : c`<output class="sun">${Ke(s, i)}</output>`}
         <button class="step" ?disabled=${n} aria-label=${d(s, "plus15")} title=${d(s, "plus15")} @click=${() => this._update(t, Di(i, 15))}><ha-icon icon="mdi:plus"></ha-icon></button>
       </div>

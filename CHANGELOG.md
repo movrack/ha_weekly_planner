@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.7.5] - 2026-10-26
+
+### Fixed
+- A time typed in a slot's field can be any minute (e.g. 15:32); the − / + buttons and the bars keep their 15-minute steps.
+
 ## [0.7.4] - 2026-10-26
 
 ### Changed
