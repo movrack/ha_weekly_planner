@@ -11,9 +11,9 @@ import { t } from "../i18n";
 import { actionValue, entityAction, labelOf } from "../labels";
 import { activeProfile, entityDomain, friendlyName } from "../planner";
 import { localMinutes, localWeekday, nominal, spillover } from "../time";
-import { nowTip } from "./day-bar";
+import { nowTip, sunDir, sunTip } from "./day-bar";
 import "./tip";
-import type { HomeAssistant, Label, PlannerData, PreviewSlot, Program, Slot } from "../types";
+import type { HomeAssistant, Label, PlannerData, PreviewSlot, Program, Slot, TimeSpec } from "../types";
 
 // ---- date helpers (server time zone) -------------------------------------------------------
 
@@ -58,7 +58,13 @@ interface Pt { m: number; v: number | null }
 type Span = [number, number];
 
 /** A planned action: where it happens, what label it comes from, its value when it has one. */
-interface Marker { m: number; label: Label; value: number | null; end: boolean }
+interface Marker {
+  m: number; label: Label; value: number | null; end: boolean;
+  /** The time follows the sun: its icon side and the stored time (for the tooltip). */
+  sun?: "up" | "down" | null; spec?: TimeSpec | null;
+  /** Hidden by another slot (shown faded: still asked for, nothing happens). */
+  ignored?: boolean;
+}
 
 interface Model {
   span: number;
@@ -264,14 +270,15 @@ export class WpChart extends LitElement {
 
     // planned actions: a marker at the start of each slot, and the default at the end of a slot with an end
     const wd = weekdayOf(this.date);
-    interface Range { s: number; e: number | null; slot: Slot; spill?: boolean }
+    interface Range { s: number; e: number | null; slot: Slot; spill?: boolean; ignored?: boolean }
     const ranges: Range[] = [];
     for (const { slot, end } of spillover(profile.days[(wd + 6) % 7])) ranges.push({ s: 0, e: end, slot, spill: true });
     if (this.slots) {
       for (const r of this.slots) {
         const slot = slotById.get(r.slot_id);
-        if (!slot || r.ignored) continue;
-        ranges.push({ s: Math.max(0, toM(Date.parse(r.start))), e: r.end ? Math.min(span, toM(Date.parse(r.end))) : null, slot });
+        if (!slot) continue;
+        ranges.push({ s: Math.max(0, toM(Date.parse(r.start))), e: r.end ? Math.min(span, toM(Date.parse(r.end))) : null, slot,
+          ignored: Boolean(r.ignored) });
       }
     } else {
       for (const slot of profile.days[wd]) {
@@ -284,18 +291,19 @@ export class WpChart extends LitElement {
     const entity = this.program.entities.find((e) => e.entity_id === this.entityId);
     const defaultLabel = labelOf(this.data, entity?.default_label);
     const markers: Marker[] = [];
-    const add = (m: number, label: Label | undefined, end: boolean) => {
+    const add = (m: number, label: Label | undefined, end: boolean, extra: Partial<Marker> = {}) => {
       if (!label || m < 0 || m > span) return;
       const action = entityAction(this.program, this.entityId, label);
-      if (action) markers.push({ m, label, value: actionValue(action), end });
+      if (action) markers.push({ m, label, value: actionValue(action), end, ...extra });
     };
     for (const r of ranges) {
-      if (!r.spill) add(r.s, labelOf(this.data, r.slot.label), false);
+      if (!r.spill) add(r.s, labelOf(this.data, r.slot.label), false,
+        { sun: sunDir(r.slot.start), spec: r.slot.start, ignored: r.ignored });
     }
     // the planned value as a staircase; the hollow circle only where the value really returns to the default
     const valueOf = (label: Label | undefined) => actionValue(entityAction(this.program, this.entityId, label));
     const planned = buildPlanned(
-      ranges.flatMap((r) => {
+      ranges.filter((r) => !r.ignored).flatMap((r) => {
         const label = labelOf(this.data, r.slot.label);
         return label && entityAction(this.program, this.entityId, label)
           ? [{ start: r.s, end: r.e, color: label.color, value: valueOf(label) }] : [];
@@ -491,12 +499,13 @@ export class WpChart extends LitElement {
     const top = PAD.t - 12;
     const bandY = PAD.t;
     const bandH = H - PAD.t - PAD.b;
+    const cyOf = (mk: Marker) => (curve && mk.value !== null ? y(mk.value) : top);
     const mark = (mk: Marker) => {
-      const cy = curve && mk.value !== null ? y(mk.value) : top;
+      const cy = cyOf(mk);
       const color = mk.label.color;
       return svg`
         <line class="drop" x1=${x(mk.m)} x2=${x(mk.m)} y1=${cy} y2=${H - PAD.b}></line>
-        <circle class="mk ${mk.end ? "end" : ""}" cx=${x(mk.m)} cy=${cy} r="5" style="--c:${color}"></circle>
+        ${mk.sun ? nothing : svg`<circle class="mk ${mk.end ? "end" : ""} ${mk.ignored ? "faded" : ""}" cx=${x(mk.m)} cy=${cy} r="5" style="--c:${color}"></circle>`}
         ${mk.value !== null ? svg`<text class="val" x=${Math.min(Math.max(x(mk.m), 14), W - 14)} y=${Math.max(cy - 8, 9)} text-anchor="middle">${Number(mk.value.toFixed(1))}</text>` : nothing}`;
     };
     const nowLine = model.isToday
@@ -535,6 +544,9 @@ export class WpChart extends LitElement {
         ${nowLine}
         <rect class="hit" x="0" y="0" width=${W} height=${H}></rect>
       </svg>
+      ${model.markers.filter((mk) => mk.sun).map((mk) => html`<wp-tip class="suntip ${mk.ignored ? "faded" : ""}"
+        style="left:${x(mk.m)}px;top:${cyOf(mk)}px;--c:${mk.label.color}" text=${sunTip(lang, mk.spec, mk.m)}>
+        <span class="sunc"><ha-icon icon=${mk.sun === "up" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down"}></ha-icon></span></wp-tip>`)}
       ${model.isToday ? html`<wp-tip class="nowtip" style="left:${x(model.pastEnd)}px;top:${PAD.t - 11}px"
         text=${nowTip(lang, localMinutes(new Date(), this._tz))}></wp-tip>` : nothing}
     </div>`;
@@ -545,6 +557,13 @@ export class WpChart extends LitElement {
     .box { position: relative; width: 100%; min-height: 40px; }
     .cwrap { position: relative; width: fit-content; max-width: 100%; }
     .nowtip { position: absolute; transform: translate(-50%, -50%); }
+    .suntip { position: absolute; transform: translate(-50%, -50%); }
+    .sunc {
+      width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
+      --mdc-icon-size: 14px; background: var(--card-background-color, #fff); color: var(--primary-text-color);
+      box-shadow: 0 0 0 2px var(--c);
+    }
+    .faded { opacity: 0.45; }
     svg { display: block; user-select: none; outline: none; max-width: 100%; cursor: pointer; }
     svg:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; border-radius: 4px; }
     .grid { stroke: var(--divider-color, rgba(127, 127, 127, 0.3)); stroke-width: 1; }
