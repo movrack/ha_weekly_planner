@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { groupSlots } from "../actions";
-import { applyEdit, dayView, freshGroup, groupId, nextTimes, overlapDay, splitBusyDays } from "../edits";
+import { applyEdit, compareOrigin, dayView, findGroup, freshGroup, groupId, nextTimes, overlapDay, splitBusyDays } from "../edits";
 import { findOverlap } from "../slots";
 import { clockToMinutes } from "../time";
 import type { Profile, Slot, TimeSpec } from "../types";
@@ -253,5 +253,30 @@ describe("start of a new slot", () => {
     expect(nextTimes([], minutes)).toEqual({ start: "08:00", end: "09:00" });
     expect(nextTimes([slot("06:00", "08:00"), slot("10:00", "17:00")], minutes).start).toBe("17:00");
     expect(nextTimes([slot("22:00", "24:00")], minutes)).toEqual({ start: "23:00", end: "24:00" });
+  });
+});
+
+describe("a change made elsewhere while editing", () => {
+  it("keeps both: the edit is applied on top of the fresh profile", () => {
+    const old = prof({ 1: [slot("10:00", "17:00", "t18", "a")], 2: [slot("08:00", "09:00", "t18", "b")] });
+    const edit = open(old, "a", 1);
+    edit.draft.slot.end = { time: "18:00" };
+    // meanwhile, someone changed Wednesday and added a slot on Friday
+    const fresh = prof({ 1: [slot("10:00", "17:00", "t18", "a")], 2: [slot("08:00", "11:00", "t20", "b")], 4: [slot("06:00", "07:00", "t18", "z")] });
+    const out = save(fresh, edit);
+    expect(view(out)[1]).toEqual(["10:00-18:00:t18"]);
+    expect(view(out)[2]).toEqual(["08:00-11:00:t20"]);
+    expect(view(out)[4]).toEqual(["06:00-07:00:t18"]);
+  });
+
+  it("tells a real conflict from an unrelated change", () => {
+    const old = prof({ 1: [slot("10:00", "17:00", "t18", "a")], 2: [slot("10:00", "17:00", "t18", "b")] });
+    const origin = findGroup(old, all, minutes, "a")!;
+    expect(compareOrigin(findGroup(old, all, minutes, "a"), origin)).toBe("same");
+    const other = prof({ 1: [slot("10:00", "17:00", "t18", "a")], 2: [slot("11:00", "17:00", "t18", "b")] });
+    expect(compareOrigin(findGroup(other, all, minutes, "a"), origin)).toBe("days");
+    const edited = prof({ 1: [slot("09:00", "17:00", "t18", "a")] });
+    expect(compareOrigin(findGroup(edited, all, minutes, "a"), origin)).toBe("changed");
+    expect(compareOrigin(findGroup(prof({}), all, minutes, "a"), origin)).toBe("gone");
   });
 });

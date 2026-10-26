@@ -1,7 +1,7 @@
 // Pure logic of the schedule screen: opening a slot for one day, writing an edit back without
 // touching any other slot, dropping busy days from a new slot, choosing the start of a new slot.
 
-import { ALL_DAYS, groupSlots, writeGroups } from "./actions";
+import { ALL_DAYS, groupSlots, slotKey, writeGroups } from "./actions";
 import type { SlotGroup } from "./actions";
 import { newId } from "./planner";
 import { findOverlap } from "./slots";
@@ -13,6 +13,22 @@ type Minutes = (spec: TimeSpec) => number;
 
 /** Id identifying a group: the id of its first day. */
 export const groupId = (group: SlotGroup): string | undefined => group.ids[group.days[0]];
+
+const holds = (group: SlotGroup, id: string | null): boolean => id !== null && Object.values(group.ids).includes(id);
+
+/** The group holding the slot `id` (null: it is gone). */
+export function findGroup(profile: Profile, include: Include, minutes: Minutes, id: string | null): SlotGroup | null {
+  return groupSlots(profile, include, minutes).find((g) => holds(g, id)) ?? null;
+}
+
+/** Is the group being edited still what it was when opened? "days": same slot, other days. */
+export function compareOrigin(fresh: SlotGroup | null, origin: SlotGroup): "same" | "days" | "changed" | "gone" {
+  if (!fresh) return "gone";
+  if (slotKey(fresh.slot) !== slotKey(origin.slot)) return "changed";
+  const same = JSON.stringify(fresh.days) === JSON.stringify(origin.days)
+    && JSON.stringify(fresh.ids) === JSON.stringify(origin.ids);
+  return same ? "same" : "days";
+}
 
 /** What a screen is editing: the group it opened, the days of it left as they are, the new content. */
 export interface RowEdit {
@@ -43,7 +59,7 @@ export function keptRest(rest: SlotGroup | null, covered: number[]): SlotGroup[]
 
 /** The profile with one edit applied. Every slot outside the edit is written back unchanged. */
 export function applyEdit(profile: Profile, include: Include, minutes: Minutes, edit: RowEdit): Profile {
-  const groups = groupSlots(profile, include, minutes).filter((g) => groupId(g) !== edit.openId);
+  const groups = groupSlots(profile, include, minutes).filter((g) => !holds(g, edit.openId));
   groups.push(...keptRest(edit.rest, edit.draft?.days ?? []));
   if (edit.draft) groups.push(edit.draft);
   return writeGroups(profile, groups, include, minutes);
