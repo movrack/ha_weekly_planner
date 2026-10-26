@@ -23,23 +23,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Size limits added on incoming data.
 - The preview date is validated.
 
-## [0.7.9] - 2026-10-26
-
-### Added
-- Integration brand icon.
-- Contributor guidelines (`AGENTS.md`).
-- Manifest categories (`helpers`, `productivity_information.calendars_todos`).
-
-### Changed
-- Repository renamed to `ha_weekly_planner`; documentation links updated.
-- CI: GitHub Actions bumped to Node 24 versions.
-
-### Security
-- Service data can no longer retarget other devices.
-- The list of admin-only domains is widened.
-- Size limits added on incoming data.
-- The preview date is validated.
-
 ## [0.7.8] - 2026-10-26
 
 ### Added
