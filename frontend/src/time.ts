@@ -89,5 +89,8 @@ export function formatWhen(iso: string, timeZone: string, language: string, now 
   if (sameDay) return clock;
   const tomorrow = localDateIso(new Date(now.getTime() + 86_400_000), timeZone) === localDateIso(date, timeZone);
   if (tomorrow) return `${new Intl.RelativeTimeFormat(language, { numeric: "auto" }).format(1, "day")} ${clock}`;
-  return `${new Intl.DateTimeFormat(language, { timeZone, weekday: "short" }).format(date)} ${clock}`;
+  // a week or more ahead: the weekday alone would be read as this week ("lun. 2 nov.")
+  const far = date.getTime() - now.getTime() > 6 * 86_400_000;
+  const opts: Intl.DateTimeFormatOptions = far ? { timeZone, weekday: "short", day: "numeric", month: "short" } : { timeZone, weekday: "short" };
+  return `${new Intl.DateTimeFormat(language, opts).format(date)} ${clock}`;
 }
