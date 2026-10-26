@@ -333,7 +333,7 @@ SVG maison, un jour (précédent / suivant).
 - **Changements manuels (affichage seulement)** : en **rouge** (`var(--error-color)`). Source : le journal de bord HA
   (`logbook/get_events` sur l'entité et le jour). Un changement d'état est **manuel** quand l'entrée porte un
   `context_user_id` (action d'une personne dans l'interface), ou n'a aucun contexte et ne correspond à aucune
-  action envoyée par Weekly Planner (`weekly_planner/journal`, même entité, ± 1 min) : action sur l'appareil lui-même.
+  décision ou action de Weekly Planner (`weekly_planner/journal`, même entité, ± 1 min ; les anciennes entrées de décision comptent aussi) : action sur l'appareil lui-même.
   Les changements venant d'une automatisation ou d'un script ne sont pas manuels.
   Courbes : le tronçon réglé à la main, du changement jusqu'à la prochaine action prévue ou au changement suivant, est tracé en rouge.
   Bandes : la période manuelle est une bande rouge.
@@ -500,24 +500,24 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] S44 échéance de dérogation volontaire tombée pendant un arrêt de HA (retiré en 0.6.0)
 
 ### 14.10 Version 0.6.0 — un seul modèle pour tous les appareils
-- [ ] Spec réécrite (§ 1 à 12) et cette liste de tâches
-- [ ] Moteur : un horaire = début, fin facultative, jours, une **étiquette** ; action résolue en **un seul endroit** (`resolve_action`)
-- [ ] Étiquettes globales (`labels`), valeurs propres par appareil (`label_overrides`), compatibilité (entité incompatible ignorée + avertissement), suppression refusée tant qu'utilisée (`label/save`, `label/delete`)
-- [ ] Action par défaut par entité (`default_label`), envoyée à la fin d'un horaire avec fin ; horaire sans fin = ponctuel, jamais refait
-- [ ] Option `reapply` : renvoyer l'action du segment en cours au démarrage et après modification (jamais les ponctuels)
-- [ ] Retrait de toute détection de réglage manuel (dérogations, service `override` et `resume`, comparaison d'état, essais sur l'état) ; reprises sur erreur d'appel (1/2/5/10/15 min, pas pour `ServiceValidationError`) et notification conservées
-- [ ] Retrait des consignes par type, des modes communs (et de leur options flow), d'Adaptive Lighting, d'Evohome / « permanent » / sous-jacents VT, avec tests et traductions
-- [ ] Migration automatique du stockage (version 1 → 2) avec sauvegarde : actions converties puis regroupées en étiquettes (doublons fusionnés), testée sur les formes de production (« Bureau » : « 18 °C » / « 15 °C » ; « Volet du bureau » : « Fermer » / « Ouvrir »)
-- [ ] Carte : ligne icône + nom du programme + état traduit + « → prochaine action + heure » (« demain »), barre du jour, semaine, calendrier, sans ligne de dérogation
-- [ ] Carte : écran d'horaires (lignes colorées, formulaire d'horaire avec pastilles d'étiquettes compatibles, « + Nouvelle étiquette » en ligne, « Valeur pour cet appareil », « Le reste du temps » = étiquette ou « Rien », pause, dupliquer, supprimer)
-- [ ] Carte : écran « Étiquettes » (admins) : liste, renommer, recolorer, changer l'action, supprimer (refusé si utilisée)
-- [ ] Couleurs des étiquettes (palette de 12, choix automatique) sur la barre du jour, les barres de la semaine et les repères du graphique
-- [ ] Carte : réglages (engrenage) sans modes ni « permanent »
-- [ ] Graphique pour tous les appareils : historique HA (courbe ou bande d'états), repères des actions prévues avec valeur, trait « maintenant », toucher → historique HA du jour, légende minimale
-- [ ] Graphique : changements **manuels** en rouge (`var(--error-color)`) d'après le journal de bord HA et le journal Weekly Planner, légende « Manuel » / « Manual » ; affichage seulement, le moteur ne change pas
-- [ ] Tests pytest (migration, défaut à la fin, ponctuels jamais refaits, `reapply` oui / non, aucune dérogation) et tests de la carte verts
-- [ ] Instance de test locale : programmes migrés (Bureau, Lampe, Prise, Volet, Rocky) ; captures 360 × 780
-- [ ] Version 0.6.0 (manifest, pyproject, package.json), CHANGELOG « BREAKING », deux README
+- [x] Spec réécrite (§ 1 à 12) et cette liste de tâches
+- [x] Moteur : un horaire = début, fin facultative, jours, une **étiquette** ; action résolue en **un seul endroit** (`resolve_action`)
+- [x] Étiquettes globales (`labels`), valeurs propres par appareil (`label_overrides`), compatibilité (entité incompatible ignorée + avertissement), suppression refusée tant qu'utilisée (`label/save`, `label/delete`)
+- [x] Action par défaut par entité (`default_label`), envoyée à la fin d'un horaire avec fin ; horaire sans fin = ponctuel, jamais refait
+- [x] Option `reapply` : renvoyer l'action du segment en cours au démarrage et après modification (jamais les ponctuels)
+- [x] Retrait de toute détection de réglage manuel (dérogations, service `override` et `resume`, comparaison d'état, essais sur l'état) ; reprises sur erreur d'appel (1/2/5/10/15 min, pas pour `ServiceValidationError`) et notification conservées
+- [x] Retrait des consignes par type, des modes communs (et de leur options flow), d'Adaptive Lighting, d'Evohome / « permanent » / sous-jacents VT, avec tests et traductions
+- [x] Migration automatique du stockage (version 1 → 2) avec sauvegarde : actions converties puis regroupées en étiquettes (doublons fusionnés), testée sur les formes de production (« Bureau » : « 18 °C » / « 15 °C » ; « Volet du bureau » : « Fermer » / « Ouvrir »)
+- [x] Carte : ligne icône + nom du programme + état traduit + « → prochaine action + heure » (« demain »), barre du jour, semaine, calendrier, sans ligne de dérogation
+- [x] Carte : écran d'horaires (lignes colorées, formulaire d'horaire avec pastilles d'étiquettes compatibles, « + Nouvelle étiquette » en ligne, « Valeur pour cet appareil », « Le reste du temps » = étiquette ou « Rien », pause, dupliquer, supprimer)
+- [x] Carte : écran « Étiquettes » (admins) : liste, renommer, recolorer, changer l'action, supprimer (refusé si utilisée)
+- [x] Couleurs des étiquettes (palette de 12, choix automatique) sur la barre du jour, les barres de la semaine et les repères du graphique
+- [x] Carte : réglages (engrenage) sans modes ni « permanent »
+- [x] Graphique pour tous les appareils : historique HA (courbe ou bande d'états), repères des actions prévues avec valeur, trait « maintenant », toucher → historique HA du jour, légende minimale
+- [x] Graphique : changements **manuels** en rouge (`var(--error-color)`) d'après le journal de bord HA et le journal Weekly Planner, légende « Manuel » / « Manual » ; affichage seulement, le moteur ne change pas
+- [x] Tests pytest (migration, défaut à la fin, ponctuels jamais refaits, `reapply` oui / non, aucune dérogation) et tests de la carte verts
+- [x] Instance de test locale : programmes migrés (Bureau, Lampe, Prise, Volet, Rocky) ; captures 360 × 780
+- [x] Version 0.6.0 (manifest, pyproject, package.json), CHANGELOG « BREAKING », deux README
 
 ## 15. v2 (hors périmètre)
 - Import des programmes `scheduler-component` (`.storage/scheduler.storage`, version 3) — nécessite plages ponctuelles et défaut « rien » (présents en v1).
