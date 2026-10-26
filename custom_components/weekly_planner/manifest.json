@@ -25,5 +25,5 @@
   "issue_tracker": "https://github.com/movrack/ha_weekly_planner/issues",
   "requirements": [],
   "single_config_entry": true,
-  "version": "0.7.8"
+  "version": "0.7.9"
 }
