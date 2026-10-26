@@ -191,7 +191,7 @@ python3 scripts/dev_onboard.py            # onboard the local instance (user dev
 ```
 
 Use `npm run watch` for rebuilds and `npm run typecheck` for type checks. The full specification (French) is in
-[docs/SPEC.md](docs/SPEC.md); manual procedures are in [docs/test-reel.md](docs/test-reel.md) and
+[docs/SPEC.md](docs/SPEC.md); the manual visual check is in
 [docs/controle-visuel.md](docs/controle-visuel.md).
 
 ## License

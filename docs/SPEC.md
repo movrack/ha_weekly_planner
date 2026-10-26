@@ -408,7 +408,7 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 ## 13. Définition de « fini » (v1)
 
 1. **Tests automatiques verts** : scénarios S1–S44 (§ 14.9), chacun relié à une tâche.
-2. **Test réel en prod** (copie par script) ≥ 3 jours sur le banc d'essai, procédure écrite (`docs/test-reel.md`) :
+2. **Test réel en prod** (copie par script) ≥ 3 jours sur le banc d'essai :
    début, fin, dérogation à la main, « Déroger… » avec échéance, changement de profil, redémarrage de HA (avec
    accord), entité rendue injoignable (désactivation temporaire de l'entité), entrées du journal de bord vérifiées
    une à une.
@@ -466,14 +466,14 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Adaptive Lighting (Automatique, contextes, switch de zone) (retiré en 0.6.0)
 
 ### 14.6 Documentation et publication
-- [x] README en / fr, captures, CHANGELOG, `docs/test-reel.md`, `docs/controle-visuel.md`
+- [x] README en / fr, captures, CHANGELOG, `docs/controle-visuel.md`
 - [x] `scripts/deploy_prod.sh`
 - [ ] Release `0.1.0` (prod par copie), puis `1.0.0` sur `main`
 - [ ] Dépôt public, installation HACS vérifiée, demande d'inclusion HACS par défaut
 
 ### 14.7 Validation réelle (banc d'essai)
 - [ ] Déploiement en prod par script
-- [ ] Procédure `docs/test-reel.md` déroulée ≥ 3 jours
+- [ ] Test réel déroulé ≥ 3 jours
 
 ### 14.8 Revue
 - [x] Relecture « avocat du diable » n° 1 (35 points) intégrée dans cette version
