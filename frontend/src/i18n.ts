@@ -122,7 +122,7 @@ const en = {
   // --- simple mode ---
   cf_title: "Please confirm",
   // --- schedule & gestures ---
-  ss_conflict: "These schedules were changed elsewhere in the meantime. Reload, then make your changes again.",
+  ss_changed: "This schedule was just changed. Here is the new version.",
   ss_err_save: "These schedules could not be saved. Try again.",
   tab_scroll: "Sections (scroll sideways for more)",
   rest_none: "Leave as is",
@@ -159,6 +159,9 @@ const en = {
   schedule_on: "Schedule on",
   w_add: "Add a schedule",
   w_none: "No schedule.",
+  w_whole_week: "Whole week",
+  w_add_day: "Add a schedule on {day}",
+  w_dropped: "Not added on {days}: already busy.",
   yes: "Yes",
   no: "No",
   running: "On",
@@ -288,7 +291,7 @@ const fr: typeof en = {
   // --- simple mode ---
   cf_title: "Veuillez confirmer",
   // --- schedule & gestures ---
-  ss_conflict: "Ces horaires ont été modifiés ailleurs entre-temps. Rechargez, puis refaites vos changements.",
+  ss_changed: "Cet horaire vient d'être modifié, voici la nouvelle version.",
   ss_err_save: "Impossible d'enregistrer ces horaires. Réessayez.",
   tab_scroll: "Rubriques (faire défiler pour en voir plus)",
   rest_none: "Ne rien changer",
@@ -325,6 +328,9 @@ const fr: typeof en = {
   schedule_on: "Horaires actifs",
   w_add: "Ajouter un horaire",
   w_none: "Aucun horaire.",
+  w_whole_week: "Toute la semaine",
+  w_add_day: "Ajouter un horaire le {day}",
+  w_dropped: "Pas ajouté {days} : déjà occupé.",
   yes: "Oui",
   no: "Non",
   running: "En marche",
