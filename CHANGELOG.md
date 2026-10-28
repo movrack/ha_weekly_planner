@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+- Document generic AI assistance in both READMEs and keep project guidance independent of any specific AI tool.
+- Add a Git-ignored local project memory for context shared across AI tools.
+
 ## [0.7.10] - 2026-10-26
 
 ### Fixed
