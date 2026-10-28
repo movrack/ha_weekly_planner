@@ -404,6 +404,8 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - `hacs.json`, `manifest.json` (`domain`, `name`, `version`, `documentation`, `issue_tracker`, `codeowners`,
   `config_flow`, `iot_class: calculated`, `integration_type: service`, `dependencies: [http, frontend, websocket_api]`).
 - Docs : README (en) + `README.fr.md`, captures, CHANGELOG ; releases GitHub ; `0.x` puis `1.0.0`.
+- Contribution assistée : consignes communes dans `AGENTS.md` ; notes de contexte locales facultatives dans
+  `PROJECT_MEMORY.md` (ignoré par Git), utilisables avec différents outils d'IA.
 
 ## 13. Définition de « fini » (v1)
 

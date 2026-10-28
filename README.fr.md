@@ -9,6 +9,8 @@ Un planificateur hebdomadaire par plages horaires pour Home Assistant. Programme
 (thermostats, volets, lumières, prises, aspirateurs...) avec des semaines colorées construites à partir
 d'étiquettes partagées. Une seule installation apporte le moteur (intégration) et la carte.
 
+Ce projet a été réalisé avec l'aide d'agents d'intelligence artificielle.
+
 <!-- screenshot: docs/images/card-overview.png — la carte en consultation (barres de la semaine + mode actuel) -->
 
 ## Pourquoi Weekly Planner ?

@@ -2,6 +2,9 @@
 
 Guidelines for anyone who changes this repository.
 
+If `PROJECT_MEMORY.md` exists in the working tree, read it for local project context. It is intentionally
+ignored by Git and may contain notes that are useful across different AI tools.
+
 ## Project
 - Home Assistant integration (domain `weekly_planner`) that ships its own Lovelace card; distributed
   through HACS.
@@ -20,6 +23,8 @@ Guidelines for anyone who changes this repository.
   another service of the domain sets on its own (`set_<field>`) is left out.
 
 ## Rules
+- **AI assistance**: keep repository guidance and local memory usable across AI tools; do not add
+  tool-specific instructions or attribution outside the generic AI assistance note in the README files.
 - **Commits**: Conventional Commits in English (`feat(card): …`, `fix(engine): …`, `docs: …`,
   `test: …`, `chore: …`). No trailers.
 - **Versions**: SemVer, changed together in `custom_components/weekly_planner/manifest.json`,

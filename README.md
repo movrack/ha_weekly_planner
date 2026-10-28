@@ -9,6 +9,8 @@ A weekly time-slot planner for Home Assistant. Program any entity (thermostats, 
 with colored weekly schedules built from shared labels. One install gives you both the engine
 (integration) and the card.
 
+This project was built with the help of AI agents.
+
 <!-- screenshot: docs/images/card-overview.png — the card in consultation mode (week bars + current mode) -->
 
 ## Why Weekly Planner?
