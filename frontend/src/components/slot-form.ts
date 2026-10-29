@@ -104,7 +104,7 @@ export class WpSlotForm extends LitElement {
     const days = this.group.days;
     const eq = (a: number[], b: number[]) => a.length === b.length && b.every((d) => a.includes(d));
     const shortcut = (label: string, set: number[]) => html`<button class="chip small ${eq(days, set) ? "on" : ""}"
-      aria-pressed=${eq(days, set)} ?disabled=${this.disabled} @click=${() => this._set({}, [...set])}>${eq(days, set) ? html`<ha-icon icon="mdi:check"></ha-icon>` : nothing}${label}</button>`;
+      aria-pressed=${eq(days, set)} ?disabled=${this.disabled} @click=${() => this._set({}, set === ALL_DAYS && eq(days, set) ? [] : [...set])}>${eq(days, set) ? html`<ha-icon icon="mdi:check"></ha-icon>` : nothing}${label}</button>`;
     return html`
       <section>
         <h4>${t(lang, "start")}</h4>

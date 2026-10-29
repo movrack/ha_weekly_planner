@@ -81,6 +81,12 @@ export function serviceLabel(hass: HomeAssistant, id: string): string {
   return translate(hass, `component.${domain}.services.${service}.name`) || infoOf(hass, id)?.name || id;
 }
 
+/** Prefer Home Assistant's translated explanation, then the integration's description. */
+export function serviceDescription(hass: HomeAssistant, id: string): string {
+  const [domain, service] = id.split(".");
+  return translate(hass, `component.${domain}.services.${service}.description`) || infoOf(hass, id)?.description || "";
+}
+
 function accepts(filters: EntityFilter | EntityFilter[] | undefined, entity: HassEntity | undefined, domain: string): boolean {
   const list = Array.isArray(filters) ? filters : filters ? [filters] : [];
   const features = Number(entity?.attributes.supported_features ?? 0);

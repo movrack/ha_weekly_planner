@@ -11,17 +11,6 @@ export type K = Parameters<typeof t>[1];
 
 export const langOf = (hass?: HomeAssistant): string => hass?.locale?.language ?? hass?.language ?? "en";
 
-/** Display name of a device type (falls back to the raw type). */
-export function typeLabel(lang: string, type: string): string {
-  const text = (strings(lang) as Record<string, unknown>)[`type_${type}`];
-  return typeof text === "string" ? text : type;
-}
-
-export const SUPPORTED_DOMAINS = [
-  "climate", "cover", "light", "switch", "input_boolean", "fan", "water_heater",
-  "media_player", "input_number", "input_select",
-];
-
 export const editorStyles = css`
   :host { display: block; color: var(--primary-text-color); font-size: 14px; }
   * { box-sizing: border-box; }

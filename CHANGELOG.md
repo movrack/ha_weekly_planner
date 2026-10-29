@@ -6,7 +6,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-28
+
 ### Changed
+- Discover card filter types from program entity domains and existing selections, using Home Assistant domain titles. Remove the fixed type catalogue and the implicit thermostat filter for new cards.
+- Record generic metadata-driven discovery as a shared contributor and AI-agent rule.
+- Move shared program settings (General, Devices, Seasons), creation and duplication into the dashboard card editor. Remove program settings from the schedule screen.
+- Apply shared settings explicitly, with fresh data and one retry on revision conflicts, preserving concurrent schedule edits.
+
+
+### Added
+- Show the schematic week above the schedule list, including unsaved slot edits.
+
+### Changed
+- Replace action chips with a compact dropdown and display the selected action’s Home Assistant description.
+- Clicking the selected “Every day” shortcut clears the day selection in the slot editor.
 - Document generic AI assistance in both READMEs and keep project guidance independent of any specific AI tool.
 - Add a Git-ignored local project memory for context shared across AI tools.
 

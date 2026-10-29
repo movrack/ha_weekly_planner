@@ -3,6 +3,7 @@
 
 import { LitElement, css, html, nothing, unsafeCSS } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { mergeProgramSettings } from "../program-settings";
 import { keyed } from "lit/directives/keyed.js";
 import "../components/dialog";
 import { confirmAction } from "../components/confirm";
@@ -29,6 +30,9 @@ export class WpProgramEditor extends LitElement {
   @property({ attribute: false }) hass!: HomeAssistant;
   @property({ attribute: false }) data!: PlannerData;
   @property({ attribute: false }) program?: Program;
+  @property({ type: Boolean }) embedded = false;
+  private _origin?: Program;
+  @state() private _applied = false;
   @property({ attribute: false }) defaultTypes: string[] = [];
 
   @state() private _p!: Program;
@@ -54,10 +58,11 @@ export class WpProgramEditor extends LitElement {
 
   /* ---- initial state ---- */
 
-  willUpdate(changed: Map<string, unknown>): void {
-    if (this._ready && !changed.has("program")) return;
+  willUpdate(): void {
+    if (this._ready) return;
     if (!this.hass || !this.data) return;
     this._ready = true;
+    this._origin = this.program ? structuredClone(this.program) : undefined;
     if (this.program) {
       this._p = structuredClone(this.program);
       this._isNew = false;
@@ -87,6 +92,7 @@ export class WpProgramEditor extends LitElement {
   private _patch(patch: Partial<Program>): void {
     this._p = { ...this._p, ...patch };
     this._error = "";
+    this._applied = false;
   }
 
   private _canEdit(): boolean {
@@ -180,10 +186,36 @@ export class WpProgramEditor extends LitElement {
       this._error = problem;
       return;
     }
+    if (!this._canEdit() || this._saving) return;
     this._saving = true;
     try {
-      await this.hass.callWS({ type: "weekly_planner/program/save", program: this._payload() });
-      this._close();
+      const draft = this._payload();
+      let saved: Program | undefined;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const fresh = await this.hass.callWS<PlannerData>({ type: "weekly_planner/get" });
+        const live = fresh.programs.find((p) => p.id === draft.id);
+        if (this._origin && !live) throw { code: "conflict" };
+        let payload = draft;
+        if (this._origin && live) {
+          try { payload = mergeProgramSettings(this._origin, draft, live); }
+          catch { throw { code: "conflict" }; }
+        }
+        try {
+          const result = await this.hass.callWS<{ program: Program }>({ type: "weekly_planner/program/save", program: payload });
+          saved = result.program;
+          break;
+        } catch (err) {
+          if (attempt || (err as { code?: string }).code !== "conflict") throw err;
+        }
+      }
+      if (saved) {
+        this._p = structuredClone(saved);
+        this._origin = structuredClone(saved);
+        this._isNew = false;
+        this._applied = true;
+        this.dispatchEvent(new CustomEvent("program-saved", { detail: saved, bubbles: true, composed: true }));
+      }
+      if (!this.embedded) this._close();
     } catch (err) {
       this._error = this._errorText(err);
     } finally {
@@ -211,6 +243,7 @@ export class WpProgramEditor extends LitElement {
   private async _delete(): Promise<void> {
     try {
       await this.hass.callWS({ type: "weekly_planner/program/delete", program_id: this._p.id });
+      this.dispatchEvent(new CustomEvent("program-deleted", { detail: this._p.id, bubbles: true, composed: true }));
       this._close();
     } catch (err) {
       this._error = this._errorText(err);
@@ -233,6 +266,8 @@ export class WpProgramEditor extends LitElement {
     };
     delete this._p.created_at;
     this._isNew = true;
+    this._origin = undefined;
+    this._applied = false;
     this._profileId = this._p.active_profile ?? profiles[0].id;
     this._error = "";
   }
@@ -361,7 +396,7 @@ export class WpProgramEditor extends LitElement {
                 @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") this._submitProfileForm(); }} /></div>
             ${form.mode === "rename" ? html`<p class="hint">${this._tr("profile_rename_warning")}</p>` : nothing}
             <div class="row"><button class="btn primary" @click=${() => this._submitProfileForm()}>${this._tr("ok")}</button>
-              <button class="btn" @click=${() => (this._profileForm = undefined)}>${this._tr("cancel")}</button></div>
+              <button class="btn" @click=${() => (this._profileForm = undefined)}>${this._tr(this.embedded ? "close" : "cancel")}</button></div>
           </div>`
         : nothing}
     `;
@@ -371,9 +406,9 @@ export class WpProgramEditor extends LitElement {
     if (!this._p) return nothing;
     const tabs: [Tab, K][] = [["general", "tab_general"], ["entities", "tab_entities"], ["seasons", "tab_seasons"]];
     const editable = this._canEdit();
-    return html`
-      <wp-dialog id="main" open wide heading=${this._isNew ? this._tr("new_program") : this._p.name || this._tr("title")}>
-        ${!editable ? html`<p class="error" role="alert">${this._tr("read_only")}</p>` : nothing}
+    const content = html`
+      ${!editable ? html`<p class="error" role="alert">${this._tr("read_only")}</p>` : nothing}
+      <fieldset ?disabled=${!editable || this._saving}>
         <div class="tabs" role="tablist" aria-label=${this._tr("tab_scroll")}>
           ${tabs.map(([id, label]) => html`<button role="tab" aria-selected=${this._tab === id} class="tab ${this._tab === id ? "on" : ""}"
             @click=${() => (this._tab = id)}>${this._tr(label)}</button>`)}
@@ -381,25 +416,31 @@ export class WpProgramEditor extends LitElement {
         <div role="tabpanel">
           ${this._tab === "general" ? this._renderGeneral() : this._tab === "entities" ? this._renderEntities() : this._renderSeasons()}
         </div>
-        ${this._error ? html`<p class="error" role="alert">${this._error}</p>` : nothing}
-        ${!this._isNew
-          ? html`<button slot="footer" class="btn" @click=${() => this._duplicate()}>${this._tr("duplicate")}</button>`
-          : nothing}
-        <button slot="footer" class="btn" @click=${() => this._close()}>${this._tr("cancel")}</button>
-        <button slot="footer" class="btn primary" ?disabled=${!editable || this._saving} @click=${() => void this._save()}>${this._tr("save")}</button>
-        ${!this._isNew
-          ? html`<span slot="footer" class="break" aria-hidden="true"></span>
-            <button slot="footer" class="btn danger del" ?disabled=${!editable}
-              @click=${() => void this._askDelete()}><ha-icon icon="mdi:delete"></ha-icon> ${this._tr("delete")}</button>`
-          : nothing}
-      </wp-dialog>
-    `;
+      </fieldset>
+      ${this._error ? html`<p class="error" role="alert">${this._error}</p>` : nothing}`;
+    const actions = html`
+      <button class="btn primary" ?disabled=${!editable || this._saving} @click=${() => void this._save()}>
+        ${this._tr(this.embedded ? "ce_apply_program" : "save")}</button>
+      ${!this.embedded ? html`<button class="btn" @click=${() => this._close()}>${this._tr("cancel")}</button>` : nothing}
+      ${!this._isNew ? html`<button class="btn" ?disabled=${!editable || this._saving} @click=${() => this._duplicate()}>${this._tr("duplicate")}</button>` : nothing}
+      ${!this._isNew ? html`<button class="btn danger" ?disabled=${!editable || this._saving}
+        @click=${() => void this._askDelete()}><ha-icon icon="mdi:delete"></ha-icon>${this._tr("delete")}</button>` : nothing}`;
+    if (this.embedded) return html`<section class="embedded">${content}
+      <div class="actions">${actions}</div>
+      ${this._applied ? html`<p role="status" class="hint">${this._tr("ce_program_applied")}</p>` : nothing}
+    </section>`;
+    return html`<wp-dialog id="main" open wide heading=${this._isNew ? this._tr("new_program") : this._p.name || this._tr("title")}>
+      ${content}<div slot="footer" class="actions">${actions}</div>
+    </wp-dialog>`;
   }
 
   static styles = [
     editorStyles,
     css`
-      :host { display: contents; }
+      :host { display: block; }
+      fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+      .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+      .actions .danger { margin-left: auto; }
       h3 { margin: 16px 0 4px; font-size: 15px; font-weight: 500; }
       .small { font-size: 12px; }
       .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--divider-color); margin-bottom: 8px; overflow-x: auto; }
@@ -414,12 +455,6 @@ export class WpProgramEditor extends LitElement {
         color: var(--primary-color); font: inherit; font-size: 14px; cursor: pointer; --mdc-icon-size: 20px;
       }
       .svc { display: flex; flex-direction: column; padding-left: 8px; }
-      .break { display: none; }
-      @media (max-width: 520px) {
-        .break { display: block; order: 3; flex: 1 0 100%; height: 0; }
-        .del { order: 4; margin-right: auto; }
-      }
-      @media (min-width: 521px) { .del { order: -1; margin-right: auto; } }
       .profile-bar { align-items: flex-end; gap: 4px; }
       @media (max-width: 480px) { .btn { padding: 0 12px; } }
     `,

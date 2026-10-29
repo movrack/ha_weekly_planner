@@ -10,7 +10,6 @@ import { sunDir } from "./components/day-bar";
 import "./components/dialog";
 import "./components/labels-dialog";
 import "./components/schedule-dialog";
-import "./editors/program-editor";
 import type { BarSpan } from "./components/day-bar";
 import { scopeKey } from "./components/schedule-dialog";
 import type { Scope } from "./components/schedule-dialog";
@@ -25,8 +24,6 @@ import type { CardConfig, HomeAssistant, PlannerData, PreviewSlot, Program, Slot
 
 type Dialog =
   | { kind: "schedule"; scope: Scope; day?: { weekday: number; offset: number } }
-  | { kind: "program"; program?: Program }
-  | { kind: "admin" }
   | { kind: "labels" }
   | null;
 
@@ -61,7 +58,7 @@ export class WeeklyPlannerCard extends LitElement {
   }
 
   static getStubConfig() {
-    return { filter: { types: ["climate"] } };
+    return { filter: {} };
   }
 
   setConfig(config: CardConfig): void {
@@ -346,8 +343,8 @@ export class WeeklyPlannerCard extends LitElement {
           ? html`<div class="head">
               <h1>${this._config.title ?? ""}</h1>
               ${data?.vacation ? html`<span class="chip"><ha-icon icon="mdi:bag-suitcase"></ha-icon> ${t(lang, "vacation")}</span>` : nothing}
-              ${admin ? html`<button class="gear" aria-label=${t(lang, "all_programs")} @click=${() => (this._dialog = { kind: "admin" })}>
-                <ha-icon icon="mdi:format-list-bulleted"></ha-icon></button>` : nothing}
+              ${admin ? html`<button class="gear" aria-label=${t(lang, "labels")} @click=${() => (this._dialog = { kind: "labels" })}>
+                <ha-icon icon="mdi:label-multiple-outline"></ha-icon></button>` : nothing}
             </div>`
           : nothing}
         ${this._error ? html`<div class="error">${t(lang, "error", { message: this._error })}</div>` : nothing}
@@ -368,28 +365,9 @@ export class WeeklyPlannerCard extends LitElement {
     switch (d.kind) {
       case "schedule":
         return keyed(scopeKey(d.scope), html`<wp-schedule .hass=${this.hass} .data=${this._data} .scope=${d.scope} .day=${d.day ?? null}
-          .chart=${this._config.show_chart !== false} @closed=${close}
-          @open-settings=${(e: CustomEvent<{ programId: string }>) => {
-            const program = this._data!.programs.find((p) => p.id === e.detail.programId);
-            if (program) this._dialog = { kind: "program", program };
-          }}></wp-schedule>`);
-      case "program":
-        return html`<wp-program-editor .hass=${this.hass} .data=${this._data} .program=${d.program}
-          @closed=${close}></wp-program-editor>`;
+          .chart=${this._config.show_chart !== false} @closed=${close}></wp-schedule>`);
       case "labels":
         return html`<wp-labels .hass=${this.hass} .data=${this._data} @closed=${close}></wp-labels>`;
-      case "admin": {
-        const lang = this._lang;
-        return html`<wp-dialog open heading=${t(lang, "all_programs")} @closed=${close}>
-          <div class="adm">
-            <button class="admrow" @click=${() => (this._dialog = { kind: "labels" })}>
-              <ha-icon icon="mdi:label-multiple-outline"></ha-icon><span>${t(lang, "labels")}</span><ha-icon icon="mdi:chevron-right"></ha-icon></button>
-            ${this._data.programs.map((p) => html`<button class="admrow" @click=${() => (this._dialog = { kind: "program", program: p })}>
-              <ha-icon icon=${p.icon ?? "mdi:calendar-clock"}></ha-icon><span>${p.name}</span><ha-icon icon="mdi:chevron-right"></ha-icon></button>`)}
-            <button class="admrow add" @click=${() => (this._dialog = { kind: "program" })}>
-              <ha-icon icon="mdi:plus"></ha-icon><span>${t(lang, "new_program")}</span></button>
-          </div></wp-dialog>`;
-      }
     }
   }
 
@@ -456,12 +434,5 @@ export class WeeklyPlannerCard extends LitElement {
     }
     .empty { color: var(--primary-text-color); opacity: 0.8; padding: 16px 0; text-align: center; }
     .error { color: var(--error-color, #db4437); font-size: 14px; margin: 8px 0; }
-    .adm { display: flex; flex-direction: column; gap: 8px; }
-    .admrow {
-      display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 12px; border-radius: 12px; font: inherit; font-size: 16px;
-      border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); cursor: pointer; text-align: left;
-    }
-    .admrow span { flex: 1; }
-    .admrow.add { border-style: dashed; color: var(--primary-color); }
   `;
 }
