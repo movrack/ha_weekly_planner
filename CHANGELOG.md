@@ -6,6 +6,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-29
+
+### Added
+- Optional single-program 24-hour dial with a text legend and access to schedule editing.
+- Compact program list and dashboard enabled switches.
+- Notices naming other programs using a selected device and their priorities.
+- Season and generic-action guides, configuration usability review.
+
+### Changed
+- Select devices before the icon; use Home Assistant icon metadata for the first device without a domain catalogue.
+- Put New program after the placeholder, between separators.
+- Click dialog titles to expand or reduce desktop width.
+- Hide the global label manager in single-program cards; contextual editing stays available.
+- Explain season management versus activation through the HA profile entity.
+
 ## [0.8.0] - 2026-10-28
 
 ### Changed
