@@ -6,6 +6,7 @@ import "./editors/program-editor";
 import type { WpProgramEditor } from "./editors/program-editor";
 import { subscribePlanner } from "./planner";
 import { syncSelectValues } from "./select-value";
+import { programAreas } from "./program-areas";
 import { domainChoices, programDomains, type DomainLocalize } from "./domains";
 import { t } from "./i18n";
 import type { CardConfig, HomeAssistant, PlannerData, Program } from "./types";
@@ -227,6 +228,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
   render() {
     const c = this._config;
     const types = c.filter?.types ?? [];
+    const areas = programAreas(this._data?.programs ?? [], c.filter?.area);
     const choices = domainChoices(programDomains(this._data?.programs ?? [], types), this._lang,
       (key) => this.hass?.localize?.(key) || this._domainLocalize?.(key) || "");
     const display = html`
@@ -262,8 +264,11 @@ export class WeeklyPlannerCardEditor extends LitElement {
             ${!choices.length ? html`<p class="hint">${this._tr("ce_no_types")}</p>` : nothing}
             <p class="hint">${this._tr("ce_types_hint")}</p>
             <div class="field"><label for="ce-area">${this._tr("ce_area")}</label>
-              <input id="ce-area" type="text" .value=${c.filter?.area ?? ""} placeholder="bureau"
-                @input=${(e: Event) => this._setFilter({ area: (e.target as HTMLInputElement).value.trim() })} /></div>
+              <select id="ce-area" data-value=${c.filter?.area ?? ""} aria-describedby="ce-area-help"
+                @change=${(e: Event) => this._setFilter({ area: (e.target as HTMLSelectElement).value })}>
+                <option value="">${this._tr("ce_all_areas")}</option>
+                ${areas.map((area) => html`<option value=${area}>${area}</option>`)}
+              </select><p id="ce-area-help" class="hint">${this._tr("ce_area_hint")}</p></div>
             ${this._displayPrograms()}`}
 
       <div class="field"><label for="ce-view">${this._tr("ce_schedule_view")}</label>

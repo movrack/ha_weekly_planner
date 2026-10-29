@@ -1,6 +1,16 @@
 // User-facing texts (fr / en). Keys are short and stable.
 
 const en = {
+  pe_area: "Program area (optional)",
+  pe_area_hint: "Choose an existing name or enter a new one. This groups programs in card filters; device rooms are not used automatically.",
+  ce_all_areas: "All areas",
+  ce_area_hint: "Set each program’s area in its General settings. Device rooms are not used automatically.",
+  no_matching_program: "No programs match this card’s filters. Check the type, area and program selection in the card settings.",
+  chart_no_history: "No history recorded for this day.",
+  chart_future_history: "History will appear after the device reports its state.",
+  chart_no_planned: "No action planned for this device on this day.",
+  chart_history_failed: "History could not be loaded. Planned actions are still shown.",
+
   mode_source_loop: "Choose an entity outside Weekly Planner to avoid a circular mode selection.",
   mode_source_locked: "This program follows an external entity. Apply manual selection first to change its mode here.",
   mode_removed: "This mode was deleted. Return to mode settings.",
@@ -267,6 +277,16 @@ const en = {
 };
 
 const fr: typeof en = {
+  pe_area: "Zone du programme (facultatif)",
+  pe_area_hint: "Choisissez un nom existant ou saisissez-en un nouveau. Cette zone regroupe les programmes dans les filtres des cartes ; les pièces des appareils ne sont pas reprises automatiquement.",
+  ce_all_areas: "Toutes les zones",
+  ce_area_hint: "Définissez la zone de chaque programme dans Général. Les pièces des appareils ne sont pas reprises automatiquement.",
+  no_matching_program: "Aucun programme ne correspond aux filtres de cette carte. Vérifiez les types, la zone et les programmes sélectionnés dans les réglages de la carte.",
+  chart_no_history: "Aucun historique enregistré pour cette journée.",
+  chart_future_history: "L’historique apparaîtra quand l’appareil aura communiqué son état.",
+  chart_no_planned: "Aucune action prévue pour cet appareil ce jour-là.",
+  chart_history_failed: "Impossible de charger l’historique. Les actions prévues restent affichées.",
+
   mode_source_loop: "Choisissez une entité extérieure à Weekly Planner pour éviter une sélection circulaire des modes.",
   mode_source_locked: "Ce programme suit une entité externe. Appliquez d’abord le choix manuel pour changer son mode ici.",
   mode_removed: "Ce mode a été supprimé. Revenez aux réglages des modes.",

@@ -11,6 +11,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Initial French illustrated user guide and visual atlas covering 36 screens and 13 supporting captures, with local demo provenance, current UI limitations and linked navigation from both READMEs.
 - Track the guide's screenshots under a narrow image-ignore exception and document the screen coverage inventory.
 
+## [0.16.2] - 2026-10-29
+
+### Fixed
+- Replace free-text card area filters with existing program areas, preserving missing selections, and expose program area assignment in General settings.
+- Explain filtered empty lists and distinguish missing or unavailable history from days without planned actions in charts.
+
 ## [0.16.1] - 2026-10-29
 
 ### Fixed

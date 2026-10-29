@@ -414,6 +414,11 @@ export class WpProgramEditor extends LitElement {
       <div class="field"><label for="f-name">${this._tr("pe_name")}</label>
         <input id="f-name" type="text" maxlength="60" .value=${p.name}
           @input=${(e: Event) => this._patch({ name: (e.target as HTMLInputElement).value }, "name")} /></div>
+      <div class="field"><label for="f-area">${this._tr("pe_area")}</label>
+        <input id="f-area" type="text" list="program-areas" .value=${p.area ?? ""} aria-describedby="program-area-help"
+          @change=${(e: Event) => this._patch({ area: (e.target as HTMLInputElement).value.trim() || null })} />
+        <datalist id="program-areas">${[...new Set(this.data.programs.flatMap((program) => program.area ? [program.area] : []))].sort().map((area) => html`<option value=${area}></option>`)}</datalist>
+        <p id="program-area-help" class="hint">${this._tr("pe_area_hint")}</p></div>
       <div class="row">
         <div class="field"><label for="f-icon">${this._tr("pe_icon")}</label>
           ${this._picker

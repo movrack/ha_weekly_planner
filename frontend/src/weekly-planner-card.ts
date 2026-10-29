@@ -420,7 +420,7 @@ export class WeeklyPlannerCard extends LitElement {
         ${this._error ? html`<div class="error">${t(lang, "error", { message: this._error })}</div>` : nothing}
         ${data?.read_only ? html`<div class="error">${t(lang, "read_only")}</div>` : nothing}
         ${!data ? html`<div class="empty">…</div>` : nothing}
-        ${data && !programs.length ? html`<div class="empty">${t(lang, "no_program")}</div>` : nothing}
+        ${data && !programs.length ? html`<div class="empty" role="status">${t(lang, data.programs.length && this._config.program === undefined ? "no_matching_program" : "no_program")}</div>` : nothing}
         ${data ? this._config.schedule_view === "list" ? this._compactList(programs) : this._bySchedule(programs) : nothing}
       </ha-card>
       ${this._snack ? html`<div class="snack" role="status"><span>${t(lang, "edited")} ·</span>
