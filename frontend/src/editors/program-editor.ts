@@ -43,6 +43,7 @@ export class WpProgramEditor extends LitElement {
   @state() private _profileId = "";
   @state() private _error = "";
   @state() private _saving = false;
+  @state() private _openingProfileSelector = false;
   @state() private _picker = Boolean(customElements.get("ha-selector"));
 
   connectedCallback(): void {
@@ -110,7 +111,7 @@ export class WpProgramEditor extends LitElement {
     if (patch.entities && !this._iconCustomized && patch.entities[0]) {
       const entityId = patch.entities[0].entity_id;
       void defaultEntityIcon(this.hass, entityId).then((icon) => {
-        if (!this.isConnected || this._iconCustomized || this._p.entities[0]?.entity_id !== entityId) return;
+        if (this._iconCustomized || this._p.entities[0]?.entity_id !== entityId) return;
         this._patch({ icon });
       });
     }
@@ -126,14 +127,14 @@ export class WpProgramEditor extends LitElement {
     this._patch({ profiles: this._p.profiles.map((x) => (x.id === profile.id ? profile : x)) });
   }
 
-  private _submitProfileForm(): void {
+  private _submitProfileForm(): boolean {
     const form = this._profileForm;
-    if (!form) return;
+    if (!form) return true;
     const name = form.name.trim();
     const clash = this._p.profiles.some((x) => x.name === name && !(form.mode === "rename" && x.id === this._profileId));
     if (!name || clash || name.length > 40) {
       this._error = this._tr("err_profile_name");
-      return;
+      return false;
     }
     if (form.mode === "rename") {
       this._setProfile({ ...this._profile, name });
@@ -148,6 +149,7 @@ export class WpProgramEditor extends LitElement {
     }
     this._profileForm = undefined;
     this._error = "";
+    return true;
   }
 
   private _deleteProfile(): void {
@@ -202,12 +204,13 @@ export class WpProgramEditor extends LitElement {
   }
 
   private async _save(): Promise<void> {
+    if (!this._canEdit() || this._saving) return;
+    if (!this._submitProfileForm()) return;
     const problem = this._validate();
     if (problem) {
       this._error = problem;
       return;
     }
-    if (!this._canEdit() || this._saving) return;
     this._saving = true;
     try {
       const draft = this._payload();
@@ -395,6 +398,30 @@ export class WpProgramEditor extends LitElement {
       </div>`;
   }
 
+  private get _seasonsUnapplied(): boolean {
+    return Boolean(this._profileForm) || !this._origin || JSON.stringify(this._p.profiles) !== JSON.stringify(this._origin.profiles);
+  }
+
+  private async _openProfileSelector(): Promise<void> {
+    if (this._isNew || this._seasonsUnapplied || this._openingProfileSelector) return;
+    this._openingProfileSelector = true;
+    this._error = "";
+    try {
+      const entries = await this.hass.callWS<{ entity_id: string; platform: string; unique_id: string }[]>({ type: "config/entity_registry/list" });
+      const entry = entries.find((item) => item.platform === "weekly_planner" && item.entity_id.startsWith("select.")
+        && item.unique_id.endsWith(`_profile_${this._p.id}`));
+      if (!entry) {
+        this._error = this._tr("profile_selector_missing");
+        return;
+      }
+      this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: entry.entity_id }, bubbles: true, composed: true }));
+    } catch (err) {
+      this._error = this._errorText(err);
+    } finally {
+      this._openingProfileSelector = false;
+    }
+  }
+
   private _renderSeasons() {
     const p = this._p;
     const profile = this._profile;
@@ -402,34 +429,52 @@ export class WpProgramEditor extends LitElement {
     const form = this._profileForm;
     return html`
       <p class="hint">${this._tr("profile_explanation")}</p>
+      ${!this._isNew ? html`<p class="active-profile" role="status"><ha-icon icon="mdi:star"></ha-icon>
+        ${this._tr("profile_current", { name: this._origin?.profiles.find((x) => x.id === active)?.name ?? profile.name })}</p>` : nothing}
+      ${!this._isNew ? html`<button class="btn" ?disabled=${this._seasonsUnapplied || this._openingProfileSelector}
+        @click=${() => void this._openProfileSelector()}><ha-icon icon="mdi:calendar-sync"></ha-icon>${this._tr("profile_change_active")}</button>` : nothing}
+      ${this._seasonsUnapplied ? html`<p class="hint">${this._tr("profile_apply_first")}</p>` : nothing}
       <div class="row profile-bar">
-        <div class="field" style="flex:1 1 160px"><label for="f-profile">${this._tr("profile")}</label>
-          <select id="f-profile" @change=${(e: Event) => { this._profileId = (e.target as HTMLSelectElement).value; }}>
+        <div class="field" style="flex:1 1 160px"><label for="f-profile">${this._tr("profile_manage")}</label>
+          <select id="f-profile" ?disabled=${Boolean(form)} @change=${(e: Event) => { this._profileId = (e.target as HTMLSelectElement).value; }}>
             ${p.profiles.map((x) => html`<option value=${x.id} ?selected=${x.id === profile.id}>${x.name}${x.id === active ? ` (${this._tr("profile_active")})` : ""}</option>`)}
           </select></div>
-        <button class="ibtn" aria-label=${this._tr("profile_add")} title=${this._tr("profile_add")}
-          @click=${() => (this._profileForm = { mode: "add", name: "" })}><ha-icon icon="mdi:plus"></ha-icon></button>
-        <button class="ibtn" aria-label=${this._tr("profile_rename")} title=${this._tr("profile_rename")}
-          @click=${() => (this._profileForm = { mode: "rename", name: profile.name })}><ha-icon icon="mdi:pencil"></ha-icon></button>
-        <button class="ibtn" aria-label=${this._tr("profile_copy")} title=${this._tr("profile_copy")}
-          @click=${() => (this._profileForm = { mode: "copy", name: `${profile.name} ${this._tr("copy_suffix")}`.slice(0, 40) })}><ha-icon icon="mdi:content-copy"></ha-icon></button>
-        <button class="ibtn" aria-label=${this._tr("profile_delete")} title=${this._tr("profile_delete")}
-          ?disabled=${p.profiles.length < 2 || profile.id === active}
-          @click=${() => void this._askDeleteProfile(profile)}><ha-icon icon="mdi:delete"></ha-icon></button>
       </div>
-      ${profile.id === active ? html`<p class="hint"><ha-icon icon="mdi:star"></ha-icon> ${this._tr("profile_active_hint")}</p>` : nothing}
+      <p class="hint">${this._tr("profile_draft_hint")}</p>
+      <div class="row season-actions">
+        <button class="btn" ?disabled=${Boolean(form)}
+          @click=${() => { this._applied = false; this._profileForm = { mode: "add", name: "" }; }}><ha-icon icon="mdi:plus"></ha-icon>${this._tr("profile_add")}</button>
+        <button class="btn" ?disabled=${Boolean(form)}
+          @click=${() => { this._applied = false; this._profileForm = { mode: "rename", name: profile.name }; }}><ha-icon icon="mdi:pencil"></ha-icon>${this._tr("profile_rename")}</button>
+        <button class="btn" ?disabled=${Boolean(form)}
+          @click=${() => { this._applied = false; this._profileForm = { mode: "copy", name: `${profile.name} ${this._tr("copy_suffix")}`.slice(0, 40) }; }}><ha-icon icon="mdi:content-copy"></ha-icon>${this._tr("profile_copy")}</button>
+      </div>
+      ${profile.id === active ? html`<p class="hint">${this._tr("profile_active_hint")}</p>` : nothing}
       ${form
         ? html`<div class="card">
             <div class="field"><label for="f-pname">${this._tr(form.mode === "rename" ? "profile_rename" : form.mode === "copy" ? "profile_copy" : "profile_add")}</label>
               <input id="f-pname" type="text" maxlength="40" .value=${form.name}
                 @input=${(e: Event) => (this._profileForm = { ...form, name: (e.target as HTMLInputElement).value })}
-                @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") this._submitProfileForm(); }} /></div>
+                @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); void this._save(); } }} /></div>
             ${form.mode === "rename" ? html`<p class="hint">${this._tr("profile_rename_warning")}</p>` : nothing}
-            <div class="row"><button class="btn primary" @click=${() => this._submitProfileForm()}>${this._tr("ok")}</button>
-              <button class="btn" @click=${() => (this._profileForm = undefined)}>${this._tr(this.embedded ? "close" : "cancel")}</button></div>
+            <button class="btn" @click=${() => { this._profileForm = undefined; this._error = ""; }}>${this._tr("profile_discard_edit")}</button>
           </div>`
         : nothing}
+      <div class="season-delete"><button class="btn danger"
+        ?disabled=${Boolean(form) || p.profiles.length < 2 || profile.id === active}
+        @click=${() => void this._askDeleteProfile(profile)}><ha-icon icon="mdi:delete"></ha-icon>${this._tr("profile_delete")}</button></div>
     `;
+  }
+
+  private _tabKey(event: KeyboardEvent, tabs: [Tab, K][]): void {
+    const index = tabs.findIndex(([id]) => id === this._tab);
+    const next = event.key === "ArrowRight" ? (index + 1) % tabs.length
+      : event.key === "ArrowLeft" ? (index + tabs.length - 1) % tabs.length
+      : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : -1;
+    if (next < 0) return;
+    event.preventDefault();
+    this._tab = tabs[next][0];
+    void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(`#pe-tab-${this._tab}`)?.focus());
   }
 
   render() {
@@ -440,10 +485,10 @@ export class WpProgramEditor extends LitElement {
       ${!editable ? html`<p class="error" role="alert">${this._tr("read_only")}</p>` : nothing}
       <fieldset ?disabled=${!editable || this._saving}>
         <div class="tabs" role="tablist" aria-label=${this._tr("tab_scroll")}>
-          ${tabs.map(([id, label]) => html`<button role="tab" aria-selected=${this._tab === id} class="tab ${this._tab === id ? "on" : ""}"
-            @click=${() => (this._tab = id)}>${this._tr(label)}</button>`)}
+          ${tabs.map(([id, label]) => html`<button id=${`pe-tab-${id}`} role="tab" aria-controls="pe-panel" tabindex=${this._tab === id ? 0 : -1} aria-selected=${this._tab === id} class="tab ${this._tab === id ? "on" : ""}"
+            @keydown=${(event: KeyboardEvent) => this._tabKey(event, tabs)} @click=${() => (this._tab = id)}>${this._tr(label)}</button>`)}
         </div>
-        <div role="tabpanel">
+        <div id="pe-panel" role="tabpanel" aria-labelledby=${`pe-tab-${this._tab}`}>
           ${this._tab === "general" ? this._renderGeneral() : this._tab === "entities" ? this._renderEntities() : this._renderSeasons()}
         </div>
       </fieldset>
@@ -452,10 +497,15 @@ export class WpProgramEditor extends LitElement {
       <button class="btn primary" ?disabled=${!editable || this._saving} @click=${() => void this._save()}>
         ${this._tr(this.embedded ? "ce_apply_program" : "save")}</button>
       ${!this.embedded ? html`<button class="btn" @click=${() => this._close()}>${this._tr("cancel")}</button>` : nothing}
-      ${!this._isNew ? html`<button class="btn" ?disabled=${!editable || this._saving} @click=${() => this._duplicate()}>${this._tr("duplicate")}</button>` : nothing}
-      ${!this._isNew ? html`<button class="btn danger" ?disabled=${!editable || this._saving}
+      ${!this._isNew ? html`<button class="btn" ?disabled=${!editable || this._saving || Boolean(this._profileForm)} @click=${() => this._duplicate()}>${this._tr("duplicate")}</button>` : nothing}
+      ${!this._isNew ? html`<button class="btn danger" ?disabled=${!editable || this._saving || Boolean(this._profileForm)}
         @click=${() => void this._askDelete()}><ha-icon icon="mdi:delete"></ha-icon>${this._tr("delete")}</button>` : nothing}`;
+    const unapplied = Boolean(this._profileForm) || (this._origin
+      ? JSON.stringify(this._p) !== JSON.stringify(this._origin)
+      : Boolean(this._p.name || this._p.entities.length));
     if (this.embedded) return html`<section class="embedded">${content}
+      ${unapplied ? html`<p role="status" class="hint">${this._tr("pe_unapplied")}</p>` : nothing}
+      <p class="hint">${this._tr("pe_shared_save_hint")}</p>
       <div class="actions">${actions}</div>
       ${this._applied ? html`<p role="status" class="hint">${this._tr("ce_program_applied")}</p>` : nothing}
     </section>`;
@@ -486,6 +536,9 @@ export class WpProgramEditor extends LitElement {
       }
       .svc { display: flex; flex-direction: column; padding-left: 8px; }
       .profile-bar { align-items: flex-end; gap: 4px; }
+      .active-profile { display: flex; align-items: center; gap: 8px; }
+      .season-actions { margin: 12px 0; }
+      .season-delete { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--divider-color); }
       @media (max-width: 480px) { .btn { padding: 0 12px; } }
     `,
   ];

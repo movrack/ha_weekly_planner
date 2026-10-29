@@ -575,6 +575,10 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Version 0.7.3 (manifest, pyproject, package.json, lock), CHANGELOG
 
 ### 14.12 À faire
+- [x] 0.9.1 : conserver les brouillons par programme durant la session de configuration ; une sauvegarde en arrière-plan ne change pas la sélection courante.
+- [x] Cadran visible avec indication de disponibilité ; saison active distincte de celle à gérer, accès direct au sélecteur HA existant.
+- [x] Saisons : libellés visibles, une seule action Appliquer pour le nom et le programme, portée partagée près du bouton ; navigation clavier des onglets.
+
 - [x] 0.9.0 : appareils avant l’icône, icône issue des métadonnées HA, programmes concurrents signalés.
 - [x] Nouveau programme en tête avec séparateurs ; titre de modale agrandissable.
 - [x] Cadran 24 h facultatif (lecture + ouverture des horaires), liste compacte et bascule sur la carte.

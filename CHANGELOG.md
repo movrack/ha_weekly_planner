@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-29
+
+### Fixed
+- Retain unapplied program drafts when switching programs, card modes or editor tabs, including pending season names.
+- Keep background saves attached to their own program without replacing the current selection.
+- Make the radial option visible in list mode with guidance to select one program.
+- Distinguish active seasons from the season being managed and open the actual Home Assistant profile selector directly.
+- Use labelled season actions and one Apply action for season names and shared settings, with explicit scope and success feedback.
+- Support keyboard tab navigation and related ARIA labels in both configuration editors.
+
 ## [0.9.0] - 2026-10-29
 
 ### Added
