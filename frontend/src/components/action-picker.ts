@@ -6,7 +6,8 @@ import { customElement, property, state } from "lit/decorators.js";
 import { scenesOf } from "../labels";
 import { t } from "../i18n";
 import { ensureHaSelector } from "../planner";
-import { LIST_ATTRIBUTE, deviceOptions, loadServiceNames, serviceDomains, serviceFields, servicesFor, serviceDescription, startData } from "../services";
+import { syncSelectValues } from "../select-value";
+import { LIST_ATTRIBUTE, deviceOptions, loadServiceNames, serviceDomains, serviceFields, servicesFor, serviceDescription, serviceLabel, startData } from "../services";
 import type { ServiceField } from "../services";
 import { editorStyles, langOf } from "../editors/shared";
 import type { Action, ActionValueSource, HomeAssistant } from "../types";
@@ -35,6 +36,7 @@ export class WpActionPicker extends LitElement {
   }
 
   updated(): void {
+    syncSelectValues(this.renderRoot);
     if (!this.hass || !this._targetEntity || this._loadedFor === this._targetEntity) return;
     this._loadedFor = this._targetEntity;
     void loadServiceNames(this.hass, serviceDomains(this.hass, this._targetEntity)).then((ok) => ok && this.requestUpdate());
@@ -77,7 +79,7 @@ export class WpActionPicker extends LitElement {
     const attributes = [...new Set([...Object.keys(state?.attributes ?? {}), ...(source?.attribute ? [source.attribute] : [])])].sort();
     return html`<div class="source-field">
       <div class="field"><label for=${`source-${f.key}`}>${f.label}</label>
-        <select id=${`source-${f.key}`} .value=${source ? "entity" : "fixed"} ?disabled=${this.disabled}
+        <select id=${`source-${f.key}`} data-value=${source ? "entity" : "fixed"} ?disabled=${this.disabled}
           @change=${(e: Event) => this._setSource(f.key, (e.target as HTMLSelectElement).value === "entity"
             ? { entity_id: "", type: this._sourceType(f) } : undefined)}>
           <option value="fixed">${t(this._lang, "value_fixed")}</option>
@@ -87,7 +89,7 @@ export class WpActionPicker extends LitElement {
           .disabled=${this.disabled}
           @wp-change=${(e: CustomEvent<string>) => { e.stopPropagation(); this._setSource(f.key, { ...source, entity_id: e.detail }); }}></wp-entity-picker>
         <div class="field"><label for=${`attribute-${f.key}`}>${t(this._lang, "value_read")}</label>
-          <select id=${`attribute-${f.key}`} .value=${source.attribute ?? ""} ?disabled=${this.disabled}
+          <select id=${`attribute-${f.key}`} data-value=${source.attribute ?? ""} ?disabled=${this.disabled}
             @change=${(e: Event) => { const attribute = (e.target as HTMLSelectElement).value; this._setSource(f.key, { entity_id: source.entity_id, type: source.type, ...(attribute ? { attribute } : {}) }); }}>
             <option value="">${t(this._lang, "value_state")}</option>
             ${attributes.map((a) => html`<option value=${a}>${a}</option>`)}
@@ -122,6 +124,10 @@ export class WpActionPicker extends LitElement {
     const target = this._targetEntity;
     const current = this.action?.kind === "service" ? this.action.service : "";
     const found = target ? servicesFor(this.hass, target, this.allowed !== undefined && current ? [...this.allowed, current] : this.allowed) : [];
+    if (current && !found.some((service) => service.id === current)) {
+      const [domain, service] = current.split(".");
+      found.push({ id: current, domain, service, label: serviceLabel(this.hass, current) });
+    }
     const data = (this.action?.kind === "service" ? this.action.data ?? {} : {}) as Record<string, unknown>;
     const fields = current ? serviceFields(this.hass, current, target) : [];
     const scenes = external ? [] : scenesOf(this.hass, this.entityId);
@@ -130,7 +136,7 @@ export class WpActionPicker extends LitElement {
       : this.action?.kind === "scene" ? t(lang, "action_scene_description") : "";
     return html`
       <div class="field"><label for="action-target-mode">${t(lang, "action_target")}</label>
-        <select id="action-target-mode" .value=${external ? "other" : "device"} ?disabled=${this.disabled}
+        <select id="action-target-mode" data-value=${external ? "other" : "device"} ?disabled=${this.disabled}
           @change=${(e: Event) => this._setTarget((e.target as HTMLSelectElement).value === "other" ? "" : undefined)}>
           <option value="device">${t(lang, "action_target_device")}</option>
           <option value="other">${t(lang, "action_target_other")}</option>
@@ -140,7 +146,7 @@ export class WpActionPicker extends LitElement {
         <p class="hint">${t(lang, "action_target_hint")}</p>` : nothing}
       ${this.allowed?.length === 0 ? html`<p class="hint" role="status">${t(lang, "action_none_allowed")}</p>` : nothing}
       <label class="action-label" for="action">${t(lang, "action")}</label>
-      <select id="action" .value=${selected || ""} aria-describedby="action-description" ?disabled=${this.disabled || !target}
+      <select id="action" data-value=${selected || ""} aria-describedby="action-description" ?disabled=${this.disabled || !target}
         @change=${(e: Event) => {
           const id = (e.target as HTMLSelectElement).value;
           if (!id) return;
@@ -150,6 +156,8 @@ export class WpActionPicker extends LitElement {
         <option value="" disabled ?selected=${!selected}>${t(lang, "action_choose")}</option>
         ${found.map((s) => html`<option value=${s.id} ?selected=${s.id === current}
           title=${serviceDescription(this.hass, s.id) || t(lang, "action_no_description")}>${s.label}</option>`)}
+        ${this.action?.kind === "scene" && !scenes.some((scene) => scene.entity_id === selected)
+          ? html`<option value=${selected} selected>${selected}</option>` : nothing}
         ${scenes.map((s) => html`<option value=${s.entity_id} ?selected=${s.entity_id === selected}
           title=${t(lang, "action_scene_description")}>${String(s.attributes.friendly_name ?? s.entity_id)}</option>`)}
       </select>

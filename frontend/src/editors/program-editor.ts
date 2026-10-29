@@ -3,6 +3,7 @@
 
 import { LitElement, css, html, nothing, unsafeCSS } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { syncSelectValues } from "../select-value";
 import { DraftHistory } from "../draft-history";
 import { defaultEntityIcon } from "../icons";
 import { mergeProgramSettings } from "../program-settings";
@@ -55,6 +56,7 @@ export class WpProgramEditor extends LitElement {
   @state() private _error = "";
   @state() private _saving = false;
   @state() private _changingMode = false;
+  @state() private _associationsOpen = false;
   @state() private _scheduleProfileId: string | null = null;
   private _hoursRevision = 0;
   @state() private _picker = Boolean(customElements.get("ha-selector"));
@@ -306,6 +308,7 @@ export class WpProgramEditor extends LitElement {
     if (!this._submitProfileForm()) return;
     const problem = this._validate();
     if (problem) {
+      if (this._p.mode_source) this._associationsOpen = true;
       this._error = problem;
       return;
     }
@@ -440,6 +443,7 @@ export class WpProgramEditor extends LitElement {
   private _pickerKey = 0;
 
   updated(): void {
+    syncSelectValues(this.renderRoot);
     trackScrollHints(this.renderRoot.querySelector<HTMLElement>(".tabs"));
   }
 
@@ -450,9 +454,9 @@ export class WpProgramEditor extends LitElement {
       ${p.entities.map((e, i) => this._renderEntity(e, i, compact))}
       ${keyed(this._pickerKey, this._picker
         ? html`<ha-selector .hass=${this.hass} .selector=${{ entity: { exclude_entities: p.entities.map((x) => x.entity_id) } }}
-            .label=${this._tr("pe_add_entity")} .value=${""}
+            .label=${this._tr(p.entities.length ? "pe_add_another_entity" : "pe_add_entity")} .value=${""} .required=${!p.entities.length}
             @value-changed=${(ev: CustomEvent<{ value?: string }>) => { ev.stopPropagation(); this._addEntity(ev.detail.value ?? ""); }}></ha-selector>`
-        : html`<wp-entity-picker .hass=${this.hass} .value=${""} .label=${this._tr("pe_add_entity")}
+        : html`<wp-entity-picker .hass=${this.hass} .value=${""} .label=${this._tr(p.entities.length ? "pe_add_another_entity" : "pe_add_entity")} .required=${!p.entities.length}
         .exclude=${p.entities.map((x) => x.entity_id)}
         @wp-change=${(ev: CustomEvent) => { ev.stopPropagation(); this._addEntity(ev.detail); }}></wp-entity-picker>`)}
     `;
@@ -486,6 +490,7 @@ export class WpProgramEditor extends LitElement {
       ${this._isNew ? html`<h3>${this._tr("pe_services")} · ${count}/${all.length}</h3>` : html`
         <button class="link" aria-expanded=${open} @click=${() => (this._servicesOpen = open ? "" : e.entity_id)}>
           <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>${this._tr("pe_services")} · ${count === all.length ? this._tr("pe_services_all") : `${count}/${all.length}`}</button>`}
+      ${count === 0 && e.restrict_services ? html`<p class="hint" role="status">${this._tr("pe_zero_services")}</p>` : nothing}
       ${open ? html`<p class="hint">${this._tr("pe_choose_services")}</p><div class="svc">${all.map((s) => {
         const description = serviceDescription(this.hass, s.id);
         const nameId = `svc-name-${index}-${s.id}`;
@@ -563,14 +568,17 @@ export class WpProgramEditor extends LitElement {
       ...(state && !["unknown", "unavailable"].includes(state.state) ? [state.state] : []), ...Object.keys(source?.mappings ?? {})])];
     return html`<div class="field"><label for="mode-control">${this._tr("mode_control")}</label>
       <select id="mode-control" .value=${source ? "external" : "manual"}
-        @change=${(e: Event) => this._patch({ mode_source: (e.target as HTMLSelectElement).value === "external" ? { entity_id: "", mappings: {} } : undefined })}>
+        @change=${(e: Event) => { this._associationsOpen = true; this._patch({ mode_source: (e.target as HTMLSelectElement).value === "external" ? { entity_id: "", mappings: {} } : undefined }); }}>
         <option value="manual">${this._tr("mode_manual")}</option><option value="external">${this._tr("mode_external")}</option>
       </select></div>
       ${source ? html`<wp-entity-picker .hass=${this.hass} .value=${source.entity_id} .label=${this._tr("mode_source_entity")}
-        @wp-change=${(e: CustomEvent<string>) => { e.stopPropagation(); if (e.detail !== source.entity_id) this._patch({ mode_source: { entity_id: e.detail, mappings: {} } }); }}></wp-entity-picker>
+        @wp-change=${(e: CustomEvent<string>) => { e.stopPropagation(); if (e.detail !== source.entity_id) { this._associationsOpen = true; this._patch({ mode_source: { entity_id: e.detail, mappings: {} } }); } }}></wp-entity-picker>
         <p class="hint">${this._tr("mode_source_hint")}</p>
         ${source.entity_id ? html`
           <p class="hint">${this._tr("mode_source_current", { state: state ? (this.hass.formatEntityState?.(state) ?? state.state) : this._tr("value_unavailable") })}</p>
+          <details class="mode-associations" .open=${this._associationsOpen}
+            @toggle=${(e: Event) => { this._associationsOpen = (e.currentTarget as HTMLDetailsElement).open; }}>
+            <summary>${this._tr("mode_association_count", { n: String(Object.keys(source.mappings).length) })}</summary>
           ${Object.entries(source.mappings).map(([key, profileId], index) => html`<div class="card mode-mapping">
             ${this._picker ? html`<ha-selector .hass=${this.hass} .selector=${{ state: { entity_id: source.entity_id } }}
               .value=${key || undefined} .label=${this._tr("mode_source_state")}
@@ -579,7 +587,8 @@ export class WpProgramEditor extends LitElement {
                 <input id=${`mode-state-${index}`} list="mode-state-values" .value=${key}
                   @change=${(e: Event) => this._sourceState(key, (e.target as HTMLInputElement).value)} /></div>`}
             <div class="field"><label for=${`mode-target-${index}`}>${this._tr("mode_source_target")}</label>
-              <select id=${`mode-target-${index}`} .value=${profileId} @change=${(e: Event) => this._patch({ mode_source: { ...source, mappings: { ...source.mappings, [key]: (e.target as HTMLSelectElement).value } } })}>
+              <select id=${`mode-target-${index}`} data-value=${profileId} @change=${(e: Event) => this._patch({ mode_source: { ...source, mappings: { ...source.mappings, [key]: (e.target as HTMLSelectElement).value } } })}>
+                ${!this._p.profiles.some((p) => p.id === profileId) ? html`<option value=${profileId}>${this._tr("mode_removed")}</option>` : nothing}
                 ${this._p.profiles.map((p) => html`<option value=${p.id}>${p.name}</option>`)}
               </select></div>
             <button class="btn danger" aria-label=${this._tr("mode_remove_mapping")} @click=${() => this._patch({ mode_source: { ...source, mappings: Object.fromEntries(Object.entries(source.mappings).filter(([k]) => k !== key)) } })}>
@@ -588,13 +597,14 @@ export class WpProgramEditor extends LitElement {
           <datalist id="mode-state-values">${options.map((value) => html`<option value=${value}></option>`)}</datalist>
           <button class="btn" ?disabled=${Object.prototype.hasOwnProperty.call(source.mappings, "")} @click=${() => this._patch({ mode_source: { ...source, mappings: { ...source.mappings, "": this._profileId } } })}>
             <ha-icon icon="mdi:plus"></ha-icon>${this._tr("mode_add_mapping")}</button>
+          </details>
         ` : nothing}
         ${!this._seasonsUnapplied && live?.mode_source_status && live.mode_source_status !== "matched" ? html`<p class="hint" role="status">${this._tr("mode_source_kept", { name: activeName })}</p>` : nothing}
-      ` : !this._isNew ? html`<div class="field"><label for="mode-active">${this._tr("mode_active_select")}</label>
-        <select id="mode-active" .value=${this._activeId()} ?disabled=${this._seasonsUnapplied || this._changingMode}
+      ` : !this._isNew ? html`<section class="mode-live"><div class="field"><label for="mode-active">${this._tr("mode_active_immediate")}</label>
+        <select id="mode-active" data-value=${this._activeId()} aria-describedby="mode-live-help" ?disabled=${this._seasonsUnapplied || this._changingMode}
           @change=${(e: Event) => void this._changeActiveMode((e.target as HTMLSelectElement).value, e.target as HTMLSelectElement)}>
           ${this._p.profiles.map((p) => html`<option value=${p.id}>${p.name}</option>`)}
-        </select></div>` : nothing}`;
+        </select></div><p id="mode-live-help" class="hint">${this._tr("mode_active_immediate_hint")}</p></section>` : nothing}`;
   }
 
   private _renderSeasons() {
@@ -610,7 +620,7 @@ export class WpProgramEditor extends LitElement {
       ${this._seasonsUnapplied ? html`<p class="hint">${this._tr("profile_apply_first")}</p>` : nothing}
       <div class="row profile-bar">
         <div class="field" style="flex:1 1 160px"><label for="f-profile">${this._tr("profile_manage")}</label>
-          <select id="f-profile" ?disabled=${Boolean(form)} @change=${(e: Event) => { this._profileId = (e.target as HTMLSelectElement).value; }}>
+          <select id="f-profile" data-value=${profile.id} ?disabled=${Boolean(form)} @change=${(e: Event) => { this._profileId = (e.target as HTMLSelectElement).value; }}>
             ${p.profiles.map((x) => html`<option value=${x.id} ?selected=${x.id === profile.id}>${x.name}${x.id === active ? ` (${this._tr("profile_active")})` : ""}</option>`)}
           </select></div>
       </div>
@@ -680,10 +690,11 @@ export class WpProgramEditor extends LitElement {
         </div>`}
       </fieldset>
       ${this._error ? html`<p class="error" role="alert">${this._error}</p>` : nothing}`;
-    const actions = html`
+    const primaryActions = html`
       <button class="btn primary" ?disabled=${!editable || this._saving} @click=${() => void this._save()}>
         ${this._tr(this._isNew ? "pe_create" : this.embedded ? "ce_apply_program" : "save")}</button>
-      ${!this.embedded ? html`<button class="btn" @click=${() => this._close()}>${this._tr("cancel")}</button>` : nothing}
+      ${!this.embedded ? html`<button class="btn" @click=${() => this._close()}>${this._tr("cancel")}</button>` : nothing}`;
+    const secondaryActions = html`
       ${!this._isNew ? html`<button class="btn" ?disabled=${!editable || this._saving || Boolean(this._profileForm)} @click=${() => this._duplicate()}>${this._tr("duplicate")}</button>` : nothing}
       ${!this._isNew ? html`<button class="btn danger" ?disabled=${!editable || this._saving || Boolean(this._profileForm)}
         @click=${() => void this._askDelete()}><ha-icon icon="mdi:delete"></ha-icon>${this._tr("delete")}</button>` : nothing}`;
@@ -693,7 +704,7 @@ export class WpProgramEditor extends LitElement {
     if (this.embedded) return html`<section class="embedded">${content}
       ${unapplied && !this._isNew ? html`<p role="status" class="hint">${this._tr("pe_unapplied")}</p>` : nothing}
       <p class="hint">${this._tr(this._isNew ? "pe_create_save_hint" : "pe_shared_save_hint")}</p>
-      <div class="actions">${actions}</div>
+      <div class="actions apply-bar">${primaryActions}</div><div class="actions secondary-actions">${secondaryActions}</div>
       ${this._applied ? html`<p role="status" class="hint">${this._tr("ce_program_applied")}</p>` : nothing}
       ${this._scheduleProfileId ? html`<wp-schedule .hass=${this.hass} .data=${this.data}
         .scope=${{ kind: "program", programId: this._p.id }} .profileId=${this._scheduleProfileId} .chart=${false}
@@ -701,7 +712,7 @@ export class WpProgramEditor extends LitElement {
         @closed=${(e: Event) => { e.stopPropagation(); this._closeModeSchedule(); }}></wp-schedule>` : nothing}
     </section>`;
     return html`<wp-dialog id="main" open wide heading=${this._isNew ? this._tr("new_program") : this._p.name || this._tr("title")}>
-      ${content}<div slot="footer" class="actions">${actions}</div>
+      ${content}<div slot="footer" class="actions">${primaryActions}${secondaryActions}</div>
     </wp-dialog>`;
   }
 
@@ -713,6 +724,11 @@ export class WpProgramEditor extends LitElement {
       .history { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
       .history .btn { font-size: 14px; }
       .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+      .apply-bar { position: sticky; bottom: 0; z-index: 2; background: var(--card-background-color, #fff); padding: 8px 0; border-top: 1px solid var(--divider-color); }
+      .apply-bar .primary { flex: 1; }
+      .mode-live { margin: 12px 0; padding: 8px 12px; border: 1px solid var(--divider-color); border-radius: 10px; }
+      .mode-associations { margin: 8px 0 12px; }
+      .mode-associations summary { min-height: 44px; display: list-item; align-content: center; cursor: pointer; color: var(--primary-color); }
       .actions .danger { margin-left: auto; }
       h3 { margin: 16px 0 4px; font-size: 15px; font-weight: 500; }
       .small { font-size: 12px; }

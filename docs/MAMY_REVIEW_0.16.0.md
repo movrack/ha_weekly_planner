@@ -160,3 +160,21 @@ d’une nouvelle validation.
 Sources complémentaires : `frontend/src/editors/program-editor.ts`
 (`_validate`, `_renderEntities`, `_renderModeSource`, `_changeActiveMode`) et
 `frontend/src/components/action-picker.ts` (`_field`).
+
+## Corrections 0.16.1
+
+Les cinq constats de cette revue sont corrigés dans la version 0.16.1 :
+
+- [x] Les menus affichent la valeur enregistrée après le rendu des options, y compris après navigation ou réorganisation des choix.
+- [x] Le changement immédiat du mode actif est explicitement distingué des réglages à appliquer.
+- [x] L’ajout d’un appareil supplémentaire est facultatif, sans astérisque obligatoire.
+- [x] L’absence de commande sélectionnée est expliquée ; après création, « Définir les horaires » ouvre le programme créé.
+- [x] Les associations externes sont repliables avec leur nombre ; le bouton principal reste accessible pendant le défilement.
+
+Vérifications sur l’instance locale : 12 assertions DOM dans
+`frontend/qa/configuration-regression.js`, exécutées sur ordinateur et téléphone
+360 × 780 sombre ; création réelle d’un programme désactivé, sélection automatique,
+ouverture de ses horaires puis suppression du programme de test. Le sélecteur natif
+HA confirme que le deuxième appareil est facultatif et le bouton principal tient
+dans la hauteur mobile. Aucune commande physique n’a été testée. Cette vérification
+ne remplace pas les limites de couverture visuelle indiquées ci-dessus.
