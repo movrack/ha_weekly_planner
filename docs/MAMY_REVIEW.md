@@ -83,6 +83,14 @@ does not substitute for browser verification.
 
 Remaining recommendations: replace the free-text area filter with a well-defined program-area choice and improve chart empty-state guidance. These are not claimed fixed by this patch.
 
+### Remaining recommendations addressed in 0.16.2
+
+- The card area filter now offers existing program areas, with All areas and preservation of configured values whose programs disappeared. General settings expose the program area explicitly; it is independent of Home Assistant device rooms. Empty filtered lists explain which settings to check.
+- Charts distinguish no recorded history, future history, unavailable history and no planned action. A history loading failure leaves planned actions visible.
+- Earlier fixes remain in place: retained drafts, explicit shared Apply scope, labelled mode actions, separate mode management and immediate activation, competing program priorities, contextual label editing and keyboard tab navigation.
+
+Source review and automated checks cover these changes; no new claim of full keyboard, screen-reader or physical-device validation is made.
+
 ### Follow-up verification
 
 Validated against local Home Assistant on 2026-10-29: 360 × 780 light and 1440 px dark; no horizontal overflow or console errors. Browser scenarios verified editor identity, original merge base, unsaved name and pending season form after program/mode/tab switches; invalid names produced zero program writes. A background save kept the selected program unchanged. The active-season shortcut opened the actual HA profile more-info selector, without changing its value. Arrow-key navigation, unapplied-change status, and visible disabled radial choice with guidance were also checked. Python: 85 tests; card: 121 tests; TypeScript and production build pass.

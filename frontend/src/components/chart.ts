@@ -223,7 +223,11 @@ export class WpChart extends LitElement {
         sent: (jour.segments ?? []).filter((e: any) => e.entity_id === this.entityId).map((e: any) => Date.parse(e.at)),
       };
     } catch {
-      if (token === this._token) this._failed = true;
+      if (token === this._token) {
+        this._failed = true;
+        // History is optional: keep the day's planned actions visible when HA cannot return it.
+        this._loaded = { hist: [], log: [], sent: [] };
+      }
     }
   }
 
@@ -456,10 +460,16 @@ export class WpChart extends LitElement {
     const lang = this._lang;
     const model = this._model;
     let body;
-    if (this._failed) body = html`<div class="note">${t(lang, "no_data")}</div>`;
-    else if (!model) body = html`<div class="note">${t(lang, "chart_loading")}</div>`;
+    if (!model) body = html`<div class="note">${t(lang, "chart_loading")}</div>`;
     else body = this._renderChart(model);
-    return html`<div class="box">${body}</div>${model ? this._legend(model) : nothing}`;
+    return html`<div class="box">${body}</div>${model ? html`${this._legend(model)}
+      <div class="availability" role="status">
+        ${this._failed ? html`<p>${t(lang, "chart_history_failed")}</p>`
+          : !model.lines.length && !model.bands.length
+            ? html`<p>${t(lang, model.pastEnd === 0 ? "chart_future_history" : "chart_no_history")}</p>` : nothing}
+        ${!model.markers.some((m) => !m.ignored) && !model.planned.zones.length
+          ? html`<p>${t(lang, "chart_no_planned")}</p>` : nothing}
+      </div>` : nothing}`;
   }
 
   private _legend(model: Model) {
@@ -555,6 +565,8 @@ export class WpChart extends LitElement {
   static styles = css`
     :host { display: block; }
     .box { position: relative; width: 100%; min-height: 40px; }
+    .availability { color: var(--secondary-text-color); font-size: 13px; line-height: 1.5; }
+    .availability p { margin: 4px 0; }
     .cwrap { position: relative; width: fit-content; max-width: 100%; }
     .nowtip { position: absolute; transform: translate(-50%, -50%); }
     .suntip { position: absolute; transform: translate(-50%, -50%); }
