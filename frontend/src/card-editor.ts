@@ -4,7 +4,7 @@ import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "./editors/program-editor";
 import type { WpProgramEditor } from "./editors/program-editor";
-import { filterPrograms, subscribePlanner } from "./planner";
+import { subscribePlanner } from "./planner";
 import { domainChoices, programDomains, type DomainLocalize } from "./domains";
 import { t } from "./i18n";
 import type { CardConfig, HomeAssistant, PlannerData, Program } from "./types";
@@ -19,6 +19,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
   @state() private _data?: PlannerData;
   @state() private _section: "display" | "programs" = "display";
   @state() private _editing: string | null = null;
+  @state() private _createdName = "";
   // Retain the editor itself, including its origin, pending name form and focused tab.
   // Switching sections/programs must not discard an unapplied shared-settings draft.
   private _editors = new Map<string, WpProgramEditor>();
@@ -34,9 +35,14 @@ export class WeeklyPlannerCardEditor extends LitElement {
   private get _lang() { return langOf(this.hass); }
   private _tr(key: K, vars?: Record<string, string>) { return t(this._lang, key, vars); }
 
+  connectedCallback(): void {
+    super.connectedCallback();
+    this.requestUpdate();
+  }
+
   updated(): void {
     this._loadDomainNames();
-    if (this.hass && !this._unsub) {
+    if (this.isConnected && this.hass && !this._unsub) {
       this._unsub = subscribePlanner(this.hass, (data) => {
         this._data = data;
         this._programs = data.programs.map((p) => ({ id: p.id, name: p.name }));
@@ -87,6 +93,10 @@ export class WeeklyPlannerCardEditor extends LitElement {
       this._emit(config);
     }
     if (wasSelected) this._editing = program.id;
+    if (wasSelected && selected === "new") {
+      this._createdName = program.name;
+      this._section = "display";
+    }
   }
 
   private _programEditor(selected: string, program?: Program) {
@@ -113,24 +123,33 @@ export class WeeklyPlannerCardEditor extends LitElement {
   private _settings() {
     const data = this._data;
     if (!data || !this.hass?.user?.is_admin || !data.can_edit || data.read_only) return nothing;
-    const programs = filterPrograms(data, this._config);
+    const programs = data.programs;
     const selected = this._editing ?? (this._isProgram && this._config.program ? this._config.program : "");
     const program = data.programs.find((p) => p.id === selected);
     return html`<section class="program-settings">
-      <h3>${this._tr("ce_program_settings")}</h3>
-      ${!this._isProgram ? html`<div class="field"><label for="ce-settings-program">${this._tr("ce_program")}</label>
+      <h3>${this._tr(selected === "new" ? "new_program" : "ce_program_settings")}</h3>
+      <div class="field"><label for="ce-settings-program">${this._tr("ce_edit_program")}</label>
         <select id="ce-settings-program" .value=${selected} @change=${(e: Event) => { this._editing = (e.target as HTMLSelectElement).value; }}>
           <option value="" ?selected=${!selected}>${this._tr("ce_choose_program")}</option>
-          <hr />
-          <option value="new" ?selected=${selected === "new"}>${this._tr("new_program")}</option>
-          <hr />
+          ${selected === "new" ? html`<option value="new" selected>${this._tr("new_program")}</option>` : nothing}
           ${programs.map((p) => html`<option value=${p.id} ?selected=${selected === p.id}>${p.name}</option>`)}
-          ${program && !programs.some((p) => p.id === program.id) ? html`<option value=${program.id} selected>${program.name}</option>` : nothing}
         </select>
-      </div>` : html`<button class="btn" @click=${() => { this._editing = selected === "new" ? null : "new"; }}>
-        ${this._tr(selected === "new" ? "ce_back_program" : "new_program")}</button>`}
+      </div>
+      ${selected !== "new" ? html`<button class="btn" @click=${this._newProgram}>
+        <ha-icon icon="mdi:plus"></ha-icon>${this._tr(this._editors.has("new") ? "ce_resume_creation" : "new_program")}</button>` : nothing}
       ${selected === "new" || program ? this._programEditor(selected, program) : nothing}
     </section>`;
+  }
+
+  private get _canManage(): boolean {
+    return Boolean(this.hass?.user?.is_admin && this._data?.can_edit && !this._data?.read_only);
+  }
+
+  private _newProgram(): void {
+    this._createdName = "";
+    this._editing = "new";
+    this._section = "programs";
+    void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>("#ce-settings-program")?.focus());
   }
 
   private _emit(config: CardConfig): void {
@@ -157,19 +176,39 @@ export class WeeklyPlannerCardEditor extends LitElement {
       delete next.filter;
       next.program = this._programs[0]?.id ?? "";
     } else {
-      if (next.schedule_view === "radial") delete next.schedule_view;
       delete next.program;
-      next.filter = { types: next.filter?.types ?? [] };
+      next.filter = { ...next.filter, types: next.filter?.types ?? [] };
     }
     this._emit(next);
   }
 
-  private _setFilter(patch: { types?: string[]; area?: string }): void {
+  private _setFilter(patch: { types?: string[]; area?: string; programs?: string[] }): void {
     const filter = { ...(this._config.filter ?? {}), ...patch };
     if (!filter.types?.length) delete filter.types;
     if (!filter.area) delete filter.area;
     const next = { ...this._config, filter } as CardConfig;
     this._emit(next);
+  }
+
+  private _displayPrograms() {
+    const selected = this._config.filter?.programs;
+    const choices = [...this._programs];
+    for (const id of selected ?? []) {
+      if (!choices.some((p) => p.id === id)) choices.push({ id, name: id });
+    }
+    return html`<details class="display-programs">
+      <summary>${this._tr("ce_display_programs")} · ${selected === undefined ? this._tr("ce_all_programs") : selected.length}</summary>
+      <p class="hint">${this._tr("ce_display_programs_hint")}</p>
+      <label class="check"><input type="checkbox" .checked=${selected === undefined}
+        @change=${(e: Event) => this._setFilter({ programs: (e.target as HTMLInputElement).checked ? undefined : choices.map((p) => p.id) })} />${this._tr("ce_all_programs")}</label>
+      <div role="group" aria-label=${this._tr("ce_display_programs")}>
+        ${choices.map((p) => html`<label class="check"><input type="checkbox" .checked=${selected === undefined || selected.includes(p.id)}
+          @change=${(e: Event) => {
+            const ids = selected ?? choices.map((choice) => choice.id);
+            this._setFilter({ programs: (e.target as HTMLInputElement).checked ? [...new Set([...ids, p.id])] : ids.filter((id) => id !== p.id) });
+          }} />${p.name}</label>`)}
+      </div>
+    </details>`;
   }
 
   private _tabKey = (event: KeyboardEvent): void => {
@@ -185,6 +224,8 @@ export class WeeklyPlannerCardEditor extends LitElement {
     const choices = domainChoices(programDomains(this._data?.programs ?? [], types), this._lang,
       (key) => this.hass?.localize?.(key) || this._domainLocalize?.(key) || "");
     const display = html`
+      ${this._createdName ? html`<p class="hint" role="status">${this._tr("ce_created", { name: this._createdName })}</p>` : nothing}
+      ${this._editors.has("new") ? html`<p class="hint" role="status">${this._tr("ce_draft_kept")}</p>` : nothing}
       <div class="field"><label for="ce-title">${this._tr("ce_title")}</label>
         <input id="ce-title" type="text" .value=${c.title ?? ""} @input=${(e: Event) => this._set("title", (e.target as HTMLInputElement).value)} /></div>
 
@@ -199,7 +240,11 @@ export class WeeklyPlannerCardEditor extends LitElement {
               ${this._programs.length === 0 ? html`<option value="">${this._tr("no_program")}</option>` : nothing}
               ${!this._programs.some((p) => p.id === c.program) && c.program ? html`<option value=${c.program} selected>${c.program}</option>` : nothing}
               ${this._programs.map((p) => html`<option value=${p.id} ?selected=${p.id === c.program}>${p.name}</option>`)}
-            </select></div>`
+            </select>
+            ${this._canManage ? html`<div class="program-actions">
+              <button class="btn" @click=${this._newProgram}><ha-icon icon="mdi:plus"></ha-icon>${this._tr(this._editors.has("new") ? "ce_resume_creation" : "new_program")}</button>
+              ${c.program ? html`<button class="btn" @click=${() => { this._editing = c.program!; this._section = "programs"; }}><ha-icon icon="mdi:pencil"></ha-icon>${this._tr("ce_edit_selected")}</button>` : nothing}
+            </div>` : nothing}</div>`
         : html`
             <div class="label">${this._tr("ce_types")}</div>
             <div class="row" role="group" aria-label=${this._tr("ce_types")}>
@@ -211,19 +256,21 @@ export class WeeklyPlannerCardEditor extends LitElement {
             <p class="hint">${this._tr("ce_types_hint")}</p>
             <div class="field"><label for="ce-area">${this._tr("ce_area")}</label>
               <input id="ce-area" type="text" .value=${c.filter?.area ?? ""} placeholder="bureau"
-                @input=${(e: Event) => this._setFilter({ area: (e.target as HTMLInputElement).value.trim() })} /></div>`}
+                @input=${(e: Event) => this._setFilter({ area: (e.target as HTMLInputElement).value.trim() })} /></div>
+            ${this._displayPrograms()}`}
 
       <div class="field"><label for="ce-view">${this._tr("ce_schedule_view")}</label>
         <select id="ce-view" .value=${c.schedule_view ?? "bars"} @change=${(e: Event) => this._set("schedule_view", (e.target as HTMLSelectElement).value)}>
           <option value="bars">${this._tr("ce_bars")}</option>
-          <option value="radial" ?disabled=${!this._isProgram}>${this._tr("ce_radial")}</option>
+          <option value="radial">${this._tr("ce_radial")}</option>
+          <option value="radial_12h">${this._tr("ce_radial_12h")}</option>
           <option value="list">${this._tr("ce_list")}</option>
         </select>
-        ${!this._isProgram ? html`<p class="hint">${this._tr("ce_radial_hint")}</p>` : nothing}</div>
+      </div>
       <label class="check"><input type="checkbox" .checked=${c.show_chart !== false}
         @change=${(e: Event) => this._set("show_chart", (e.target as HTMLInputElement).checked)} /> ${this._tr("ce_show_chart")}</label>
     `;
-    const admin = Boolean(this.hass?.user?.is_admin && this._data?.can_edit && !this._data?.read_only);
+    const admin = this._canManage;
     return html`
       ${admin ? html`<nav role="tablist" aria-label=${this._tr("settings")}>
         <button id="ce-tab-display" role="tab" aria-controls="ce-panel" tabindex=${this._section === "display" ? 0 : -1} @keydown=${this._tabKey} aria-selected=${this._section === "display"} @click=${() => { this._section = "display"; }}>${this._tr("ce_display")}</button>
@@ -232,7 +279,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
       <div id="ce-panel" role="tabpanel" aria-labelledby=${admin ? `ce-tab-${this._section}` : nothing}>${admin && this._section === "programs" ? this._settings() : display}</div>`;
   }
 
-  static styles = [editorStyles, css`:host { display: block; padding: 4px 0; } h3 { margin: 12px 0; font-size: 16px; } .program-settings { padding-top: 4px; } nav { display: flex; border-bottom: 1px solid var(--divider-color); margin-bottom: 12px; } nav button { flex: 1; min-height: 48px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--secondary-text-color); cursor: pointer; } nav button[aria-selected="true"] { color: var(--primary-color); border-bottom-color: var(--primary-color); font-weight: 600; } .hint { line-height: 1.5; }`];
+  static styles = [editorStyles, css`:host { display: block; padding: 4px 0; } h3 { margin: 12px 0; font-size: 16px; } .program-settings { padding-top: 4px; } nav { display: flex; border-bottom: 1px solid var(--divider-color); margin-bottom: 12px; } nav button { flex: 1; min-height: 48px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--secondary-text-color); cursor: pointer; } nav button[aria-selected="true"] { color: var(--primary-color); border-bottom-color: var(--primary-color); font-weight: 600; } .hint { line-height: 1.5; } .display-programs { margin: 12px 0; border: 1px solid var(--divider-color); border-radius: 8px; padding: 8px 12px; } summary { min-height: 44px; align-content: center; cursor: pointer; } .display-programs .check { min-height: 44px; overflow-wrap: anywhere; } .program-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }`];
 }
 
 declare global {

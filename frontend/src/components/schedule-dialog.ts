@@ -39,6 +39,9 @@ export class WpSchedule extends LitElement {
   @property({ attribute: false }) data!: PlannerData;
   @property({ attribute: false }) scope!: Scope;
   @property({ type: Boolean }) chart = true;
+  @property({ attribute: false }) profileId: string | null = null;
+  @state() private _viewProfileId: string | null = null;
+  private _editProfileId: string | null = null;
   /** Opened from a day of the card's week (0 = Monday, `offset` days from today): edit that day. */
   @property({ attribute: false }) day: { weekday: number; offset: number } | null = null;
 
@@ -75,6 +78,7 @@ export class WpSchedule extends LitElement {
   @state() private _programId = "";
   @state() private _error = "";
   @state() private _saving = false;
+  @state() private _toggling = false;
   @state() private _offset = 0;
   @state() private _slots: PreviewSlot[] | null = null;
   @state() private _chartEntity = "";
@@ -92,6 +96,20 @@ export class WpSchedule extends LitElement {
       ? all.filter((p) => p.entities.some((e) => e.entity_id === (this.scope as { entityId: string }).entityId))
       : all.filter((p) => p.id === (this.scope as { programId: string }).programId);
     return [...list].sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
+  }
+
+  private _modeProfile(program: Program): Profile | undefined {
+    const id = this._open && program.id === this._programId ? this._editProfileId
+      : this.profileId ?? (this.scope.kind === "program" ? this._viewProfileId : null);
+    return id === null ? activeProfile(program, this.data) : program.profiles.find((p) => p.id === id);
+  }
+
+  private get _modeOnly(): boolean {
+    return this.profileId !== null || this._programs.some((p) => this._modeProfile(p)?.id !== activeProfile(p, this.data)?.id);
+  }
+
+  private _editProfile(program: Program): Profile | undefined {
+    return program.profiles.find((p) => p.id === this._editProfileId);
   }
 
   private get _entities(): string[] {
@@ -113,7 +131,8 @@ export class WpSchedule extends LitElement {
   private _rows(): { program: Program; group: SlotGroup; key: string }[] {
     const out: { program: Program; group: SlotGroup; key: string }[] = [];
     for (const program of this._programs) {
-      const profile = activeProfile(program, this.data);
+      const profile = this._open && program.id === this._programId ? this._editProfile(program) : this._modeProfile(program);
+      if (!profile) continue;
       for (const group of groupSlots(profile, this._include, this._minutes)) {
         if (this._focus !== null && !group.days.includes(this._focus)) continue;
         out.push({ program, group, key: `${program.id}|${group.ids[group.days[0]]}` });
@@ -144,11 +163,11 @@ export class WpSchedule extends LitElement {
   willUpdate(changed: Map<string, unknown>): void {
     if (!this._chartEntity || changed.has("scope")) this._chartEntity = this._entities[0] ?? "";
     const owner = this._programs[0];
-    if (this.chart && owner && this.hass) {
-      const key = `${owner.id}|${owner.revision}|${this._date}`;
+    if (this.chart && owner && this.hass && !this._modeOnly) {
+      const key = `${owner.id}|${owner.revision}|${this._modeProfile(owner)?.id}|${this._date}`;
       if (key !== this._loaded) {
         this._loaded = key;
-        void this._loadPreview(owner.id, this._date, key);
+        void this._loadPreview(owner.id, this._date, key, this._modeProfile(owner)?.id);
       }
     }
   }
@@ -156,10 +175,10 @@ export class WpSchedule extends LitElement {
   private get _today(): string { return localDateIso(new Date(), this._tz); }
   private get _date(): string { return addDaysIso(this._today, this._offset); }
 
-  private async _loadPreview(programId: string, date: string, key: string): Promise<void> {
+  private async _loadPreview(programId: string, date: string, key: string, profileId?: string): Promise<void> {
     const token = ++this._token;
     try {
-      const res = await this.hass.callWS<{ slots: PreviewSlot[] }>({ type: "weekly_planner/preview", program_id: programId, date });
+      const res = await this.hass.callWS<{ slots: PreviewSlot[] }>({ type: "weekly_planner/preview", program_id: programId, date, profile_id: profileId });
       if (token === this._token && key === this._loaded) this._slots = res.slots;
     } catch {
       if (token === this._token) this._slots = null;
@@ -183,6 +202,7 @@ export class WpSchedule extends LitElement {
     key: string, program: Program, group: SlotGroup | null,
     opts: { restLabel?: string | null; rest?: SlotGroup | null; dayOnly?: number | null; openId?: string | null; origin?: SlotGroup | null } = {},
   ): void {
+    this._editProfileId = this._modeProfile(program)?.id ?? null;
     this._open = key;
     this._programId = program.id;
     this._group = group ? structuredClone(group) : null;
@@ -215,6 +235,7 @@ export class WpSchedule extends LitElement {
   }
 
   private _cancel(): void {
+    this._editProfileId = null;
     this._open = null;
     this._group = null;
     this._dayOnly = null;
@@ -253,7 +274,9 @@ export class WpSchedule extends LitElement {
     if (!program || !eid) return;
     const first = labelsFor(this.hass, this.data, this._entities)[0];
     const day = days.length === 1 ? days[0] : null;
-    const times = day === null ? undefined : nextTimes(activeProfile(program, this.data).days[day], this._minutes);
+    const profile = this._modeProfile(program);
+    if (!profile) return;
+    const times = day === null ? undefined : nextTimes(profile.days[day], this._minutes);
     this._expand("new", program, freshGroup(first?.id ?? "", days, times), { dayOnly: day });
     this._dropBusy = day === null;
   }
@@ -281,7 +304,9 @@ export class WpSchedule extends LitElement {
       end: !end ? null : "time" in end ? shift(from + 2 * length) : { ...end, offset: (end.offset ?? 0) + length },
     };
     const origin = this._origin;
+    const profileId = this._editProfileId;
     this._expand("new", program, copy, { dayOnly });
+    this._editProfileId = profileId;
     this._base = base;
     this._origin = origin;
   }
@@ -299,7 +324,10 @@ export class WpSchedule extends LitElement {
     this._saving = true;
     try {
       const res = await this.hass.callWS<{ program?: Program }>({ type: "weekly_planner/program/save", program: structuredClone(program) });
-      if (res?.program) this._saved[program.id] = res.program;
+      if (res?.program) {
+        this._saved[program.id] = res.program;
+        this.dispatchEvent(new CustomEvent("schedule-program-saved", { detail: res.program, bubbles: true, composed: true }));
+      }
       return "ok";
     } catch (err) {
       const e = err as { code?: string; message?: string };
@@ -388,7 +416,9 @@ export class WpSchedule extends LitElement {
     const message = t(this._lang, "ss_changed");
     if (fresh) {
       const key = this._open ?? `${program.id}|${groupId(fresh)}`;
+      const profileId = this._editProfileId;
       this._openRow(key, program, fresh);
+      this._editProfileId = profileId;
     } else {
       this._cancel();
     }
@@ -432,6 +462,8 @@ export class WpSchedule extends LitElement {
   }
 
   private async _saveRow(): Promise<void> {
+    const live = this._live(this._programId);
+    if (!live || !this._editProfile(live)) { this._error = t(this._lang, "ss_changed"); return; }
     if (!(await this._saveLabelDraft())) return;
     const draft = this._group;
     const program = this._live(this._programId);
@@ -445,7 +477,8 @@ export class WpSchedule extends LitElement {
     let dropped: number[] = [];
     let changed = false;
     const saved = await this._commit(program.id, (live) => {
-      const profile = activeProfile(live, this.data);
+      const profile = this._editProfile(live);
+      if (!profile) return { error: t(this._lang, "ss_changed") };
       if (this._checkOrigin(profile, live) === "changed") {
         changed = true;
         return { changed: true };
@@ -475,7 +508,8 @@ export class WpSchedule extends LitElement {
     if (!program || this._open === "new" || !this._openId) return;
     if (!(await confirmAction(this, t(this._lang, "w_confirm_slot"), t(this._lang, "yes"), t(this._lang, "no")))) return;
     const ok = await this._commit(program.id, (live) => {
-      const profile = activeProfile(live, this.data);
+      const profile = this._editProfile(live);
+      if (!profile) return { error: t(this._lang, "ss_changed") };
       if (this._checkOrigin(profile, live) === "changed") return { changed: true };
       const next = applyEdit(profile, this._include, this._minutes, { openId: this._openId, rest: this._rest, draft: null });
       return { program: { ...live, profiles: live.profiles.map((p) => (p.id === profile.id ? next : p)) } };
@@ -503,16 +537,21 @@ export class WpSchedule extends LitElement {
   }
 
   private async _setEnabled(enabled: boolean, input: HTMLInputElement): Promise<void> {
-    if (!enabled && !(await confirmAction(this, t(this._lang, "confirm_pause", { name: this._title }), t(this._lang, "yes"), t(this._lang, "no")))) {
-      input.checked = true;
-      return;
-    }
+    if (this._toggling) { input.checked = this._enabled; return; }
+    this._toggling = true;
     try {
+      if (!enabled && !(await confirmAction(this, t(this._lang, "confirm_pause", { name: this._title }), t(this._lang, "yes"), t(this._lang, "no")))) {
+        input.checked = true;
+        return;
+      }
       for (const p of this._programs) {
         await this.hass.callWS({ type: "weekly_planner/program/set_enabled", program_id: p.id, enabled });
       }
     } catch (err) {
       this._error = t(this._lang, "error", { message: (err as { message?: string })?.message ?? String(err) });
+    } finally {
+      this._toggling = false;
+      input.checked = this._enabled;
     }
   }
 
@@ -634,7 +673,8 @@ export class WpSchedule extends LitElement {
           for (const original of [...this._programs].reverse()) {
             const program = this._live(original.id) ?? original;
             if (!program.entities.some((e) => e.entity_id === eid)) continue;
-            let profile = activeProfile(program, this.data);
+            let profile = program.id === this._programId && this._open ? this._editProfile(program) : this._modeProfile(program);
+            if (!profile) continue;
             if (program.id === this._programId && this._group) {
               if (this._base) profile = applyEdit(profile, this._include, this._minutes, this._base);
               profile = applyEdit(profile, this._include, this._minutes, {
@@ -672,7 +712,7 @@ export class WpSchedule extends LitElement {
   private _renderChart() {
     const lang = this._lang;
     const owner = this._programs[0];
-    if (!this.chart || !owner || !this._chartEntity) return nothing;
+    if (!this.chart || !owner || !this._chartEntity || this._modeOnly) return nothing;
     const date = this._date;
     const label = new Intl.DateTimeFormat(lang, { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" })
       .format(new Date(`${date}T12:00:00Z`));
@@ -696,8 +736,10 @@ export class WpSchedule extends LitElement {
       return html`<wp-dialog open heading=${this._title}><p class="muted">${t(lang, "no_program")}</p></wp-dialog>`;
     }
     const rows = this._rows();
+    const missingMode = this.scope.kind === "program" && !this._modeProfile(this._programs[0]);
     return html`
       <wp-dialog open heading=${this._title}>
+        ${missingMode ? html`<p class="err" role="alert">${t(lang, "mode_removed")}</p>` : nothing}
         ${!this._canEdit ? html`<p class="err" role="alert">${t(lang, "read_only")}</p>` : nothing}
         ${this._error && !this._open ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
         ${this._focus !== null && this._open === null ? html`<div class="focus">
@@ -705,29 +747,38 @@ export class WpSchedule extends LitElement {
             <ha-icon icon="mdi:arrow-left"></ha-icon>${t(lang, "w_whole_week")}</button>
           <h3>${strings(lang).days[this._focus]}</h3></div>` : nothing}
         ${this._note && this._open === null ? html`<p class="muted note">${this._note}</p>` : nothing}
+        ${this.scope.kind === "program" ? html`<label class="mode-select">${t(lang, "profile")}
+          <select .value=${this._modeProfile(this._programs[0])?.id ?? ""} ?disabled=${this.profileId !== null || this._open !== null}
+            @change=${(e: Event) => { this._viewProfileId = (e.target as HTMLSelectElement).value; this._slots = null; this._error = ""; }}>
+            ${missingMode ? html`<option value="" selected>${t(lang, "mode_removed")}</option>` : nothing}
+            ${this._programs[0].profiles.map((p) => html`<option value=${p.id} ?selected=${p.id === this._modeProfile(this._programs[0])?.id}>${p.name}</option>`)}
+          </select></label>` : nothing}
+        ${this._modeOnly ? html`<p class="muted note">${t(lang, "mode_schedule_hint")}</p>` : nothing}
         ${this._renderWeek()}
         <div class="list">
           ${rows.length ? rows.map((r) => this._renderRow(r)) : (this._open === "new" ? nothing : html`<p class="muted">${t(lang, "w_none")}</p>`)}
-          ${this._open === "new" && this._group ? this._renderEditor(this._programs[0], "new") : nothing}
-          ${this._open === null ? html`<button class="row add" ?disabled=${!this._canEdit} @click=${() => this._add()}>
+          ${this._group && (this._open === "new" || (this._open !== null && !rows.some((r) => r.key === this._open))) ? this._renderEditor(this._programs.find((p) => p.id === this._programId) ?? this._programs[0], this._open!) : nothing}
+          ${this._open === null ? html`<button class="row add" ?disabled=${!this._canEdit || missingMode} @click=${() => this._add()}>
             <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${this._focus === null ? t(lang, "w_add") : t(lang, "w_add_day", { day: strings(lang).days[this._focus].toLocaleLowerCase(lang) })}</span></button>` : nothing}
-          ${this._renderRest()}
+          ${this._modeOnly ? nothing : this._renderRest()}
         </div>
         ${this._open !== null ? nothing : html`${this._renderChart()}
-        <label class="switch">
+        ${this._modeOnly ? nothing : html`<label class="switch">
           <span class="grow">${t(lang, "schedule_on")}</span>
           <span class="state">${this._enabled ? t(lang, "running") : t(lang, "stopped")}</span>
-          <input type="checkbox" .checked=${this._enabled} ?disabled=${!this._canEdit}
+          <input type="checkbox" .checked=${this._enabled} ?disabled=${!this._canEdit || this._toggling}
             @change=${(e: Event) => void this._setEnabled((e.target as HTMLInputElement).checked, e.target as HTMLInputElement)} />
           <span class="track"></span>
         </label>
         <button class="btn danger-line alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteAll()}>
-          <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete_schedule")}</button>`}
+          <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete_schedule")}</button>`}`}
       </wp-dialog>`;
   }
 
   static styles = [editorStyles, css`
     :host { display: contents; }
+    .mode-select { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .mode-select select { flex: 1; min-width: 0; min-height: 44px; }
     .schematic { margin-bottom: 16px; }
     .schematic h4 { margin: 8px 0; }
     .schema-day { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 32px; }

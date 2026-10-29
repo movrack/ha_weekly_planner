@@ -87,6 +87,7 @@ class PlannerEngine:
         await self.async_load_descriptions()
         async_check_missing(self.hass, self)
         self._observe_all_conditions(initial=True)
+        self._sync_mode_sources()
         await self.async_recompute("startup")
 
     async def async_stop(self) -> None:
@@ -129,7 +130,7 @@ class PlannerEngine:
             return True
         from .validation import service_accepts
 
-        return service_accepts(self.descriptions, action.get("service", ""), entity_id)
+        return service_accepts(self.descriptions, action.get("service", ""), action.get("target_entity_id", entity_id))
 
     def resolve(self, program: dict, entity_id: str, label_id: str | None) -> dict | None:
         """Action of a label for an entity of a program (docs/SPEC.md § 6)."""
@@ -185,6 +186,7 @@ class PlannerEngine:
         return {
             "program_id": program_id,
             "active_profile": self.active_profile_id(program_id),
+            **self._mode_source_status(program),
             "current_slots": current,
             "next_change": nxt.isoformat() if nxt else None,
             "skip_next": prt.get("skip_at"),
@@ -239,7 +241,12 @@ class PlannerEngine:
             unsub()
         self._unsubs.clear()
         watched = set(self.managed_entities())
+        actions = [label["action"] for label in self.labels.values()]
+        actions += [action for program in self.store.programs for entity in program["entities"]
+                    for action in entity.get("label_overrides", {}).values()]
+        watched |= {action["target_entity_id"] for action in actions if action.get("target_entity_id")}
         watched |= {c["entity_id"] for c in self._all_conditions()}
+        watched |= {p["mode_source"]["entity_id"] for p in self.store.programs if p.get("mode_source")}
         if watched:
             self._unsubs.append(async_track_state_change_event(self.hass, sorted(watched), self._on_state))
 
@@ -267,6 +274,8 @@ class PlannerEngine:
         old: State | None = event.data.get("old_state")
         if not self._ready:
             return
+        if any(p.get("mode_source", {}).get("entity_id") == entity_id for p in self.store.programs):
+            self.hass.async_create_task(self._async_mode_source_changed())
         now = dt_util.utcnow()
         cond_changed = False
         for cond in self._all_conditions():
@@ -276,32 +285,42 @@ class PlannerEngine:
             self.hass.async_create_task(self.async_recompute("condition"))
         else:
             self._arm_timer()
-        # back online: send what was waiting for the entity (spec § 5.8)
-        if (
-            entity_id in self.managed_entities()
-            and new is not None and new.state not in UNAVAILABLE
-            and (old is None or old.state in UNAVAILABLE)
-            and self.rt(entity_id).get("pending")
-        ):
-            self.hass.async_create_task(self.async_apply(entity_id, "back_online"))
+        # Recover only pending owners whose actual target became commandable.
+        # Ordinary state changes (including a button's last-press timestamp) never reapply.
+        for owner in self.managed_entities():
+            rt = self.rt(owner)
+            action = rt.get("target") or {}
+            explicit = action.get("target_entity_id")
+            unavailable = ("unavailable",) if explicit else UNAVAILABLE
+            if (
+                (explicit or owner) == entity_id and rt.get("pending")
+                and new is not None and new.state not in unavailable
+                and (old is None or old.state in unavailable)
+            ):
+                self.hass.async_create_task(self.async_apply(owner, "back_online"))
 
     # ------------------------------------------------------------------ recompute
 
-    async def async_recompute(self, reason: str, program_id: str | None = None) -> None:
+    async def async_recompute(self, reason: str, program_id: str | None = None, *,
+                              profile_program_ids: set[str] | None = None) -> None:
         """Re-evaluate every managed entity and act on segment changes."""
         if not self._ready:
             return
         now = dt_util.utcnow()
         self.conditions.settle(now)
-        await self._fire_one_shots(now)
+        affected = profile_program_ids if profile_program_ids is not None else ({program_id} if program_id else set())
+        excluded = set(affected) if reason == "profile" else set()
+        if reason in {"startup", "modification"}:
+            excluded |= {p["id"] for p in self.store.programs if p.get("mode_source")}
+        await self._fire_one_shots(now, excluded)
         for entity_id in sorted(self.managed_entities()):
-            await self._process_entity(entity_id, reason, now, program_id)
+            await self._process_entity(entity_id, reason, now, affected)
         self.store.runtime["last_tick"] = now.isoformat()
         self._persist()
         self._arm_timer()
         self._notify_listeners()
 
-    async def _process_entity(self, entity_id: str, reason: str, now: datetime, program_id: str | None) -> None:
+    async def _process_entity(self, entity_id: str, reason: str, now: datetime, profile_program_ids: set[str]) -> None:
         rt = self.rt(entity_id)
         seg = self.segment(entity_id, now)
         key = list(seg.key)
@@ -309,6 +328,8 @@ class PlannerEngine:
         if not changed and reason not in REAPPLY_REASONS:
             return
 
+        if reason == "profile" and profile_program_ids and not changed and seg.program_id not in profile_program_ids:
+            return
         program = self.store.program(seg.program_id) if seg.program_id else None
         reapply = program.get("reapply", True) if program else True
         skip = self._consume_skip(seg.program_id, now) if changed else False
@@ -353,13 +374,13 @@ class PlannerEngine:
             return True
         return False
 
-    async def _fire_one_shots(self, now: datetime) -> None:
+    async def _fire_one_shots(self, now: datetime, excluded: set[str] | None = None) -> None:
         """Run the slots without an end whose time came since the last tick (spec § 5.2)."""
         last = self.store.parse(self.store.runtime.get("last_tick"))
         if last is None or self.store.config.get("vacation"):
             return
         for program in self.store.programs:
-            if not program.get("enabled", True) or not self.conditions.check(program.get("conditions", [])):
+            if program["id"] in (excluded or set()) or not program.get("enabled", True) or not self.conditions.check(program.get("conditions", [])):
                 continue
             profile = active_profile(program, self._profiles())
             for occ, slot in occurrences_around(profile, now, self.tz, self.sun):
@@ -442,8 +463,10 @@ class PlannerEngine:
 
     async def _async_send(self, entity_id: str, action: dict, reason: str, oneshot: bool = False) -> None:
         rt = self.rt(entity_id)
-        state = self.hass.states.get(entity_id)
-        if state is None or state.state in UNAVAILABLE:
+        target_entity_id = action.get("target_entity_id", entity_id)
+        state = self.hass.states.get(target_entity_id)
+        unavailable = ("unavailable",) if action.get("target_entity_id") else UNAVAILABLE
+        if state is None or state.state in unavailable:
             if not oneshot:
                 rt["pending"] = True
                 self._schedule_notify(entity_id)
@@ -462,10 +485,13 @@ class PlannerEngine:
         try:
             if not oneshot and rt.get("segment") != segment:
                 return  # segment changed meanwhile: this action is stale (spec § 5.1)
-            call = call_for(entity_id, action)
+            call = call_for(entity_id, action, self.hass.states.get)
+            applied_action = ({**{key: value for key, value in action.items() if key != "data_sources"},
+                               "data": call.service_data()}
+                              if action["kind"] == "service" and action.get("data_sources") else action)
             await self.hass.services.async_call(
                 call.domain, call.service, call.service_data(), blocking=True,
-                target={"entity_id": entity_id} if call.as_target else None,
+                target={"entity_id": call.target_entity_id} if call.as_target else None,
             )
         except asyncio.CancelledError:
             raise
@@ -489,10 +515,10 @@ class PlannerEngine:
         rt.pop("service_retry", None)
         persistent_notification.async_dismiss(self.hass, f"{DOMAIN}_{entity_id}_failed")
         if reason != "retry":  # one logbook entry per decision, not per attempt
-            self._log(entity_id, "applied", {"action": action, "reason": reason})
+            self._log(entity_id, "applied", {"action": applied_action, "reason": reason})
         self.store.record_segment({
             "at": dt_util.utcnow().isoformat(), "entity_id": entity_id, "sent": True,
-            "action": action, "reason": reason,
+            "action": applied_action, "reason": reason,
         })
         self._persist()
 
@@ -527,8 +553,10 @@ class PlannerEngine:
             rt["notify_at"] = (dt_util.utcnow() + delay).isoformat()
 
     def _notify_unavailable(self, entity_id: str) -> None:
+        action = self.rt(entity_id).get("target") or {}
+        target_entity_id = action.get("target_entity_id", entity_id)
         persistent_notification.async_create(
-            self.hass, f"{entity_id} is unavailable: its scheduled action is still waiting.",
+            self.hass, f"{target_entity_id} is unavailable: its scheduled action is still waiting.",
             title="Weekly Planner", notification_id=f"{DOMAIN}_{entity_id}_failed")
         self._log(entity_id, "failed", {"action": self.rt(entity_id).get("target")})
 
@@ -576,6 +604,10 @@ class PlannerEngine:
         defaults = {eid: self.resolve(program, eid, default_label(program, eid)) for eid in entities}
         program["enabled"] = enabled
         self.store.save_config()
+        if not self._ready:
+            # Publish configuration immediately, but keep device actions behind startup stabilization.
+            self._notify_listeners()
+            return
         if enabled:
             await self.async_recompute("enable")
             return
@@ -617,20 +649,72 @@ class PlannerEngine:
             self.store.save_config()
             await self.async_recompute("vacation_off")
 
+    def _mode_source_status(self, program: dict) -> dict:
+        source = program.get("mode_source")
+        if not source:
+            return {}
+        state = self.hass.states.get(source["entity_id"])
+        raw = state.state if state else None
+        status = "unavailable" if raw is None or raw in UNAVAILABLE else (
+            "matched" if source["mappings"].get(raw) in {p["id"] for p in program["profiles"]} else "unmapped")
+        return {"mode_source_state": raw, "mode_source_status": status}
+
+    def _sync_mode_sources(self, only: str | None = None) -> list[str]:
+        changed = []
+        for program in self.store.programs:
+            source = program.get("mode_source")
+            if not source or (only is not None and program["id"] != only):
+                continue
+            status = self._mode_source_status(program)
+            if status["mode_source_status"] != "matched":
+                continue
+            wanted = source["mappings"][status["mode_source_state"]]
+            if self.active_profile_id(program["id"]) != wanted:
+                self.store.runtime["programs"].setdefault(program["id"], {})["active_profile"] = wanted
+                changed.append(program["id"])
+        return changed
+
+    async def _async_mode_source_changed(self) -> None:
+        # Update every association first: one source can drive several programs atomically.
+        changed = self._sync_mode_sources()
+        if changed:
+            if self._ready:
+                await self.async_recompute("profile", profile_program_ids=set(changed))
+            else:
+                self._persist()
+                self._notify_listeners()
+        else:
+            self._notify_listeners()
+
     async def async_set_profile(self, program_id: str, profile_id: str) -> None:
+        program = self.store.program(program_id)
+        if program is None:
+            raise ServiceValidationError("Unknown program")
+        if profile_id not in {p["id"] for p in program["profiles"]}:
+            raise ServiceValidationError("Unknown mode")
+        if program.get("mode_source"):
+            raise ServiceValidationError("Mode is controlled by an external entity")
         prt = self.store.runtime["programs"].setdefault(program_id, {})
-        if prt.get("active_profile") == profile_id:
+        if self.active_profile_id(program_id) == profile_id:
             return
         prt["active_profile"] = profile_id
+        if not self._ready:
+            self._persist()
+            self._notify_listeners()
+            return
         await self.async_recompute("profile", program_id)
 
-    async def async_config_changed(self) -> None:
+    async def async_config_changed(self, *, reapply: bool = True) -> None:
         """Programs edited: re-subscribe and re-evaluate (spec § 5.5)."""
         self._release_removed()
         await self.async_load_descriptions()
         self._subscribe()
         self._observe_all_conditions()
-        await self.async_recompute("modification")
+        changed = self._sync_mode_sources()
+        if not reapply and changed:
+            await self.async_recompute("profile", profile_program_ids=set(changed))
+        else:
+            await self.async_recompute("modification" if reapply else "inactive_mode_edit")
 
     def _release_removed(self) -> None:
         """Forget the runtime state of entities that are no longer in any program."""

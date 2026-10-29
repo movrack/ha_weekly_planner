@@ -19,13 +19,23 @@ ignored by Git and may contain notes that are useful across different AI tools.
   for domain names, with the raw domain as fallback. Display fallbacks must never restrict support.
 - One model for every device: no knowledge of a device type or brand. Actions are the Home Assistant
   services that accept the entity (`hass.services`), optionally restricted per device
-  (`entities[i].allowed_services`, empty = all).
+  (`entities[i].allowed_services`; new devices use `restrict_services: true`, so empty means none;
+  legacy empty/missing selections without this flag keep all). An action may explicitly set `target_entity_id` to
+  control another HA entity (for example a favorite-position button); discover services and fields from
+  that actual target. Never redirect targets through `data` or `data_sources`.
 - **Labels** are global and shared (name, colour, default action), with an optional value per device.
   A slot = start, optional end, days, label. When a slot ends, the device's default label applies
   ("the rest of the time"). A slot without end is a one-shot.
 - Service fields follow the device: unsupported fields (`filter.supported_features` / `attribute`)
   are hidden; a service whose fields are all optional requires its first one; an optional field that
   another service of the domain sets on its own (`set_<field>`) is left out.
+
+## Modes
+- Program modes are independent weekly schedules (`profiles` internally); Vacation is an ordinary mode.
+- Optional `mode_source` maps raw states of any external entity to mode IDs. Keep the last valid mode
+  when unavailable/unmapped; never hardcode alarm states or selector types. Editing inactive mode hours
+  must not activate it or reapply active actions. The legacy global vacation switch is a separate pause
+  control with a clear display name and stable identity.
 
 ## Rules
 - **Delegation**: when sub-agents are available, delegate suitable independent tasks to agents with
@@ -65,6 +75,10 @@ ignored by Git and may contain notes that are useful across different AI tools.
 - Update the spec, the decisions and the CHANGELOG with the change.
 
 ## Deploying to a real instance
+- The weekday 08:00–17:00 restriction applies to commits, cherry-picks, merges and reverts only.
+  It does not prohibit deployments. When the owner requests deployment, deploy the tested working
+  tree even if changes are uncommitted; never require a commit or another approval solely for that reason.
+  Keep the commit guard intact and report uncommitted changes and the deployed bundle checksum.
 - `scripts/deploy_prod.sh` (dry run by default, `--apply` to copy; it runs the tests first).
-- Card-only change: `weekly_planner.reload`. Python change: back up Home Assistant, then restart it,
-  only with the owner's approval.
+- Card-only change: `weekly_planner.reload`. Python change: back up Home Assistant, then restart it.
+  The owner explicitly authorizes any necessary restart when requesting deployment; do not ask again.

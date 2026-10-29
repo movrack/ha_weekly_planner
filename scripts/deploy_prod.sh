@@ -6,7 +6,8 @@
 #
 # Environment: WP_HOST (SSH host or alias, required), WP_CONFIG (default /config).
 # Nothing is restarted: a first install or a Python change needs a Home Assistant restart,
-# a card-only change only needs `weekly_planner.reload` and a browser refresh.
+# a card-only change only needs `weekly_planner.reload` (the card updates itself).
+# Deployments use the tested working tree; a commit is not a prerequisite.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -16,21 +17,26 @@ SRC="custom_components/weekly_planner/"
 MODE="${1:---dry-run}"
 
 [ -f "$SRC/frontend/weekly-planner-card.js" ] || { echo "Build the card first: (cd frontend && npm run build)"; exit 1; }
-if [ -n "$(git status --porcelain -- custom_components)" ]; then
-  echo "Uncommitted changes in custom_components: commit them first."; exit 1
-fi
 
 if [ "$MODE" = "--apply" ]; then
   echo "Running tests before deploying…"
   uv run --group test pytest -q >/dev/null 2>&1 || { echo "Python tests fail: not deploying."; exit 1; }
-  (cd frontend && npm test --silent >/dev/null 2>&1) || { echo "Card tests fail: not deploying."; exit 1; }
+  (cd frontend && npm run typecheck --silent && npm test --silent && npm run build --silent) >/dev/null 2>&1 || { echo "Card checks fail: not deploying."; exit 1; }
 fi
+
+REVISION="$(git rev-parse --short HEAD)"
+if [ -n "$(git status --porcelain -- custom_components frontend)" ]; then
+  REVISION="$REVISION + uncommitted working-tree changes"
+fi
+CARD_SHA="$(shasum -a 256 "$SRC/frontend/weekly-planner-card.js")"
+CARD_SHA="${CARD_SHA%% *}"
 
 RSYNC=(rsync -rlt --checksum --delete --exclude __pycache__ -e "ssh -o BatchMode=yes -o ConnectTimeout=10")
 if [ "$MODE" = "--apply" ]; then
   ssh -o BatchMode=yes "$HOST" "mkdir -p '$DEST'"
   "${RSYNC[@]}" -i "$SRC" "$HOST:$DEST"
-  echo "Copied $(git rev-parse --short HEAD) to $HOST:$DEST"
+  echo "Copied working tree ($REVISION) to $HOST:$DEST"
+  echo "Card SHA-256: $CARD_SHA"
 else
   "${RSYNC[@]}" -n -i "$SRC" "$HOST:$DEST" || true
   echo "Dry run. Re-run with --apply to copy."

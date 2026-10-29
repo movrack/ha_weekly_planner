@@ -106,7 +106,8 @@ export class WpLabelPicker extends LitElement {
     const lang = this._lang;
     if (!this._name.trim()) return t(lang, "lb_err_name");
     if (!this._action) return t(lang, "lb_err_action");
-    if (this._action.kind === "service" && missingFields(this.hass, this._action.service, this._action.data, this.entityIds[0]).length) {
+    if (this._action.kind === "service" && (!this._action.service || this._action.target_entity_id === "")) return t(lang, "lb_err_action");
+    if (this._action.kind === "service" && missingFields(this.hass, this._action.service, this._action.data, this._action.target_entity_id ?? this.entityIds[0], this._action.data_sources).length) {
       return t(lang, "lb_err_fields");
     }
     return "";

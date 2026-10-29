@@ -31,8 +31,14 @@ export type TimeSpec =
   | { sun: "dawn" | "sunrise" | "sunset" | "dusk"; offset?: number; earliest?: string; latest?: string };
 
 /** What a label does: a service called on the entity, or a scene. */
+export interface ActionValueSource {
+  entity_id: string;
+  attribute?: string;
+  type: "number" | "boolean" | "string" | "native";
+}
+
 export type Action =
-  | { kind: "service"; service: string; data?: Record<string, unknown> }
+  | { kind: "service"; service: string; target_entity_id?: string; data?: Record<string, unknown>; data_sources?: Record<string, ActionValueSource> }
   | { kind: "scene"; scene: string };
 
 /** Shared by every program (spec § 6): slots and defaults only point at labels. */
@@ -72,8 +78,10 @@ export interface ProgramEntity {
   default_label: string | null;
   /** Value of a label for this device only. */
   label_overrides: Record<string, Action>;
-  /** Services offered for this device (`domain.service`); empty or missing = all. */
+  /** Services offered for this device (`domain.service`); restrict_services makes an empty list mean none. */
   allowed_services?: string[];
+  /** Explicit restriction, including an empty selection. Missing keeps legacy empty = all. */
+  restrict_services?: boolean;
 }
 
 export interface Program {
@@ -89,12 +97,15 @@ export interface Program {
   conditions: Condition[];
   entities: ProgramEntity[];
   active_profile?: string | null;
+  mode_source?: { entity_id: string; mappings: Record<string, string> };
   profiles: Profile[];
 }
 
 export interface ProgramStatus {
   program_id: string;
   active_profile: string | null;
+  mode_source_state?: string | null;
+  mode_source_status?: "matched" | "unmapped" | "unavailable";
   current_slots: Record<string, string>;
   next_change: string | null;
   skip_next: string | null;
@@ -126,8 +137,8 @@ export interface CardConfig {
   type: string;
   title?: string;
   program?: string;
-  filter?: { types?: string[]; area?: string };
-  schedule_view?: "bars" | "radial" | "list";
+  filter?: { types?: string[]; area?: string; programs?: string[] };
+  schedule_view?: "bars" | "radial" | "radial_12h" | "list";
   show_week?: boolean;
   show_chart?: boolean;
   show_advanced?: boolean;

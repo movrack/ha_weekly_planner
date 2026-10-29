@@ -6,6 +6,90 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+- Choose the programs displayed by each filtered card in a collapsible checklist; combine the selection with type and area filters without changing program execution.
+- Initial French illustrated user guide and visual atlas covering 36 screens and 13 supporting captures, with local demo provenance, current UI limitations and linked navigation from both READMEs.
+- Track the guide's screenshots under a narrow image-ignore exception and document the screen coverage inventory.
+
+## [0.16.0] - 2026-10-29
+
+### Added
+- Unified program modes with their own weekly schedules, including Vacation as an ordinary mode. Choose the active mode manually or map an external entity’s raw states to program modes; retain the last mode when the source is unavailable or unmapped.
+- Edit inactive modes’ schedules without activating them or reapplying active device actions; capture the edited mode across concurrent external changes and refuse writes to deleted modes. Show the active mode in cards and expose live source status.
+- Validate mode associations, reject circular Weekly Planner sources and prevent manual overrides while external control is configured.
+
+### Changed
+- Rename Seasons to Modes throughout the UI and Home Assistant selectors. Preserve entity IDs and existing schedules. Rename the legacy global Vacation suspension to All programs paused, preserving its behavior and automations.
+
+## [0.15.1] - 2026-10-29
+
+### Fixed
+- Show Home Assistant action descriptions below each offered-action checkbox, with accessible descriptions and mobile wrapping. Use translated descriptions when available; do not invent missing descriptions.
+
+## [0.15.0] - 2026-10-29
+
+### Changed
+- New devices start with no service actions selected. Show their action checklist during program creation and when adding a device, with guidance to choose the useful commands. Allow deselecting the last action.
+- Use an explicit restriction flag to preserve historical empty-list behavior for existing programs. Keep configured service choices visible when their service/target disappears, including actions on other entities.
+
+## [0.14.0] - 2026-10-29
+
+### Added
+- Label service actions can explicitly control another Home Assistant entity, such as pressing a shutter favorite-position button or starting a script. Discover actions and fields from the selected target, show its name in summaries, and retain per-device overrides and service restrictions.
+
+## [0.13.0] - 2026-10-29
+
+### Fixed
+- Show a red Disabled badge below the program controls in bar, radial and compact-list views instead of the ambiguous pause icon.
+
+### Added
+- Read service field values from a Home Assistant entity state or attribute, including helpers, as an alternative to fixed values. Resolve and convert values when the action executes, without triggering actions when only the source changes.
+- Show source selection and current value in the label editor; retain generic entity discovery and per-device action overrides. Refuse unavailable or invalid source values instead of sending an old fixed fallback.
+
+## [0.12.0] - 2026-10-29
+
+### Added
+- Allow both radial schedule views in filtered lists, rendering each program with its own resolved device spans; remove disabled choices and the single-program restriction.
+- Expand the clicked compact-list program in place into editable daily bars and optional week rows. Keep one program expanded at a time, with an explicit calendar button for schedule editing and an independent enable switch.
+
+## [0.11.3] - 2026-10-29
+
+### Fixed
+- Simplify creation to a single name-and-devices form with an explicit Create program action, then select the saved program and return to card display. Show a resume action for retained drafts.
+- Keep device management only in the Devices tab for existing programs.
+- Make program creation visible beside the card program selector, with a direct edit shortcut. Always show a labelled program selector in program settings, listing every program independently of card filters and retaining existing drafts.
+
+## [0.11.2] - 2026-10-29
+
+### Fixed
+- Restore live program-state subscriptions when Home Assistant reattaches a cached card or editor without replacing its hass object. Keep bar, dial, compact list and open schedule switches synchronized.
+- Prevent duplicate toggle requests while confirmation or a request is pending; restore the schedule checkbox after cancellation or failure.
+- Publish program enable changes to every WebSocket subscriber and the native HA switch during startup stabilization, without executing device actions early.
+
+## [0.11.1] - 2026-10-29
+
+### Fixed
+- Put the morning on the inner 12-hour ring with 3/6/9/12 labels, and the afternoon on the outer ring with 15/18/21/24 labels. Keep solar and current-time markers on their corresponding ring.
+
+## [0.11.0] - 2026-10-29
+
+### Added
+- Optional concentric 12-hour schedule rings, with morning outside and afternoon inside, alongside the existing 24-hour dial.
+- Hourly dial ticks and the same sunrise, sunset and current-time icons and accessible tooltips as the linear view.
+
+### Fixed
+- Match linear schedule colours: unscheduled time stays grey regardless of the default action label colour. Split noon-crossing slots without duplicating solar endpoints.
+
+## [0.10.0] - 2026-10-29
+
+### Fixed
+- Deploy tested working-tree changes independently of commit status, reporting the base revision, uncommitted state and card checksum. Keep the daytime commit restriction separate from deployment authorization.
+
+### Added
+- Undo and redo for unapplied program settings, including devices, conditions, season forms and duplication, retained across editor navigation.
+- Keep up to 50 local draft steps, grouping short typing bursts; start a new redo branch after a new edit and reset history after a successful save.
+- Keyboard shortcuts outside text fields; text inputs keep their native typing undo. Undo never reverses an action already applied to Home Assistant.
+
 ## [0.9.1] - 2026-10-29
 
 ### Fixed
