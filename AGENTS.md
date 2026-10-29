@@ -12,6 +12,11 @@ ignored by Git and may contain notes that are useful across different AI tools.
   before any change. Deferred ideas: `docs/IDEES.md`. Tick the tasks in the spec as they are done.
 
 ## Model
+- **Keep discovery generic**: never hardcode a catalogue/allowlist of supported device types, brands,
+  integrations or actions to populate selectors or decide what can be scheduled. Derive choices from
+  Home Assistant metadata and the entities in configured programs. Keep unknown domains usable and
+  preserve configured filter values even when their devices disappear. Use Home Assistant translations
+  for domain names, with the raw domain as fallback. Display fallbacks must never restrict support.
 - One model for every device: no knowledge of a device type or brand. Actions are the Home Assistant
   services that accept the entity (`hass.services`), optionally restricted per device
   (`entities[i].allowed_services`, empty = all).
@@ -23,6 +28,9 @@ ignored by Git and may contain notes that are useful across different AI tools.
   another service of the domain sets on its own (`set_<field>`) is left out.
 
 ## Rules
+- **Delegation**: when sub-agents are available, delegate suitable independent tasks to agents with
+  appropriate expertise. Keep the main conversation available for new instructions, coordinate file
+  ownership, review their results and give the owner a consolidated report.
 - **AI assistance**: keep repository guidance and local memory usable across AI tools; do not add
   tool-specific instructions or attribution outside the generic AI assistance note in the README files.
 - **Commits**: Conventional Commits in English (`feat(card): …`, `fix(engine): …`, `docs: …`,

@@ -5,6 +5,8 @@ import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { keyed } from "lit/directives/keyed.js";
 import "./chart";
+import "./day-bar";
+import { sunDir, type BarSpan } from "./day-bar";
 import "./dialog";
 import "./label-picker";
 import "./slot-form";
@@ -12,7 +14,7 @@ import { daysText, groupSlots, specText, ALL_DAYS } from "../actions";
 import type { SlotGroup } from "../actions";
 import { applyEdit, compareOrigin, dayView, findGroup, freshGroup, groupId, nextTimes, overlapDay, splitBusyDays } from "../edits";
 import type { RowEdit } from "../edits";
-import { labelOf, labelsFor } from "../labels";
+import { allowedOf, compatible, entityAction, labelOf, labelsFor } from "../labels";
 import type { LabelDraft } from "./label-picker";
 import { addDaysIso } from "./chart";
 import { confirmAction } from "./confirm";
@@ -544,12 +546,6 @@ export class WpSchedule extends LitElement {
     this.renderRoot.querySelector<HTMLElement & { close(): void }>("wp-dialog")?.close();
   }
 
-  private _settings(): void {
-    const program = this._programs[0];
-    if (!program) return;
-    this.dispatchEvent(new CustomEvent("open-settings", { detail: { programId: program.id }, bubbles: true, composed: true }));
-  }
-
   /* ---- render ---- */
 
   private _when(slot: Slot): string {
@@ -627,6 +623,52 @@ export class WpSchedule extends LitElement {
     });
   }
 
+  /** Keep the whole week visible, including the unsaved slot being edited. */
+  private _renderWeek() {
+    const lang = this._lang;
+    return html`<section class="schematic" aria-label=${t(lang, "week")}>
+      ${this._entities.map((eid) => html`
+        ${this._entities.length > 1 ? html`<h4>${friendlyName(this.hass, eid)}</h4>` : nothing}
+        ${strings(lang).days_short.map((name, day) => {
+          const spans: BarSpan[] = [];
+          for (const original of [...this._programs].reverse()) {
+            const program = this._live(original.id) ?? original;
+            if (!program.entities.some((e) => e.entity_id === eid)) continue;
+            let profile = activeProfile(program, this.data);
+            if (program.id === this._programId && this._group) {
+              if (this._base) profile = applyEdit(profile, this._include, this._minutes, this._base);
+              profile = applyEdit(profile, this._include, this._minutes, {
+                openId: this._openId, rest: this._rest, draft: this._group,
+              });
+            }
+            for (const d of [(day + 6) % 7, day]) {
+              for (const slot of profile.days[d]) {
+                const label = labelOf(this.data, slot.label);
+                if (!label || !compatible(this.hass, eid, entityAction(program, eid, label)!, allowedOf(program, eid))) continue;
+                const start = this._minutes(slot.start);
+                const end = slot.end ? this._minutes(slot.end) : null;
+                const overnight = end !== null && end < start && end < DAY / 2;
+                if (d !== day && !overnight) continue;
+                if (end !== null && end <= start && !overnight) continue;
+                spans.push({
+                  start: d === day ? start : 0,
+                  end: d !== day ? end! : overnight ? DAY : end ?? start + 10,
+                  color: label.color, label: label.name, marker: end === null,
+                  startSun: d === day ? sunDir(slot.start) : null,
+                  endSun: overnight && d === day ? null : sunDir(slot.end),
+                  startSpec: slot.start, endSpec: slot.end,
+                });
+              }
+            }
+          }
+          return html`<div class="schema-day"><span>${name}</span>
+            <wp-day-bar lang=${lang} notches ?show-hours=${day === 6} .spans=${spans}></wp-day-bar>
+          </div>`;
+        })}
+      `)}
+    </section>`;
+  }
+
   private _renderChart() {
     const lang = this._lang;
     const owner = this._programs[0];
@@ -654,11 +696,8 @@ export class WpSchedule extends LitElement {
       return html`<wp-dialog open heading=${this._title}><p class="muted">${t(lang, "no_program")}</p></wp-dialog>`;
     }
     const rows = this._rows();
-    const admin = Boolean(this.hass.user?.is_admin) && this.data.can_edit;
     return html`
       <wp-dialog open heading=${this._title}>
-        ${admin ? html`<button slot="header-actions" class="gear" aria-label=${t(lang, "settings")} @click=${() => this._settings()}>
-          <ha-icon icon="mdi:cog"></ha-icon></button>` : nothing}
         ${!this._canEdit ? html`<p class="err" role="alert">${t(lang, "read_only")}</p>` : nothing}
         ${this._error && !this._open ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
         ${this._focus !== null && this._open === null ? html`<div class="focus">
@@ -666,6 +705,7 @@ export class WpSchedule extends LitElement {
             <ha-icon icon="mdi:arrow-left"></ha-icon>${t(lang, "w_whole_week")}</button>
           <h3>${strings(lang).days[this._focus]}</h3></div>` : nothing}
         ${this._note && this._open === null ? html`<p class="muted note">${this._note}</p>` : nothing}
+        ${this._renderWeek()}
         <div class="list">
           ${rows.length ? rows.map((r) => this._renderRow(r)) : (this._open === "new" ? nothing : html`<p class="muted">${t(lang, "w_none")}</p>`)}
           ${this._open === "new" && this._group ? this._renderEditor(this._programs[0], "new") : nothing}
@@ -688,6 +728,11 @@ export class WpSchedule extends LitElement {
 
   static styles = [editorStyles, css`
     :host { display: contents; }
+    .schematic { margin-bottom: 16px; }
+    .schematic h4 { margin: 8px 0; }
+    .schema-day { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 32px; }
+    .schema-day > span { font-size: 12px; color: var(--secondary-text-color); }
+    .schema-day wp-day-bar { min-width: 0; }
     .list { display: flex; flex-direction: column; gap: 8px; }
     .row {
       display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 12px; border-radius: 12px; text-align: left;
@@ -724,11 +769,6 @@ export class WpSchedule extends LitElement {
     .chart { margin-top: 16px; }
     .chart .nav { display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 500; }
     .chart select { margin-bottom: 4px; }
-    .gear {
-      border: none; background: none; color: inherit; width: 48px; height: 48px; border-radius: 24px; cursor: pointer;
-      display: inline-flex; align-items: center; justify-content: center; --mdc-icon-size: 24px;
-    }
-    .gear:hover { background: var(--secondary-background-color); }
     .switch { position: relative; min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; margin-top: 12px; font-size: 16px; }
     .switch .state { font-size: 14px; color: var(--secondary-text-color); }
     .switch input { opacity: 0; width: 0; height: 0; position: absolute; }

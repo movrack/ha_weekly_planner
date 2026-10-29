@@ -64,7 +64,7 @@ title: Office
 show_chart: true
 ```
 
-A filtered list of programs (with program creation from the card):
+A filtered list of programs:
 
 ```yaml
 type: custom:weekly-planner-card
@@ -85,9 +85,11 @@ title: Heating
 The card is a planner, not a remote control: one line per device (icon, program name, state, the next
 scheduled action and time) with its day bar, the week and a **Schedule** button. The schedule screen lists the
 slots one per row (tap to edit in place: start, optional end, days, label), "The rest of the time", the chart of
-the day, a pause switch and a confirmed delete. The gear (administrators only) opens the program settings
-(name, icon, priority, conditions, "send the current action again after a restart", devices, seasons); the
-list button of the card header opens the **Labels** screen.
+the day, a pause switch and a confirmed delete. Program settings (name, icon, priority, conditions, devices, offered actions and seasons) are in the
+card editor: edit the dashboard, then edit Weekly Planner. They are shared by all cards: **Apply to program**
+saves them immediately, independently of Lovelace’s Save button. Cancelling the card does not undo applied
+program settings. Administrators can also create and duplicate programs there. The header label button
+opens **Labels**.
 
 <!-- screenshot: docs/images/card-overview.png — the card -->
 <!-- screenshot: docs/images/card-chart.png — the history chart -->

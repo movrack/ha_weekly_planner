@@ -2,35 +2,108 @@
 
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import "./editors/program-editor";
+import { keyed } from "lit/directives/keyed.js";
+import { filterPrograms, subscribePlanner } from "./planner";
+import { domainChoices, programDomains, type DomainLocalize } from "./domains";
 import { t } from "./i18n";
-import type { CardConfig, HomeAssistant, PlannerData } from "./types";
-import { editorStyles, langOf, typeLabel } from "./editors/shared";
+import type { CardConfig, HomeAssistant, PlannerData, Program } from "./types";
+import { editorStyles, langOf } from "./editors/shared";
 import type { K } from "./editors/shared";
-
-const TYPES = ["climate", "cover", "light", "switch", "fan", "water_heater", "media_player", "input_boolean", "input_number", "input_select"];
 
 @customElement("weekly-planner-card-editor")
 export class WeeklyPlannerCardEditor extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @state() private _config: CardConfig = { type: "custom:weekly-planner-card" };
   @state() private _programs: { id: string; name: string }[] = [];
-  private _loaded = false;
+  @state() private _data?: PlannerData;
+  @state() private _section: "display" | "programs" = "display";
+  @state() private _editing: string | null = null;
+  private _unsub?: () => void;
+  private _domainLoadKey = "";
+  private _domainLocalize?: DomainLocalize;
 
   setConfig(config: CardConfig): void {
+    if (this._config.program !== config.program) this._editing = null;
     this._config = { ...config };
   }
 
   private get _lang() { return langOf(this.hass); }
   private _tr(key: K, vars?: Record<string, string>) { return t(this._lang, key, vars); }
 
-  updated(changed: Map<string, unknown>): void {
-    if (changed.has("hass") && this.hass && !this._loaded) {
-      this._loaded = true;
-      this.hass
-        .callWS<PlannerData>({ type: "weekly_planner/get" })
-        .then((data) => (this._programs = data.programs.map((p) => ({ id: p.id, name: p.name }))))
-        .catch(() => (this._loaded = false));
+  updated(): void {
+    this._loadDomainNames();
+    if (this.hass && !this._unsub) {
+      this._unsub = subscribePlanner(this.hass, (data) => {
+        this._data = data;
+        this._programs = data.programs.map((p) => ({ id: p.id, name: p.name }));
+      });
     }
+  }
+
+  /** HA owns domain names and their translations, including domains unknown to this card. */
+  private _loadDomainNames(): void {
+    if (!this.hass?.loadBackendTranslation || !this._data) return;
+    const domains = programDomains(this._data.programs, this._config.filter?.types);
+    const key = `${this._lang}|${domains.join(",")}`;
+    if (key === this._domainLoadKey) return;
+    this._domainLoadKey = key;
+    this._domainLocalize = undefined;
+    if (!domains.length) return;
+    void this.hass.loadBackendTranslation("title", domains).then((localize) => {
+      if (key !== this._domainLoadKey) return;
+      this._domainLocalize = localize;
+      this.requestUpdate();
+    }).catch(() => {
+      if (key === this._domainLoadKey) this._domainLoadKey = "";
+    });
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this._unsub?.();
+    this._unsub = undefined;
+  }
+
+  private _saved(e: CustomEvent<Program>): void {
+    e.stopPropagation();
+    const program = e.detail;
+    if (this._data) this._data = { ...this._data, programs: [...this._data.programs.filter((p) => p.id !== program.id), program] };
+    this._programs = this._data?.programs.map((p) => ({ id: p.id, name: p.name })) ?? [];
+    if (this._editing === "new" || (this._editing && this._editing !== program.id)) {
+      const config = { ...this._config, program: program.id };
+      delete config.filter;
+      this._emit(config);
+    }
+    this._editing = program.id;
+  }
+
+  private _settings() {
+    const data = this._data;
+    if (!data || !this.hass?.user?.is_admin || !data.can_edit || data.read_only) return nothing;
+    const programs = filterPrograms(data, this._config);
+    const selected = this._editing ?? (this._isProgram && this._config.program ? this._config.program : "");
+    const program = data.programs.find((p) => p.id === selected);
+    return html`<section class="program-settings">
+      <h3>${this._tr("ce_program_settings")}</h3>
+      <p class="hint">${this._tr("ce_shared_settings")}</p>
+      ${!this._isProgram ? html`<div class="field"><label for="ce-settings-program">${this._tr("ce_program")}</label>
+        <select id="ce-settings-program" .value=${selected} @change=${(e: Event) => { this._editing = (e.target as HTMLSelectElement).value; }}>
+          <option value="" ?selected=${!selected}>${this._tr("ce_choose_program")}</option>
+          ${programs.map((p) => html`<option value=${p.id} ?selected=${selected === p.id}>${p.name}</option>`)}
+          ${program && !programs.some((p) => p.id === program.id) ? html`<option value=${program.id} selected>${program.name}</option>` : nothing}
+          <option value="new" ?selected=${selected === "new"}>${this._tr("new_program")}</option>
+        </select>
+      </div>` : html`<button class="btn" @click=${() => { this._editing = selected === "new" ? null : "new"; }}>
+        ${this._tr(selected === "new" ? "ce_back_program" : "new_program")}</button>`}
+      ${selected === "new" || program ? keyed(selected, html`<wp-program-editor embedded .hass=${this.hass} .data=${data} .program=${program}
+        @program-saved=${(e: CustomEvent<Program>) => this._saved(e)}
+        @program-deleted=${(e: CustomEvent<string>) => {
+          e.stopPropagation();
+          this._editing = "";
+          if (this._config.program === e.detail) this._setMode(false);
+        }}></wp-program-editor>`) : nothing}
+    </section>`;
   }
 
   private _emit(config: CardConfig): void {
@@ -42,6 +115,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
     const next = { ...this._config } as Record<string, unknown>;
     if (value === undefined || value === "" || value === null) delete next[key];
     else next[key] = value;
+    if (key === "program") this._editing = null;
     this._emit(next as unknown as CardConfig);
   }
 
@@ -50,6 +124,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
   }
 
   private _setMode(program: boolean): void {
+    this._editing = null;
     const next = { ...this._config } as CardConfig;
     if (program) {
       delete next.filter;
@@ -72,7 +147,9 @@ export class WeeklyPlannerCardEditor extends LitElement {
   render() {
     const c = this._config;
     const types = c.filter?.types ?? [];
-    return html`
+    const choices = domainChoices(programDomains(this._data?.programs ?? [], types), this._lang,
+      (key) => this.hass?.localize?.(key) || this._domainLocalize?.(key) || "");
+    const display = html`
       <div class="field"><label for="ce-title">${this._tr("ce_title")}</label>
         <input id="ce-title" type="text" .value=${c.title ?? ""} @input=${(e: Event) => this._set("title", (e.target as HTMLInputElement).value)} /></div>
 
@@ -91,10 +168,11 @@ export class WeeklyPlannerCardEditor extends LitElement {
         : html`
             <div class="label">${this._tr("ce_types")}</div>
             <div class="row" role="group" aria-label=${this._tr("ce_types")}>
-              ${TYPES.map((ty) => html`<label class="check" style="flex:1 1 150px"><input type="checkbox" .checked=${types.includes(ty)}
+              ${choices.map(({ id: ty, label }) => html`<label class="check" style="flex:1 1 150px"><input type="checkbox" .checked=${types.includes(ty)}
                 @change=${(e: Event) => this._setFilter({ types: (e.target as HTMLInputElement).checked ? [...types, ty] : types.filter((x) => x !== ty) })} />
-                ${typeLabel(this._lang, ty)}</label>`)}
+                ${label}</label>`)}
             </div>
+            ${!choices.length ? html`<p class="hint">${this._tr("ce_no_types")}</p>` : nothing}
             <p class="hint">${this._tr("ce_types_hint")}</p>
             <div class="field"><label for="ce-area">${this._tr("ce_area")}</label>
               <input id="ce-area" type="text" .value=${c.filter?.area ?? ""} placeholder="bureau"
@@ -103,9 +181,16 @@ export class WeeklyPlannerCardEditor extends LitElement {
       <label class="check"><input type="checkbox" .checked=${c.show_chart !== false}
         @change=${(e: Event) => this._set("show_chart", (e.target as HTMLInputElement).checked)} /> ${this._tr("ce_show_chart")}</label>
     `;
+    const admin = Boolean(this.hass?.user?.is_admin && this._data?.can_edit && !this._data?.read_only);
+    return html`
+      ${admin ? html`<nav role="tablist" aria-label=${this._tr("settings")}>
+        <button role="tab" aria-selected=${this._section === "display"} @click=${() => { this._section = "display"; }}>${this._tr("ce_display")}</button>
+        <button role="tab" aria-selected=${this._section === "programs"} @click=${() => { this._section = "programs"; }}>${this._tr("ce_program_settings")}</button>
+      </nav>` : nothing}
+      <div role="tabpanel">${admin && this._section === "programs" ? this._settings() : display}</div>`;
   }
 
-  static styles = [editorStyles, css`:host { display: block; padding: 4px 0; }`];
+  static styles = [editorStyles, css`:host { display: block; padding: 4px 0; } h3 { margin: 12px 0; font-size: 16px; } .program-settings { padding-top: 4px; } nav { display: flex; border-bottom: 1px solid var(--divider-color); margin-bottom: 12px; } nav button { flex: 1; min-height: 48px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--secondary-text-color); cursor: pointer; } nav button[aria-selected="true"] { color: var(--primary-color); border-bottom-color: var(--primary-color); font-weight: 600; } .hint { line-height: 1.5; }`];
 }
 
 declare global {

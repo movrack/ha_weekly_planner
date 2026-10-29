@@ -66,7 +66,7 @@ title: Bureau
 show_chart: true
 ```
 
-Une liste filtrée de programmes (avec création de programme depuis la carte) :
+Une liste filtrée de programmes :
 
 ```yaml
 type: custom:weekly-planner-card
@@ -88,9 +88,12 @@ La carte est un planificateur, pas une télécommande : une ligne par appareil (
 prochaine action prévue et heure) avec sa barre du jour, la semaine et un bouton **Horaires**. L'écran des
 horaires liste les plages une par ligne (toucher pour modifier sur place : début, fin facultative, jours,
 étiquette), « Le reste du temps », le graphique du jour, un interrupteur de pause et une suppression confirmée.
-L'engrenage (administrateurs uniquement) ouvre les réglages du programme (nom, icône, priorité, conditions,
-« refaire l'action en cours au redémarrage », appareils, saisons) ; le bouton liste de l'en-tête ouvre l'écran
-**Étiquettes**.
+Les réglages des programmes (nom, icône, priorité, conditions, appareils, actions proposées et saisons)
+se trouvent dans l’éditeur de la carte : crayon du dashboard, puis modification de Weekly Planner.
+Ils sont partagés entre toutes les cartes : **Appliquer au programme** les enregistre immédiatement,
+indépendamment du bouton Enregistrer de Lovelace. Annuler la carte ne revient pas sur les réglages appliqués.
+La création et la duplication des programmes se font dans le même éditeur (administrateurs uniquement).
+Le bouton d’étiquettes dans l’en-tête ouvre les **Étiquettes**.
 
 <!-- screenshot: docs/images/card-overview.png — la carte -->
 <!-- screenshot: docs/images/card-chart.png — le graphique d'historique -->

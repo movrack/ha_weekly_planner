@@ -575,6 +575,12 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Version 0.7.3 (manifest, pyproject, package.json, lock), CHANGELOG
 
 ### 14.12 À faire
+- [x] Filtres de types entièrement dynamiques : domaines de toutes les entités des programmes, sans dépendre de leur disponibilité ; conserver les filtres déjà sélectionnés même sans programme correspondant. Noms traduits par HA, repli sur le domaine brut, tri par libellé. Aucune liste de types supportés ni filtre implicite thermostat pour une nouvelle carte.
+- [x] 0.8.0 : déplacer Général / Appareils / Saisons dans l’éditeur visuel Lovelace ; création, duplication et suppression depuis cet écran, retrait de l’engrenage des horaires.
+- [x] Réglages partagés appliqués explicitement, indépendamment du widget ; fusion sur données fraîches et une reprise sur conflit, sans perdre les horaires modifiés ailleurs.
+- [x] Sélecteur d’action compact : liste déroulante, description HA de l’action choisie visible et infobulle sur les options ; absence de description indiquée.
+- [x] Dans le formulaire d’horaire, toucher « Tous les jours » déjà sélectionné désélectionne les sept jours.
+- [x] Afficher les sept barres de semaine au-dessus des horaires, conservées pendant l’édition et mises à jour avec le brouillon.
 - [ ] Barres sur mobile : un simple toucher affiche 2 s « Restez appuyé pour modifier » (les 3 premières fois
       seulement, mémorisé par appareil), puis ouvre l'écran du jour comme aujourd'hui.
 

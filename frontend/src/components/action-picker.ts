@@ -6,7 +6,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { scenesOf } from "../labels";
 import { t } from "../i18n";
 import { ensureHaSelector } from "../planner";
-import { LIST_ATTRIBUTE, deviceOptions, loadServiceNames, serviceDomains, serviceFields, servicesFor, shortLabels, startData } from "../services";
+import { LIST_ATTRIBUTE, deviceOptions, loadServiceNames, serviceDomains, serviceFields, servicesFor, serviceDescription, startData } from "../services";
 import type { ServiceField } from "../services";
 import { editorStyles, langOf } from "../editors/shared";
 import type { Action, HomeAssistant } from "../types";
@@ -20,9 +20,6 @@ export class WpActionPicker extends LitElement {
   /** Services offered for the device (empty: all); the chosen one is always shown. */
   @property({ attribute: false }) allowed: string[] = [];
 
-  /** Services shown as chips before "More actions". */
-  private static readonly SHOWN = 8;
-  @state() private _more = false;
   @state() private _selector = Boolean(customElements.get("ha-selector"));
   private _loadedFor = "";
 
@@ -66,27 +63,28 @@ export class WpActionPicker extends LitElement {
     const lang = this._lang;
     const current = this.action?.kind === "service" ? this.action.service : "";
     const found = servicesFor(this.hass, this.entityId, this.allowed.length && current ? [...this.allowed, current] : this.allowed);
-    const short = shortLabels(found.map((s) => s.label));
-    const all = found.map((s, i) => ({ ...s, label: short[i] }));
-    const index = all.findIndex((s) => s.id === current);
-    const open = this._more || index >= WpActionPicker.SHOWN;
-    const shown = open ? all : all.slice(0, WpActionPicker.SHOWN);
     const data = (this.action?.kind === "service" ? this.action.data ?? {} : {}) as Record<string, unknown>;
     const fields = current ? serviceFields(this.hass, current, this.entityId) : [];
     const scenes = scenesOf(this.hass, this.entityId);
-    const chip = (label: string, on: boolean, click: () => void, icon?: string) => html`
-      <button class="chip ${on ? "on" : ""}" role="radio" aria-checked=${on} ?disabled=${this.disabled} @click=${click}>
-        ${icon ? html`<ha-icon icon=${icon}></ha-icon>` : nothing}<span>${label}</span></button>`;
+    const selected = this.action?.kind === "scene" ? this.action.scene : current;
+    const description = current ? serviceDescription(this.hass, current) || t(lang, "action_no_description")
+      : this.action?.kind === "scene" ? t(lang, "action_scene_description") : "";
     return html`
-      <div class="chips" role="radiogroup" aria-label=${t(lang, "action")}>
-        ${shown.map((s) => chip(s.label, s.id === current, () =>
-          this._emit({ kind: "service", service: s.id, data: startData(this.hass, s.id, this.entityId) })))}
-        ${!open && all.length > WpActionPicker.SHOWN
-          ? html`<button class="chip add" ?disabled=${this.disabled} @click=${() => (this._more = true)}>${t(lang, "more_actions")}</button>` : nothing}
-        ${scenes.map((s) => chip(String(s.attributes.friendly_name ?? s.entity_id),
-          this.action?.kind === "scene" && this.action.scene === s.entity_id,
-          () => this._emit({ kind: "scene", scene: s.entity_id }), "mdi:palette-outline"))}
-      </div>
+      <label class="action-label" for="action">${t(lang, "action")}</label>
+      <select id="action" .value=${selected || ""} aria-describedby="action-description" ?disabled=${this.disabled}
+        @change=${(e: Event) => {
+          const id = (e.target as HTMLSelectElement).value;
+          if (!id) return;
+          if (id.startsWith("scene.")) this._emit({ kind: "scene", scene: id });
+          else this._emit({ kind: "service", service: id, data: startData(this.hass, id, this.entityId) });
+        }}>
+        <option value="" disabled ?selected=${!selected}>${t(lang, "action_choose")}</option>
+        ${found.map((s) => html`<option value=${s.id} ?selected=${s.id === current}
+          title=${serviceDescription(this.hass, s.id) || t(lang, "action_no_description")}>${s.label}</option>`)}
+        ${scenes.map((s) => html`<option value=${s.entity_id} ?selected=${s.entity_id === selected}
+          title=${t(lang, "action_scene_description")}>${String(s.attributes.friendly_name ?? s.entity_id)}</option>`)}
+      </select>
+      <p id="action-description" class="description" aria-live="polite">${description}</p>
       ${fields.map((f) => this._selector
         ? html`<ha-selector class="fld" .hass=${this.hass} .selector=${this._selectorOf(f)} .context=${this._context(f)} .value=${data[f.key]} .label=${f.label}
             .required=${f.required} ?disabled=${this.disabled}
@@ -97,16 +95,12 @@ export class WpActionPicker extends LitElement {
 
   static styles = [editorStyles, css`
     :host { display: block; }
-    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-    .chip {
-      display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 16px; border-radius: 24px;
-      border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); font: inherit; font-size: 15px;
-      cursor: pointer; --mdc-icon-size: 20px; max-width: 100%;
-    }
-    .chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .chip.on { background: var(--primary-color); border-color: var(--primary-color); color: var(--text-primary-color, #fff); font-weight: 600; }
-    .chip:disabled { opacity: 0.5; cursor: default; }
-    .chip.add { border-style: dashed; color: var(--primary-color); }
+    .action-label { display: block; margin-bottom: 6px; font-size: 14px; }
+    select { width: 100%; min-width: 0; min-height: 48px; padding: 10px 12px; box-sizing: border-box;
+      font: inherit; color: var(--primary-text-color); background: var(--secondary-background-color);
+      border: 1px solid var(--divider-color); border-radius: 12px; }
+    .description { margin: 8px 0; color: var(--secondary-text-color); font-size: 14px;
+      line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
     .fld { display: block; margin-top: 8px; }
   `];
 }
