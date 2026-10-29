@@ -209,3 +209,14 @@ complète est dans [docs/SPEC.md](docs/SPEC.md) ; le contrôle visuel manuel dan
 ## Licence
 
 [MIT](LICENSE)
+
+### Guides complémentaires
+
+- [Seasons: settings and activation](docs/SEASONS.md)
+- [Native presets, favorites and automation windows](docs/GENERIC_ACTIONS.md)
+- [Configuration usability review](docs/MAMY_REVIEW.md)
+
+Dans l’éditeur de carte, **Vue des horaires** propose les barres, la liste compacte
+ou un cadran 24 heures pour un programme. Le cadran ouvre les horaires pour modifier ;
+ses arcs ne sont pas déplaçables. Le titre d’une modale agrandit celle-ci sur ordinateur.
+Les guides ci-dessus sont en anglais.

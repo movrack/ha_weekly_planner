@@ -201,3 +201,13 @@ Use `npm run watch` for rebuilds and `npm run typecheck` for type checks. The fu
 ## License
 
 [MIT](LICENSE)
+
+### Additional guides
+
+- [Seasons: settings and activation](docs/SEASONS.md)
+- [Native presets, favorites and automation windows](docs/GENERIC_ACTIONS.md)
+- [Configuration usability review](docs/MAMY_REVIEW.md)
+
+In the card editor, **Schedule view** offers bars, a compact list, or a 24-hour dial
+for one program. The dial opens schedules for editing; arcs are not draggable.
+Click a dialog title to expand it on desktop.

@@ -6,6 +6,8 @@ import { keyed } from "lit/directives/keyed.js";
 import { customElement, property, state } from "lit/decorators.js";
 import "./components/bar-editor";
 import "./components/day-bar";
+import "./components/radial-day";
+import { confirmAction } from "./components/confirm";
 import { sunDir } from "./components/day-bar";
 import "./components/dialog";
 import "./components/labels-dialog";
@@ -26,12 +28,6 @@ type Dialog =
   | { kind: "schedule"; scope: Scope; day?: { weekday: number; offset: number } }
   | { kind: "labels" }
   | null;
-
-const ICONS: Record<string, string> = {
-  climate: "mdi:thermostat", cover: "mdi:window-shutter", light: "mdi:lightbulb",
-  switch: "mdi:power-plug", input_boolean: "mdi:toggle-switch", fan: "mdi:fan", vacuum: "mdi:robot-vacuum",
-  water_heater: "mdi:water-boiler", media_player: "mdi:play-box", lock: "mdi:lock", button: "mdi:gesture-tap-button",
-};
 
 @customElement("weekly-planner-card")
 export class WeeklyPlannerCard extends LitElement {
@@ -63,6 +59,7 @@ export class WeeklyPlannerCard extends LitElement {
 
   setConfig(config: CardConfig): void {
     this._config = { show_chart: true, ...config };
+    if (this._data) void this._loadPreviews();
   }
 
   getCardSize(): number {
@@ -232,6 +229,24 @@ export class WeeklyPlannerCard extends LitElement {
     this._dialog = { kind: "schedule", scope, day };
   }
 
+  private async _toggleProgram(program: Program): Promise<void> {
+    const enabled = !program.enabled;
+    if (!enabled && !(await confirmAction(this, t(this._lang, "confirm_pause", { name: program.name }), t(this._lang, "yes"), t(this._lang, "no")))) return;
+    try {
+      await this.hass.callWS({ type: "weekly_planner/program/set_enabled", program_id: program.id, enabled });
+    } catch (err) {
+      this._error = String((err as { message?: string }).message ?? err);
+    }
+  }
+
+  private _programToggle(program: Program) {
+    return html`<button class="hours" role="switch" aria-checked=${program.enabled}
+      aria-label=${`${program.name}: ${t(this._lang, program.enabled ? "running" : "stopped")}`}
+      ?disabled=${this._data?.read_only}
+      @click=${() => void this._toggleProgram(program)}>
+      <ha-icon icon=${program.enabled ? "mdi:toggle-switch" : "mdi:toggle-switch-off-outline"}></ha-icon></button>`;
+  }
+
   /* ---- render ---- */
 
   /** A bar that can be edited in place: today's (`kind` "today") or one of the week's. */
@@ -257,7 +272,7 @@ export class WeeklyPlannerCard extends LitElement {
     const nextLabel = labelOf(data, next?.label);
     const paused = programs.length > 0 && programs.every((p) => !p.enabled);
     const stateObj = this.hass.states[entityId];
-    const icon = opts.icon ?? stateObj?.attributes.icon ?? ICONS[entityDomain(entityId)] ?? "mdi:calendar-clock";
+    const icon = opts.icon ?? stateObj?.attributes.icon ?? "mdi:calendar-clock";
     const open = () => this._open(opts.open);
     return html`
       <div class="block">
@@ -271,13 +286,18 @@ export class WeeklyPlannerCard extends LitElement {
                 <span class="when nw">${nb(formatWhen(next.at, this._tz, lang, this._now))}</span></span>` : nothing}
             </span>
           </div>
+          ${programs.length === 1 && opts.button ? this._programToggle(programs[0]) : nothing}
           ${paused ? html`<ha-icon class="pause" icon="mdi:pause-circle-outline" title=${t(lang, "paused")}></ha-icon>` : nothing}
           ${opts.button ? html`<button class="hours" aria-label=${t(lang, "hours")} title=${t(lang, "hours")} @click=${open}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>` : nothing}
         </div>
-        <div class="today">
+        ${this._config.schedule_view === "radial" && this._config.program ? html`<wp-radial-day
+          .spans=${this._spans(entityId, programs)} .now=${localMinutes(this._now, this._tz)} lang=${lang}
+          .rest=${labelOf(data, programs[0].entities.find((e) => e.entity_id === entityId)?.default_label)?.name ?? t(lang, "rest_none")}
+          .restColor=${labelOf(data, programs[0].entities.find((e) => e.entity_id === entityId)?.default_label)?.color ?? "var(--divider-color)"}
+          @open-day=${open}></wp-radial-day>` : html`<div class="today">
           <span class="wname">${t(lang, "today_short")}</span>
           ${this._bar(entityId, programs[0], 0, "today", open)}
-        </div>
+        </div>`}
         ${this._weekRows(`${scopeKey(opts.open)}|${entityId}`, entityId, programs, opts.open)}
       </div>`;
   }
@@ -322,11 +342,25 @@ export class WeeklyPlannerCard extends LitElement {
         <div class="phead">
           <ha-icon icon=${p.icon ?? "mdi:calendar-clock"}></ha-icon>
           <h2>${p.name}</h2>
+          ${this._programToggle(p)}
           ${p.enabled ? nothing : html`<ha-icon class="pause" icon="mdi:pause-circle-outline" title=${t(lang, "paused")}></ha-icon>`}
           <button class="hours" aria-label=${t(lang, "hours")} title=${t(lang, "hours")} @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
         </div>
         ${p.entities.map((e) => this._line(e.entity_id, [p], { name: friendlyName(this.hass, e.entity_id), button: null, open: scope }))}
       </section>`;
+    });
+  }
+
+  private _compactList(programs: Program[]) {
+    return programs.map((p) => {
+      const scope: Scope = { kind: "program", programId: p.id };
+      const next = p.entities.map((e) => ({ entity: e.entity_id, next: this._next(e.entity_id, [p]) }))
+        .filter((item) => item.next).sort((a, b) => Date.parse(a.next!.at) - Date.parse(b.next!.at));
+      return html`<div class="compact-row">
+        <ha-icon icon=${p.icon ?? "mdi:calendar-clock"}></ha-icon>
+        <button class="summary" @click=${() => this._open(scope)}><strong>${p.name}</strong>
+          ${next.length ? html`<span>${labelOf(this._data!, next[0].next!.label)?.name ?? actionText(this.hass, this._lang, next[0].next!.action)} · ${nb(formatWhen(next[0].next!.at, this._tz, this._lang, this._now))}</span>` : html`<span>${t(this._lang, p.enabled ? "hours" : "stopped")}</span>`}
+        </button>${this._programToggle(p)}</div>`;
     });
   }
 
@@ -336,14 +370,15 @@ export class WeeklyPlannerCard extends LitElement {
     const data = this._data;
     const programs = data ? filterPrograms(data, this._config) : [];
     const admin = Boolean(data) && Boolean(this.hass.user?.is_admin) && Boolean(data?.can_edit);
+    const globalLabels = admin && this._config.program === undefined;
     const showTitle = this._config.title !== undefined && this._config.title !== "";
     return html`
       <ha-card>
-        ${showTitle || admin || data?.vacation
+        ${showTitle || globalLabels || data?.vacation
           ? html`<div class="head">
               <h1>${this._config.title ?? ""}</h1>
               ${data?.vacation ? html`<span class="chip"><ha-icon icon="mdi:bag-suitcase"></ha-icon> ${t(lang, "vacation")}</span>` : nothing}
-              ${admin ? html`<button class="gear" aria-label=${t(lang, "labels")} @click=${() => (this._dialog = { kind: "labels" })}>
+              ${globalLabels ? html`<button class="gear" aria-label=${t(lang, "labels")} @click=${() => (this._dialog = { kind: "labels" })}>
                 <ha-icon icon="mdi:label-multiple-outline"></ha-icon></button>` : nothing}
             </div>`
           : nothing}
@@ -351,7 +386,7 @@ export class WeeklyPlannerCard extends LitElement {
         ${data?.read_only ? html`<div class="error">${t(lang, "read_only")}</div>` : nothing}
         ${!data ? html`<div class="empty">…</div>` : nothing}
         ${data && !programs.length ? html`<div class="empty">${t(lang, "no_program")}</div>` : nothing}
-        ${data ? this._bySchedule(programs) : nothing}
+        ${data ? this._config.schedule_view === "list" ? this._compactList(programs) : this._bySchedule(programs) : nothing}
       </ha-card>
       ${this._snack ? html`<div class="snack" role="status"><span>${t(lang, "edited")} ·</span>
         <button @click=${() => void this._undo()}>${t(lang, "undo")}</button></div>` : nothing}
@@ -372,6 +407,11 @@ export class WeeklyPlannerCard extends LitElement {
   }
 
   static styles = css`
+    .compact-row { display: flex; align-items: center; gap: 10px; min-height: 72px; border-top: 1px solid var(--divider-color); }
+    .compact-row:first-of-type { border-top: 0; }
+    .summary { flex: 1; min-width: 0; min-height: 56px; display: flex; flex-direction: column; justify-content: center; gap: 4px; text-align: left; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
+    .summary span { font-size: 14px; color: var(--secondary-text-color); overflow-wrap: anywhere; }
+    button:disabled { opacity: .5; cursor: default; }
     ha-card { padding: 8px 16px 12px; }
     .head { display: flex; align-items: center; gap: 8px; min-height: 48px; }
     h1 { flex: 1; min-width: 0; margin: 0; font-size: 20px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

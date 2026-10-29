@@ -3,6 +3,7 @@
 
 import { LitElement, css, html, nothing, unsafeCSS } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { defaultEntityIcon } from "../icons";
 import { mergeProgramSettings } from "../program-settings";
 import { keyed } from "lit/directives/keyed.js";
 import "../components/dialog";
@@ -32,6 +33,7 @@ export class WpProgramEditor extends LitElement {
   @property({ attribute: false }) program?: Program;
   @property({ type: Boolean }) embedded = false;
   private _origin?: Program;
+  private _iconCustomized = false;
   @state() private _applied = false;
   @property({ attribute: false }) defaultTypes: string[] = [];
 
@@ -75,6 +77,7 @@ export class WpProgramEditor extends LitElement {
       };
       this._isNew = true;
     }
+    this._iconCustomized = Boolean(this.program?.icon && this.program.icon !== this._deviceIcon(this.program.entities[0]?.entity_id));
     this._profileId = this._activeId();
     this._tab = "general";
   }
@@ -89,10 +92,28 @@ export class WpProgramEditor extends LitElement {
     return this._p.profiles.find((x) => x.id === this._profileId) ?? this._p.profiles[0];
   }
 
+  private _deviceIcon(entityId?: string): string {
+    const icon: unknown = entityId ? this.hass.states[entityId]?.attributes.icon : undefined;
+    return typeof icon === "string" && icon.startsWith("mdi:") ? icon : "mdi:calendar-clock";
+  }
+
+  private _setIcon(icon: string | null): void {
+    this._iconCustomized = Boolean(icon);
+    this._patch({ icon: icon || this._deviceIcon(this._p.entities[0]?.entity_id) });
+  }
+
   private _patch(patch: Partial<Program>): void {
+    if (patch.entities && !this._iconCustomized) patch = { ...patch, icon: this._deviceIcon(patch.entities[0]?.entity_id) };
     this._p = { ...this._p, ...patch };
     this._error = "";
     this._applied = false;
+    if (patch.entities && !this._iconCustomized && patch.entities[0]) {
+      const entityId = patch.entities[0].entity_id;
+      void defaultEntityIcon(this.hass, entityId).then((icon) => {
+        if (!this.isConnected || this._iconCustomized || this._p.entities[0]?.entity_id !== entityId) return;
+        this._patch({ icon });
+      });
+    }
   }
 
   private _canEdit(): boolean {
@@ -284,20 +305,23 @@ export class WpProgramEditor extends LitElement {
       <div class="field"><label for="f-name">${this._tr("pe_name")}</label>
         <input id="f-name" type="text" maxlength="60" .value=${p.name}
           @input=${(e: Event) => this._patch({ name: (e.target as HTMLInputElement).value })} /></div>
+      <h3>${this._tr("tab_entities")}</h3>
+      ${this._renderEntities(true)}
       <div class="row">
         <div class="field"><label for="f-icon">${this._tr("pe_icon")}</label>
           ${this._picker
             ? html`<ha-selector id="f-icon" .hass=${this.hass} .selector=${{ icon: {} }} .value=${p.icon ?? ""}
-                @value-changed=${(e: CustomEvent<{ value?: string }>) => this._patch({ icon: e.detail.value || null })}></ha-selector>`
+                @value-changed=${(e: CustomEvent<{ value?: string }>) => this._setIcon(e.detail.value || null)}></ha-selector>`
             : html`<div class="row" style="flex-wrap:nowrap">
                 ${p.icon && customElements.get("ha-icon") ? html`<ha-icon .icon=${p.icon}></ha-icon>` : nothing}
                 <input id="f-icon" type="text" placeholder="mdi:thermometer" .value=${p.icon ?? ""}
-                  @input=${(e: Event) => this._patch({ icon: (e.target as HTMLInputElement).value.trim() || null })} />
+                  @input=${(e: Event) => this._setIcon((e.target as HTMLInputElement).value.trim() || null)} />
               </div>`}</div>
         <div class="field" style="flex:0 1 140px"><label for="f-prio">${this._tr("pe_priority")}</label>
           <input id="f-prio" type="number" min="1" max="100" step="1" .value=${String(p.priority)}
             @change=${(e: Event) => this._patch({ priority: Math.max(1, Math.min(100, Math.round(Number((e.target as HTMLInputElement).value) || 10))) })} /></div>
       </div>
+      <p class="hint">${this._tr("pe_icon_hint")}</p>
       <p class="hint">${this._tr("pe_priority_hint")}</p>
       <label class="check"><input type="checkbox" .checked=${p.reapply}
         @change=${(e: Event) => this._patch({ reapply: (e.target as HTMLInputElement).checked })} /> ${this._tr("pe_reapply")}</label>
@@ -315,11 +339,11 @@ export class WpProgramEditor extends LitElement {
     trackScrollHints(this.renderRoot.querySelector<HTMLElement>(".tabs"));
   }
 
-  private _renderEntities() {
+  private _renderEntities(compact = false) {
     const p = this._p;
     return html`
       ${p.entities.length === 0 ? html`<p class="muted">${this._tr("pe_no_entity")}</p>` : nothing}
-      ${p.entities.map((e, i) => this._renderEntity(e, i))}
+      ${p.entities.map((e, i) => this._renderEntity(e, i, compact))}
       ${keyed(this._pickerKey, this._picker
         ? html`<ha-selector .hass=${this.hass} .selector=${{ entity: { exclude_entities: p.entities.map((x) => x.entity_id) } }}
             .label=${this._tr("pe_add_entity")} .value=${""}
@@ -352,8 +376,12 @@ export class WpProgramEditor extends LitElement {
         ?disabled=${on(s.id) && count === 1} @change=${(ev: Event) => toggle(s.id, (ev.target as HTMLInputElement).checked)} /> ${s.label}</label>`)}</div>` : nothing}`;
   }
 
-  private _renderEntity(e: ProgramEntity, index: number) {
-    void loadServiceNames(this.hass, serviceDomains(this.hass, e.entity_id)).then((ok) => ok && this.requestUpdate());
+  private _renderEntity(e: ProgramEntity, index: number, compact = false) {
+    if (!compact) void loadServiceNames(this.hass, serviceDomains(this.hass, e.entity_id)).then((ok) => ok && this.requestUpdate());
+    const otherPrograms = this.data.programs
+      .filter((program) => program.id !== this._p.id && program.entities.some((entity) => entity.entity_id === e.entity_id))
+      .sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name))
+      .map((program) => this._tr("pe_program_priority", { name: program.name, priority: String(program.priority) }));
     return html`
       <div class="card">
         <div class="row" style="flex-wrap:nowrap">
@@ -362,7 +390,8 @@ export class WpProgramEditor extends LitElement {
           <button class="ibtn" aria-label=${`${this._tr("delete")} ${displayName(this.hass, e.entity_id)}`}
             @click=${() => void this._askDeleteEntity(index)}><ha-icon icon="mdi:delete"></ha-icon></button>
         </div>
-        ${this._renderServices(e, index)}
+        ${otherPrograms.length ? html`<p class="hint" role="status">${this._tr("pe_other_programs", { programs: otherPrograms.join(", ") })}</p>` : nothing}
+        ${compact ? nothing : this._renderServices(e, index)}
       </div>`;
   }
 
@@ -372,6 +401,7 @@ export class WpProgramEditor extends LitElement {
     const active = this._activeId();
     const form = this._profileForm;
     return html`
+      <p class="hint">${this._tr("profile_explanation")}</p>
       <div class="row profile-bar">
         <div class="field" style="flex:1 1 160px"><label for="f-profile">${this._tr("profile")}</label>
           <select id="f-profile" @change=${(e: Event) => { this._profileId = (e.target as HTMLSelectElement).value; }}>

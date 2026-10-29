@@ -77,3 +77,22 @@ describe("fields shown for a device", () => {
     expect(missingFields(h, "climate.set_temperature", { temperature: 18 }, "climate.t")).toHaveLength(0);
   });
 });
+
+
+describe("generic native actions", () => {
+  it("discovers automation enable/disable and a favorite button without a device catalogue", () => {
+    const h = { states: {}, services: {
+      automation: { turn_on: { target: { entity: { domain: "automation" } } }, turn_off: { target: { entity: { domain: "automation" } } } },
+      button: { press: { target: { entity: { domain: "button" } } } },
+      custom_device: { favorite: { target: { entity: { domain: "custom_device" } } } },
+    } } as unknown as HomeAssistant;
+    expect(servicesFor(h, "automation.presence").map((s) => s.id).sort()).toEqual(["automation.turn_off", "automation.turn_on"]);
+    expect(servicesFor(h, "button.favorite").map((s) => s.id)).toEqual(["button.press"]);
+    expect(servicesFor(h, "custom_device.test").map((s) => s.id)).toEqual(["custom_device.favorite"]);
+  });
+  it("preserves arbitrary presets advertised by the entity", () => {
+    const h = { states: { "climate.t": { attributes: { preset_modes: ["eco", "boost", "frost", "comfort", "custom"] } } } } as unknown as HomeAssistant;
+    expect(deviceOptions(h, "climate.t", { key: "preset_mode", required: true, label: "Preset", selector: { select: {} } })?.map((v) => v.value))
+      .toEqual(["eco", "boost", "frost", "comfort", "custom"]);
+  });
+});

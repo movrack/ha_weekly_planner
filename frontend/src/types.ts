@@ -127,6 +127,7 @@ export interface CardConfig {
   title?: string;
   program?: string;
   filter?: { types?: string[]; area?: string };
+  schedule_view?: "bars" | "radial" | "list";
   show_week?: boolean;
   show_chart?: boolean;
   show_advanced?: boolean;

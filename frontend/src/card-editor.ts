@@ -90,9 +90,11 @@ export class WeeklyPlannerCardEditor extends LitElement {
       ${!this._isProgram ? html`<div class="field"><label for="ce-settings-program">${this._tr("ce_program")}</label>
         <select id="ce-settings-program" .value=${selected} @change=${(e: Event) => { this._editing = (e.target as HTMLSelectElement).value; }}>
           <option value="" ?selected=${!selected}>${this._tr("ce_choose_program")}</option>
+          <hr />
+          <option value="new" ?selected=${selected === "new"}>${this._tr("new_program")}</option>
+          <hr />
           ${programs.map((p) => html`<option value=${p.id} ?selected=${selected === p.id}>${p.name}</option>`)}
           ${program && !programs.some((p) => p.id === program.id) ? html`<option value=${program.id} selected>${program.name}</option>` : nothing}
-          <option value="new" ?selected=${selected === "new"}>${this._tr("new_program")}</option>
         </select>
       </div>` : html`<button class="btn" @click=${() => { this._editing = selected === "new" ? null : "new"; }}>
         ${this._tr(selected === "new" ? "ce_back_program" : "new_program")}</button>`}
@@ -178,6 +180,12 @@ export class WeeklyPlannerCardEditor extends LitElement {
               <input id="ce-area" type="text" .value=${c.filter?.area ?? ""} placeholder="bureau"
                 @input=${(e: Event) => this._setFilter({ area: (e.target as HTMLInputElement).value.trim() })} /></div>`}
 
+      <div class="field"><label for="ce-view">${this._tr("ce_schedule_view")}</label>
+        <select id="ce-view" .value=${c.schedule_view ?? "bars"} @change=${(e: Event) => this._set("schedule_view", (e.target as HTMLSelectElement).value)}>
+          <option value="bars">${this._tr("ce_bars")}</option>
+          ${this._isProgram ? html`<option value="radial">${this._tr("ce_radial")}</option>` : nothing}
+          <option value="list">${this._tr("ce_list")}</option>
+        </select></div>
       <label class="check"><input type="checkbox" .checked=${c.show_chart !== false}
         @change=${(e: Event) => this._set("show_chart", (e.target as HTMLInputElement).checked)} /> ${this._tr("ce_show_chart")}</label>
     `;

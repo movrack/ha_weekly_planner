@@ -1,6 +1,15 @@
 // User-facing texts (fr / en). Keys are short and stable.
 
 const en = {
+  pe_other_programs: "Also used by: {programs}. Lower priority numbers take precedence.",
+  pe_program_priority: "{name} (priority {priority})",
+  profile_explanation: "A season stores a different weekly schedule. This list selects the season to edit. Activate it with the program’s Profile entity in Home Assistant; seasons do not follow calendar dates automatically.",
+  pe_icon_hint: "Uses the first device’s icon unless you choose another.",
+  ce_schedule_view: "Schedule view",
+  ce_bars: "Bars",
+  ce_radial: "24-hour dial",
+  ce_list: "Compact list",
+
   ce_back_program: "Back to selected program",
   ce_display: "Card appearance",
   ce_program_settings: "Program settings",
@@ -189,6 +198,15 @@ const en = {
 };
 
 const fr: typeof en = {
+  pe_other_programs: "Déjà utilisé par : {programs}. Le plus petit numéro de priorité l’emporte.",
+  pe_program_priority: "{name} (priorité {priority})",
+  profile_explanation: "Une saison contient une autre semaine d’horaires. Cette liste choisit la saison à modifier. Activez-la avec l’entité Profil du programme dans Home Assistant ; les saisons ne suivent pas les dates automatiquement.",
+  pe_icon_hint: "L’icône du premier appareil est utilisée, sauf si vous en choisissez une autre.",
+  ce_schedule_view: "Vue des horaires",
+  ce_bars: "Barres",
+  ce_radial: "Cadran 24 heures",
+  ce_list: "Liste compacte",
+
   ce_back_program: "Revenir au programme sélectionné",
   ce_display: "Affichage de la carte",
   ce_program_settings: "Réglages des programmes",
