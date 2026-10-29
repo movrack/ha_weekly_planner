@@ -30,7 +30,7 @@ Si besoin tu peux utiliser la skill grill-me, mais avant de l'utiliser termine t
 
 
 
-- [ ] deploie la version après les modifs demandée ci dessus
+- [x] deploie la version après les modifs demandée ci dessus
 
 ## Résultats du 2026-10-29
 
@@ -43,3 +43,5 @@ Si besoin tu peux utiliser la skill grill-me, mais avant de l'utiliser termine t
 - Validation : 85 tests Python et 121 tests carte, TypeScript et build verts ; cadran/liste/formulaire contrôlés à 360 × 780, absence de débordement et d’erreur console.
 
 - Grand écran 1440 px : titre de modale 560 → 1400 px, aucun débordement ni erreur console. Revue finale : préserver les bascules des non-administrateurs lorsque la configuration est réservée aux admins.
+
+- Déploiement final : 0.9.0 (`6675a9b`), copie et `weekly_planner.reload` réussis ; pas de redémarrage HA nécessaire (aucune source Python modifiée).
