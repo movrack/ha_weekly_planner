@@ -45,3 +45,13 @@ Si besoin tu peux utiliser la skill grill-me, mais avant de l'utiliser termine t
 - Grand écran 1440 px : titre de modale 560 → 1400 px, aucun débordement ni erreur console. Revue finale : préserver les bascules des non-administrateurs lorsque la configuration est réservée aux admins.
 
 - Déploiement final : 0.9.0 (`6675a9b`), copie et `weekly_planner.reload` réussis ; pas de redémarrage HA nécessaire (aucune source Python modifiée).
+
+
+## Revue Mamy — correctif 0.9.1 (issue #4)
+
+- [x] Vérifier le choix du cadran ; le rendre repérable même en mode liste avec une indication vers Un programme.
+- [x] Préserver les brouillons entre programmes, modes de carte et onglets ; une sauvegarde en arrière-plan ne change pas la sélection.
+- [x] Distinguer saison active et saison à gérer ; ouvrir directement le vrai sélecteur HA pour l’activation.
+- [x] Libeller les actions de saison, un seul Appliquer pour le nom et le programme ; validation invalide sans écriture.
+- [x] Préciser la portée partagée près d’Appliquer, confirmer la mise à jour partout et signaler les modifications non appliquées.
+- [x] Navigation clavier, validation navigateur 360 × 780 clair / 1440 sombre, 85 tests Python et 121 tests carte, TypeScript et build.

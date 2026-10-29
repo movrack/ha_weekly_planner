@@ -3,7 +3,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "./editors/program-editor";
-import { keyed } from "lit/directives/keyed.js";
+import type { WpProgramEditor } from "./editors/program-editor";
 import { filterPrograms, subscribePlanner } from "./planner";
 import { domainChoices, programDomains, type DomainLocalize } from "./domains";
 import { t } from "./i18n";
@@ -19,6 +19,9 @@ export class WeeklyPlannerCardEditor extends LitElement {
   @state() private _data?: PlannerData;
   @state() private _section: "display" | "programs" = "display";
   @state() private _editing: string | null = null;
+  // Retain the editor itself, including its origin, pending name form and focused tab.
+  // Switching sections/programs must not discard an unapplied shared-settings draft.
+  private _editors = new Map<string, WpProgramEditor>();
   private _unsub?: () => void;
   private _domainLoadKey = "";
   private _domainLocalize?: DomainLocalize;
@@ -68,14 +71,43 @@ export class WeeklyPlannerCardEditor extends LitElement {
   private _saved(e: CustomEvent<Program>): void {
     e.stopPropagation();
     const program = e.detail;
+    const editor = e.currentTarget as WpProgramEditor;
+    const previous = [...this._editors].find(([, candidate]) => candidate === editor)?.[0];
+    const selected = this._editing ?? this._config.program ?? "";
+    const wasSelected = previous === selected;
+    if (previous !== undefined) {
+      this._editors.delete(previous);
+      this._editors.set(program.id, editor);
+    }
     if (this._data) this._data = { ...this._data, programs: [...this._data.programs.filter((p) => p.id !== program.id), program] };
     this._programs = this._data?.programs.map((p) => ({ id: p.id, name: p.name })) ?? [];
-    if (this._editing === "new" || (this._editing && this._editing !== program.id)) {
+    if (wasSelected && (selected === "new" || selected !== program.id)) {
       const config = { ...this._config, program: program.id };
       delete config.filter;
       this._emit(config);
     }
-    this._editing = program.id;
+    if (wasSelected) this._editing = program.id;
+  }
+
+  private _programEditor(selected: string, program?: Program) {
+    let editor = this._editors.get(selected);
+    if (!editor) {
+      editor = document.createElement("wp-program-editor") as WpProgramEditor;
+      editor.embedded = true;
+      editor.addEventListener("program-saved", (e) => this._saved(e as CustomEvent<Program>));
+      editor.addEventListener("program-deleted", (e) => {
+        e.stopPropagation();
+        const id = (e as CustomEvent<string>).detail;
+        this._editors.delete(id);
+        this._editing = "";
+        if (this._config.program === id) this._setMode(false);
+      });
+      this._editors.set(selected, editor);
+    }
+    editor.hass = this.hass!;
+    editor.data = this._data!;
+    editor.program = program;
+    return editor;
   }
 
   private _settings() {
@@ -86,7 +118,6 @@ export class WeeklyPlannerCardEditor extends LitElement {
     const program = data.programs.find((p) => p.id === selected);
     return html`<section class="program-settings">
       <h3>${this._tr("ce_program_settings")}</h3>
-      <p class="hint">${this._tr("ce_shared_settings")}</p>
       ${!this._isProgram ? html`<div class="field"><label for="ce-settings-program">${this._tr("ce_program")}</label>
         <select id="ce-settings-program" .value=${selected} @change=${(e: Event) => { this._editing = (e.target as HTMLSelectElement).value; }}>
           <option value="" ?selected=${!selected}>${this._tr("ce_choose_program")}</option>
@@ -98,13 +129,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
         </select>
       </div>` : html`<button class="btn" @click=${() => { this._editing = selected === "new" ? null : "new"; }}>
         ${this._tr(selected === "new" ? "ce_back_program" : "new_program")}</button>`}
-      ${selected === "new" || program ? keyed(selected, html`<wp-program-editor embedded .hass=${this.hass} .data=${data} .program=${program}
-        @program-saved=${(e: CustomEvent<Program>) => this._saved(e)}
-        @program-deleted=${(e: CustomEvent<string>) => {
-          e.stopPropagation();
-          this._editing = "";
-          if (this._config.program === e.detail) this._setMode(false);
-        }}></wp-program-editor>`) : nothing}
+      ${selected === "new" || program ? this._programEditor(selected, program) : nothing}
     </section>`;
   }
 
@@ -132,6 +157,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
       delete next.filter;
       next.program = this._programs[0]?.id ?? "";
     } else {
+      if (next.schedule_view === "radial") delete next.schedule_view;
       delete next.program;
       next.filter = { types: next.filter?.types ?? [] };
     }
@@ -145,6 +171,13 @@ export class WeeklyPlannerCardEditor extends LitElement {
     const next = { ...this._config, filter } as CardConfig;
     this._emit(next);
   }
+
+  private _tabKey = (event: KeyboardEvent): void => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    this._section = event.key === "Home" ? "display" : event.key === "End" ? "programs" : this._section === "display" ? "programs" : "display";
+    void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(`#ce-tab-${this._section}`)?.focus());
+  };
 
   render() {
     const c = this._config;
@@ -183,19 +216,20 @@ export class WeeklyPlannerCardEditor extends LitElement {
       <div class="field"><label for="ce-view">${this._tr("ce_schedule_view")}</label>
         <select id="ce-view" .value=${c.schedule_view ?? "bars"} @change=${(e: Event) => this._set("schedule_view", (e.target as HTMLSelectElement).value)}>
           <option value="bars">${this._tr("ce_bars")}</option>
-          ${this._isProgram ? html`<option value="radial">${this._tr("ce_radial")}</option>` : nothing}
+          <option value="radial" ?disabled=${!this._isProgram}>${this._tr("ce_radial")}</option>
           <option value="list">${this._tr("ce_list")}</option>
-        </select></div>
+        </select>
+        ${!this._isProgram ? html`<p class="hint">${this._tr("ce_radial_hint")}</p>` : nothing}</div>
       <label class="check"><input type="checkbox" .checked=${c.show_chart !== false}
         @change=${(e: Event) => this._set("show_chart", (e.target as HTMLInputElement).checked)} /> ${this._tr("ce_show_chart")}</label>
     `;
     const admin = Boolean(this.hass?.user?.is_admin && this._data?.can_edit && !this._data?.read_only);
     return html`
       ${admin ? html`<nav role="tablist" aria-label=${this._tr("settings")}>
-        <button role="tab" aria-selected=${this._section === "display"} @click=${() => { this._section = "display"; }}>${this._tr("ce_display")}</button>
-        <button role="tab" aria-selected=${this._section === "programs"} @click=${() => { this._section = "programs"; }}>${this._tr("ce_program_settings")}</button>
+        <button id="ce-tab-display" role="tab" aria-controls="ce-panel" tabindex=${this._section === "display" ? 0 : -1} @keydown=${this._tabKey} aria-selected=${this._section === "display"} @click=${() => { this._section = "display"; }}>${this._tr("ce_display")}</button>
+        <button id="ce-tab-programs" role="tab" aria-controls="ce-panel" tabindex=${this._section === "programs" ? 0 : -1} @keydown=${this._tabKey} aria-selected=${this._section === "programs"} @click=${() => { this._section = "programs"; }}>${this._tr("ce_program_settings")}</button>
       </nav>` : nothing}
-      <div role="tabpanel">${admin && this._section === "programs" ? this._settings() : display}</div>`;
+      <div id="ce-panel" role="tabpanel" aria-labelledby=${admin ? `ce-tab-${this._section}` : nothing}>${admin && this._section === "programs" ? this._settings() : display}</div>`;
   }
 
   static styles = [editorStyles, css`:host { display: block; padding: 4px 0; } h3 { margin: 12px 0; font-size: 16px; } .program-settings { padding-top: 4px; } nav { display: flex; border-bottom: 1px solid var(--divider-color); margin-bottom: 12px; } nav button { flex: 1; min-height: 48px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--secondary-text-color); cursor: pointer; } nav button[aria-selected="true"] { color: var(--primary-color); border-bottom-color: var(--primary-color); font-weight: 600; } .hint { line-height: 1.5; }`];

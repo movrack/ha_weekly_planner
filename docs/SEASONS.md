@@ -37,8 +37,8 @@ explicitly.
 2. Open **Program settings** and choose the program.
 3. Open **Seasons**.
 4. Add a season, or copy an existing season and give it a distinct name.
-5. Confirm the small season form, then choose **Apply to program** to persist the
-   program settings.
+5. Enter the season name and choose **Apply to program**. This validates the name
+   and persists the program settings in one action.
 
 Names must be nonempty, unique within the program, and at most 40 characters long.
 The active season cannot be deleted; activate another season first. Removing a
@@ -78,9 +78,10 @@ Replace both the example entity ID and `Winter` with the exact values from your
 installation. Automations refer to the visible season name: update them if you
 rename that season.
 
-There is currently no activation selector inside Weekly Planner's own schedule
-screen. Its season settings selector is for management only. Home Assistant's
-select entity is the supported activation path; there is no dedicated
+In program settings, **Seasons → Change active season** opens this Home Assistant
+selector directly. Apply any pending season changes first. The **Season to manage**
+list is only for management. There is currently no activation selector inside the
+schedule screen. Home Assistant's select entity is the supported activation path; there is no dedicated
 `weekly_planner.set_profile` action.
 
 ## What happens when you activate another season

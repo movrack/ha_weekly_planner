@@ -71,3 +71,18 @@ does not substitute for browser verification.
 - `frontend/src/components/schedule-dialog.ts`: active-season schedule editing.
 - `frontend/src/weekly-planner-card.ts`: dashboard entry points.
 - `custom_components/weekly_planner/select.py`: actual season activation.
+
+## Follow-up fixes in 0.9.1
+
+- Program editors are retained for the lifetime of the Lovelace editor. Switching programs, card content modes or appearance/settings tabs preserves unapplied fields and pending season-name forms. Closing the outer editor still discards unapplied drafts. Applied shared settings remain saved.
+- Background save responses update their own editor and do not switch the currently selected program.
+- The radial option stays visible in list mode, with a short instruction to select One program.
+- Seasons show the saved active season separately from Season to manage. Change active season opens the real HA profile entity using registry metadata; unsaved season changes must be applied first.
+- Add, rename, copy and delete have visible labels. The main Apply validates the pending name and saves once; an invalid name does not write anything. A secondary action only discards that pending name form.
+- The shared-save scope is stated next to Apply and success confirms the update on every card. Both editors support arrow, Home and End navigation between tabs.
+
+Remaining recommendations: replace the free-text area filter with a well-defined program-area choice and improve chart empty-state guidance. These are not claimed fixed by this patch.
+
+### Follow-up verification
+
+Validated against local Home Assistant on 2026-10-29: 360 × 780 light and 1440 px dark; no horizontal overflow or console errors. Browser scenarios verified editor identity, original merge base, unsaved name and pending season form after program/mode/tab switches; invalid names produced zero program writes. A background save kept the selected program unchanged. The active-season shortcut opened the actual HA profile more-info selector, without changing its value. Arrow-key navigation, unapplied-change status, and visible disabled radial choice with guidance were also checked. Python: 85 tests; card: 121 tests; TypeScript and production build pass.

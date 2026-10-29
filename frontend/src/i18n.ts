@@ -1,9 +1,20 @@
 // User-facing texts (fr / en). Keys are short and stable.
 
 const en = {
+  pe_unapplied: "Changes not applied yet",
+  ce_radial_hint: "For the 24-hour dial, select One program above.",
+  profile_manage: "Season to manage",
+  profile_current: "Active now: {name}",
+  profile_draft_hint: "Season changes are saved with Apply to program. Choosing a season here does not activate it.",
+  profile_discard_edit: "Discard name change",
+  pe_shared_save_hint: "Updates this program on every card. Cancelling the dashboard editor will not undo applied changes.",
+  profile_change_active: "Change active season",
+  profile_selector_missing: "The program’s Home Assistant season selector is unavailable.",
+  profile_apply_first: "Apply your season changes first.",
+
   pe_other_programs: "Also used by: {programs}. Lower priority numbers take precedence.",
   pe_program_priority: "{name} (priority {priority})",
-  profile_explanation: "A season stores a different weekly schedule. This list selects the season to edit. Activate it with the program’s Profile entity in Home Assistant; seasons do not follow calendar dates automatically.",
+  profile_explanation: "A season is another weekly schedule. Seasons do not change automatically with calendar dates.",
   pe_icon_hint: "Uses the first device’s icon unless you choose another.",
   ce_schedule_view: "Schedule view",
   ce_bars: "Bars",
@@ -16,7 +27,7 @@ const en = {
   ce_choose_program: "Choose a program…",
   ce_shared_settings: "These settings are shared by all cards. Apply them to the program separately; cancelling the card editor will not undo applied changes.",
   ce_apply_program: "Apply to program",
-  ce_program_applied: "Program settings applied.",
+  ce_program_applied: "Program updated on every card.",
   action_choose: "Choose an action…",
   action_no_description: "This integration provides no description for this action.",
   action_scene_description: "Activate this Home Assistant scene and apply its saved settings.",
@@ -198,9 +209,20 @@ const en = {
 };
 
 const fr: typeof en = {
+  pe_unapplied: "Modifications non appliquées",
+  ce_radial_hint: "Pour le cadran 24 heures, choisissez Un programme ci-dessus.",
+  profile_manage: "Saison à gérer",
+  profile_current: "Active actuellement : {name}",
+  profile_draft_hint: "Les changements de saison sont enregistrés avec Appliquer au programme. Choisir une saison ici ne l’active pas.",
+  profile_discard_edit: "Abandonner ce nom",
+  pe_shared_save_hint: "Met à jour ce programme sur toutes les cartes. Annuler l’éditeur du tableau de bord n’annule pas les changements appliqués.",
+  profile_change_active: "Changer de saison active",
+  profile_selector_missing: "Le sélecteur de saison Home Assistant de ce programme est indisponible.",
+  profile_apply_first: "Appliquez d’abord vos changements de saison.",
+
   pe_other_programs: "Déjà utilisé par : {programs}. Le plus petit numéro de priorité l’emporte.",
   pe_program_priority: "{name} (priorité {priority})",
-  profile_explanation: "Une saison contient une autre semaine d’horaires. Cette liste choisit la saison à modifier. Activez-la avec l’entité Profil du programme dans Home Assistant ; les saisons ne suivent pas les dates automatiquement.",
+  profile_explanation: "Une saison est une autre semaine d’horaires. Elle ne change pas automatiquement selon les dates.",
   pe_icon_hint: "L’icône du premier appareil est utilisée, sauf si vous en choisissez une autre.",
   ce_schedule_view: "Vue des horaires",
   ce_bars: "Barres",
@@ -213,7 +235,7 @@ const fr: typeof en = {
   ce_choose_program: "Choisir un programme…",
   ce_shared_settings: "Ces réglages sont partagés entre les cartes. Appliquez-les au programme séparément : annuler l’édition de la carte n’annule pas les changements déjà appliqués.",
   ce_apply_program: "Appliquer au programme",
-  ce_program_applied: "Réglages du programme appliqués.",
+  ce_program_applied: "Programme mis à jour sur toutes les cartes.",
   action_choose: "Choisir une action…",
   action_no_description: "Cette intégration ne fournit pas de description pour cette action.",
   action_scene_description: "Activer cette scène Home Assistant et appliquer ses réglages enregistrés.",
