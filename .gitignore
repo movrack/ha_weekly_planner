@@ -60,3 +60,6 @@ captures/
 
 # Integration brand images (HACS / Home Assistant)
 !custom_components/weekly_planner/brand/*.png
+
+# Versioned screenshots for the illustrated user guide
+!docs/images/guide/*.png
