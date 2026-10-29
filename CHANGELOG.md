@@ -11,6 +11,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Initial French illustrated user guide and visual atlas covering 36 screens and 13 supporting captures, with local demo provenance, current UI limitations and linked navigation from both READMEs.
 - Track the guide's screenshots under a narrow image-ignore exception and document the screen coverage inventory.
 
+## [0.16.1] - 2026-10-29
+
+### Fixed
+- Synchronize native selects after their dynamic options render: active mode, external-state associations and action-source attributes display their actual stored values without emitting edits. Preserve unavailable configured choices.
+- Clearly separate immediate mode activation from unapplied settings and explain its effect next to the control.
+- Mark additional device selection as optional, explain zero selected commands, and provide a direct schedule setup action after creating a program.
+- Collapse external-state associations into a counted section and keep one primary Apply/Create action reachable while scrolling, separate from destructive actions.
+
 ## [0.16.0] - 2026-10-29
 
 ### Added

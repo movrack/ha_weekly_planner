@@ -653,3 +653,5 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Modes unifiés, source externe générique avec associations, sélection manuelle, édition inactive isolée et nommage de la suspension globale clarifié ; données et identifiants existants conservés.
 
 - [x] Sélection des programmes affichés par carte dans une section repliable de l’éditeur Lovelace : `filter.programs` absent = tous (futurs compris), liste vide = aucun ; intersection avec type/zone, sans effet sur l’exécution.
+
+- [x] Revue Mamy 0.16.0 : valeurs natives synchronisées après options ; activation immédiate signalée ; ajout appareil supplémentaire facultatif ; aide zéro commande et bouton Définir les horaires après création ; associations repliables et action principale unique accessible pendant le défilement.
