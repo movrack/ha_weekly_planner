@@ -69,6 +69,7 @@ export class WpEntityPicker extends LitElement {
   @property({ attribute: false }) hass!: HomeAssistant;
   @property() value = "";
   @property() label = "";
+  @property({ type: Boolean }) disabled = false;
   @property({ attribute: false }) domains: string[] = [];
   @property({ attribute: false }) exclude: string[] = [];
   @property({ attribute: false }) filter?: (entityId: string) => boolean;
@@ -90,7 +91,7 @@ export class WpEntityPicker extends LitElement {
     if (customElements.get("ha-entity-picker")) {
       const filter = this.filter;
       return html`<ha-entity-picker
-        .hass=${this.hass} .value=${this.value} .label=${this.label}
+        .hass=${this.hass} .value=${this.value} .label=${this.label} .disabled=${this.disabled}
         .includeDomains=${this.domains.length ? this.domains : undefined}
         .excludeEntities=${this.exclude}
         .entityFilter=${filter ? (e: HassEntity) => filter(e.entity_id) : undefined}
@@ -103,7 +104,7 @@ export class WpEntityPicker extends LitElement {
     return html`
       <div class="field">
         ${this.label ? html`<label>${this.label}</label>` : nothing}
-        <input type="text" list=${this._listId} .value=${this.value} autocomplete="off"
+        <input type="text" ?disabled=${this.disabled} list=${this._listId} .value=${this.value} autocomplete="off"
           aria-label=${this.label || "entity"} placeholder="domain.entity"
           @change=${(ev: Event) => {
             const v = (ev.target as HTMLInputElement).value.trim();

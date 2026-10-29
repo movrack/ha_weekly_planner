@@ -99,7 +99,7 @@ function accepts(filters: EntityFilter | EntityFilter[] | undefined, entity: Has
   });
 }
 
-/** Services offered for an entity, sorted by their translated name; `allowed` (non empty) restricts them. */
+/** Services offered for an entity, sorted by their translated name; `allowed` restricts them (undefined: all, empty: none). */
 export function servicesFor(hass: HomeAssistant, entityId: string, allowed?: string[]): ServiceChoice[] {
   const domain = entityDomain(entityId);
   const entity = hass.states[entityId];
@@ -115,7 +115,7 @@ export function servicesFor(hass: HomeAssistant, entityId: string, allowed?: str
       const fields = Object.values(info.fields ?? {}) as { required?: boolean; selector?: Record<string, unknown> }[];
       if (fields.some((f) => f.required && (!f.selector || "text" in f.selector || "object" in f.selector))) continue;
       const id = `${d}.${service}`;
-      if (allowed?.length && !allowed.includes(id)) continue;
+      if (allowed !== undefined && !allowed.includes(id)) continue;
       out.push({ id, domain: d, service, label: serviceLabel(hass, id) });
     }
   }
@@ -212,10 +212,10 @@ export function startData(hass: HomeAssistant, id: string, entityId: string): Re
 
 /** Required fields still empty (labels of them), so a form does not save a call that must fail. */
 export function missingFields(
-  hass: HomeAssistant, id: string, data: Record<string, unknown> | undefined, entityId?: string,
+  hass: HomeAssistant, id: string, data: Record<string, unknown> | undefined, entityId?: string, sources?: Record<string, { entity_id: string }>,
 ): string[] {
   return serviceFields(hass, id, entityId)
-    .filter((f) => f.required && (data?.[f.key] === undefined || data[f.key] === "" || data[f.key] === null))
+    .filter((f) => sources?.[f.key] ? !sources[f.key].entity_id : f.required && (data?.[f.key] === undefined || data[f.key] === "" || data[f.key] === null))
     .map((f) => f.label);
 }
 

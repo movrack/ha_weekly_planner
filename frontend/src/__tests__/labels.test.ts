@@ -42,7 +42,7 @@ describe("labels offered for a device", () => {
     p.entities[0].allowed_services = ["climate.set_temperature"];
     expect(labelsFor(hass, data, ["climate.a"], p).map((l) => l.id)).toEqual(["t21", "soir"]);
     expect(allowedOf(p, "climate.a")).toEqual(["climate.set_temperature"]);
-    expect(allowedOf(p, "light.a")).toEqual([]);
+    expect(allowedOf(p, "light.a")).toBeUndefined();
   });
 
   it("accepts a scene only when it contains the device", () => {
@@ -116,4 +116,61 @@ describe("tooltips of the bar icons", () => {
     expect(nowTip("fr", 14 * 60 + 5)).toBe("Maintenant · 14 h 05");
     expect(nowTip("en", 14 * 60 + 5)).toBe("Now · 2:05 pm");
   });
+});
+
+
+describe("entity-backed action values", () => {
+  const sourced: Action = { kind: "service", service: "cover.set_cover_position", data: { position: 30 },
+    data_sources: { position: { entity_id: "number.favorite", type: "number" } } };
+  it("does not plot the stale fixed value as a future or historical target", () => {
+    expect(actionValue(sourced)).toBeNull();
+  });
+  it("identifies the source and follows its current state in text", () => {
+    const h = { ...hass, states: { ...hass.states, "number.favorite": { entity_id: "number.favorite", state: "51", last_changed: "", attributes: { friendly_name: "Favorite position" } } } } as HomeAssistant;
+    expect(actionText(h, "en", sourced)).toBe("Favorite position (51)");
+    h.states["number.favorite"].state = "62";
+    expect(actionText(h, "en", sourced)).toBe("Favorite position (62)");
+    h.states["number.favorite"].state = "unavailable";
+    expect(actionText(h, "en", sourced)).toBe("Favorite position");
+    expect(actionText(hass, "en", sourced)).toBe("number.favorite");
+  });
+  it("reads an attribute without changing the stored action", () => {
+    const action: Action = { kind: "service", service: "climate.set_temperature", data_sources: {
+      temperature: { entity_id: "climate.a", attribute: "temperature", type: "number" } } };
+    const h = { ...hass, states: { ...hass.states, "climate.a": { ...hass.states["climate.a"], attributes: { friendly_name: "Reference", temperature: 21 } } } };
+    expect(actionText(h, "en", action)).toBe("Reference · temperature (21)");
+    expect(action.data).toBeUndefined();
+  });
+});
+
+describe("explicit action target", () => {
+  const action: Action = { kind: "service", service: "button.press", target_entity_id: "button.favorite" };
+  it("allows a program device to call a different entity while preserving allowed service restrictions", () => {
+    expect(compatible(hass, "cover.office", action)).toBe(true);
+    expect(compatible(hass, "cover.office", action, ["cover.open_cover"])).toBe(false);
+    expect(compatible(hass, "cover.office", action, ["button.press"])).toBe(true);
+    expect(compatible(hass, "cover.office", { ...action, target_entity_id: "" })).toBe(false);
+    expect(compatible(hass, "cover.office", { kind: "service", service: "button.press" })).toBe(false);
+  });
+  it("identifies the actual controlled entity and retains its name when unavailable", () => {
+    const h = { ...hass, states: { ...hass.states, "button.favorite": { entity_id: "button.favorite", state: "unknown", last_changed: "", attributes: { friendly_name: "Favorite position" } } } };
+    expect(actionText(h, "en", action)).toContain("Favorite position");
+    expect(actionText(hass, "en", action)).toContain("button.favorite");
+  });
+  it("does not plot another entity's numeric command as the program device's target", () => {
+    expect(actionValue({ kind: "service", service: "cover.set_cover_position", target_entity_id: "cover.other", data: { position: 51 } })).toBeNull();
+  });
+});
+
+
+it("distinguishes new explicit empty action selection from legacy unrestricted devices", () => {
+  const p = program();
+  p.entities[0].allowed_services = [];
+  expect(allowedOf(p, "climate.a")).toBeUndefined();
+  p.entities[0].restrict_services = true;
+  expect(allowedOf(p, "climate.a")).toEqual([]);
+  expect(compatible(hass, "climate.a", temp(20), allowedOf(p, "climate.a"))).toBe(false);
+  p.entities[0].allowed_services = ["climate.set_temperature"];
+  expect(compatible(hass, "climate.a", temp(20), allowedOf(p, "climate.a"))).toBe(true);
+  expect(compatible(hass, "climate.a", { kind: "service", service: "climate.set_hvac_mode" }, allowedOf(p, "climate.a"))).toBe(false);
 });

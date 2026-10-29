@@ -29,12 +29,12 @@
   "entity": {
     "switch": {
       "vacation": {
-        "name": "Vacances"
+        "name": "Suspension de tous les programmes"
       }
     },
     "select": {
       "profile": {
-        "name": "Profil {program}"
+        "name": "Mode {program}"
       }
     }
   },

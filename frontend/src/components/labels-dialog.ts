@@ -52,7 +52,8 @@ export class WpLabels extends LitElement {
   private async _save(label: Label): Promise<void> {
     const lang = this._lang;
     if (!this._name.trim()) { this._error = t(lang, "lb_err_name"); return; }
-    if (this._action?.kind === "service" && missingFields(this.hass, this._action.service, this._action.data).length) {
+    if (this._action?.kind === "service" && (!this._action.service || this._action.target_entity_id === "")) { this._error = t(lang, "lb_err_action"); return; }
+    if (this._action?.kind === "service" && missingFields(this.hass, this._action.service, this._action.data, this._action.target_entity_id, this._action.data_sources).length) {
       this._error = t(lang, "lb_err_fields");
       return;
     }

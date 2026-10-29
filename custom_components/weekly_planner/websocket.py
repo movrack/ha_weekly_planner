@@ -19,7 +19,7 @@ from .frontend import CARD_VERSION_KEY
 from .resolver import active_profile, occurrences_around
 from .store import new_id
 from .actions import needs_admin
-from .validation import ProgramError, admin_required, check_label, check_program, label_users
+from .validation import PROGRAM, ProgramError, admin_required, check_label, check_program, label_users
 
 
 async def _descriptions(hass: HomeAssistant) -> dict | None:
@@ -45,7 +45,7 @@ def _may_edit(hass: HomeAssistant, connection) -> bool:
 @callback
 def async_register(hass: HomeAssistant) -> None:
     for handler in (ws_get, ws_subscribe, ws_program_save, ws_program_delete, ws_label_save,
-                    ws_label_delete, ws_preview, ws_journal, ws_set_enabled):
+                    ws_label_delete, ws_preview, ws_journal, ws_set_enabled, ws_set_profile):
         websocket_api.async_register_command(hass, handler)
 
 
@@ -129,6 +129,20 @@ async def ws_program_save(hass, connection, msg) -> None:
     if admin_required(program, engine.labels) and not connection.user.is_admin:
         connection.send_error(msg["id"], "unauthorized", "Sensitive actions are reserved to administrators")
         return
+    inactive_mode_edit = False
+    if existing:
+        # Editing another week's hours must not re-send the active mode's action.
+        # Normalize legacy defaults before comparing metadata, without changing stored data.
+        try:
+            old = PROGRAM(existing)
+            active_id = engine.active_profile_id(existing["id"])
+            metadata = lambda p: {k: v for k, v in p.items() if k not in {"profiles", "revision"}}
+            old_mode = next((p for p in old["profiles"] if p["id"] == active_id), None)
+            new_mode = next((p for p in program["profiles"] if p["id"] == active_id), None)
+            inactive_mode_edit = (old["profiles"] != program["profiles"] and metadata(old) == metadata(program)
+                                  and old_mode is not None and old_mode == new_mode)
+        except vol.Invalid:
+            pass
     program["revision"] = program.get("revision", 0) + 1
     program.setdefault("created_at", existing.get("created_at") if existing else dt_util.utcnow().isoformat())
     if existing:
@@ -136,7 +150,7 @@ async def ws_program_save(hass, connection, msg) -> None:
     else:
         engine.store.programs.append(program)
     engine.store.save_config()
-    await engine.async_config_changed()
+    await engine.async_config_changed(reapply=not inactive_mode_edit)
     connection.send_result(msg["id"], {"program": program})
 
 
@@ -277,4 +291,26 @@ async def ws_set_enabled(hass, connection, msg) -> None:
         connection.send_error(msg["id"], "not_found", "Unknown program")
         return
     await engine.async_set_enabled(msg["program_id"], msg["enabled"])
+    connection.send_result(msg["id"])
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/program/set_profile",
+    vol.Required("program_id"): str,
+    vol.Required("profile_id"): str,
+})
+@websocket_api.async_response
+async def ws_set_profile(hass, connection, msg) -> None:
+    """Select a manual mode with the same access as the native select."""
+    from homeassistant.exceptions import ServiceValidationError
+
+    engine = _engine(hass)
+    if engine is None or engine.store.program(msg["program_id"]) is None:
+        connection.send_error(msg["id"], "not_found", "Unknown program")
+        return
+    try:
+        await engine.async_set_profile(msg["program_id"], msg["profile_id"])
+    except ServiceValidationError as err:
+        connection.send_error(msg["id"], "invalid", str(err))
+        return
     connection.send_result(msg["id"])

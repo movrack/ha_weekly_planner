@@ -173,15 +173,20 @@ montre les changements manuels (§ 10.4) ; le moteur n'en sait rien.
 ### 5.9 Dérogation volontaire — *retiré en 0.6.0*
 Service `override`, durée, « Déroger… » : supprimés avec toute notion de dérogation.
 
-### 5.10 Profils (semaines types)
-- Un programme a un ou plusieurs **profils** (« Hiver », « Été », « Télétravail »…), chacun avec ses 7 jours d'horaires ;
-  entités, défauts, conditions et priorité sont communs au programme.
-- Entité `select.weekly_planner_<programme>_profil` : change le profil actif (carte, automatisation, service).
-  Options = noms des profils (uniques dans le programme).
-- Au moins un profil ; le profil actif ne peut pas être supprimé.
-- Le profil actif est un **état d'exécution** (stockage runtime), hors `revision`.
-- Changer de profil = modification (§ 5.5) : si `reapply`, l'action du nouveau profil est envoyée ; sinon on attend la prochaine transition.
-- La carte : sélecteur de profil dans l'en-tête du programme ; copie d'un profil.
+### 5.10 Modes du programme (semaines types)
+- Un programme a un ou plusieurs **modes** (Maison, Absent, Nuit, Vacances, Hiver…), chacun avec ses 7 jours d’horaires.
+  Les entités, défauts, conditions et priorité restent communs. Les clés internes `profiles` et les identifiants HA restent compatibles.
+- Le mode actif se choisit manuellement dans la carte ou le sélecteur HA existant, ou suit une entité générique via
+  `mode_source: {entity_id, mappings: {état_brut: id_du_mode}}`. Le choix de la source et des associations est enregistré avec le programme.
+- Une source inconnue/indisponible ou un état sans association conserve le dernier mode valide (repli initial : mode configuré puis premier mode).
+  Le statut expose l’état courant et la correspondance. Les sources Weekly Planner sont refusées pour éviter les boucles.
+- Sous contrôle externe, le sélecteur manuel ne peut pas forcer un autre mode. Repasser en manuel conserve le dernier mode actif.
+- Au moins un mode ; le mode actif ne peut pas être supprimé. Les associations vers un mode supprimé doivent être retirées.
+- L’activation reste un état d’exécution, hors `revision`. Les changements respectent `reapply` et ne rejouent pas les actions ponctuelles passées.
+- Les horaires d’un mode inactif sont modifiables sans l’activer. Une édition en cours reste attachée à son mode même si la source change ;
+  un mode supprimé à distance ne peut pas recevoir une écriture. Les horaires enregistrés sont conservés lors des modifications des réglages.
+- **Vacances est un mode ordinaire**, sans traitement de suspension. L’ancien interrupteur global conserve son identifiant et sa fonction,
+  mais est présenté comme « Suspension de tous les programmes » pour préserver les automatisations existantes.
 
 ## 6. Actions (un seul modèle pour toute entité)
 
@@ -575,6 +580,13 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Version 0.7.3 (manifest, pyproject, package.json, lock), CHANGELOG
 
 ### 14.12 À faire
+- [x] Première documentation utilisateur française, atlas des 36 écrans actuels et 13 captures complémentaires (49 PNG), liens vérifiés et images versionnables.
+- [ ] Faire respecter l’option globale `reapply_default` lors de la création d’un programme ; le formulaire initialise actuellement Réappliquer à vrai, limite signalée dans le guide.
+
+- [x] Déploiement indépendant des commits : arbre de travail testé autorisé en journée, contrôles préservés et empreinte du bundle indiquée, règle clarifiée dans AGENTS.md.
+
+- [x] 0.10.0 : Annuler la modification / Rétablir dans l’éditeur de programme ; 50 étapes locales, saisies regroupées, appareils/conditions/saisons/duplication, historique conservé pendant la navigation puis remis à zéro après enregistrement réussi.
+
 - [x] 0.9.1 : conserver les brouillons par programme durant la session de configuration ; une sauvegarde en arrière-plan ne change pas la sélection courante.
 - [x] Cadran visible avec indication de disponibilité ; saison active distincte de celle à gérer, accès direct au sélecteur HA existant.
 - [x] Saisons : libellés visibles, une seule action Appliquer pour le nom et le programme, portée partagée près du bouton ; navigation clavier des onglets.
@@ -615,3 +627,29 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - Q-K ✅ Le réglage à la main l'emporte et remplace la dérogation volontaire (devient externe, échéance oubliée).
 - Q-L ✅ Sautée (priorité et dérogation l'emportent).
 - Q-M ✅ Oui : avec `admin_only`, un non-admin garde lecture, switchs, Reprendre, Déroger…, profil ; à revoir en v2 (rôles).
+
+- [x] Cadrans : fond gris identique aux barres, couleurs des créneaux conservées, traits horaires et icônes soleil avec les mêmes info-bulles. Option deux anneaux 12 h (matin intérieur avec 3/6/9/12, après-midi extérieur avec 15/18/21/24), en plus du 24 h.
+
+- [x] Bascule programme : réabonnement après retour sur une vue conservée par HA ; état partagé entre barres, cadrans, liste, horaires et interrupteur HA. Confirmation annulée sans modification et double envoi bloqué.
+
+- [x] Accès Nouveau programme près du choix du programme de la carte ; raccourci Modifier ce programme ; sélecteur Programme à modifier toujours visible dans les réglages, avec tous les programmes et conservation des brouillons.
+
+- [x] Création sur un écran nom + appareils + Créer le programme, puis retour à l’affichage avec sélection du programme créé. Reprise explicite du brouillon après navigation ; appareils des programmes existants uniquement dans leur onglet. Parcours créé/repris/enregistré testé sur instance locale.
+
+- [x] Liste compacte : clic sur un programme déplie ses barres sur place, second clic replie, autre programme referme le précédent. Bascule indépendante ; calendrier explicite pour ouvrir les horaires.
+
+- [x] Cadrans 24 h et double 12 h utilisables en liste filtrée, sans choix grisés ni obligation de choisir un seul programme.
+
+- [x] Valeurs des actions de service issues d’une entité/helper : `data_sources[field] = {entity_id, attribute?, type}` (nombre, booléen, texte ou valeur native). Priorité sur `data[field]`, lecture uniquement à l’exécution ; aucune réaction automatique au changement de la source. Source inconnue/indisponible ou conversion invalide : action refusée sans ancien défaut. Sélection générique de la source et de son attribut dans les étiquettes, résumés identifiant la source.
+
+- [x] Programme désactivé : badge rouge Désactivé en haut à droite sous les contrôles, commun aux barres, cadrans et liste compacte ; remplace l’icône pause.
+
+- [x] Une étiquette peut appeler une action sur une autre entité : `target_entity_id` explicite, bouton My position via `button.press` ou autre service découvert dans HA. Sélection de cible et action génériques, résumés identifiant la cible, valeurs propres par appareil conservées, protections des cibles dans data/data_sources maintenues.
+
+- [x] Nouvel appareil : aucune commande cochée, liste ouverte et invitation à choisir dès la création du programme. restrict_services=true rend une sélection vide réellement restrictive ; configurations historiques conservées, dernière case décochable et choix disparus conservés.
+
+- [x] Description HA traduite visible sous chaque action à cocher, lisible au toucher et associée à la case pour le lecteur d’écran ; pas de description inventée si absente.
+
+- [x] Modes unifiés, source externe générique avec associations, sélection manuelle, édition inactive isolée et nommage de la suspension globale clarifié ; données et identifiants existants conservés.
+
+- [x] Sélection des programmes affichés par carte dans une section repliable de l’éditeur Lovelace : `filter.programs` absent = tous (futurs compris), liste vide = aucun ; intersection avec type/zone, sans effet sur l’exécution.

@@ -29,7 +29,7 @@ TIME_SPEC = vol.Any(
     }),
 )
 
-# The device is the only target of an action: service data may not redirect it elsewhere.
+# Targets are explicit action properties; service data may not redirect them.
 TARGET_KEYS = ("entity_id", "device_id", "area_id", "floor_id", "label_id")
 
 
@@ -41,11 +41,28 @@ def _service_data(value: Any) -> dict:
     return value
 
 
+VALUE_SOURCE = vol.Schema({
+    vol.Required("entity_id"): cv.entity_id,
+    vol.Optional("attribute"): vol.All(str, vol.Length(min=1, max=255)),
+    vol.Required("type"): vol.In(("number", "boolean", "string", "native")),
+})
+
+
+def _service_sources(value: Any) -> dict:
+    if not isinstance(value, dict):
+        raise vol.Invalid("invalid_service_data_sources")
+    if any(key in value for key in (*TARGET_KEYS, "target")):
+        raise vol.Invalid("service_data_target")
+    return vol.Schema({vol.All(str, vol.Length(min=1, max=255)): VALUE_SOURCE})(value)
+
+
 ACTION = vol.Any(
     vol.Schema({
         vol.Required("kind"): "service",
         vol.Required("service"): str,
+        vol.Optional("target_entity_id"): cv.entity_id,
         vol.Optional("data", default=dict): _service_data,
+        vol.Optional("data_sources"): _service_sources,
     }),
     vol.Schema({
         vol.Required("kind"): "scene",
@@ -86,8 +103,9 @@ ENTITY = vol.Schema({
     vol.Required("entity_id"): cv.entity_id,
     vol.Optional("default_label", default=None): vol.Any(None, str),
     vol.Optional("label_overrides", default=dict): {str: ACTION},
-    # Services offered for this device in the card; empty = all.
+    # Legacy empty lists allow all services; explicit restriction also permits selecting none.
     vol.Optional("allowed_services", default=list): [vol.All(str, vol.Match(r"^[a-z0-9_]+\.[a-z0-9_]+$"))],
+    vol.Optional("restrict_services", default=False): bool,
 })
 
 PROGRAM = vol.Schema({
@@ -103,6 +121,10 @@ PROGRAM = vol.Schema({
     vol.Optional("conditions", default=list): [CONDITION],
     vol.Required("entities"): vol.All([ENTITY], vol.Length(min=1, max=100)),
     vol.Optional("active_profile"): vol.Any(None, str),
+    vol.Optional("mode_source"): vol.Schema({
+        vol.Required("entity_id"): cv.entity_id,
+        vol.Required("mappings"): vol.All({vol.All(str, vol.Length(min=1)): vol.All(str, vol.Length(min=1))}, vol.Length(min=1)),
+    }),
     vol.Required("profiles"): vol.All([PROFILE], vol.Length(min=1, max=20)),
 })
 
@@ -122,6 +144,7 @@ def _check_service(hass: Any, descriptions: dict | None, entity_id: str | None, 
     domain, name = service.split(".")
     if not hass.services.has_service(domain, name):
         raise ProgramError(f"unknown_service:{service}")
+    entity_id = action.get("target_entity_id", entity_id)
     if entity_id is not None and not service_accepts(descriptions, service, entity_id):
         raise ProgramError(f"service_not_for_entity:{service}:{entity_id}")
 
@@ -160,6 +183,19 @@ def check_label(label: dict, hass: Any = None, descriptions: dict | None = None)
 def check_program(program: dict, labels: dict[str, dict], hass: Any = None, descriptions: dict | None = None) -> dict:
     """Schema + semantic rules: unique profile names, known labels, valid overrides, no overlap on a day."""
     program = PROGRAM(program)
+    source = program.get("mode_source")
+    if source:
+        profile_ids = {p["id"] for p in program["profiles"]}
+        if any(pid not in profile_ids for pid in source["mappings"].values()):
+            raise ProgramError("unknown_mode_profile")
+        if any(not state.strip() for state in source["mappings"]):
+            raise ProgramError("empty_mode_state")
+        if hass is not None:
+            from homeassistant.helpers import entity_registry as er
+            from .const import DOMAIN
+            entry = er.async_get(hass).async_get(source["entity_id"])
+            if entry and entry.platform == DOMAIN:
+                raise ProgramError("circular_mode_source")
     names = [p["name"] for p in program["profiles"]]
     if len(set(names)) != len(names):
         raise ProgramError("duplicate_profile_name")

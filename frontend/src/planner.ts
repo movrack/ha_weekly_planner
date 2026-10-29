@@ -44,13 +44,14 @@ export function friendlyName(hass: HomeAssistant, entityId: string): string {
   return hass.states[entityId]?.attributes.friendly_name ?? entityId;
 }
 
-export function filterPrograms(data: PlannerData, config: { program?: string; filter?: { types?: string[]; area?: string } }): Program[] {
+export function filterPrograms(data: PlannerData, config: { program?: string; filter?: { types?: string[]; area?: string; programs?: string[] } }): Program[] {
   if (config.program) return data.programs.filter((p) => p.id === config.program);
   const types = config.filter?.types;
   const area = config.filter?.area;
   return data.programs
     .filter((p) => !types?.length || p.entities.some((e) => types.includes(entityDomain(e.entity_id))))
     .filter((p) => !area || p.area === area)
+    .filter((p) => config.filter?.programs === undefined || config.filter.programs.includes(p.id))
     .sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
 }
 
