@@ -55,3 +55,30 @@ Si besoin tu peux utiliser la skill grill-me, mais avant de l'utiliser termine t
 - [x] Libeller les actions de saison, un seul Appliquer pour le nom et le programme ; validation invalide sans écriture.
 - [x] Préciser la portée partagée près d’Appliquer, confirmer la mise à jour partout et signaler les modifications non appliquées.
 - [x] Navigation clavier, validation navigateur 360 × 780 clair / 1440 sombre, 85 tests Python et 121 tests carte, TypeScript et build.
+
+
+## Annuler / Rétablir — 0.10.0 (issue #5)
+
+- [x] Historique du brouillon de programme : appareils, réglages, conditions, saisons et duplication.
+- [x] Boutons explicites, raccourcis hors texte, conservation durant la navigation, 50 étapes et regroupement des saisies.
+- [x] Réinitialisation après enregistrement réussi ; aucune commande HA lors d’Annuler/Rétablir.
+
+- [x] Validation : 85 tests Python, 127 tests carte, TypeScript et build ; navigateur 360 × 780 clair / 1440 sombre. Annulation/rétablissement des champs, formulaires et duplication, nouvelle branche, navigation et remise à zéro après sauvegarde simulée vérifiés ; zéro écriture programme réelle.
+- Correction de cette interprétation : la plage ouvrée 08:00–17:00 interdit uniquement les commits, pas les déploiements. Le propriétaire autorise le déploiement de l’arbre de travail testé sans commit.
+
+- [x] Déploiement 0.10.0 sans commit demandé par le propriétaire : tests Python, TypeScript, tests carte et build réussis ; copie et `weekly_planner.reload` réussis. Empreinte locale/distante identique : `2ac1194d7034211d385dea9add96262744ae14e31bf9b0f922d3821479f64242`. Aucun commit ni redémarrage HA effectué.
+
+
+## Première documentation illustrée (issue #6)
+
+- [x] Inventaire des écrans actuels, sans les anciens modes et dérogations retirés.
+- [x] 36 écrans principaux, 2 suites et 11 variantes : 49 captures dans `docs/images/guide/`.
+- [x] Guide français `docs/GUIDE.fr.md`, atlas `docs/SCREENS.fr.md`, inventaire `docs/SCREEN_INVENTORY.md`, liens depuis les README.
+- [x] Exemples de démonstration, historique local réel, aucune modification de programme réel ou de production ; enregistrement de barre simulé en mémoire pour S21.
+- [x] Limite du réglage global de réapplication documentée, sans annoncer un effet actuellement absent.
+
+## Documentation reprise — 0.16.2
+
+- [x] Actualiser guide Mamy et README intégrateurs.
+- [x] Ajouter neuf captures actuelles S37–S45 et distinguer les archives 0.10.0.
+- [x] Documenter modes externes, choix des actions, boutons cibles, valeurs dynamiques, zones et graphique vide.

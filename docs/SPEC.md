@@ -657,3 +657,5 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Revue Mamy 0.16.0 : valeurs natives synchronisées après options ; activation immédiate signalée ; ajout appareil supplémentaire facultatif ; aide zéro commande et bouton Définir les horaires après création ; associations repliables et action principale unique accessible pendant le défilement.
 
 - [x] Première revue Mamy : filtre sur les zones des programmes, affectation explicite dans Général et message de filtre sans résultat ; graphique distinguant historique absent, futur ou indisponible et absence d’action prévue.
+
+- [x] Documentation utilisateur et intégrateur 0.16.2 : guide Mamy, atlas distinguant 49 anciennes captures et 9 captures actuelles, modes, commandes, sources et zones.

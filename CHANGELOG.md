@@ -8,7 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 - Choose the programs displayed by each filtered card in a collapsible checklist; combine the selection with type and area filters without changing program execution.
-- Initial French illustrated user guide and visual atlas covering 36 screens and 13 supporting captures, with local demo provenance, current UI limitations and linked navigation from both READMEs.
+- French illustrated guide for 0.16.2 with nine current mobile captures, 49 explicitly historical screenshots, local demo provenance and links from both integrator READMEs.
 - Track the guide's screenshots under a narrow image-ignore exception and document the screen coverage inventory.
 
 ## [0.16.2] - 2026-10-29
