@@ -58,6 +58,9 @@ captures/
 *.tmp
 .python-version
 
+# Local analysis reports
+/rapport/
+
 # Integration brand images (HACS / Home Assistant)
 !custom_components/weekly_planner/brand/*.png
 

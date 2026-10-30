@@ -47,3 +47,24 @@ describe("chart availability guidance", () => {
     expect(text(chart.render())).toContain("graph");
   });
 });
+
+
+it("bounds retained past-history keys instead of keeping every visited day", async () => {
+  const chart = setup();
+  chart.hass.callWS.mockImplementation(async (request: any) => request.type === "weekly_planner/journal" ? { segments: [] } : {});
+  for (let i = 0; i < 35; i++) {
+    chart.entityId = `sensor.cache_${i}`;
+    await chart._load();
+  }
+  const before = chart.hass.callWS.mock.calls.length;
+  chart.entityId = "sensor.cache_0";
+  await chart._load();
+  expect(chart.hass.callWS.mock.calls.length).toBeGreaterThan(before);
+});
+
+it("handles large numeric history without spreading it into function arguments", () => {
+  const chart = setup();
+  chart.entityId = "sensor.large_history";
+  const hist = Array.from({ length: 150_000 }, (_, i) => ({ t: Date.parse("2026-01-01T00:00:00Z") + i, s: "1", a: {} }));
+  expect(() => chart._build({ hist, log: [], sent: [] })).not.toThrow();
+});

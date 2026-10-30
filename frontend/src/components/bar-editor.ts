@@ -73,9 +73,9 @@ export class WpBarEditor extends LitElement {
   private _clearTimer?: number;
   private _errTimer?: number;
   private _press?: { id: number; x: number; y: number; timer?: number; fired: boolean; mouse: boolean };
-  private _drag?: { ref: Handle; m0: number; x0: number; id: number; moved: boolean; last: number };
+  private _drag?: { ref: Handle; m0: number; x0: number; id: number; moved: boolean; last: number; profileId: string; weekday: number; ctx: DayCtx };
   private _tap?: { id: number; x: number; y: number; target: Target | null };
-  private _nudge?: { ref: Handle; m: number; timer: number };
+  private _nudge?: { ref: Handle; m: number; timer: number; profileId: string; weekday: number; ctx: DayCtx };
   private _listening = false;
 
   /* ---- times of the day ---- */
@@ -105,8 +105,10 @@ export class WpBarEditor extends LitElement {
   private _ctx(newIds?: () => string): DayCtx {
     const entity = this.program.entities.find((e) => e.entity_id === this.entityId);
     const fallback = labelsFor(this.hass, this.data, [this.entityId])[0]?.id;
+    const sun = new Map(this._sun);
     return {
-      at: this._at, lead: this._lead, newId: newIds ?? newId,
+      at: (spec) => "time" in spec ? clockToMinutes(spec.time) : sun.get(JSON.stringify(spec)) ?? specMinutes(this.hass, spec),
+      lead: this._lead, newId: newIds ?? newId,
       defaultLabel: entity?.default_label ?? fallback,
     };
   }
@@ -253,7 +255,8 @@ export class WpBarEditor extends LitElement {
     const near = this._nearest(m, ppm);
     if (near) {
       (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-      this._drag = { ref: near.refs[0], m0: near.m, x0: e.clientX, id: e.pointerId, moved: false, last: near.m };
+      this._drag = { ref: near.refs[0], m0: near.m, x0: e.clientX, id: e.pointerId, moved: false, last: near.m,
+        profileId: activeProfile(this._live, this.data).id, weekday: this.weekday, ctx: this._ctx() };
       this._hsel = near.refs[0];
       e.preventDefault();
       return;
@@ -267,8 +270,9 @@ export class WpBarEditor extends LitElement {
       const dx = e.clientX - d.x0;
       if (!d.moved && Math.abs(dx) < 3) return;
       d.moved = true;
-      const base = this._baseDay;
-      const res = moveBoundary(base, d.ref, d.m0 + dx / this._minuteAt(0).ppm, this._ctx());
+      const base = this._live.profiles.find((profile) => profile.id === d.profileId)?.days[d.weekday];
+      if (!base) { this._ovCancel(); return; }
+      const res = moveBoundary(base, d.ref, d.m0 + dx / this._minuteAt(0).ppm, d.ctx);
       if (res) {
         d.last = res.m;
         this._draft = res.slots;
@@ -290,9 +294,9 @@ export class WpBarEditor extends LitElement {
       if (d.moved) {
         const { ref, last } = d;
         void this._commit((days) => {
-          const r = moveBoundary(days[this.weekday], ref, last, this._ctx());
-          return r ? this._with(days, this.weekday, r.slots) : null;
-        }, [this.weekday]);
+          const r = moveBoundary(days[d.weekday], ref, last, d.ctx);
+          return r ? this._with(days, d.weekday, r.slots) : null;
+        }, [d.weekday], false, d.profileId);
       } else {
         // a tap on a one-shot marker selects it
         const slot = this._baseDay.find((s) => s.id === d.ref.id);
@@ -326,15 +330,21 @@ export class WpBarEditor extends LitElement {
   private _key(e: KeyboardEvent, ref: Handle): void {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     e.preventDefault();
+    const profileId = activeProfile(this._live, this.data).id;
+    if (this._nudge && this._nudge.profileId !== profileId) {
+      this._flushNudge();
+      this._draft = null;
+    }
+    const ctx = this._nudge?.ctx ?? this._ctx();
     const base = this._draft ?? this._baseDay;
-    const m = this._nudge?.m ?? handleMinute(base, ref, this._ctx());
+    const m = this._nudge?.m ?? handleMinute(base, ref, ctx);
     if (m === null) return;
-    const res = moveBoundary(base, ref, m + (e.key === "ArrowRight" ? 15 : -15), this._ctx());
+    const res = moveBoundary(base, ref, m + (e.key === "ArrowRight" ? 15 : -15), ctx);
     if (!res) return;
     this._draft = res.slots;
     this._bubble = { m: res.m };
     window.clearTimeout(this._nudge?.timer);
-    this._nudge = { ref, m: res.m, timer: window.setTimeout(() => this._flushNudge(), COMMIT_DELAY_MS) };
+    this._nudge = { ref, m: res.m, timer: window.setTimeout(() => this._flushNudge(), COMMIT_DELAY_MS), profileId, weekday: this.weekday, ctx };
   }
 
   private _flushNudge(): void {
@@ -344,9 +354,9 @@ export class WpBarEditor extends LitElement {
     this._nudge = undefined;
     this._bubble = null;
     void this._commit((days) => {
-      const r = moveBoundary(days[this.weekday], n.ref, n.m, this._ctx());
-      return r ? this._with(days, this.weekday, r.slots) : null;
-    }, [this.weekday]);
+      const r = moveBoundary(days[n.weekday], n.ref, n.m, n.ctx);
+      return r ? this._with(days, n.weekday, r.slots) : null;
+    }, [n.weekday], false, n.profileId);
   }
 
   /* ---- saving ---- */
@@ -365,10 +375,11 @@ export class WpBarEditor extends LitElement {
    * Builds the change on the CURRENT program (`op` is applied to the days of its active profile) and saves it.
    * A revision conflict is retried once on the fresh data; the user is never asked to reload.
    */
-  private async _commit(op: Op, touched: number[], silent = false): Promise<boolean> {
+  private async _commit(op: Op, touched: number[], silent = false, profileId = activeProfile(this._live, this.data).id): Promise<boolean> {
     let live = this._live;
     for (let attempt = 0; attempt < 2; attempt++) {
-      const profile = activeProfile(live, this.data);
+      const profile = live.profiles.find((p) => p.id === profileId);
+      if (!profile) { this._dropDraft(); return false; }
       const before = profile.days;
       const after = op(before);
       if (!after) {
@@ -395,7 +406,11 @@ export class WpBarEditor extends LitElement {
         if (!silent) {
           const restore = changed.map((i) => [i, before[i]] as const);
           this._emit("edited", {
-            undo: () => this._commit((days) => days.map((d, i) => restore.find((r) => r[0] === i)?.[1] ?? d), changed, true),
+            undo: () => this._commit((days) => {
+              // Never overwrite another editor's subsequent change to a restored day.
+              if (changed.some((i) => JSON.stringify(days[i]) !== JSON.stringify(merged[i]))) return null;
+              return days.map((d, i) => restore.find((r) => r[0] === i)?.[1] ?? d);
+            }, changed, true, profileId),
           });
         }
         return true;
