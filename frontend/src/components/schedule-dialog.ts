@@ -178,8 +178,9 @@ export class WpSchedule extends LitElement {
   private async _loadPreview(programId: string, date: string, key: string, profileId?: string): Promise<void> {
     const token = ++this._token;
     try {
-      const res = await this.hass.callWS<{ slots: PreviewSlot[] }>({ type: "weekly_planner/preview", program_id: programId, date, profile_id: profileId });
-      if (token === this._token && key === this._loaded) this._slots = res.slots;
+      const results = await Promise.all([addDaysIso(date, -1), date].map((day) =>
+        this.hass.callWS<{ slots: PreviewSlot[] }>({ type: "weekly_planner/preview", program_id: programId, date: day, profile_id: profileId })));
+      if (token === this._token && key === this._loaded) this._slots = results.flatMap((res) => res.slots);
     } catch {
       if (token === this._token) this._slots = null;
     }
@@ -334,6 +335,7 @@ export class WpSchedule extends LitElement {
       if (e?.code === "conflict") return "conflict";
       if (e?.code === "unauthorized") this._error = t(this._lang, "err_unauthorized");
       else if (e?.message?.includes("unknown_label")) this._error = t(this._lang, "err_label");
+      else if (e?.message?.includes("random_window_too_short")) this._error = t(this._lang, "random_too_short");
       else if (e?.message?.includes("overlapping_slots")) this._error = t(this._lang, "w_err_overlap");
       else this._error = t(this._lang, "ss_err_save");
       return "error";
@@ -504,8 +506,13 @@ export class WpSchedule extends LitElement {
   }
 
   private async _deleteRow(): Promise<void> {
+    if (!this._canEdit || this._saving) return;
+    if (this._open === "new") {
+      this._cancel();
+      return;
+    }
     const program = this._live(this._programId);
-    if (!program || this._open === "new" || !this._openId) return;
+    if (!program || !this._openId) return;
     if (!(await confirmAction(this, t(this._lang, "w_confirm_slot"), t(this._lang, "yes"), t(this._lang, "no")))) return;
     const ok = await this._commit(program.id, (live) => {
       const profile = this._editProfile(live);
@@ -630,8 +637,8 @@ export class WpSchedule extends LitElement {
       </div>
       ${isNew || this._labelDraft ? nothing : html`<button class="btn dup" ?disabled=${!this._canEdit} @click=${() => this._duplicate()}>
         <ha-icon icon="mdi:content-copy"></ha-icon>${t(lang, "duplicate")}</button>`}
-      ${isNew || this._labelDraft ? nothing : html`<button class="btn danger-line alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteRow()}>
-        <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete")}</button>`}
+      <button class="btn danger-line alone" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._deleteRow()}>
+        <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete")}</button>
     </div>`;
   }
 

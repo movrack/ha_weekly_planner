@@ -6,10 +6,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+- Rename the random-time option to “Random delay”, move it below the solar shortcuts and show the explicit fixed or solar-relative interval.
+- Put New program immediately after the settings selector placeholder, between native separators, while preserving creation drafts.
+
 ### Added
 - Choose the programs displayed by each filtered card in a collapsible checklist; combine the selection with type and area filters without changing program execution.
 - French illustrated guide for 0.16.2 with nine current mobile captures, 49 explicitly historical screenshots, local demo provenance and links from both integrator READMEs.
 - Track the guide's screenshots under a narrow image-ignore exception and document the screen coverage inventory.
+
+## [0.17.0] - 2026-10-30
+
+### Added
+- Optional daily random delays on fixed or solar start/end times, with a configurable window up to 240 minutes and a 15-minute default when enabled. Delays are deterministic per occurrence and stable across recalculation and restart. See [#22](https://github.com/movrack/ha_weekly_planner/issues/22).
+- Resolve delayed times consistently in previews and charts, including previous-day tails and actions delayed across midnight; preserve solar latest limits and validate fixed-time duration/overlap envelopes.
+
+## [0.16.4] - 2026-10-30
+
+### Fixed
+- Keep Delete available in the schedule form while a label has unsaved changes. Confirm deletion of an existing slot using fresh data and its original mode/day, without saving the label draft; discard a new unsaved slot locally without a server write.
+- Disable slot deletion while saving or when editing is forbidden.
 
 ## [0.16.3] - 2026-10-30
 

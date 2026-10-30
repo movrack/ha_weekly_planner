@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -19,10 +19,19 @@ def _clock(value: Any) -> str:
     return str(value)
 
 
+def _random_minutes(value: Any) -> int:
+    if type(value) is not int or not 0 <= value <= 240:
+        raise vol.Invalid("invalid_random_minutes")
+    return value
+
+
+RANDOM_MINUTES = _random_minutes
+
 TIME_SPEC = vol.Any(
-    vol.Schema({vol.Required("time"): _clock}),
+    vol.Schema({vol.Required("time"): _clock, vol.Optional("random_minutes"): RANDOM_MINUTES}),
     vol.Schema({
         vol.Required("sun"): vol.In(SUN_EVENTS),
+        vol.Optional("random_minutes"): RANDOM_MINUTES,
         vol.Optional("offset", default=0): vol.All(int, vol.Range(min=-240, max=240)),
         vol.Optional("earliest"): _clock,
         vol.Optional("latest"): _clock,
@@ -213,22 +222,47 @@ def check_program(program: dict, labels: dict[str, dict], hass: Any = None, desc
             for slot in day_slots:
                 if slot["label"] not in labels:
                     raise ProgramError(f"unknown_label:{slot['label']}")
-            _check_overlaps(day_slots)
+        _check_week_overlaps(profile["days"])
     return program
 
 
+def _fixed_intervals(day_slots: list[dict], day: date) -> list[tuple]:
+    """Reserve each fixed interval's entire random window, before any runtime trim."""
+    intervals = []
+    for slot in day_slots:
+        if "time" not in slot["start"] or not (slot.get("end") or {}).get("time"):
+            continue
+        base = {**slot, "start": {"time": slot["start"]["time"]},
+                "end": {"time": slot["end"]["time"]}}
+        occ = day_occurrences([base], day, ZoneInfo("UTC"), lambda e, d: None)[0]
+        randomized = slot["start"].get("random_minutes", 0) or slot["end"].get("random_minutes", 0)
+        if randomized and (not occ.runs or occ.end - occ.start < timedelta(minutes=5 + slot["start"].get("random_minutes", 0))):
+            raise ProgramError("random_window_too_short")
+        if occ.runs and occ.end is not None:
+            intervals.append((occ.start, occ.end + timedelta(minutes=slot["end"].get("random_minutes", 0))))
+    return intervals
+
+
+def _reject_overlaps(intervals: list[tuple]) -> None:
+    latest_end = None
+    for start, end in sorted(intervals):
+        if latest_end is not None and start < latest_end:
+            raise ProgramError("overlapping_slots")
+        latest_end = end
+
+
 def _check_overlaps(day_slots: list[dict]) -> None:
-    """Fixed-time slots of a day may not overlap (sun slots are trimmed at run time)."""
-    fixed = [s for s in day_slots if "time" in s["start"] and (s.get("end") or {}).get("time")]
-    tz = ZoneInfo("UTC")
-    occ = day_occurrences(fixed, date(2026, 1, 5), tz, lambda e, d: None)
-    if any(o.ignored == "overlap" for o in occ) or _trimmed(fixed, occ):
-        raise ProgramError("overlapping_slots")
+    """Validate a standalone day's fixed windows (solar intervals trim at runtime)."""
+    _reject_overlaps(_fixed_intervals(day_slots, date(2026, 1, 5)))
 
 
-def _trimmed(slots: list[dict], occ: list) -> bool:
-    starts = {s["id"]: s["start"]["time"] for s in slots}
-    return any(o.runs and o.start.strftime("%H:%M") != starts[o.slot_id] for o in occ)
+def _check_week_overlaps(days: list[list[dict]]) -> None:
+    """Include adjacent days and Sunday-to-Monday spill, including random delays."""
+    monday = date(2026, 1, 5)
+    intervals = []
+    for index in range(8):
+        intervals.extend(_fixed_intervals(days[index % 7], monday + timedelta(days=index)))
+    _reject_overlaps(intervals)
 
 
 def admin_required(program: dict, labels: dict[str, dict]) -> bool:

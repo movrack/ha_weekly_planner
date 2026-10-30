@@ -54,7 +54,8 @@ def active_profile(program: dict, active_profiles: dict[str, str]) -> dict:
 
 
 def occurrences_around(
-    profile: dict, moment: datetime, tz: tzinfo, sun: SunProvider, days: Iterable[int] = (-1, 0, 1)
+    profile: dict, moment: datetime, tz: tzinfo, sun: SunProvider, days: Iterable[int] = (-1, 0, 1),
+    *, program_id: str = ""
 ) -> list[tuple[Occurrence, dict]]:
     """Occurrences of a profile for the days around ``moment`` (yesterday covers midnight)."""
     local_day = moment.astimezone(tz).date()
@@ -63,7 +64,7 @@ def occurrences_around(
         day: date = local_day + timedelta(days=delta)
         slots = profile["days"][day.weekday()]
         by_id = {s["id"]: s for s in slots}
-        for occ in day_occurrences(slots, day, tz, sun):
+        for occ in day_occurrences(slots, day, tz, sun, identity=(program_id, profile["id"])):
             result.append((occ, by_id[occ.slot_id]))
     return result
 
@@ -79,7 +80,7 @@ def running_slot(
     resolve: Resolve,
 ) -> tuple[Occurrence, dict] | None:
     """The slot of this program running at ``moment`` that acts on this entity, if any."""
-    for occ, slot in occurrences_around(profile, moment, tz, sun):
+    for occ, slot in occurrences_around(profile, moment, tz, sun, program_id=program["id"]):
         if not occ.runs or occ.end is None:
             continue  # one-shot slots (no end) are events, handled by the engine
         if occ.start <= moment < occ.end and conditions_ok(slot.get("conditions", [])):
@@ -152,7 +153,7 @@ def next_transition(
         if not program.get("enabled", True):
             continue
         profile = active_profile(program, active_profiles)
-        for occ, _slot in occurrences_around(profile, moment, tz, sun, days=(-1, 0, 1, 2)):
+        for occ, _slot in occurrences_around(profile, moment, tz, sun, days=(-1, 0, 1, 2), program_id=program["id"]):
             if not occ.runs:
                 continue
             for edge in (occ.start, occ.end):

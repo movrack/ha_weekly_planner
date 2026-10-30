@@ -60,6 +60,7 @@ captures/
 
 # Local analysis reports
 /rapport/
+/.human-review/
 
 # Integration brand images (HACS / Home Assistant)
 !custom_components/weekly_planner/brand/*.png

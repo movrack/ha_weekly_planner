@@ -34,18 +34,24 @@ it("recalculates preview for runtime mode changes and recovers a failed load", a
   card.hass = { config: { time_zone: "UTC" }, callWS: vi.fn().mockResolvedValue({ slots: [] }) };
   card._config = { program: program.id };
   card._data = { programs: [program], labels: [], status: { [program.id]: { active_profile: "a" } } };
+  card._now = new Date("2026-01-02T12:00:00Z");
   await card._loadPreviews();
+  expect(card.hass.callWS.mock.calls.map(([message]: any[]) => message.date)).toEqual([
+    "2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05", "2026-01-06", "2026-01-07", "2026-01-08",
+  ]);
+  await card._loadPreviews();
+  expect(card.hass.callWS).toHaveBeenCalledTimes(8);
   card._data.status[program.id].active_profile = "b";
   await card._loadPreviews();
-  expect(card.hass.callWS).toHaveBeenCalledTimes(14);
+  expect(card.hass.callWS).toHaveBeenCalledTimes(16);
   card._previewKey = "";
   card.hass.callWS.mockRejectedValueOnce(new Error("offline"));
   await card._loadPreviews();
   await card._loadPreviews();
-  expect(card.hass.callWS).toHaveBeenCalledTimes(21);
+  expect(card.hass.callWS).toHaveBeenCalledTimes(24);
   vi.spyOn(Date, "now").mockReturnValue(Date.now() + 6000);
   await card._loadPreviews();
-  expect(card.hass.callWS).toHaveBeenCalledTimes(28);
+  expect(card.hass.callWS).toHaveBeenCalledTimes(32);
 });
 
 it("builds seven distinct civil dates during a 25-hour day", () => {

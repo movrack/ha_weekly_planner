@@ -295,6 +295,7 @@ export class WpProgramEditor extends LitElement {
     const message = e?.message ?? String(err);
     if (e?.code === "conflict") return `${this._tr("conflict")} — ${this._tr("modified_elsewhere")}`;
     if (e?.code === "unauthorized") return this._tr("err_unauthorized");
+    if (message.includes("random_window_too_short")) return this._tr("random_too_short");
     if (message.includes("overlapping_slots")) return this._tr("err_overlap_server");
     if (message.includes("circular_mode_source")) return this._tr("mode_source_loop");
     if (message.includes("controlled by an external")) return this._tr("mode_source_locked");

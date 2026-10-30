@@ -135,14 +135,18 @@ export class WeeklyPlannerCardEditor extends LitElement {
     return html`<section class="program-settings">
       <h3>${this._tr(selected === "new" ? "new_program" : "ce_program_settings")}</h3>
       <div class="field"><label for="ce-settings-program">${this._tr("ce_edit_program")}</label>
-        <select id="ce-settings-program" data-value=${selected} @change=${(e: Event) => { this._editing = (e.target as HTMLSelectElement).value; }}>
+        <select id="ce-settings-program" data-value=${selected} @change=${(e: Event) => {
+          const value = (e.target as HTMLSelectElement).value;
+          if (value === "new") this._newProgram();
+          else this._editing = value;
+        }}>
           <option value="" ?selected=${!selected}>${this._tr("ce_choose_program")}</option>
-          ${selected === "new" ? html`<option value="new" selected>${this._tr("new_program")}</option>` : nothing}
+          <hr />
+          <option value="new" ?selected=${selected === "new"}>${this._tr("new_program")}</option>
+          <hr />
           ${programs.map((p) => html`<option value=${p.id} ?selected=${selected === p.id}>${p.name}</option>`)}
         </select>
       </div>
-      ${selected !== "new" ? html`<button class="btn" @click=${this._newProgram}>
-        <ha-icon icon="mdi:plus"></ha-icon>${this._tr(this._editors.has("new") ? "ce_resume_creation" : "new_program")}</button>` : nothing}
       ${selected === "new" || program ? this._programEditor(selected, program) : nothing}
     </section>`;
   }

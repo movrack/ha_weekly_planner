@@ -13,6 +13,42 @@ import type { HomeAssistant, PlannerData, Program, TimeSpec } from "../types";
 type Which = "start" | "end";
 const SUNS = ["sunrise", "sunset"] as const;
 
+/** Describe the possible daily delay without inventing a resolved solar time. */
+export function randomDelayRangeText(lang: string, spec: TimeSpec): string {
+  const delay = spec.random_minutes ?? 0;
+  const duration = (minutes: number): string => {
+    const value = Math.abs(minutes);
+    return value < 60 ? `${value} min` : `${Math.floor(value / 60)}h${value % 60 ? String(value % 60).padStart(2, "0") : ""}`;
+  };
+  const clock = (minutes: number): string => {
+    const withinDay = minutes % DAY;
+    const value = `${String(Math.floor(withinDay / 60)).padStart(2, "0")}:${String(withinDay % 60).padStart(2, "0")}`;
+    return minutes >= DAY ? `${value} (${t(lang, "next_day")})` : value;
+  };
+  let start: string;
+  let end: string;
+  if ("time" in spec) {
+    const minutes = clockToMinutes(spec.time);
+    start = clock(minutes);
+    end = clock(minutes + delay);
+  } else {
+    const solar = (offset: number): string => {
+      const name = specText(lang, { ...spec, offset: 0, random_minutes: 0 }).replaceAll("\u00a0", " ");
+      return offset ? `${name} ${offset > 0 ? "+" : "−"} ${duration(offset)}` : name;
+    };
+    const bound = (value: string, earliest?: string, latest?: string): string => {
+      const limits = [earliest ? `${t(lang, "sun_earliest")} ${earliest}` : "", latest ? `${t(lang, "sun_latest")} ${latest}` : ""].filter(Boolean);
+      return limits.length ? `${value} (${limits.join(", ")})` : value;
+    };
+    start = bound(solar(spec.offset ?? 0), spec.earliest, spec.latest);
+    // Bounds apply to the base first; the latest bound also caps the delayed result.
+    end = spec.earliest || spec.latest
+      ? bound(`${start} + ${duration(delay)}`, undefined, spec.latest)
+      : solar((spec.offset ?? 0) + delay);
+  }
+  return t(lang, "random_range", { start, end });
+}
+
 @customElement("wp-slot-form")
 export class WpSlotForm extends LitElement {
   @property({ attribute: false }) hass!: HomeAssistant;
@@ -44,10 +80,10 @@ export class WpSlotForm extends LitElement {
   private _toggleSun(which: Which, sun: (typeof SUNS)[number]): void {
     const spec = this.group.slot[which];
     if (!spec) return;
-    if ("sun" in spec && spec.sun === sun) this._update(which, { time: this._last[which] });
+    if ("sun" in spec && spec.sun === sun) this._update(which, { time: this._last[which], random_minutes: spec.random_minutes });
     else {
       if ("time" in spec) this._last = { ...this._last, [which]: spec.time };
-      this._update(which, { sun, offset: "sun" in spec ? spec.offset ?? 0 : 0 });
+      this._update(which, { sun, offset: "sun" in spec ? spec.offset ?? 0 : 0, random_minutes: spec.random_minutes });
     }
   }
 
@@ -55,7 +91,14 @@ export class WpSlotForm extends LitElement {
     if (!/^\d{2}:\d{2}$/.test(value)) return;
     let m = clockToMinutes(value);
     if (which === "end" && m === 0) m = DAY;
-    this._update(which, { time: m >= DAY ? "24:00" : minutesToClock(m) });
+    this._update(which, { time: m >= DAY ? "24:00" : value, random_minutes: this.group.slot[which]?.random_minutes });
+  }
+
+  private _random(which: Which, value: number): void {
+    const spec = this.group.slot[which];
+    if (!spec || !Number.isInteger(value) || value < 0 || value > 240) return;
+    const { random_minutes: _old, ...base } = spec;
+    this._update(which, value ? { ...base, random_minutes: value } : base);
   }
 
   private _timeBlock(which: Which, title: string) {
@@ -70,7 +113,7 @@ export class WpSlotForm extends LitElement {
         ${"time" in spec
           ? html`<input type="time" step="60" .value=${spec.time === "24:00" ? "00:00" : spec.time} ?disabled=${dis}
               aria-label=${title} @change=${(e: Event) => this._fromInput(which, (e.target as HTMLInputElement).value)} />`
-          : html`<output class="sun">${specText(lang, spec)}</output>`}
+          : html`<output class="sun">${specText(lang, { ...spec, random_minutes: 0 })}</output>`}
         <button class="step" ?disabled=${dis} aria-label=${t(lang, "plus15")} title=${t(lang, "plus15")} @click=${() => this._update(which, shiftSpec(spec, 15))}><ha-icon icon="mdi:plus"></ha-icon></button>
       </div>
       <div class="chips">
@@ -79,7 +122,17 @@ export class WpSlotForm extends LitElement {
           return html`<button class="chip ${on ? "on" : ""}" aria-pressed=${on} ?disabled=${dis}
             @click=${() => this._toggleSun(which, sun)}><ha-icon icon=${sun === "sunrise" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down"}></ha-icon>${s[`sun_${sun}_short` as "sun_dawn"] ?? sun}</button>`;
         })}
-      </div>`;
+      </div>
+      <div class="random">
+        <label><input type="checkbox" aria-describedby=${`random-${which}`} .checked=${Boolean(spec.random_minutes)} ?disabled=${dis}
+          @change=${(e: Event) => this._random(which, (e.target as HTMLInputElement).checked ? 15 : 0)} />${t(lang, "random_time")}</label>
+        ${spec.random_minutes ? html`<label>${t(lang, "random_minutes")}<input type="number" aria-describedby=${`random-${which}`} min="1" max="240" step="1" required
+          .value=${String(spec.random_minutes)} ?disabled=${dis} @change=${(e: Event) => {
+            const input = e.target as HTMLInputElement;
+            if (input.validity.valid) this._random(which, Number(input.value));
+          }} /></label><small id=${`random-${which}`}>${randomDelayRangeText(lang, spec)}</small>` : nothing}
+      </div>
+      `;
   }
 
   private _toggleEnd(withEnd: boolean): void {
@@ -166,6 +219,11 @@ export class WpSlotForm extends LitElement {
     }
     .time output.sun { flex: 1; min-width: 0; align-self: center; text-align: center; font-size: 20px; font-weight: 600; }
     .ibtn.round { border: 1px solid var(--divider-color); min-width: 64px; font-weight: 600; }
+    .random { display: grid; gap: 6px; margin: 8px 0; }
+    .random label { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+    .random input[type="checkbox"] { width: 20px; height: 20px; }
+    .random input[type="number"] { width: 76px; min-height: 44px; box-sizing: border-box; }
+    .random small { color: var(--secondary-text-color); }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; }
     .chips + .time { margin-top: 12px; }
     .chip {
