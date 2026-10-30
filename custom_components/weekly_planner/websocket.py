@@ -9,6 +9,7 @@ import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.util import dt as dt_util
 
@@ -42,11 +43,35 @@ def _may_edit(hass: HomeAssistant, connection) -> bool:
     return connection.user.is_admin or not engine.options.get(CONF_ADMIN_ONLY, False)
 
 
+def _editor_engine(hass: HomeAssistant, connection, msg) -> PlannerEngine | None:
+    """The engine when this connection may edit; otherwise answers the error and returns None."""
+    engine = _engine(hass)
+    if engine is None or not _may_edit(hass, connection):
+        connection.send_error(msg["id"], "unauthorized", "Editing is reserved to administrators")
+        return None
+    return engine
+
+
 @callback
 def async_register(hass: HomeAssistant) -> None:
     for handler in (ws_get, ws_subscribe, ws_program_save, ws_program_delete, ws_label_save,
                     ws_label_delete, ws_preview, ws_journal, ws_set_enabled, ws_set_profile):
         websocket_api.async_register_command(hass, handler)
+
+
+def _is_inactive_mode_edit(engine: PlannerEngine, existing: dict, program: dict) -> bool:
+    """Only another mode's hours changed: the active mode's action must not be re-sent."""
+    # Normalize legacy defaults before comparing metadata, without changing stored data.
+    try:
+        old = PROGRAM(existing)
+    except vol.Invalid:
+        return False
+    active_id = engine.active_profile_id(existing["id"])
+    metadata = lambda p: {k: v for k, v in p.items() if k not in {"profiles", "revision"}}
+    old_mode = next((p for p in old["profiles"] if p["id"] == active_id), None)
+    new_mode = next((p for p in program["profiles"] if p["id"] == active_id), None)
+    return (old["profiles"] != program["profiles"] and metadata(old) == metadata(program)
+            and old_mode is not None and old_mode == new_mode)
 
 
 def _snapshot(engine: PlannerEngine) -> dict[str, Any]:
@@ -111,13 +136,11 @@ def ws_subscribe(hass, connection, msg) -> None:
 })
 @websocket_api.async_response
 async def ws_program_save(hass, connection, msg) -> None:
-    engine = _engine(hass)
-    if engine is None or not _may_edit(hass, connection):
-        connection.send_error(msg["id"], "unauthorized", "Editing is reserved to administrators")
+    engine = _editor_engine(hass, connection, msg)
+    if engine is None:
         return
     program = dict(msg["program"])
     is_new = not program.get("id")
-    program.setdefault("id", new_id())
     if is_new:
         program["id"] = new_id()
         program["created_at"] = dt_util.utcnow().isoformat()
@@ -144,20 +167,7 @@ async def ws_program_save(hass, connection, msg) -> None:
     if existing and existing.get("revision", 0) != program.get("revision", 0):
         connection.send_error(msg["id"], "conflict", "Modified elsewhere, reload")
         return
-    inactive_mode_edit = False
-    if existing:
-        # Editing another week's hours must not re-send the active mode's action.
-        # Normalize legacy defaults before comparing metadata, without changing stored data.
-        try:
-            old = PROGRAM(existing)
-            active_id = engine.active_profile_id(existing["id"])
-            metadata = lambda p: {k: v for k, v in p.items() if k not in {"profiles", "revision"}}
-            old_mode = next((p for p in old["profiles"] if p["id"] == active_id), None)
-            new_mode = next((p for p in program["profiles"] if p["id"] == active_id), None)
-            inactive_mode_edit = (old["profiles"] != program["profiles"] and metadata(old) == metadata(program)
-                                  and old_mode is not None and old_mode == new_mode)
-        except vol.Invalid:
-            pass
+    inactive_mode_edit = bool(existing) and _is_inactive_mode_edit(engine, existing, program)
     program["revision"] = program.get("revision", 0) + 1
     program.setdefault("created_at", existing.get("created_at") if existing else dt_util.utcnow().isoformat())
     if existing:
@@ -175,9 +185,8 @@ async def ws_program_save(hass, connection, msg) -> None:
 })
 @websocket_api.async_response
 async def ws_program_delete(hass, connection, msg) -> None:
-    engine = _engine(hass)
-    if engine is None or not _may_edit(hass, connection):
-        connection.send_error(msg["id"], "unauthorized", "Editing is reserved to administrators")
+    engine = _editor_engine(hass, connection, msg)
+    if engine is None:
         return
     program = engine.store.program(msg["program_id"])
     if program is None:
@@ -199,9 +208,8 @@ async def ws_program_delete(hass, connection, msg) -> None:
 @websocket_api.async_response
 async def ws_label_save(hass, connection, msg) -> None:
     """Create or change a label (shared by every program)."""
-    engine = _engine(hass)
-    if engine is None or not _may_edit(hass, connection):
-        connection.send_error(msg["id"], "unauthorized", "Editing is reserved to administrators")
+    engine = _editor_engine(hass, connection, msg)
+    if engine is None:
         return
     label = dict(msg["label"])
     label.setdefault("id", new_id())
@@ -231,9 +239,8 @@ async def ws_label_save(hass, connection, msg) -> None:
 @websocket_api.async_response
 async def ws_label_delete(hass, connection, msg) -> None:
     """Delete a label, refused while a program uses it."""
-    engine = _engine(hass)
-    if engine is None or not _may_edit(hass, connection):
-        connection.send_error(msg["id"], "unauthorized", "Editing is reserved to administrators")
+    engine = _editor_engine(hass, connection, msg)
+    if engine is None:
         return
     users = label_users(engine.store.programs, msg["label_id"])
     if users:
@@ -317,8 +324,6 @@ async def ws_set_enabled(hass, connection, msg) -> None:
 @websocket_api.async_response
 async def ws_set_profile(hass, connection, msg) -> None:
     """Select a manual mode with the same access as the native select."""
-    from homeassistant.exceptions import ServiceValidationError
-
     engine = _engine(hass)
     if engine is None or engine.store.program(msg["program_id"]) is None:
         connection.send_error(msg["id"], "not_found", "Unknown program")

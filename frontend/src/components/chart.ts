@@ -12,7 +12,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { t } from "../i18n";
 import { actionValue, entityAction, labelOf } from "../labels";
 import { activeProfile, entityDomain, friendlyName } from "../planner";
-import { addDaysIso, localMinutes, localWeekday, nominal, spillover } from "../time";
+import { addDaysIso, dateFormat, localMinutes, localWeekday, nominal, spillover } from "../time";
 import { nowTip, sunDir, sunTip } from "./day-bar";
 import "./tip";
 import type { HomeAssistant, Label, PlannerData, PreviewSlot, Program, Slot, TimeSpec } from "../types";
@@ -20,7 +20,7 @@ import type { HomeAssistant, Label, PlannerData, PreviewSlot, Program, Slot, Tim
 // ---- date helpers (server time zone) -------------------------------------------------------
 
 function offsetMs(ms: number, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat("en-GB", {
+  const parts = dateFormat("en-GB", {
     timeZone, year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
   }).formatToParts(new Date(ms));
@@ -519,7 +519,7 @@ export class WpChart extends LitElement {
     const x = (m: number) => PAD.l + (m / model.span) * (W - PAD.l - PAD.r);
     const y = (v: number) => PAD.t + (1 - (v - model.lo) / (model.hi - model.lo)) * (H - PAD.t - PAD.b);
     const { startMs } = dayBounds(this.date, this._tz);
-    const hourOf = (m: number) => new Intl.DateTimeFormat("en-GB", { timeZone: this._tz, hour: "2-digit", hourCycle: "h23" })
+    const hourOf = (m: number) => dateFormat("en-GB", { timeZone: this._tz, hour: "2-digit", hourCycle: "h23" })
       .format(new Date(startMs + m * 60_000));
     const ticksX: number[] = [];
     for (let m = 0; m <= model.span; m += 180) ticksX.push(m);

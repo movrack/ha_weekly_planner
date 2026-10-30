@@ -20,7 +20,7 @@ import { actionText, entityAction, labelOf } from "./labels";
 import { strings, t } from "./i18n";
 import { loadServiceNames } from "./services";
 import { reloadIfOutdated } from "./update";
-import { activeProfile, entityDomain, filterPrograms, friendlyName, subscribePlanner } from "./planner";
+import { activeProfile, filterPrograms, friendlyName, subscribePlanner } from "./planner";
 import { dayBounds, addDaysIso } from "./components/chart";
 import { formatWhen, localDateIso, localMinutes, localWeekday, nominal, spillover, DAY } from "./time";
 import type { CardConfig, HomeAssistant, PlannerData, PreviewSlot, Program, Slot } from "./types";
@@ -193,8 +193,23 @@ export class WeeklyPlannerCard extends LitElement {
 
   /* ---- blocks ---- */
 
-  /** Spans of a day (`offset` days from today) for a device, from every program that schedules it. */
+  private _spanCache = new Map<string, BarSpan[]>();
+  private _spanInputs: unknown[] = [];
+
+  /** Spans of a day (`offset` days from today) for a device, from every program that schedules it (memoized until an input is replaced). */
   private _spans(entityId: string, programs: Program[], offset = 0): BarSpan[] {
+    const inputs = [this._data, this._preview, this._now, this._config];
+    if (inputs.some((x, i) => x !== this._spanInputs[i])) {
+      this._spanCache.clear();
+      this._spanInputs = inputs;
+    }
+    const key = `${entityId}|${offset}|${programs.map((p) => p.id).join(",")}`;
+    let spans = this._spanCache.get(key);
+    if (!spans) this._spanCache.set(key, (spans = this._computeSpans(entityId, programs, offset)));
+    return spans;
+  }
+
+  private _computeSpans(entityId: string, programs: Program[], offset: number): BarSpan[] {
     const data = this._data!;
     const at = this._dateAt(offset);
     const today = localWeekday(at, this._tz);

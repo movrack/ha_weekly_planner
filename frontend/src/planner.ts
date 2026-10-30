@@ -79,8 +79,12 @@ export function newId(): string {
 
 /* ---- number formatting ---- */
 
+const numberFormats = new Map<string, Intl.NumberFormat>();
+
 export function fmtNum(lang: string, n: number): string {
-  return new Intl.NumberFormat(lang, { maximumFractionDigits: 1 }).format(n);
+  let format = numberFormats.get(lang);
+  if (!format) numberFormats.set(lang, (format = new Intl.NumberFormat(lang, { maximumFractionDigits: 1 })));
+  return format.format(n);
 }
 
 /**

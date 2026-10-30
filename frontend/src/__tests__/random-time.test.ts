@@ -95,3 +95,24 @@ describe("random delay explanation", () => {
       .toBe("Aléatoirement entre Coucher + 1h (Pas avant 18:00, Pas après 22:00) et Coucher + 1h (Pas avant 18:00, Pas après 22:00) + 15 min (Pas après 22:00)");
   });
 });
+
+it("memoizes card spans until the data, previews, clock or config are replaced", async () => {
+  const { WeeklyPlannerCard } = await import("../weekly-planner-card");
+  const card = new WeeklyPlannerCard() as any;
+  card.hass = { language: "en", config: { time_zone: "UTC" } };
+  card._now = new Date("2026-01-02T12:00:00Z");
+  const program = { id: "p", enabled: true, active_profile: "home", entities: [{ entity_id: "switch.x", label_overrides: {} }],
+    profiles: [{ id: "home", days: [[], [], [], [], [], [], []] }] };
+  card._data = { labels: [], status: {}, programs: [program] };
+  const first = card._spans("switch.x", [program]);
+  expect(card._spans("switch.x", [program])).toBe(first);
+  card._preview = {};
+  expect(card._spans("switch.x", [program])).not.toBe(first);
+});
+
+it("caches Intl date formatters per locale and options", async () => {
+  const { dateFormat, localDateIso } = await import("../time");
+  expect(dateFormat("en-GB", { timeZone: "UTC" })).toBe(dateFormat("en-GB", { timeZone: "UTC" }));
+  expect(dateFormat("en-GB", { timeZone: "UTC" })).not.toBe(dateFormat("en-GB", { timeZone: "Europe/Paris" }));
+  expect(localDateIso(new Date("2026-01-01T23:30:00Z"), "Europe/Paris")).toBe("2026-01-02");
+});

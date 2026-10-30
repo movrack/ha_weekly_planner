@@ -1,9 +1,9 @@
 // Pure logic of the schedule screens: times of a slot, days, grouping the same slot across days.
 
 import { t } from "./i18n";
-import { friendlyName, newId } from "./planner";
+import { newId } from "./planner";
 import { DAY, STEP, fmtClock } from "./time";
-import type { HomeAssistant, Profile, Slot, TimeSpec } from "./types";
+import type { Profile, Slot, TimeSpec } from "./types";
 
 export const NBSP = " ";
 export const nb = (text: string): string => text.replace(/ /g, NBSP);
@@ -13,10 +13,6 @@ const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.str
 /* ------------------------------------------------------------------ time of a slot */
 
 export type SunName = "sunrise" | "sunset";
-
-export function isSun(spec: TimeSpec): spec is Extract<TimeSpec, { sun: string }> {
-  return "sun" in spec;
-}
 
 const offsetWord = (lang: string, minutes: number): string => {
   const abs = Math.abs(minutes);
@@ -131,4 +127,3 @@ export function writeGroups(
 /* ------------------------------------------------------------------ entities of a scope */
 
 /** Device name for headers and cards. */
-export const deviceName = (hass: HomeAssistant, entityId: string): string => friendlyName(hass, entityId);

@@ -12,7 +12,7 @@ import "../components/dialog";
 import "../components/schedule-dialog";
 import { confirmAction } from "../components/confirm";
 import { displayName, scrollHintCss, trackScrollHints } from "../components/gestures";
-import { strings, t } from "../i18n";
+import { t } from "../i18n";
 import { ensureHaSelector, newId } from "../planner";
 import { loadServiceNames, serviceDomains, serviceDescription, serviceLabel, servicesFor } from "../services";
 import type { Condition, HomeAssistant, PlannerData, Profile, Program, ProgramEntity, Slot } from "../types";
@@ -146,9 +146,6 @@ export class WpProgramEditor extends LitElement {
 
   private get _lang() { return langOf(this.hass); }
   private _tr(key: K, vars?: Record<string, string>) { return t(this._lang, key, vars); }
-
-  private _long(d: number): string { return strings(this._lang).days[d]; }
-  private _short(d: number): string { return strings(this._lang).days_short[d]; }
 
   /* ---- initial state ---- */
 

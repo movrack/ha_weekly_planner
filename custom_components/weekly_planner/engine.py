@@ -18,11 +18,11 @@ from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, State, callb
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_point_in_utc_time, async_track_state_change_event
+from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.helpers.sun import get_astral_event_date
 from homeassistant.util import dt as dt_util
 
 from .actions import call_for, resolve_action
-from homeassistant.helpers.service import async_get_all_descriptions
 from .conditions import ConditionTracker
 from .const import DOMAIN
 from .resolver import Segment, active_profile, default_label, next_transition, occurrences_around, resolve_entity
@@ -91,7 +91,7 @@ class PlannerEngine:
         self._ready = True
         await self.async_load_descriptions()
         async_check_missing(self.hass, self)
-        self._observe_all_conditions(initial=True)
+        self._observe_all_conditions()
         self._sync_mode_sources()
         await self.async_recompute("startup")
 
@@ -225,13 +225,14 @@ class PlannerEngine:
         if self.store.config.get("vacation"):
             return None
         previous_key = self.segment(entity_id, now).key
+        profiles = self._profiles()
         edges: dict[datetime, dict] = {}
         for program in self.store.programs:
             if not program.get("enabled", True) or not any(
                 e["entity_id"] == entity_id for e in program["entities"]
             ):
                 continue
-            profile = active_profile(program, self._profiles())
+            profile = active_profile(program, profiles)
             for occ, slot in occurrences_around(profile, now, self.tz, self.sun, days=range(-1, 8), program_id=program["id"]):
                 if not occ.runs:
                     continue
@@ -285,12 +286,10 @@ class PlannerEngine:
                         conds += slot.get("conditions", [])
         return conds
 
-    def _observe_all_conditions(self, initial: bool = False) -> bool:
+    def _observe_all_conditions(self) -> None:
         now = dt_util.utcnow()
-        changed = False
         for cond in self._all_conditions():
-            changed |= self.conditions.observe(cond, self.hass.states.get(cond["entity_id"]), now)
-        return changed
+            self.conditions.observe(cond, self.hass.states.get(cond["entity_id"]), now)
 
     @callback
     def _on_state(self, event: Event) -> None:
@@ -322,7 +321,7 @@ class PlannerEngine:
             unavailable = ("unavailable",) if explicit else UNAVAILABLE
             if (
                 (explicit or owner) == entity_id and rt.get("pending")
-                and new is not None and new.state not in unavailable
+                and new.state not in unavailable
                 and (old is None or old.state in unavailable)
             ):
                 self.hass.async_create_task(self.async_apply(owner, "back_online"))
@@ -408,10 +407,12 @@ class PlannerEngine:
         last = self.store.parse(self.store.runtime.get("last_tick"))
         if last is None or self.store.config.get("vacation"):
             return
+        excluded = excluded or set()
+        profiles = self._profiles()
         for program in self.store.programs:
-            if program["id"] in (excluded or set()) or not program.get("enabled", True) or not self.conditions.check(program.get("conditions", [])):
+            if program["id"] in excluded or not program.get("enabled", True) or not self.conditions.check(program.get("conditions", [])):
                 continue
-            profile = active_profile(program, self._profiles())
+            profile = active_profile(program, profiles)
             for occ, slot in occurrences_around(profile, now, self.tz, self.sun, program_id=program["id"]):
                 if occ.end is not None or not occ.runs or not (last < occ.start <= now):
                     continue
@@ -523,6 +524,7 @@ class PlannerEngine:
             if not oneshot and rt.get("segment") != segment:
                 return  # segment changed meanwhile: this action is stale (spec § 5.1)
             call = call_for(entity_id, action, self.hass.states.get)
+            # Home Assistant adds the target to the data it receives: journal a separate copy.
             applied_action = ({**{key: value for key, value in action.items() if key != "data_sources"},
                                "data": call.service_data()}
                               if action["kind"] == "service" and action.get("data_sources") else action)

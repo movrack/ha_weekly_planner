@@ -45,6 +45,3 @@ export function findOverlap(slots: Slot[]): [Slot, Slot] | null {
   return null;
 }
 
-export function sortSlots(hass: HomeAssistant, slots: Slot[]): Slot[] {
-  return [...slots].sort((a, b) => specMinutes(hass, a.start) - specMinutes(hass, b.start));
-}
