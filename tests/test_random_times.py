@@ -107,6 +107,13 @@ def test_cross_day_and_week_random_envelopes(weekday):
         _check_week_overlaps(days)
 
 
+def test_legacy_cross_midnight_without_delay_still_saves():
+    days = [[] for _ in range(7)]
+    days[0] = [fixed("a", "22:00", "07:00")]
+    days[1] = [fixed("b", "06:00", "08:00")]
+    _check_week_overlaps(days)
+
+
 def test_preview_deadline_and_active_resolution_agree():
     slot = {**fixed("slot", "08:00", "10:00", 15, 15), "label": "on"}
     profile = {"id": "mode", "days": [[deepcopy(slot)] for _ in range(7)]}

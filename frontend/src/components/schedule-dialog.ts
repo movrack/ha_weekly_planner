@@ -295,14 +295,14 @@ export class WpSchedule extends LitElement {
     const { start, end } = g.slot;
     const from = specMinutes(this.hass, start);
     const length = end ? Math.max(15, specMinutes(this.hass, end) - from) : 60;
-    const shift = (m: number) => ({ time: minutesToClock(Math.min(DAY, m)) });
+    const shift = (spec: { random_minutes?: number }, m: number) => ({ ...spec, time: minutesToClock(Math.min(DAY, m)) });
     const base: RowEdit = { openId: this._openId, rest: this._rest, draft: structuredClone(g) };
     const dayOnly = this._dayOnly;
     const copy = freshGroup(g.slot.label, g.days);
     copy.slot = {
       ...structuredClone(g.slot), id: copy.slot.id,
-      start: "time" in start ? shift(from + length) : { ...start, offset: (start.offset ?? 0) + length },
-      end: !end ? null : "time" in end ? shift(from + 2 * length) : { ...end, offset: (end.offset ?? 0) + length },
+      start: "time" in start ? shift(start, from + length) : { ...start, offset: (start.offset ?? 0) + length },
+      end: !end ? null : "time" in end ? shift(end, from + 2 * length) : { ...end, offset: (end.offset ?? 0) + length },
     };
     const origin = this._origin;
     const profileId = this._editProfileId;
