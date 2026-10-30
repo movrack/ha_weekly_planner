@@ -41,6 +41,8 @@ ignored by Git and may contain notes that are useful across different AI tools.
 - **Delegation**: when sub-agents are available, delegate suitable independent tasks to agents with
   appropriate expertise. Keep the main conversation available for new instructions, coordinate file
   ownership, review their results and give the owner a consolidated report.
+  The main session coordinates only (it does not write code itself): it picks the agent and a model sized
+  to the work, checks evidence, and asks the owner before creating a new specialised agent.
 - **AI assistance**: keep repository guidance and local memory usable across AI tools; do not add
   tool-specific instructions or attribution outside the generic AI assistance note in the README files.
 - **Commits**: Conventional Commits in English (`feat(card): …`, `fix(engine): …`, `docs: …`,
