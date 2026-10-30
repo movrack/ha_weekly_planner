@@ -1,6 +1,11 @@
 // User-facing texts (fr / en). Keys are short and stable.
 
 const en = {
+  random_too_short: "Reduce the random delay or extend this schedule: at least 5 minutes must remain.",
+  random_time: "Random delay",
+  random_minutes: "Maximum delay (minutes)",
+  random_window: "Within the next {n} minutes",
+  random_range: "Randomly between {start} and {end}",
   pe_area: "Program area (optional)",
   pe_area_hint: "Choose an existing name or enter a new one. This groups programs in card filters; device rooms are not used automatically.",
   ce_all_areas: "All areas",
@@ -277,6 +282,11 @@ const en = {
 };
 
 const fr: typeof en = {
+  random_too_short: "Réduisez le délai aléatoire ou allongez cet horaire : il doit rester au moins 5 minutes.",
+  random_time: "Délai aléatoire",
+  random_minutes: "Délai maximum (minutes)",
+  random_window: "Dans les {n} prochaines minutes",
+  random_range: "Aléatoirement entre {start} et {end}",
   pe_area: "Zone du programme (facultatif)",
   pe_area_hint: "Choisissez un nom existant ou saisissez-en un nouveau. Cette zone regroupe les programmes dans les filtres des cartes ; les pièces des appareils ne sont pas reprises automatiquement.",
   ce_all_areas: "Toutes les zones",

@@ -266,7 +266,7 @@ def ws_preview(hass, connection, msg) -> None:
     profile = active_profile(program, profiles)
     noon = datetime(day.year, day.month, day.day, 12, tzinfo=engine.tz)
     result = []
-    for occ, slot in occurrences_around(profile, noon, engine.tz, engine.sun, days=(0,)):
+    for occ, slot in occurrences_around(profile, noon, engine.tz, engine.sun, days=(0,), program_id=program["id"]):
         result.append({
             "slot_id": slot["id"], "start": occ.start.isoformat(),
             "end": occ.end.isoformat() if occ.end else None, "ignored": occ.ignored,

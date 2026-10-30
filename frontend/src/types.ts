@@ -27,8 +27,8 @@ export interface HassEntity {
 }
 
 export type TimeSpec =
-  | { time: string }
-  | { sun: "dawn" | "sunrise" | "sunset" | "dusk"; offset?: number; earliest?: string; latest?: string };
+  | { time: string; random_minutes?: number }
+  | { sun: "dawn" | "sunrise" | "sunset" | "dusk"; offset?: number; earliest?: string; latest?: string; random_minutes?: number };
 
 /** What a label does: a service called on the entity, or a scene. */
 export interface ActionValueSource {

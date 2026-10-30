@@ -292,16 +292,22 @@ export class WpChart extends LitElement {
     const wd = weekdayOf(this.date);
     interface Range { s: number; e: number | null; slot: Slot; spill?: boolean; ignored?: boolean }
     const ranges: Range[] = [];
-    for (const { slot, end } of spillover(profile.days[(wd + 6) % 7])) ranges.push({ s: 0, e: end, slot, spill: true });
+    if (!this.slots) for (const { slot, end } of spillover(profile.days[(wd + 6) % 7])) {
+      if (!slot.start.random_minutes && !slot.end?.random_minutes) ranges.push({ s: 0, e: end, slot, spill: true });
+    }
     if (this.slots) {
       for (const r of this.slots) {
         const slot = slotById.get(r.slot_id);
         if (!slot) continue;
-        ranges.push({ s: Math.max(0, toM(Date.parse(r.start))), e: r.end ? Math.min(span, toM(Date.parse(r.end))) : null, slot,
-          ignored: Boolean(r.ignored) });
+        const start = toM(Date.parse(r.start)), end = r.end ? toM(Date.parse(r.end)) : null;
+        if (start >= span || (end === null ? start < 0 : end <= 0)) continue;
+        ranges.push({ s: Math.max(0, start), e: end === null ? null : Math.min(span, end), slot,
+          spill: start < 0, ignored: Boolean(r.ignored) });
       }
     } else {
       for (const slot of profile.days[wd]) {
+        // Only server previews know the daily random delay; never invent an exact prediction.
+        if (slot.start.random_minutes || slot.end?.random_minutes) continue;
         const s = nominal(slot.start);
         if (s === null) continue;
         const e = nominal(slot.end ?? null);

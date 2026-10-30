@@ -169,7 +169,7 @@ export class WeeklyPlannerCard extends LitElement {
 
   private async _loadPreviews(): Promise<void> {
     if (!this._data) return;
-    const dates = [0, 1, 2, 3, 4, 5, 6].map((o) => localDateIso(this._dateAt(o), this._tz));
+    const dates = [-1, 0, 1, 2, 3, 4, 5, 6].map((o) => localDateIso(this._dateAt(o), this._tz));
     const programs = filterPrograms(this._data, this._config);
     const key = `${dates[0]}|${programs.map((p) => `${p.id}:${p.revision}:${activeProfile(p, this._data!).id}`).join(",")}`;
     if (key === this._previewKey || (key === this._failedPreviewKey && Date.now() < this._previewRetryAt)) return;
@@ -209,22 +209,32 @@ export class WeeklyPlannerCard extends LitElement {
         return { start, end, color: label.color, label: label.name, slotId: slot.id, startSun: sunDir(slot.start),
           endSun: slot.end ? sunDir(slot.end) : null, startSpec: slot.start, endSpec: slot.end ?? null, marker: !slot.end, ...extra };
       };
-      for (const { slot, end } of spillover(profile.days[(today + 6) % 7])) {
-        if (of(slot)) spans.push(mk(slot, 0, end, { spill: true, startSun: null }));
-      }
+      const date = localDateIso(at, this._tz);
+      const previous = this._preview[addDaysIso(date, -1)]?.[program.id];
       const resolved = preview[program.id];
-      for (const slot of profile.days[today]) {
-        if (!of(slot)) continue;
-        const r = resolved?.find((x) => x.slot_id === slot.id);
-        let start = nominal(slot.start);
-        let end = nominal(slot.end ?? null);
-        if (r) {
-          start = localMinutes(r.start, this._tz);
-          end = r.end ? localMinutes(r.end, this._tz) : null;
-        }
-        if (start === null) continue;
-        spans.push(mk(slot, start, end === null ? start + 10 : end > start ? end : DAY,
-          { sun: "sun" in slot.start || Boolean(slot.end && "sun" in slot.end), ignored: r?.ignored ?? null }));
+      const byId = new Map(profile.days.flat().map((slot) => [slot.id, slot]));
+      const bounds = dayBounds(date, this._tz);
+      for (const r of [...(previous ?? []), ...(resolved ?? [])]) {
+        const slot = byId.get(r.slot_id);
+        if (!slot || !of(slot)) continue;
+        const startMs = Date.parse(r.start), endMs = r.end ? Date.parse(r.end) : null;
+        if (startMs >= bounds.endMs || (endMs === null ? startMs < bounds.startMs : endMs <= bounds.startMs)) continue;
+        const spill = startMs < bounds.startMs;
+        const start = spill ? 0 : localMinutes(r.start, this._tz);
+        const end = endMs === null ? null : endMs >= bounds.endMs ? DAY : localMinutes(r.end!, this._tz);
+        spans.push(mk(slot, start, end === null ? Math.min(DAY, start + 10) : end, {
+          spill, startSun: spill ? null : sunDir(slot.start), ignored: r.ignored ?? null,
+          sun: "sun" in slot.start || Boolean(slot.end && "sun" in slot.end),
+        }));
+      }
+      // Until a preview arrives, only exact fixed schedules have an honest fallback.
+      if (!previous) for (const { slot, end } of spillover(profile.days[(today + 6) % 7])) {
+        if (!slot.start.random_minutes && !slot.end?.random_minutes && of(slot)) spans.push(mk(slot, 0, end, { spill: true, startSun: null }));
+      }
+      if (!resolved) for (const slot of profile.days[today]) {
+        if (!of(slot) || slot.start.random_minutes || slot.end?.random_minutes) continue;
+        const start = nominal(slot.start), end = nominal(slot.end ?? null);
+        if (start !== null) spans.push(mk(slot, start, end === null ? start + 10 : end > start ? end : DAY));
       }
     }
     return spans;

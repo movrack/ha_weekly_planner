@@ -680,3 +680,34 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Cancel/invalidate obsolete action generations when a segment changes or a replacement target is unavailable; preserve eager task execution and ignore obsolete completions.
 - [ ] Profile repeated status work outside websocket notification cycles, including switch attributes and version checks, before adding broader caching.
 - [ ] Broader architecture/module refactoring remains outside this focused correction batch.
+
+
+## 18. Schedule deletion — 0.16.4
+
+- [x] Keep Delete visible in the schedule form, including a pending label draft and a new unsaved slot.
+- [x] Confirm existing-slot deletion and apply it to fresh data in the edited mode/day only; ignore unsaved label changes and preserve other slots, days and modes.
+- [x] For a new unsaved slot, Delete discards only the local draft without confirmation or a server write.
+- [x] Refuse deletion during a save or when editing is forbidden; cancelled confirmation preserves the draft.
+
+
+## 19. Daily random time windows — 0.17.0
+
+Each start or end TimeSpec may include optional `random_minutes`, an integer from 0 to 240. Absent/zero preserves the existing time exactly. The form offers a per-boundary checkbox and defaults to 15 minutes when enabled; the user can set 1–240 minutes or disable it explicitly. This is a delay after the configured time, never an advance.
+
+Resolve the configured local fixed time or solar event/offset/bounds first, using the existing DST and solar-rounding rules. Add an integer elapsed-minute delay in UTC. A solar `latest` remains a true cap after the delay. Overnight selection is based on the original boundaries, before jitter; the occurrence retains its original local date even if its delayed action falls on the next day.
+
+The daily draw is derived from stable program, profile, slot, original local occurrence date and boundary identity. Recalculation, preview, restart and all entities of the same slot share the same draw. Different days have independent deterministic draws, which may coincidentally be equal. No additional polling, timer per slot, persistent random state or device-specific rule is introduced.
+
+For fixed-time ranges, reject settings whose maximum start delay would leave less than five minutes before the earliest end. Validate the full possible occupied intervals across the week, including midnight and Sunday/Monday, rather than one sampled draw. Existing seasonal solar/DST invalid-occurrence handling remains in force. The single resolved schedule remains the source for engine and preview.
+
+- [x] Validate optional windows and preserve absent/zero behavior and minute precision.
+- [x] Verify deterministic per-occurrence draws across recomputation, preview and restart, with independent boundary identities.
+- [x] Preserve DST, overnight occurrence identity, solar latest caps, minimum duration and weekly overlap safety.
+- [x] Show clear per-boundary controls and preserve settings through time/solar edits, grouping and duplication.
+- [x] Display resolved intervals and previous-day tails without inventing nominal random forecasts; dragging a boundary to an exact time removes randomness only from that boundary.
+- [x] Complete Python/TypeScript/frontend checks and rebuild the shipped card; local visual verification remains separate from production deployment.
+
+### 19.1 Clear random-delay controls
+- [x] Label each boundary option “Délai aléatoire” / “Random delay” and place it after the sunrise/sunset chips.
+- [x] Explain the possible interval explicitly: “Aléatoirement entre 16:45 et 17:00”, or “Aléatoirement entre Coucher + 1h et Coucher + 1h15”. Keep the existing daily-delay scheduling semantics.
+- [x] In the program-settings selector, place New program immediately after the placeholder, with a native separator above and below; retain creation drafts through the existing creation path.
