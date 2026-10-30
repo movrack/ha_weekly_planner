@@ -677,7 +677,7 @@ class PlannerEngine:
             for eid in sorted(self.managed_entities()):
                 owners = sorted((p for p in self.store.programs if p.get("enabled", True)
                                  and any(e["entity_id"] == eid for e in p["entities"])),
-                                key=lambda p: p.get("priority", 100))
+                                key=lambda p: (p.get("priority", 100), p.get("created_at", "")))
                 if owners:
                     plan[eid] = self.resolve(owners[0], eid, default_label(owners[0], eid))
             self.store.config["vacation"] = True
