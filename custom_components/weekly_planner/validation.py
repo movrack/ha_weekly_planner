@@ -239,13 +239,13 @@ def _fixed_intervals(day_slots: list[dict], day: date) -> list[tuple]:
         if randomized and (not occ.runs or occ.end - occ.start < timedelta(minutes=5 + slot["start"].get("random_minutes", 0))):
             raise ProgramError("random_window_too_short")
         if occ.runs and occ.end is not None:
-            intervals.append((occ.start, occ.end + timedelta(minutes=slot["end"].get("random_minutes", 0))))
+            intervals.append((occ.start, occ.end + timedelta(minutes=slot["end"].get("random_minutes", 0)), bool(randomized)))
     return intervals
 
 
 def _reject_overlaps(intervals: list[tuple]) -> None:
     latest_end = None
-    for start, end in sorted(intervals):
+    for start, end, *_ in sorted(intervals):
         if latest_end is not None and start < latest_end:
             raise ProgramError("overlapping_slots")
         latest_end = end
@@ -261,8 +261,15 @@ def _check_week_overlaps(days: list[list[dict]]) -> None:
     monday = date(2026, 1, 5)
     intervals = []
     for index in range(8):
-        intervals.extend(_fixed_intervals(days[index % 7], monday + timedelta(days=index)))
-    _reject_overlaps(intervals)
+        day = monday + timedelta(days=index)
+        # slots without a delay keep the historical per-day rule (the runtime trims their spill)
+        found = _fixed_intervals(days[index % 7], day)
+        _reject_overlaps(found)
+        intervals.extend(found)
+    for n, (start, end, delayed) in enumerate(intervals):
+        for other_start, other_end, other_delayed in intervals[n + 1:]:
+            if (delayed or other_delayed) and start < other_end and other_start < end:
+                raise ProgramError("overlapping_slots")
 
 
 def admin_required(program: dict, labels: dict[str, dict]) -> bool:

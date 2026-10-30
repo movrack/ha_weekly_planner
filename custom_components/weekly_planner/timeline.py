@@ -89,7 +89,10 @@ def _delay(moment: datetime, spec: dict, identity: tuple[str, ...], day: date, e
         return moment
     seed = json.dumps([*identity, day.isoformat(), edge], ensure_ascii=True).encode()
     minutes = int.from_bytes(sha256(seed).digest(), "big") % (maximum + 1)
-    delayed = (_utc(moment) + timedelta(minutes=minutes)).astimezone(moment.tzinfo)
+    try:
+        delayed = (_utc(moment) + timedelta(minutes=minutes)).astimezone(moment.tzinfo)
+    except OverflowError:  # end of the supported calendar: keep the configured time
+        return moment
     if "sun" in spec and spec.get("latest"):
         limit, _ = local_datetime(boundary_day or day, *parse_clock(spec["latest"]), moment.tzinfo)
         delayed = min(_utc(delayed), _utc(limit)).astimezone(moment.tzinfo)

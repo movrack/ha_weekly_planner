@@ -232,7 +232,7 @@ class PlannerEngine:
             ):
                 continue
             profile = active_profile(program, self._profiles())
-            for occ, slot in occurrences_around(profile, now, self.tz, self.sun, days=range(0, 8), program_id=program["id"]):
+            for occ, slot in occurrences_around(profile, now, self.tz, self.sun, days=range(-1, 8), program_id=program["id"]):
                 if not occ.runs:
                     continue
                 action = self.resolve(program, entity_id, slot.get("label"))

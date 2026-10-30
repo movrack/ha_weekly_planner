@@ -4808,12 +4808,12 @@ let M = class extends j {
       this._error = i;
       return;
     }
-    const { start: s, end: r } = e.slot, o = ce(this.hass, s), n = r ? Math.max(15, ce(this.hass, r) - o) : 60, l = (f) => ({ time: Be(Math.min(A, f)) }), a = { openId: this._openId, rest: this._rest, draft: structuredClone(e) }, p = this._dayOnly, h = ls(e.slot.label, e.days);
+    const { start: s, end: r } = e.slot, o = ce(this.hass, s), n = r ? Math.max(15, ce(this.hass, r) - o) : 60, l = (f, b) => ({ ...f, time: Be(Math.min(A, b)) }), a = { openId: this._openId, rest: this._rest, draft: structuredClone(e) }, p = this._dayOnly, h = ls(e.slot.label, e.days);
     h.slot = {
       ...structuredClone(e.slot),
       id: h.slot.id,
-      start: "time" in s ? l(o + n) : { ...s, offset: (s.offset ?? 0) + n },
-      end: r ? "time" in r ? l(o + 2 * n) : { ...r, offset: (r.offset ?? 0) + n } : null
+      start: "time" in s ? l(s, o + n) : { ...s, offset: (s.offset ?? 0) + n },
+      end: r ? "time" in r ? l(r, o + 2 * n) : { ...r, offset: (r.offset ?? 0) + n } : null
     };
     const m = this._origin, _ = this._editProfileId;
     this._expand("new", t, h, { dayOnly: p }), this._editProfileId = _, this._base = a, this._origin = m;
@@ -6644,7 +6644,7 @@ let tt = class extends j {
     }}>
           <option value="" ?selected=${!i}>${this._tr("ce_choose_program")}</option>
           <hr />
-          <option value="new" ?selected=${i === "new"}>${this._tr("new_program")}</option>
+          <option value="new" ?selected=${i === "new"}>${this._tr(this._editors.has("new") ? "ce_resume_creation" : "new_program")}</option>
           <hr />
           ${e.map((n) => d`<option value=${n.id} ?selected=${i === n.id}>${n.name}</option>`)}
         </select>

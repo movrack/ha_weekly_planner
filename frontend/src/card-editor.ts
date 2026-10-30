@@ -142,7 +142,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
         }}>
           <option value="" ?selected=${!selected}>${this._tr("ce_choose_program")}</option>
           <hr />
-          <option value="new" ?selected=${selected === "new"}>${this._tr("new_program")}</option>
+          <option value="new" ?selected=${selected === "new"}>${this._tr(this._editors.has("new") ? "ce_resume_creation" : "new_program")}</option>
           <hr />
           ${programs.map((p) => html`<option value=${p.id} ?selected=${selected === p.id}>${p.name}</option>`)}
         </select>
