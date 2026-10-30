@@ -8,28 +8,46 @@ let current: PlannerData | undefined;
 let unsubscribe: Promise<() => void> | undefined;
 const listeners = new Set<Listener>();
 
+let retryTimer: ReturnType<typeof setTimeout> | undefined;
+let retryDelay = 1000;
+let generation = 0;
+
+function connectPlanner(hass: HomeAssistant): void {
+  if (unsubscribe || !listeners.size) return;
+  const token = generation;
+  const pending = hass.connection.subscribeMessage<PlannerData>((data) => {
+    if (token !== generation) return;
+    retryDelay = 1000;
+    current = data;
+    listeners.forEach((listener) => listener(data));
+  }, { type: "weekly_planner/subscribe" });
+  unsubscribe = pending;
+  pending.catch(() => {
+    if (unsubscribe !== pending || token !== generation) return;
+    unsubscribe = undefined;
+    if (!listeners.size) return;
+    retryTimer = setTimeout(() => {
+      retryTimer = undefined;
+      connectPlanner(hass);
+    }, retryDelay);
+    retryDelay = Math.min(retryDelay * 2, 30_000);
+  });
+}
+
 export function subscribePlanner(hass: HomeAssistant, listener: Listener): () => void {
   listeners.add(listener);
   if (current) listener(current);
-  if (!unsubscribe) {
-    unsubscribe = hass.connection.subscribeMessage<PlannerData>(
-      (data) => {
-        current = data;
-        listeners.forEach((l) => l(data));
-      },
-      { type: "weekly_planner/subscribe" },
-    );
-    unsubscribe.catch(() => {
-      unsubscribe = undefined;
-    });
-  }
+  if (!retryTimer) connectPlanner(hass);
   return () => {
     listeners.delete(listener);
-    if (listeners.size === 0 && unsubscribe) {
-      unsubscribe.then((unsub) => unsub()).catch(() => undefined);
-      unsubscribe = undefined;
-      current = undefined;
-    }
+    if (listeners.size) return;
+    generation++;
+    if (retryTimer) clearTimeout(retryTimer);
+    retryTimer = undefined;
+    retryDelay = 1000;
+    unsubscribe?.then((unsub) => unsub()).catch(() => undefined);
+    unsubscribe = undefined;
+    current = undefined;
   };
 }
 

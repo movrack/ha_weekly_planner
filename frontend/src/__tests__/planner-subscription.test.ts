@@ -48,3 +48,21 @@ describe("shared planner subscription", () => {
     offReturned();
   });
 });
+
+
+it("recovers a rejected subscription and cancels retry after the last consumer leaves", async () => {
+  vi.resetModules(); vi.useFakeTimers();
+  try {
+    const { subscribePlanner } = await import("../planner");
+    const subscribeMessage = vi.fn().mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValue(vi.fn());
+    const off = subscribePlanner({ connection: { subscribeMessage } } as unknown as HomeAssistant, vi.fn());
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(subscribeMessage).toHaveBeenCalledTimes(2);
+    off();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(subscribeMessage).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(0);
+  } finally { vi.useRealTimers(); }
+});

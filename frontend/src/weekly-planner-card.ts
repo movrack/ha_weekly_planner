@@ -21,6 +21,7 @@ import { strings, t } from "./i18n";
 import { loadServiceNames } from "./services";
 import { reloadIfOutdated } from "./update";
 import { activeProfile, entityDomain, filterPrograms, friendlyName, subscribePlanner } from "./planner";
+import { dayBounds, addDaysIso } from "./components/chart";
 import { formatWhen, localDateIso, localMinutes, localWeekday, nominal, spillover, DAY } from "./time";
 import type { CardConfig, HomeAssistant, PlannerData, PreviewSlot, Program, Slot } from "./types";
 
@@ -78,6 +79,7 @@ export class WeeklyPlannerCard extends LitElement {
     this.requestUpdate();
     this._clock = window.setInterval(() => {
       this._now = new Date();
+      void this._loadPreviews();
       this._checkVersion();
       if (++this._ticks % 5 === 0) void this._pollVersion();
     }, 60_000);
@@ -152,7 +154,7 @@ export class WeeklyPlannerCard extends LitElement {
 
   /** The moment `offset` days from now (only its local date and weekday are used). */
   private _dateAt(offset: number): Date {
-    return new Date(this._now.getTime() + offset * 86_400_000);
+    return new Date(dayBounds(addDaysIso(localDateIso(this._now, this._tz), offset), this._tz).startMs + 12 * 3_600_000);
   }
 
   /** Translated names of the services used by the labels. */
@@ -162,20 +164,31 @@ export class WeeklyPlannerCard extends LitElement {
   }
 
   /** Resolved slots of the coming 7 days (sun times), reloaded only when a program changes. */
+  private _failedPreviewKey = "";
+  private _previewRetryAt = 0;
+
   private async _loadPreviews(): Promise<void> {
     if (!this._data) return;
     const dates = [0, 1, 2, 3, 4, 5, 6].map((o) => localDateIso(this._dateAt(o), this._tz));
     const programs = filterPrograms(this._data, this._config);
-    const key = `${dates[0]}|${programs.map((p) => `${p.id}:${p.revision}`).join(",")}`;
-    if (key === this._previewKey) return;
+    const key = `${dates[0]}|${programs.map((p) => `${p.id}:${p.revision}:${activeProfile(p, this._data!).id}`).join(",")}`;
+    if (key === this._previewKey || (key === this._failedPreviewKey && Date.now() < this._previewRetryAt)) return;
     this._previewKey = key;
+    let failed = false;
     const previews: Record<string, Record<string, PreviewSlot[]>> = {};
     await Promise.all(dates.flatMap((date) => programs.map((p) =>
       this.hass.callWS<{ slots: PreviewSlot[] }>({ type: "weekly_planner/preview", program_id: p.id, date })
         .then((res) => { (previews[date] ??= {})[p.id] = res.slots; })
-        .catch(() => undefined))));
+        .catch(() => { failed = true; }))));
     // a newer edit started its own loading meanwhile: these previews are stale
-    if (key === this._previewKey) this._preview = previews;
+    if (key === this._previewKey) {
+      this._preview = previews;
+      if (failed) {
+        this._previewKey = "";
+        this._failedPreviewKey = key;
+        this._previewRetryAt = Date.now() + 5000;
+      } else this._failedPreviewKey = "";
+    }
   }
 
   /* ---- blocks ---- */

@@ -149,7 +149,7 @@ montre les changements manuels (§ 10.4) ; le moteur n'en sait rien.
 - `switch.weekly_planner_vacances` : suspend tous les programmes et envoie le défaut (§ 5.4) ; à la désactivation, horaires en cours appliqués si `reapply`.
 
 ### 5.7 Heures et calendrier
-- Pas de 5 min ; horaire minimal 5 min ; jours indexés **0 = lundi … 6 = dimanche**.
+- Saisie des heures à toute minute ; poignées au pas de 15 min ; horaire minimal 5 min ; jours indexés **0 = lundi … 6 = dimanche**.
 - Fin `24:00` autorisée (= minuit du jour suivant) ; `00:00 → 00:00` est refusé (utiliser `00:00 → 24:00`).
 - Un horaire passant minuit appartient au jour de son début ; la validation de chevauchement porte sur la semaine entière.
 - Heure solaire : `aube | lever | coucher | crépuscule` ± décalage (min), bornes `au plus tôt` / `au plus tard`
@@ -659,3 +659,24 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Première revue Mamy : filtre sur les zones des programmes, affectation explicite dans Général et message de filtre sans résultat ; graphique distinguant historique absent, futur ou indisponible et absence d’action prévue.
 
 - [x] Documentation utilisateur et intégrateur 0.16.2 : guide Mamy, atlas distinguant 49 anciennes captures et 9 captures actuelles, modes, commandes, sources et zones.
+
+
+## 17. QA follow-up — 0.16.3
+
+- [x] Bind bar edits, conflict retries and Undo to the originating mode; refuse Undo over a concurrently changed day.
+- [x] Invalidate solar previews on active-mode changes and retry transient failures with a bounded delay.
+- [x] Recover the shared subscription after failure with backoff and cancel retries after the last consumer leaves.
+- [x] Use consecutive HA-local calendar dates across 23/25-hour days.
+- [x] Share a visible-page refresh signal for today's charts; bound history retention per connection and calculate numeric bounds without argument spreading.
+- [x] Sort temporal lookup inputs once and use binary searches for chart attribution and interval ends.
+- [ ] Profile and, if justified, remove the remaining chart render scans per manual interval; deduplicate/lazily load seven-day previews across cards.
+- [ ] Complete a browser visual/interaction regression pass on the local test instance; production validation remains separate.
+
+- [x] Follow all typed entity references during registry rename, including global/overridden action sources and targets, scenes and mode sources; advance configuration revisions.
+- [x] Accept typed minute precision through websocket validation while preserving minimum duration.
+- [x] Recheck revision immediately before a save mutation after asynchronous metadata preparation.
+- [x] Index condition dependencies by entity and avoid timer reconstruction for ordinary watched state updates without a relevant deadline change.
+- [x] Share the derived websocket snapshot within one synchronous notification, with per-connection permissions copied separately.
+- [x] Cancel/invalidate obsolete action generations when a segment changes or a replacement target is unavailable; preserve eager task execution and ignore obsolete completions.
+- [ ] Profile repeated status work outside websocket notification cycles, including switch attributes and version checks, before adding broader caching.
+- [ ] Broader architecture/module refactoring remains outside this focused correction batch.

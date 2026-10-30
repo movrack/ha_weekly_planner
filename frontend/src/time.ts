@@ -3,6 +3,11 @@
 
 import type { Slot, TimeSpec } from "./types";
 
+export function addDaysIso(dateIso: string, days: number): string {
+  const [y, m, d] = dateIso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
 export const STEP = 5; // minutes
 export const DAY = 1440;
 
@@ -87,7 +92,7 @@ export function formatWhen(iso: string, timeZone: string, language: string, now 
   const sameDay = localDateIso(date, timeZone) === localDateIso(now, timeZone);
   const clock = fmtClock(language, localMinutes(date, timeZone));
   if (sameDay) return clock;
-  const tomorrow = localDateIso(new Date(now.getTime() + 86_400_000), timeZone) === localDateIso(date, timeZone);
+  const tomorrow = addDaysIso(localDateIso(now, timeZone), 1) === localDateIso(date, timeZone);
   if (tomorrow) return `${new Intl.RelativeTimeFormat(language, { numeric: "auto" }).format(1, "day")} ${clock}`;
   // a week or more ahead: the weekday alone would be read as this week ("lun. 2 nov.")
   const far = date.getTime() - now.getTime() > 6 * 86_400_000;

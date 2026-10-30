@@ -39,8 +39,6 @@ def parse_clock(value: str) -> tuple[int, int]:
     hours, minutes = (int(part) for part in value.split(":"))
     if not (0 <= minutes < 60 and (0 <= hours < 24 or (hours, minutes) == (24, 0))):
         raise ValueError(f"invalid time {value!r}")
-    if minutes % 5:
-        raise ValueError(f"time {value!r} is not on a 5-minute step")
     return hours, minutes
 
 

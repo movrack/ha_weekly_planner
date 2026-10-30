@@ -11,6 +11,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - French illustrated guide for 0.16.2 with nine current mobile captures, 49 explicitly historical screenshots, local demo provenance and links from both integrator READMEs.
 - Track the guide's screenshots under a narrow image-ignore exception and document the screen coverage inventory.
 
+## [0.16.3] - 2026-10-30
+
+### Fixed
+- Follow renamed entities in mode sources, explicit action targets, scenes and dynamic field sources, advancing affected configuration revisions.
+- Accept typed times at any minute while retaining minimum slot duration and drag-step rules.
+- Recheck program revisions after asynchronous metadata loading, returning clean conflicts for concurrent saves.
+- Index condition dependencies and avoid rebuilding deadlines for unrelated state attributes; share derived websocket snapshots within each notification.
+- Invalidate obsolete action generations on segment changes, including empty defaults and unavailable targets, without suppressing valid eagerly started tasks.
+- Keep bar edits and Undo attached to their original mode, preserving concurrent changes to restored days.
+- Refresh solar previews after runtime mode changes and recover preview/subscription failures without manual reloads.
+- Keep week dates consecutive across daylight-saving transitions and refresh current-day charts on a shared visible-page clock.
+- Bound chart history caches per connection, avoid oversized min/max argument lists, and replace repeated temporal scans with sorted lookups.
+
 ## [0.16.2] - 2026-10-29
 
 ### Fixed

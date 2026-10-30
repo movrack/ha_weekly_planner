@@ -50,6 +50,11 @@ def async_register(hass: HomeAssistant) -> None:
 
 
 def _snapshot(engine: PlannerEngine) -> dict[str, Any]:
+    # Copy the envelope: permissions are always individualized per connection.
+    return dict(engine.shared_notification_view(lambda: _build_snapshot(engine)))
+
+
+def _build_snapshot(engine: PlannerEngine) -> dict[str, Any]:
     entities = {
         eid: {k: rt.get(k) for k in ("segment", "target", "suppressed", "pending")}
         for eid, rt in engine.store.runtime["entities"].items()
@@ -128,6 +133,16 @@ async def ws_program_save(hass, connection, msg) -> None:
         return
     if admin_required(program, engine.labels) and not connection.user.is_admin:
         connection.send_error(msg["id"], "unauthorized", "Sensitive actions are reserved to administrators")
+        return
+    # Metadata loading may suspend while another editor saves or deletes this program.
+    # Re-read and compare immediately before mutation, without another await.
+    previous = existing
+    existing = engine.store.program(program["id"])
+    if previous is not None and existing is None:
+        connection.send_error(msg["id"], "not_found", "Unknown program")
+        return
+    if existing and existing.get("revision", 0) != program.get("revision", 0):
+        connection.send_error(msg["id"], "conflict", "Modified elsewhere, reload")
         return
     inactive_mode_edit = False
     if existing:

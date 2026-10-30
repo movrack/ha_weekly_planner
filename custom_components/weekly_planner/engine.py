@@ -55,8 +55,13 @@ class PlannerEngine:
         self._static_unsubs: list[CALLBACK_TYPE] = []  # lifecycle listeners
         self._timer: CALLBACK_TYPE | None = None
         self._tasks: dict[str, asyncio.Task] = {}
+        self._action_generations: dict[str, int] = {}
         self._ready = False
         self._listeners: list[Callable[[], None]] = []
+        self._conditions_by_entity: dict[str, list[dict]] = {}
+        self._mode_source_entities: set[str] = set()
+        self._notification_view: dict | None = None
+        self._notifying = False
         self.descriptions: dict | None = None  # service descriptions, to know which entity a service suits
 
     # ------------------------------------------------------------------ lifecycle
@@ -108,8 +113,22 @@ class PlannerEngine:
         return lambda: self._listeners.remove(listener)
 
     def _notify_listeners(self) -> None:
-        for listener in list(self._listeners):
-            listener()
+        self._notifying = True
+        self._notification_view = None
+        try:
+            for listener in list(self._listeners):
+                listener()
+        finally:
+            self._notifying = False
+            self._notification_view = None
+
+    def shared_notification_view(self, build: Callable[[], dict]) -> dict:
+        """Share derived websocket data only during one synchronous publication."""
+        if not self._notifying:
+            return build()
+        if self._notification_view is None:
+            self._notification_view = build()
+        return self._notification_view
 
     # ------------------------------------------------------------------ helpers
 
@@ -240,13 +259,19 @@ class PlannerEngine:
         for unsub in self._unsubs:
             unsub()
         self._unsubs.clear()
+        self._conditions_by_entity = {}
+        for condition in self._all_conditions():
+            self._conditions_by_entity.setdefault(condition["entity_id"], []).append(condition)
+        self._mode_source_entities = {
+            p["mode_source"]["entity_id"] for p in self.store.programs if p.get("mode_source")
+        }
         watched = set(self.managed_entities())
         actions = [label["action"] for label in self.labels.values()]
         actions += [action for program in self.store.programs for entity in program["entities"]
                     for action in entity.get("label_overrides", {}).values()]
         watched |= {action["target_entity_id"] for action in actions if action.get("target_entity_id")}
-        watched |= {c["entity_id"] for c in self._all_conditions()}
-        watched |= {p["mode_source"]["entity_id"] for p in self.store.programs if p.get("mode_source")}
+        watched |= self._conditions_by_entity.keys()
+        watched |= self._mode_source_entities
         if watched:
             self._unsubs.append(async_track_state_change_event(self.hass, sorted(watched), self._on_state))
 
@@ -274,19 +299,22 @@ class PlannerEngine:
         old: State | None = event.data.get("old_state")
         if not self._ready:
             return
-        if any(p.get("mode_source", {}).get("entity_id") == entity_id for p in self.store.programs):
+        if entity_id in self._mode_source_entities and (old is None or new is None or old.state != new.state):
             self.hass.async_create_task(self._async_mode_source_changed())
         now = dt_util.utcnow()
         cond_changed = False
-        for cond in self._all_conditions():
-            if cond["entity_id"] == entity_id:
-                cond_changed |= self.conditions.observe(cond, new, now)
+        conditions = self._conditions_by_entity.get(entity_id, [])
+        before_settle = self.conditions.next_settle() if conditions else None
+        for cond in conditions:
+            cond_changed |= self.conditions.observe(cond, new, now)
         if cond_changed:
             self.hass.async_create_task(self.async_recompute("condition"))
-        else:
+        elif conditions and before_settle != self.conditions.next_settle():
             self._arm_timer()
         # Recover only pending owners whose actual target became commandable.
         # Ordinary state changes (including a button's last-press timestamp) never reapply.
+        if new is None or (old is not None and old.state not in UNAVAILABLE):
+            return
         for owner in self.managed_entities():
             rt = self.rt(owner)
             action = rt.get("target") or {}
@@ -355,6 +383,7 @@ class PlannerEngine:
         rt = self.rt(entity_id)
         previous_key = rt.get("segment")
         if previous_key != key or rt.get("target") != seg.action:
+            self._cancel_task(entity_id)
             # also journal a new target in the same segment (default or slot edited)
             self.store.record_segment({
                 "at": now.isoformat(), "entity_id": entity_id, "segment": key,
@@ -458,11 +487,13 @@ class PlannerEngine:
         await self._async_send(entity_id, action, reason)
 
     def _cancel_task(self, entity_id: str) -> None:
+        self._action_generations[entity_id] = self._action_generations.get(entity_id, 0) + 1
         if task := self._tasks.pop(entity_id, None):
             task.cancel()
 
     async def _async_send(self, entity_id: str, action: dict, reason: str, oneshot: bool = False) -> None:
         rt = self.rt(entity_id)
+        self._cancel_task(entity_id)
         target_entity_id = action.get("target_entity_id", entity_id)
         state = self.hass.states.get(target_entity_id)
         unavailable = ("unavailable",) if action.get("target_entity_id") else UNAVAILABLE
@@ -472,16 +503,22 @@ class PlannerEngine:
                 self._schedule_notify(entity_id)
             self._log(entity_id, "waiting_unavailable", {"reason": reason})
             return
-        self._cancel_task(entity_id)
         segment = rt.get("segment")
-        self._tasks[entity_id] = self.hass.async_create_task(
-            self._async_send_call(entity_id, action, reason, segment, oneshot)
+        generation = self._action_generations[entity_id]
+        task = self.hass.async_create_task(
+            self._async_send_call(entity_id, action, reason, segment, oneshot, generation)
         )
+        # HA may eagerly complete the coroutine before async_create_task returns.
+        if not task.done():
+            self._tasks[entity_id] = task
 
     async def _async_send_call(
-        self, entity_id: str, action: dict, reason: str, segment: Any, oneshot: bool
+        self, entity_id: str, action: dict, reason: str, segment: Any, oneshot: bool,
+        generation: int | None = None,
     ) -> None:
         rt = self.rt(entity_id)
+        if generation is None:
+            generation = self._action_generations.get(entity_id, 0)
         try:
             if not oneshot and rt.get("segment") != segment:
                 return  # segment changed meanwhile: this action is stale (spec § 5.1)
@@ -493,9 +530,13 @@ class PlannerEngine:
                 call.domain, call.service, call.service_data(), blocking=True,
                 target={"entity_id": call.target_entity_id} if call.as_target else None,
             )
+            if self._action_generations.get(entity_id, 0) != generation:
+                return  # a cancellation-resistant service completed for an obsolete task
         except asyncio.CancelledError:
             raise
         except ServiceValidationError as err:
+            if self._action_generations.get(entity_id, 0) != generation:
+                return
             # The device refuses this action: retrying cannot help.
             _LOGGER.warning("Action %s refused by %s: %s", action, entity_id, err)
             rt.pop("service_retry", None)
@@ -504,6 +545,8 @@ class PlannerEngine:
             self._persist()
             return
         except Exception as err:  # noqa: BLE001 - other failures are retried with a backoff
+            if self._action_generations.get(entity_id, 0) != generation:
+                return
             _LOGGER.warning("Applying %s to %s failed: %s", action, entity_id, err)
             self._schedule_retry(entity_id, action, reason, segment, oneshot)
             return

@@ -12,25 +12,41 @@ from .const import DOMAIN
 
 def rename_entity(config: dict[str, Any], old: str, new: str) -> bool:
     """Replace an entity id everywhere in the configuration; True if anything changed."""
-    changed = False
+    def swap(reference: dict, key: str = "entity_id") -> bool:
+        if reference.get(key) != old:
+            return False
+        reference[key] = new
+        return True
 
-    def swap_conditions(conditions: list[dict]) -> None:
-        nonlocal changed
-        for cond in conditions:
-            if cond.get("entity_id") == old:
-                cond["entity_id"] = new
-                changed = True
+    def swap_action(action: dict) -> bool:
+        changed = swap(action, "target_entity_id")
+        if action.get("kind") == "scene":
+            changed |= swap(action, "scene")
+        for source in action.get("data_sources", {}).values():
+            changed |= swap(source)
+        return changed
 
+    labels_changed = False
+    for label in config.get("labels", []):
+        labels_changed |= swap_action(label["action"])
+    changed = labels_changed
     for program in config["programs"]:
-        swap_conditions(program.get("conditions", []))
+        program_changed = labels_changed
+        program_changed |= swap(program.get("mode_source") or {})
+        for condition in program.get("conditions", []):
+            program_changed |= swap(condition)
         for entity in program["entities"]:
-            if entity["entity_id"] == old:
-                entity["entity_id"] = new
-                changed = True
+            program_changed |= swap(entity)
+            for action in entity.get("label_overrides", {}).values():
+                program_changed |= swap_action(action)
         for profile in program["profiles"]:
             for day in profile["days"]:
                 for slot in day:
-                    swap_conditions(slot.get("conditions", []))
+                    for condition in slot.get("conditions", []):
+                        program_changed |= swap(condition)
+        if program_changed:
+            program["revision"] = program.get("revision", 0) + 1
+        changed |= program_changed
     return changed
 
 
