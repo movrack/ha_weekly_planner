@@ -43,10 +43,6 @@ class Segment:
         return self.key[0] == "slot"
 
 
-def entity_type(entity_id: str) -> str:
-    return entity_id.split(".", 1)[0]
-
-
 def active_profile(program: dict, active_profiles: dict[str, str]) -> dict:
     profiles = program["profiles"]
     wanted = active_profiles.get(program["id"], program.get("active_profile"))

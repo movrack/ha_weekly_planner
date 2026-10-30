@@ -1,7 +1,7 @@
 // Generic actions: the Home Assistant services whose target accepts an entity (`hass.services`),
 // their translated names and the input fields of each one.
 
-const entityDomain = (entityId: string): string => entityId.split(".")[0];
+import { entityDomain } from "./planner";
 import type { HassEntity, HomeAssistant } from "./types";
 
 type Localize = (key: string, ...args: unknown[]) => string;
@@ -173,27 +173,6 @@ export function serviceFields(hass: HomeAssistant, id: string, entityId?: string
   walk(infoOf(hass, id)?.fields);
   if (out.length && !out.some((f) => f.required)) out[0] = { ...out[0], required: true };
   return [...out.filter((f) => f.required), ...out.filter((f) => !f.required)];
-}
-
-const LINK_WORDS = new Set(["avec", "de", "du", "à", "au", "with", "of", "the", "for", "on"]);
-
-/**
- * Shorter chip labels: the words most labels end with (the device, e.g. "l'aspirateur") are dropped,
- * with the linking word before them ("avec", "de"…). Labels are kept whole when nothing is shared.
- */
-export function shortLabels(labels: string[]): string[] {
-  if (labels.length < 3) return labels;
-  const words = labels.map((l) => l.split(" "));
-  const last = new Map<string, number>();
-  for (const w of words) last.set(w[w.length - 1], (last.get(w[w.length - 1]) ?? 0) + 1);
-  const [tail, count] = [...last.entries()].sort((a, b) => b[1] - a[1])[0];
-  if (count < Math.ceil(labels.length * 0.6)) return labels;
-  return words.map((w, i) => {
-    if (w.length < 2 || w[w.length - 1] !== tail) return labels[i];
-    const cut = w.slice(0, -1);
-    while (cut.length > 1 && LINK_WORDS.has(cut[cut.length - 1].toLowerCase())) cut.pop();
-    return cut.join(" ");
-  });
 }
 
 /** Data to start from when a service is chosen: its required fields get a usable value. */

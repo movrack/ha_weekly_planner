@@ -1,9 +1,8 @@
 // Reusable editing pieces: styles, entity picker and conditions editor.
 
 import { LitElement, css, html, nothing } from "lit";
-import type { TemplateResult } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
-import { strings, t } from "../i18n";
+import { customElement, property } from "lit/decorators.js";
+import { t } from "../i18n";
 import { entityDomain, friendlyName } from "../planner";
 import type { Condition, HassEntity, HomeAssistant } from "../types";
 

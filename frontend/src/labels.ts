@@ -15,8 +15,6 @@ export function nextColor(labels: Label[]): string {
   return PALETTE.find((c) => !used.has(c)) ?? PALETTE[labels.length % PALETTE.length];
 }
 
-export const sameAction = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
-
 export const labelOf = (data: PlannerData, id: string | null | undefined): Label | undefined =>
   id ? data.labels.find((l) => l.id === id) : undefined;
 

@@ -25,13 +25,11 @@ def _random_minutes(value: Any) -> int:
     return value
 
 
-RANDOM_MINUTES = _random_minutes
-
 TIME_SPEC = vol.Any(
-    vol.Schema({vol.Required("time"): _clock, vol.Optional("random_minutes"): RANDOM_MINUTES}),
+    vol.Schema({vol.Required("time"): _clock, vol.Optional("random_minutes"): _random_minutes}),
     vol.Schema({
         vol.Required("sun"): vol.In(SUN_EVENTS),
-        vol.Optional("random_minutes"): RANDOM_MINUTES,
+        vol.Optional("random_minutes"): _random_minutes,
         vol.Optional("offset", default=0): vol.All(int, vol.Range(min=-240, max=240)),
         vol.Optional("earliest"): _clock,
         vol.Optional("latest"): _clock,
@@ -137,6 +135,7 @@ PROGRAM = vol.Schema({
     vol.Required("profiles"): vol.All([PROFILE], vol.Length(min=1, max=20)),
 })
 
+
 class ProgramError(vol.Invalid):
     """A program breaks a rule that the schema cannot express."""
 
@@ -232,14 +231,16 @@ def _fixed_intervals(day_slots: list[dict], day: date) -> list[tuple]:
     for slot in day_slots:
         if "time" not in slot["start"] or not (slot.get("end") or {}).get("time"):
             continue
+        start_random = slot["start"].get("random_minutes", 0)
+        end_random = slot["end"].get("random_minutes", 0)
         base = {**slot, "start": {"time": slot["start"]["time"]},
                 "end": {"time": slot["end"]["time"]}}
         occ = day_occurrences([base], day, ZoneInfo("UTC"), lambda e, d: None)[0]
-        randomized = slot["start"].get("random_minutes", 0) or slot["end"].get("random_minutes", 0)
-        if randomized and (not occ.runs or occ.end - occ.start < timedelta(minutes=5 + slot["start"].get("random_minutes", 0))):
+        randomized = bool(start_random or end_random)
+        if randomized and (not occ.runs or occ.end - occ.start < timedelta(minutes=5 + start_random)):
             raise ProgramError("random_window_too_short")
         if occ.runs and occ.end is not None:
-            intervals.append((occ.start, occ.end + timedelta(minutes=slot["end"].get("random_minutes", 0)), bool(randomized)))
+            intervals.append((occ.start, occ.end + timedelta(minutes=end_random), randomized))
     return intervals
 
 
