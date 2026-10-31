@@ -1,7 +1,8 @@
 # Weekly Planner — mes horaires, simplement
 
-Cette page explique la version **0.16.2**. Les images S01 à S36 ont été prises
-avec la version 0.10.0 : certains noms et boutons ont changé depuis. Le texte
+Cette page explique la version **0.21.0**. Les images S01 à S36 ont été prises
+avec la version 0.10.0 et S37 à S45 avec la 0.16.2 : certains noms et boutons ont changé depuis
+(carte avec bouton **Graphique du jour**, éditeur de carte par groupes de types). Le texte
 décrit les choix actuels. Les captures montrent une maison de démonstration,
 sans commande d’un appareil réel. Voir aussi les [captures actuelles S37 à S45](SCREENS.fr.md#s37).
 
@@ -219,13 +220,14 @@ Si les boutons manquent, demander à cette personne de les ouvrir.
 
 Les intitulés de Home Assistant peuvent varier légèrement selon sa version.
 
-**Affichage de la carte** permet de choisir **Un programme** ou **Liste filtrée**.
-Sous **Vue des horaires**, choisir **Barres**, **Cadran 24 heures**, **Double
+**Affichage de la carte** permet de choisir **Un seul programme** ou **Plusieurs appareils**.
+Dans **Programmes à afficher**, des interrupteurs par type d’appareil et par programme choisissent
+ce que la carte montre. Sous **Présentation de la journée**, choisir **Barres**, **Cadran 24 heures**, **Double
 cadran 12 heures** ou **Liste compacte**. Les cadrans sont aussi possibles en
 liste filtrée. Enregistrer la carte et terminer l’édition du tableau de bord.
 L’ancienne capture [S25](SCREENS.fr.md#s25) montre moins de choix.
 
-Voir [la création S37](SCREENS.fr.md#s37), [la zone S40](SCREENS.fr.md#s40) et [les filtres S41](SCREENS.fr.md#s41).
+Voir [la création S37](SCREENS.fr.md#s37), [la pièce S40](SCREENS.fr.md#s40) et [les filtres S41](SCREENS.fr.md#s41).
 
 Pour commencer, toucher **Nouveau programme**, donner un nom et ajouter un
 appareil. **Aucune commande n’est cochée au départ** : choisir celles que l’on veut
@@ -237,11 +239,11 @@ les horaires** pour continuer directement. Si aucune commande n’a encore été
 choisie, les régler plus tard dans **Réglages des programmes → Appareils →
 Actions proposées**. Enregistrer aussi la carte pour garder sa présentation.
 
-Dans **Général**, **Zone du programme** permet de le ranger, par exemple dans
-Salon. Choisir un nom existant ou en écrire un nouveau. Cette zone est propre
+Dans **Général**, **Pièce du programme** permet de le ranger, par exemple dans
+Salon. Choisir un nom existant ou en écrire un nouveau. Cette pièce est propre
 au programme : elle n’est pas reprise automatiquement de la pièce d’un appareil.
-Dans **Affichage de la carte → Liste filtrée**, choisir ensuite cette zone ou
-**Toutes les zones**. Si la carte est vide, vérifier ses filtres.
+Dans **Affichage de la carte → Plusieurs appareils**, choisir ensuite cette pièce ou
+**Toutes les pièces**. Si la carte est vide, vérifier ses filtres.
 
 **Attention aux deux enregistrements :**
 
@@ -258,7 +260,9 @@ fermer l’éditeur abandonne ce qui n’a pas été appliqué.
 
 ## Je veux comprendre ce qui s’est passé
 
-Le graphique est sous les horaires. Ses flèches changent le jour. Il compare ce
+Sur la carte, toucher **Graphique du jour** sous un appareil ouvre ou ferme son graphique
+(réglable : `show_chart`, `chart_collapsed`, voir le README). Dans la fenêtre des horaires, le graphique
+est sous les horaires. Ses flèches changent le jour. Il compare ce
 qui était prévu avec les données disponibles de l’appareil. Toucher le graphique
 ouvre l’historique de Home Assistant : [S15 et S16](SCREENS.fr.md#s15).
 
@@ -287,8 +291,8 @@ droits de modification avec la personne qui a installé la carte.
   dépendent de ce que Home Assistant expose : [exemples](GENERIC_ACTIONS.md).
 - Réappliquer peut envoyer l’action courante après un changement ou un redémarrage.
   Les fins manquées restent un cas de rattrapage. Les anciens identifiants de profils sont conservés pour les automatisations.
-- La zone du programme se définit dans Général ; le filtre de carte propose les
-  zones existantes. Les cadrans fonctionnent aussi dans une liste filtrée.
+- La pièce du programme se définit dans Général ; le filtre de carte propose les
+  pièces existantes. Les cadrans fonctionnent aussi dans une liste filtrée.
 - Les options globales se trouvent dans Paramètres → Appareils et services →
   Weekly Planner → Configurer : [S35](SCREENS.fr.md#s35). L’option de réapplication
   par défaut est affichée, mais n’est pas encore utilisée lors de la création ;

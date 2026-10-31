@@ -1,6 +1,6 @@
 # Program modes
 
-Weekly Planner 0.16.2 calls former seasons **modes**. Each mode is an independent
+Weekly Planner 0.21.0 calls former seasons **modes**. Each mode is an independent
 weekly schedule: Home, Away, Vacation, Winter or any name chosen by the user.
 Vacation is an ordinary mode. Names do not assign dates or automatic behaviour.
 One mode is active per program.

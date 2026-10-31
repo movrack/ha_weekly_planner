@@ -2,7 +2,7 @@
 
 [Lire le guide pas à pas](GUIDE.fr.md)
 
-Les anciennes captures S01 à S36 de Weekly Planner **0.10.0** ont été réalisées le 29 octobre 2026,
+Les anciennes captures S01 à S36 de Weekly Planner **0.10.0** (à jour de la 0.21.0 : texte seulement, voir le guide) ont été réalisées le 29 octobre 2026,
 avec des programmes et appareils de démonstration du salon. Les écrans utilisent
 les vrais composants de l’application ; leurs données sont préparées pour
 expliquer les fonctions. Les vues d’historique, de profil et d’options sont celles
@@ -19,7 +19,7 @@ Les captures principales sont prises sur un téléphone de **360 × 780 pixels C
 en thème clair, sauf la fenêtre agrandie sur ordinateur. Cliquer sur une miniature
 permet d’ouvrir l’image complète. Les écrans longs disposent de captures de suite.
 
-## Parcours actuels — version 0.16.2
+## Parcours — captures de la version 0.16.2
 
 S37 à S45 ont été capturés le 29 octobre 2026 à 360 × 780 pixels CSS, sur
 l’instance locale, avec les vrais composants et des données préparées en mémoire.

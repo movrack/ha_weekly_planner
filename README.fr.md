@@ -75,12 +75,12 @@ filter:
 |---|---|
 | `program` | Identifiant interne existant, ou nom de programme (voir ci-dessous). Une valeur non vide affiche ce programme au lieu d’appliquer les filtres. |
 | `filter.types` | Domaines d’entités présents dans les programmes. Absent ou vide = tous les domaines. Les domaines inconnus restent utilisables. |
-| `filter.area` | Correspondance exacte avec la zone du programme, définie dans Général. Les pièces HA des appareils ne sont pas déduites. |
+| `filter.area` | Correspondance exacte avec la pièce du programme, définie dans Général. Les pièces HA des appareils ne sont pas déduites. |
 | `filter.programs` | Liste facultative d’identifiants ou de noms de programmes (voir ci-dessous), croisée avec les autres filtres. Absent = tous, futurs compris ; `[]` = aucun. |
 | `title` | Titre facultatif. |
 | `schedule_view` | `bars` par défaut, `list`, `radial` pour 24 h, ou `radial_12h` pour deux cercles de 12 h. Disponibles pour un programme ou une liste filtrée. |
-| `show_chart` | Graphique dans les horaires, `true` par défaut. |
-| `chart_collapsed` | Booléen, `true` par défaut : le graphique du jour sous chaque appareil démarre replié (`false` : déplié). Un choix fait avec le bouton du graphique est mémorisé par navigateur et prime ensuite. |
+| `show_chart` | Booléen, `true` par défaut. Actif : un bouton **Graphique du jour** sous chaque appareil sur la carte, et le graphique dans la fenêtre des horaires. Éteint : ni bouton ni graphique nulle part sur cette carte. Dans l’éditeur : « Bouton Graphique sous chaque appareil ». |
+| `chart_collapsed` | Booléen, `true` par défaut : le graphique sous chaque appareil démarre fermé (`false` : ouvert). N’a d’effet que si `show_chart` est actif. Dans l’éditeur : l’interrupteur « Graphique ouvert d’office » (l’inverse). Un choix fait avec le bouton du graphique est mémorisé par navigateur, par carte et par appareil, et prime ensuite. |
 | `show_week`, `show_advanced` | Obsolètes, acceptés et ignorés. |
 
 **Référence YAML.** Toutes les options de l’éditeur visuel se règlent aussi dans l’éditeur de code YAML,
@@ -109,7 +109,7 @@ show_chart: true                # défaut true
 chart_collapsed: true           # défaut true (replié)
 filter:                         # ignoré si `program` est renseigné
   types: [climate, cover]       # défaut : tous
-  area: Salon                   # défaut : toutes les zones
+  area: Salon                   # défaut : toutes les pièces
   programs: [ID1, Bureau]          # défaut : tous (futurs compris)
 ```
 
@@ -118,8 +118,8 @@ un nom simplifié. Le trouver dans l’attribut `program_id` de son interrupteur
 dans la réponse WebSocket `weekly_planner/get`. Remplacer `YOUR_PROGRAM_ID` dans
 l’exemple. Les identifiants d’entités dépendent aussi de la langue et des renommages.
 
-Le filtre Zone propose les zones existantes et conserve un choix devenu absent.
-Définir cette zone dans **Réglages des programmes → Général** : c’est un nom pour
+Le filtre Pièce propose les pièces existantes et conserve un choix devenu absent.
+Définir cette pièce dans **Réglages des programmes → Général** : c’est un nom pour
 regrouper les programmes, indépendant des pièces des appareils.
 
 Les cadrans partagent les couleurs, repères horaires et marqueurs solaires des
@@ -320,14 +320,14 @@ qu’écrasé. Il n’existe pas de service public `weekly_planner.set_profile`.
 
 ## Limites et diagnostic
 
-- Le filtre Zone vise les métadonnées du programme, pas les pièces HA.
+- Le filtre Pièce vise les métadonnées du programme, pas les pièces HA.
 - Le modèle accepte des conditions par horaire et des bornes solaires, mais le formulaire n’a pas de constructeur de conditions par horaire ni d’éditeur de bornes solaires.
 - `reapply_default` est affiché, mais les nouveaux programmes démarrent encore avec réapplication activée.
 - L’historique et les changements manuels dépendent de Recorder/logbook ; l’attribution des modifications d’attributs seuls a des limites.
 
 Le graphique distingue historique absent, futur ou indisponible et absence
 d’action prévue. Un échec d’historique ne masque pas les prévisions. Une liste vide
-invite à vérifier les types, zones et programmes filtrés. Si une action manque,
+invite à vérifier les types, pièces et programmes filtrés. Si une action manque,
 vérifier sa cible, les fonctions supportées, les attributs et `allowed_services`.
 Utiliser les attributs de l’interrupteur, Repairs, notifications et journaux HA.
 Les appels échoués ont des reprises bornées ; une valeur invalide est signalée
