@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [Unreleased]
 
 ### Changed
+- Repository hardening: security policy, Dependabot updates, read-only CI token and actions pinned to commit SHAs.
 - Internal backend cleanup (shared websocket edit guard, fewer repeated computations, dead code removed); no behaviour change.
 - Rename the random-time option to “Random delay”, move it below the solar shortcuts and show the explicit fixed or solar-relative interval.
 - Put New program immediately after the settings selector placeholder, between native separators, while preserving creation drafts.
