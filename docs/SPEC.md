@@ -967,3 +967,22 @@ Décisions du propriétaire du 2026-10-31, implémentées en 0.20.0 (§ « déci
 - [x] Nouvel ordre vertical : 1) interrupteur « Horaires actifs / En marche », 2) sélecteur de Mode, 3) réglages (ligne « Le reste du temps · <réglage par défaut> »), 4) liste des horaires avec « Ajouter un horaire », 5) schéma des 7 jours, 6) graphique du jour, puis bouton Supprimer en bas.
 - [x] Mêmes fonctions qu'aujourd'hui ; rien de retiré.
 - *Interprétation à confirmer : « réglages » = la ligne « Le reste du temps ».*
+
+## 25. Évolutions décidées (0.20.1, à implémenter)
+
+Décisions du propriétaire du 2026-10-31, statut **à implémenter** : elles attendent son feu vert et sont prévues pour 0.20.1 (§ « décisions » : `docs/DECISIONS.md`).
+
+### 25.1 Légende du graphique du jour (§ 10.4)
+- [ ] Symbole « Prévu » : point plein à gauche, de même taille et même couleur que le point affiché au début de chaque palier prévu, suivi du trait. « Mesuré » et « Réglé » inchangés.
+- [ ] Vérifier en 360 px et ≥ 1400 px, clair et sombre.
+
+### 25.2 Modale d'horaires sur ordinateur (§ 10.3)
+- [ ] Seuil de deux colonnes à fixer avec les points de rupture existants (600 px et 480 px) ; référence ≥ 1400 px.
+- [ ] Colonne gauche : interrupteur « Horaires actifs », Mode, réglages / « Le reste du temps », liste des horaires et « Ajouter un horaire », Supprimer.
+- [ ] Colonne droite : schéma des 7 jours, puis graphique du jour.
+- [ ] Mobile (360 px) : ordre vertical du § 24.2 inchangé ; rien retiré.
+- [ ] Ordre du DOM unique (ordre mobile), colonnes en CSS ; contrôler le parcours clavier sur ordinateur.
+- [ ] Vérifier en navigateur à 360 px et ≥ 1400 px, clair et sombre, sans erreur console.
+
+### 25.3 Livraison 0.20.1
+- [ ] Version 0.20.1 alignée (`manifest.json`, `pyproject.toml`, `frontend/package.json` et son verrou), entrée CHANGELOG, bundle commité.
