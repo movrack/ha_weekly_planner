@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+- Schedule screen: a bin button next to the pencil deletes the chosen setting after a plain confirmation (it disappears for every device). A setting still used by a program is refused with the names of those programs.
+
 ### Fixed
 - Day chart: the shading of the periods when the device was on was missing under a setting without a number ("Turn off", "Close") while the legend still named it, was only a few pixels high when the planned value sat at the bottom of the axis, and was missing outside any planned setting. It is now a full-height translucent band with a solid strip along the time axis, in one colour that stays visible in light and dark themes, drawn under the curves and at least 3 px wide.
 - Day chart: a cover counts as active while it is open or moving (not only during the seconds it moves).
