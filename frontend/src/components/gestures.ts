@@ -1,4 +1,4 @@
-// Touch gesture helpers shared by the views and editors (spec § 10.7). Every gesture
+// Touch gesture helpers shared by the views and editors (spec § 10.8). Every gesture
 // has a button equivalent elsewhere in the interface.
 
 import type { HomeAssistant } from "../types";
