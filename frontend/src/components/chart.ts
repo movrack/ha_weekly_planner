@@ -633,7 +633,12 @@ export class WpChart extends LitElement {
     .key i { display: inline-block; width: 16px; height: 0; border-top: 3px solid var(--primary-color); }
     .key i.measured { border-top: 2px solid var(--accent-color, #ff9800); }
     .key i.set { border-top: 2px dashed var(--primary-text-color); }
-    .key i.planned { width: 16px; height: 0; border-top: 3px solid var(--secondary-text-color); border-radius: 2px; }
+    /* a filled dot at the left, like the marker drawn at the start of each planned step (.mk, r=5), then the line */
+    .key i.planned { position: relative; width: 24px; height: 0; border-top: 3px solid var(--secondary-text-color); border-radius: 2px; }
+    .key i.planned::before {
+      content: ""; position: absolute; left: 0; top: -6.5px; width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%;
+      background: var(--secondary-text-color); border: 1.5px solid var(--card-background-color);
+    }
 
     .key i.manual { border-top: 3px solid var(--error-color, #db4437); }
   `;
