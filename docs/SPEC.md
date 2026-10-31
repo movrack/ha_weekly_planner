@@ -107,6 +107,9 @@ d'alerte, minuit solaire) ; un seul `async_track_point_in_time` armé sur le plu
 complet (idempotent, rattrape un réveil en retard). Toute action porte l'identité du segment qui l'a créée et **est
 abandonnée dès que ce segment est périmé** (une seule tâche en vol par entité).
 
+**Une passe de calcul** décide d'après les entrées lues à son début ; ce qui change pendant qu'elle cède la boucle est
+traité par la passe suivante, dans l'ordre d'arrivée (verrou du moteur, § 21.4).
+
 ### 5.2 Début et fin d'horaire
 - **Début** : l'action de l'horaire est envoyée à l'entité.
 - **Fin** (horaire avec fin) : l'**action par défaut** de l'entité est envoyée, s'il y en a une.
@@ -457,6 +460,9 @@ SVG maison, un jour (précédent / suivant).
 
 ### 10.5 Exigences transverses
 360 px (Galaxy S22) et ≥ 1400 px ; thèmes clair/sombre ; clavier ; fr/en ; zéro erreur console ; le moins de texte possible.
+Clavier (0.19.1) : les barres se focalisent avec Tab, Entrée ou Espace lance l'édition (ouvre le jour en lecture
+seule) ; Échap ferme toujours la fenêtre ouverte la plus récente, même si le focus est retombé sur la page, et le
+focus revient à l'élément qui l'avait ouverte ; boutons de jour ≥ 44 px.
 
 ### 10.6 Livraison du JS
 Lit + TypeScript, bundle `custom_components/weekly_planner/frontend/weekly-planner-card.js` (commité). Servi par
@@ -519,7 +525,12 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - `hacs.json`, `manifest.json` (`domain`, `name`, `version`, `documentation`, `issue_tracker`, `codeowners`,
   `config_flow`, `iot_class: calculated`, `integration_type: service`, `dependencies: [http, websocket_api]`).
 - Docs : README (en) + `README.fr.md`, captures, CHANGELOG ; releases GitHub. Tags et release GitHub seulement jusqu'à
-  `v0.7.10` ; les versions 0.8.0 à 0.19.0 ne sont ni taguées ni publiées, `main` est derrière `develop` ; pas de `1.0.0` (§ 21).
+  `v0.7.10` ; les versions 0.8.0 à 0.19.1 ne sont ni taguées ni publiées, `main` est derrière `develop` ; pas de `1.0.0` (§ 21).
+- Garde-fous de qualité (0.19.1) : couverture Python (`pytest --cov`, plancher 85 %, mesuré 87-89 %) et carte
+  (vitest, planchers 49 / 78 / 45 / 49 pour instructions / branches / fonctions / lignes) ; tests de mutation
+  informatifs (mutmut, StrykerJS, `mutation.yml` hebdomadaire, jamais requis, modules purs seulement) ; budgets de
+  performance (`tests/test_performance.py`, `tests/test_latency.py`, `frontend/src/__tests__/performance.test.ts`,
+  médianes via `scripts/bench.py`) : comptes d'opérations déterministes et temps jugés sur le meilleur de N essais.
 - Contribution assistée : consignes communes dans `AGENTS.md` ; notes de contexte locales facultatives dans
   `PROJECT_MEMORY.md` (ignoré par Git), utilisables avec différents outils d'IA.
 
@@ -863,7 +874,7 @@ Les limites survivent au changement de décalage, au délai aléatoire, au passa
 - [x] Aube / crépuscule : le modèle et le serveur les acceptent ; le formulaire ne propose toujours que Lever / Coucher (inchangé).
 
 
-## 21. Écarts connus et travaux ouverts (audit 0.18.0, mis à jour en 0.19.0)
+## 21. Écarts connus et travaux ouverts (audit 0.18.0, mis à jour en 0.19.1)
 
 Relevés en comparant cette spec au code de la 0.18.0 ; les points cochés ont été clos en 0.19.0 (§ 22), les autres
 restent **non faits**. La preuve indique où le vérifier.
@@ -891,9 +902,12 @@ Les cases encore ouvertes du § 17 restent ouvertes et ne sont pas répétées i
       (`slot-form.ts` : lever / coucher seulement, § 20). Décision : uniquement lever/coucher dans la carte ; aube/crépuscule restent acceptés par le serveur (compatibilité).
 - [x] Aperçus (`weekly_planner/preview`) : cache partagé entre cartes et écrans d'horaires, invalidé au changement de
       `revision` ou de `card_version`.
-- [ ] Passe de régression visuelle / interaction dans le navigateur sur l'instance locale (§ 17).
-- [ ] `docs/controle-visuel.md` décrit la carte d'avant la 0.6 (dérogations, « Reprendre », `show_week`, 420 px) et
-      aucune case n'y est cochée ; le temps de rendu n'a jamais été mesuré (§ 13, § 14.4). Le réécrire puis le dérouler.
+- [x] Passe de régression visuelle / interaction dans le navigateur sur l'instance locale (§ 17) : faite le 2026-10-31
+      (tâches 12/13 de la revue), résultats et anomalies dans `docs/CONTROLE_VISUEL_RESULTATS.md` ; corrections en 0.19.1.
+- [x] `docs/controle-visuel.md` réécrit pour la carte actuelle et déroulé. Temps de rendu mesuré (20 programmes) :
+      rendu de la carte ~2 ms, mise à jour de `hass` peinte en 20-35 ms, page entière 244 ms sans bridage et
+      803 ms avec CPU ×4.
+- [ ] Reste de la passe : l'icône « maintenant » touche le texte d'une ligne longue à 1440 px (non corrigé).
 - [ ] Commentaire de `frontend/src/components/gestures.ts` qui renvoie au § 10.7 retiré (cosmétique).
 
 ### 21.3 Publication et validation réelle
@@ -903,9 +917,16 @@ Les cases encore ouvertes du § 17 restent ouvertes et ne sont pas répétées i
       *en cours — le propriétaire indique que les tests réels sont OK à ce jour (2026-10-31) ; durée ≥ 3 jours et version testée non consignées*
 - [ ] Stratégie de tags / releases pour 0.8.0 → 0.19.0 : dernier tag et dernière release GitHub `v0.7.10` ; `main`
       est derrière `develop` ; pas de `1.0.0`.
+- [ ] Tests de mutation : des survivants subsistent dans `validation.py` (informatif, non traités).
 - [ ] Refonte des modules / de l'architecture (`engine.py` ~36 ko, `weekly-planner-card.ts` ~29 ko) : hors du périmètre
       des corrections actuelles (§ 17), à planifier séparément.
 
+### 21.4 Point lent corrigé en 0.19.1
+- [x] **Recalcul de 200 entités** : tenait la boucle d'événements de HA (~180 ms d'un bloc). Un seul cache
+      d'occurrences par passe, cession de la boucle au moins toutes les 10 ms entre deux entités (verrou du moteur),
+      équivalence avec l'ancien moteur gardée par des tests. Mesuré (médiane, 50 programmes × 4 entités) :
+      recalcul 182 → 30 ms, instantané de la carte 123 → 31 ms, démarrage 217 → 55 ms ; statuts des programmes ~4×
+      plus rapides. Un rappel de la boucle ne dépasse pas 50 ms (tests de rafale, § 12).
 
 ## 22. Release 0.19.0
 
@@ -917,3 +938,14 @@ Les cases encore ouvertes du § 17 restent ouvertes et ne sont pas répétées i
 - [x] Test S33 (ressource Lovelace) et tests associés.
 - [x] Spec corrigée : `00:00 → 00:00` accepté comme horaire de 24 h ; Lever / Coucher seulement (déjà décidé).
 - [ ] Passe visuelle (tâches 12/13 de la revue), tags / releases, HACS, test réel, `docs/controle-visuel.md` : hors de cette version.
+
+## 23. Release 0.19.1
+
+- [x] Corrections de la passe visuelle : duplication d'un horaire solaire > 4 h (heure fixe au-delà de ±240 min) et message d'erreur d'heure hors limites ; Échap et retour du focus ; barres au clavier ; boutons de jour ≥ 44 px ; sélecteur de l'éditeur ; astuce au-dessus du trait « maintenant » ; pluriel des usages ; heures d'axe selon la langue ; texte du délai aléatoire.
+- [x] Performance du moteur : recalcul 182 → 30 ms, instantané 123 → 31 ms, démarrage 217 → 55 ms (§ 21.4).
+- [x] Couverture de code avec planchers (Python 85 %, carte 49 / 78 / 45 / 49) (§ 12).
+- [x] Tests de mutation informatifs, workflow hebdomadaire `mutation.yml` (§ 12).
+- [x] Budgets de performance et `scripts/bench.py` ; tests de rafale sans dépendre du journal « slow callback » (meilleur de 3, marge sous couverture).
+- [x] Liste de contrôle visuelle réécrite, tâches 12/13 faites (`docs/CONTROLE_VISUEL_RESULTATS.md`).
+- [x] Versions 0.19.1 alignées (manifest, pyproject, carte, verrous), CHANGELOG, décisions.
+- [ ] Stratégie de tags / releases, installation HACS, test réel ≥ 3 jours (en cours), icône « maintenant » sur ligne longue à 1440 px, survivants de mutation de `validation.py` : hors de cette version.
