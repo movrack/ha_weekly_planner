@@ -565,12 +565,13 @@ export class WeeklyPlannerCard extends LitElement {
       flex: none; width: 44px; margin-right: -8px; height: 48px; padding: 0; border: none; border-radius: 8px; background: none; color: inherit;
       font: inherit; cursor: pointer; text-align: left; display: flex; align-items: center;
     }
+    .wday .wnamebtn { margin-top: 6px; }
     .wnamebtn:hover .wname { text-decoration: underline; }
-    .wday wp-bar-editor { margin: 10px 0; }
+    .wday wp-bar-editor { margin: 16px 0 10px; }
     .wname { flex: none; width: 36px; font-size: 14px; color: var(--secondary-text-color); }
     .wday wp-bar-editor, .today wp-bar-editor { flex: 1; min-width: 0; }
     .wname.today { color: var(--primary-text-color); font-weight: 600; }
-    .today { display: flex; align-items: flex-start; gap: 8px; padding-top: 12px; }
+    .today { display: flex; align-items: flex-start; gap: 8px; padding-top: 20px; } /* room for the "now" clock above the bar */
     .today .wname { line-height: 28px; margin-top: 2px; }
     .prog { padding: 8px 0 4px; border-top: 1px solid var(--divider-color); }
     .prog:first-of-type, .head + .prog { border-top: none; }
