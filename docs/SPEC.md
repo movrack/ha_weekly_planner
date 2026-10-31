@@ -32,6 +32,7 @@ entité, puis une **action par défaut** à la fin.
 - **Étiquette** (label, comme chez Netatmo) : `{id, name, color, action}`, **globale** (partagée par tous les programmes),
   stockée par l'intégration. Tout passe par une étiquette : un horaire en référence une (`slot.label`), le « reste du
   temps » aussi (`entity.default_label`). Exemple : « Confort » = 19 °C ; les horaires sont « Confort 10:00–12:00 ».
+  Nom affiché : « Réglage » (décision 2026-10-31, à implémenter ; clés internes inchangées).
 - **Action** (celle d'une étiquette) : un service HA, `{"kind":"service","service":"climate.set_temperature","data":{"temperature":18}}`,
   ou une scène, `{"kind":"scene","scene":"scene.x"}`. Les services proposés viennent du sélecteur générique de la carte
   (services dont la cible accepte l'entité).
@@ -949,3 +950,16 @@ Les cases encore ouvertes du § 17 restent ouvertes et ne sont pas répétées i
 - [x] Liste de contrôle visuelle réécrite, tâches 12/13 faites (`docs/CONTROLE_VISUEL_RESULTATS.md`).
 - [x] Versions 0.19.1 alignées (manifest, pyproject, carte, verrous), CHANGELOG, décisions.
 - [ ] Stratégie de tags / releases, installation HACS, test réel ≥ 3 jours (en cours), icône « maintenant » sur ligne longue à 1440 px, survivants de mutation de `validation.py` : hors de cette version.
+
+## 24. Évolutions décidées (0.20.0, à implémenter)
+
+Décisions du propriétaire du 2026-10-31, non encore implémentées ; implémentation en attente de son feu vert (§ « décisions » : `docs/DECISIONS.md`).
+
+### 24.1 Panneau de la barre (mobile, § 10)
+- [ ] Quand une barre est en édition sur mobile, « Rien », ciseaux et « Copier vers… » sont placés au-dessus de la liste des réglages (15 °C, Comfort…) ; la carte de détail du réglage choisi (avec le crayon) reste sous la liste.
+- [ ] Couper un créneau : la partie gauche garde le réglage coupé, la partie droite devient « Rien » (aucune action sur cette plage).
+
+### 24.2 Écran d'horaires d'un programme (§ 10)
+- [ ] Nouvel ordre vertical : 1) interrupteur « Horaires actifs / En marche », 2) sélecteur de Mode, 3) réglages (ligne « Le reste du temps · <réglage par défaut> »), 4) liste des horaires avec « Ajouter un horaire », 5) schéma des 7 jours, 6) graphique du jour, puis bouton Supprimer en bas.
+- [ ] Mêmes fonctions qu'aujourd'hui ; rien de retiré.
+- *Interprétation à confirmer : « réglages » = la ligne « Le reste du temps ».*
