@@ -20,6 +20,7 @@ mutation = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 addopts = "--timeout=60"
+markers = ["performance: deterministic performance budgets (also run in the normal suite)"]
 testpaths = ["tests"]
 pythonpath = ["."]
 
