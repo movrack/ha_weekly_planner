@@ -7,45 +7,83 @@ import { ALL_DAYS, WEEKDAYS, WEEKEND, shiftSpec, specText } from "../actions";
 import type { SlotGroup } from "../actions";
 import { strings, t } from "../i18n";
 import { sunBoundsInvalid } from "../slots";
-import { DAY, clockToMinutes, minutesToClock } from "../time";
+import { DAY, clockToMinutes, localDateIso, localMinutes, minutesToClock } from "../time";
 import { editorStyles, langOf } from "../editors/shared";
 import type { HomeAssistant, PlannerData, Program, TimeSpec } from "../types";
 
 type Which = "start" | "end";
 const SUNS = ["sunrise", "sunset"] as const;
 
-/** Describe the possible daily delay without inventing a resolved solar time. */
-export function randomDelayRangeText(lang: string, spec: TimeSpec): string {
+const SUN_ATTR = { dawn: "next_dawn", sunrise: "next_rising", sunset: "next_setting", dusk: "next_dusk" } as const;
+
+function duration(minutes: number): string {
+  const value = Math.abs(minutes);
+  return value < 60 ? `${value} min` : `${Math.floor(value / 60)}h${value % 60 ? String(value % 60).padStart(2, "0") : ""}`;
+}
+
+/** Lowercase name of the solar event, for use inside a sentence ("coucher", "sunset"). */
+function sunWord(lang: string, spec: Extract<TimeSpec, { sun: string }>, long: boolean): string {
+  const key = long && (spec.sun === "sunrise" || spec.sun === "sunset") ? `sun_${spec.sun}` : spec.sun === "sunrise" || spec.sun === "sunset" ? `sun_${spec.sun}_short` : `sun_${spec.sun}`;
+  return t(lang, key as never).toLowerCase();
+}
+
+/** ", mais pas avant 18:00 ni après 19:00" for the bounds that are set, or an empty string. */
+function boundsText(lang: string, spec: Extract<TimeSpec, { sun: string }>): string {
+  if (spec.earliest && spec.latest) return t(lang, "sun_limits_both", { a: spec.earliest, b: spec.latest });
+  if (spec.earliest) return t(lang, "sun_limits_earliest", { a: spec.earliest });
+  if (spec.latest) return t(lang, "sun_limits_latest", { b: spec.latest });
+  return "";
+}
+
+/** Minutes of today's solar event (offset and bounds applied), or null when the sun entity gives no time for today. */
+export function todaySunMinutes(hass: HomeAssistant | undefined, spec: TimeSpec): number | null {
+  if (!hass || !("sun" in spec)) return null;
+  const iso = hass.states?.["sun.sun"]?.attributes?.[SUN_ATTR[spec.sun]] as string | undefined;
+  const zone = hass.config?.time_zone;
+  if (!iso || !zone || Number.isNaN(new Date(iso).getTime())) return null;
+  if (localDateIso(new Date(iso), zone) !== localDateIso(new Date(), zone)) return null;
+  let m = localMinutes(iso, zone) + (spec.offset ?? 0);
+  if (spec.earliest) m = Math.max(m, clockToMinutes(spec.earliest));
+  if (spec.latest) m = Math.min(m, clockToMinutes(spec.latest));
+  return Math.max(0, Math.min(DAY, m));
+}
+
+/** Plain sentence for a solar time: what it really means, with its offset and bounds. Empty when nothing to explain. */
+export function solarMeaningText(lang: string, spec: TimeSpec): string {
+  if (!("sun" in spec) || (!spec.offset && !spec.earliest && !spec.latest)) return "";
+  const offset = spec.offset ? ` ${spec.offset > 0 ? "+" : "−"} ${duration(spec.offset)}` : "";
+  return t(lang, "sun_real", { base: `${sunWord(lang, spec, true)}${offset}`, limits: boundsText(lang, spec) });
+}
+
+function clockText(lang: string, minutes: number): string {
+  const withinDay = minutes % DAY;
+  const value = `${String(Math.floor(withinDay / 60)).padStart(2, "0")}:${String(withinDay % 60).padStart(2, "0")}`;
+  return minutes >= DAY ? `${value} (${t(lang, "next_day")})` : value;
+}
+
+/** Today's result of a solar time ("Aujourd'hui : 18:00"), or an empty string when it cannot be computed. */
+export function solarTodayText(lang: string, hass: HomeAssistant | undefined, spec: TimeSpec): string {
+  const minutes = todaySunMinutes(hass, spec);
+  return minutes === null ? "" : t(lang, "sun_today", { time: clockText(lang, minutes) });
+}
+
+/** Plain-words description of the daily random delay of a boundary. */
+export function randomDelayRangeText(lang: string, spec: TimeSpec, which: Which = "start", hass?: HomeAssistant): string {
   const delay = spec.random_minutes ?? 0;
-  const duration = (minutes: number): string => {
-    const value = Math.abs(minutes);
-    return value < 60 ? `${value} min` : `${Math.floor(value / 60)}h${value % 60 ? String(value % 60).padStart(2, "0") : ""}`;
-  };
-  const clock = (minutes: number): string => {
-    const withinDay = minutes % DAY;
-    const value = `${String(Math.floor(withinDay / 60)).padStart(2, "0")}:${String(withinDay % 60).padStart(2, "0")}`;
-    return minutes >= DAY ? `${value} (${t(lang, "next_day")})` : value;
-  };
-  let start: string;
-  let end: string;
+  const key = which === "end" ? "random_range_end" : "random_range_start";
   if ("time" in spec) {
     const minutes = clockToMinutes(spec.time);
-    start = clock(minutes);
-    end = clock(minutes + delay);
-  } else {
-    const solar = (offset: number): string => {
-      const name = specText(lang, { ...spec, offset: 0, random_minutes: 0 }).replaceAll("\u00a0", " ");
-      return offset ? `${name} ${offset > 0 ? "+" : "−"} ${duration(offset)}` : name;
-    };
-    const bound = (value: string, earliest?: string, latest?: string): string => {
-      const limits = [earliest ? `${t(lang, "sun_earliest")} ${earliest}` : "", latest ? `${t(lang, "sun_latest")} ${latest}` : ""].filter(Boolean);
-      return limits.length ? `${value} (${limits.join(", ")})` : value;
-    };
-    start = bound(solar(spec.offset ?? 0), spec.earliest, spec.latest);
-    // Bounds apply to the base first; they are stated once, on the start (the latest one also caps the delayed result).
-    end = spec.earliest || spec.latest ? `${start} + ${duration(delay)}` : solar((spec.offset ?? 0) + delay);
+    return `${t(lang, key, { start: clockText(lang, minutes), end: clockText(lang, minutes + delay) })}.`;
   }
-  return t(lang, "random_range", { start, end });
+  const today = todaySunMinutes(hass, spec);
+  if (today !== null) {
+    // The latest bound also caps the delayed result.
+    const last = spec.latest ? Math.min(today + delay, clockToMinutes(spec.latest)) : today + delay;
+    return `${t(lang, key, { start: clockText(lang, today), end: clockText(lang, Math.max(today, last)) })}.`;
+  }
+  const offset = spec.offset ?? 0;
+  const base = `${sunWord(lang, spec, false)}${offset ? ` ${offset > 0 ? "+" : "−"} ${duration(offset)}` : ""}`;
+  return `${t(lang, key, { start: base, end: t(lang, "random_later", { n: duration(delay) }) })}${boundsText(lang, spec)}.`;
 }
 
 @customElement("wp-slot-form")
@@ -146,7 +184,7 @@ export class WpSlotForm extends LitElement {
           .value=${String(spec.random_minutes)} ?disabled=${dis} @change=${(e: Event) => {
             const input = e.target as HTMLInputElement;
             if (input.validity.valid) this._random(which, Number(input.value));
-          }} /></label><small id=${`random-${which}`}>${randomDelayRangeText(lang, spec)}</small>` : nothing}
+          }} /></label><small id=${`random-${which}`}>${randomDelayRangeText(lang, spec, which, this.hass)}</small>` : nothing}
       </div>
       `;
   }
@@ -161,7 +199,10 @@ export class WpSlotForm extends LitElement {
       ${spec[key] ? html`<button class="clear" ?disabled=${this.disabled} aria-label=${t(lang, "sun_limit_clear")} title=${t(lang, "sun_limit_clear")}
         @click=${() => this._limit(which, key, "")}><ha-icon icon="mdi:close"></ha-icon></button>` : nothing}
     </div>`;
+    const meaning = solarMeaningText(lang, spec);
+    const today = solarTodayText(lang, this.hass, spec);
     return html`<div class="limits" role="group">${field("earliest")}${field("latest")}</div>
+      ${meaning || today ? html`<small class="sun-help">${meaning}${meaning && today ? " " : ""}${today}</small>` : nothing}
       ${sunBoundsInvalid(spec) ? html`<small class="bad" role="alert">${t(lang, "err_sun_bounds")}</small>` : nothing}`;
   }
 
@@ -262,6 +303,7 @@ export class WpSlotForm extends LitElement {
       cursor: pointer; display: inline-flex; align-items: center; justify-content: center; --mdc-icon-size: 20px;
     }
     .limit .clear:disabled { opacity: 0.4; cursor: default; }
+    .sun-help { display: block; margin-bottom: 8px; color: var(--secondary-text-color); }
     small.bad { color: var(--error-color, #db4437); display: block; margin-bottom: 8px; }
     .random { display: grid; gap: 6px; margin: 8px 0; }
     .random label { display: flex; align-items: center; gap: 8px; min-height: 44px; }

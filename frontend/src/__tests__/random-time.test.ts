@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { randomDelayRangeText, WpSlotForm } from "../components/slot-form";
+import { randomDelayRangeText, solarMeaningText, solarTodayText, WpSlotForm } from "../components/slot-form";
+import { t } from "../i18n";
 import { groupSlots, shiftSpec, slotKey, specText } from "../actions";
 import { mergeAdjacent, moveBoundary } from "../edits";
 import { clockToMinutes } from "../time";
@@ -69,31 +70,62 @@ it("draws actual previous-day delayed tails and next-day one-shots from previews
 
 
 describe("random delay explanation", () => {
-  it("shows the exact requested fixed-time range in French", () => {
-    expect(randomDelayRangeText("fr", { time: "16:45", random_minutes: 15 }))
-      .toBe("Aléatoirement entre 16:45 et 17:00");
+  const sunHass = (setting: string) => ({ states: { "sun.sun": { attributes: { next_setting: setting } } }, config: { time_zone: "UTC" } }) as any;
+  const today = new Date().toISOString().slice(0, 11);
+  it("says in plain words the fixed-time range, for a start and an end", () => {
+    expect(randomDelayRangeText("fr", { time: "16:45", random_minutes: 15 })).toBe("Chaque jour, démarre au hasard entre 16:45 et 17:00.");
+    expect(randomDelayRangeText("fr", { time: "16:45", random_minutes: 15 }, "end")).toBe("Chaque jour, se termine au hasard entre 16:45 et 17:00.");
   });
-  it("shows solar endpoints as event-relative offsets", () => {
-    expect(randomDelayRangeText("fr", { sun: "sunset", offset: 60, random_minutes: 15 }))
-      .toBe("Aléatoirement entre Coucher + 1h et Coucher + 1h15");
-    expect(randomDelayRangeText("fr", { sun: "sunrise", offset: -15, random_minutes: 30 }))
-      .toBe("Aléatoirement entre Lever − 15 min et Lever + 15 min");
+  it("describes a solar delay relative to the event when today's sun time is unknown", () => {
+    expect(randomDelayRangeText("fr", { sun: "sunset", offset: 30, random_minutes: 15 }))
+      .toBe("Chaque jour, démarre au hasard entre coucher + 30 min et 15 min plus tard.");
+    expect(randomDelayRangeText("fr", { sun: "sunrise", offset: -15, random_minutes: 30 }, "end"))
+      .toBe("Chaque jour, se termine au hasard entre lever − 15 min et 30 min plus tard.");
+  });
+  it("adds the bounds only in the relative wording, once", () => {
+    expect(randomDelayRangeText("fr", { sun: "sunset", offset: 30, earliest: "18:00", latest: "19:00", random_minutes: 15 }))
+      .toBe("Chaque jour, démarre au hasard entre coucher + 30 min et 15 min plus tard, mais pas avant 18:00 ni après 19:00.");
+  });
+  it("uses the resolved clock times of today, clamped and capped by the latest bound", () => {
+    const hass = sunHass(`${today}17:30:00Z`);
+    expect(randomDelayRangeText("fr", { sun: "sunset", offset: 30, earliest: "18:00", random_minutes: 15 }, "start", hass))
+      .toBe("Chaque jour, démarre au hasard entre 18:00 et 18:15.");
+    expect(randomDelayRangeText("fr", { sun: "sunset", offset: 30, earliest: "18:00", latest: "18:10", random_minutes: 15 }, "start", hass))
+      .toBe("Chaque jour, démarre au hasard entre 18:00 et 18:10.");
+  });
+  it("ignores a sun time that is not today's", () => {
+    expect(randomDelayRangeText("en", { sun: "sunset", random_minutes: 15 }, "start", sunHass("2001-01-01T17:30:00Z")))
+      .toBe("Every day, starts at a random time between sunset and 15 min later.");
   });
   it("marks the following day when the fixed delay crosses midnight", () => {
     expect(randomDelayRangeText("fr", { time: "23:50", random_minutes: 15 }))
-      .toBe("Aléatoirement entre 23:50 et 00:05 (Jour suivant)");
-    expect(randomDelayRangeText("fr", { time: "24:00", random_minutes: 15 }))
-      .toBe("Aléatoirement entre 00:00 (Jour suivant) et 00:15 (Jour suivant)");
+      .toBe("Chaque jour, démarre au hasard entre 23:50 et 00:05 (Jour suivant).");
   });
   it("localizes the range in English without losing minute precision", () => {
-    expect(randomDelayRangeText("en", { time: "16:47", random_minutes: 17 }))
-      .toBe("Randomly between 16:47 and 17:04");
-    expect(randomDelayRangeText("en", { sun: "sunset", offset: 60, random_minutes: 15 }))
-      .toBe("Randomly between Sunset + 1h and Sunset + 1h15");
+    expect(randomDelayRangeText("en", { time: "16:47", random_minutes: 17 }, "end"))
+      .toBe("Every day, ends at a random time between 16:47 and 17:04.");
   });
-  it("expresses solar clamping before the delay and retains the final latest cap", () => {
-    expect(randomDelayRangeText("fr", { sun: "sunset", offset: 60, earliest: "18:00", latest: "22:00", random_minutes: 15 }))
-      .toBe("Aléatoirement entre Coucher + 1h (Pas avant 18:00, Pas après 22:00) et Coucher + 1h (Pas avant 18:00, Pas après 22:00) + 15 min");
+});
+
+describe("solar time help", () => {
+  const hass = { states: { "sun.sun": { attributes: { next_setting: `${new Date().toISOString().slice(0, 11)}17:00:00Z` } } }, config: { time_zone: "UTC" } } as any;
+  const spec = { sun: "sunset", offset: 30, earliest: "18:00", latest: "19:00" } as const;
+  it("explains the real time with offset and only the bounds that are set", () => {
+    expect(solarMeaningText("fr", spec)).toBe("Heure réelle : coucher du soleil + 30 min, mais pas avant 18:00 ni après 19:00.");
+    expect(solarMeaningText("fr", { sun: "sunrise", offset: -15, latest: "08:00" })).toBe("Heure réelle : lever du soleil − 15 min, mais pas après 08:00.");
+    expect(solarMeaningText("en", { sun: "sunset", earliest: "18:00" })).toBe("Actual time: sunset, but not earlier than 18:00.");
+    expect(solarMeaningText("fr", { sun: "sunset" })).toBe("");
+  });
+  it("shows today's result only when computable", () => {
+    expect(solarTodayText("fr", hass, spec)).toBe("Aujourd’hui : 18:00");
+    expect(solarTodayText("fr", undefined, spec)).toBe("");
+    expect(solarTodayText("fr", { states: {}, config: { time_zone: "UTC" } } as any, spec)).toBe("");
+  });
+  it("uses clear labels and error text", () => {
+    expect(t("fr", "sun_earliest")).toBe("Au plus tôt à");
+    expect(t("fr", "sun_latest")).toBe("Au plus tard à");
+    expect(t("fr", "err_sun_bounds")).toBe("« Au plus tôt » doit précéder « Au plus tard ».");
+    expect(t("en", "sun_earliest")).toBe("Not earlier than");
   });
 });
 

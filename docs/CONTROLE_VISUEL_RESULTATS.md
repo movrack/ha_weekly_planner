@@ -26,7 +26,7 @@ Les 15 programmes de mesure ont été supprimés ensuite.
 ## Cases (voir `docs/controle-visuel.md`)
 
 Réussi : consultation en barres, cadrans 24 h et 12 h, liste, semaine, étiquettes, écran d'horaires (ouvrir, modifier,
-dupliquer, supprimer), pastilles solaires, décalage, « Pas avant / Pas après » avec erreur d'ordre inversé, délai
+dupliquer, supprimer), pastilles solaires, décalage, « Au plus tôt / Au plus tard » avec erreur d'ordre inversé, délai
 aléatoire conservé à la duplication, glisser au doigt et à la souris, clavier sur les poignées, astuce « Restez
 appuyé pour modifier » (3 fois puis plus), éditeur de carte et de programme, valeurs par défaut d'un nouveau programme
 (priorité 10, réappliquer), fr et en, deux thèmes, aucun défilement horizontal, zéro erreur console, cibles ≥ 44 px

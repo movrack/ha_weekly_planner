@@ -416,7 +416,7 @@ onglet « Réglages des programmes » : choix du programme à modifier (« Nouve
 avec descriptions HA) et **Modes** (modes, mode actif, source de mode et associations repliables) ; création courte
 (nom + appareils) avec reprise du brouillon ; Annuler / Rétablir (Ctrl/Cmd+Z, Ctrl/Cmd+Maj+Z, Ctrl/Cmd+Y) ; dupliquer,
 supprimer (confirmé). L'écran d'horaires garde : schéma des 7 jours (reflète le brouillon), sélecteur du mode à
-éditer, lignes d'horaires, formulaire d'horaire (pastilles Lever / Coucher, décalage, « Pas avant » / « Pas après »,
+éditer, lignes d'horaires, formulaire d'horaire (pastilles Lever / Coucher, décalage, « Au plus tôt à » / « Au plus tard à »,
 délai aléatoire, pas ±15 min, « Appliquer à d'autres jours »), dupliquer, supprimer (§ 18), fermeture par glissement
 vers le bas sur téléphone. Le texte ci-dessous décrit la 0.6–0.7 ; l'engrenage qui y figure n'existe plus.
 - **Écran d'horaires** : lignes d'horaires (pastille de la couleur de le réglage + nom) ; formulaire d'horaire (début,
@@ -867,11 +867,11 @@ For fixed-time ranges, reject settings whose maximum start delay would leave les
 
 ## 20. Solar time limits — 0.18.0
 
-Un début ou une fin solaire (lever / coucher) accepte déjà `earliest` et `latest` (heures `HH:MM`, minute libre). Le formulaire d'horaire les expose : deux champs d'heure facultatifs « Pas avant » / « Pas après » sous les pastilles Lever / Coucher, chacun avec un bouton pour retirer la limite. Ils n'apparaissent que pour une heure solaire. Résolution inchangée : décalage, puis limites, puis délai aléatoire (la limite « après » plafonne aussi le résultat).
+Un début ou une fin solaire (lever / coucher) accepte déjà `earliest` et `latest` (heures `HH:MM`, minute libre). Le formulaire d'horaire les expose : deux champs d'heure facultatifs « Au plus tôt à » / « Au plus tard à » sous les pastilles Lever / Coucher, chacun avec un bouton pour retirer la limite. Ils n'apparaissent que pour une heure solaire. Résolution inchangée : décalage, puis limites, puis délai aléatoire (la limite « après » plafonne aussi le résultat).
 
 Les limites survivent au changement de décalage, au délai aléatoire, au passage lever/coucher, au regroupement et à la duplication ; revenir à une heure fixe ou glisser une barre vers une heure exacte remplace la définition, comme avant. Une limite « avant » postérieure à « après » est refusée dans le formulaire (message clair) et par le serveur (`earliest_after_latest`) ; des limites égales sont acceptées.
 
-- [x] Champs « Pas avant » / « Pas après » (tactiles, 44 px, bouton retirer) pour chaque début/fin solaire.
+- [x] Champs « Au plus tôt à » / « Au plus tard à » (tactiles, 44 px, bouton retirer) pour chaque début/fin solaire.
 - [x] Conserver les limites lors des autres modifications ; glisser vers une heure exacte les remplace.
 - [x] Valider earliest <= latest côté carte et côté serveur, avec tests.
 - [x] Textes EN/FR, graphique et aperçu via la résolution existante.
