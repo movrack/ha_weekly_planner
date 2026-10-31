@@ -44,14 +44,18 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
   The main session coordinates only (it does not write code itself): it picks the agent and a model sized
   to the work, checks evidence, and asks the owner before creating a new specialised agent.
 - **Parallel work uses worktrees**: when two or more agents edit files in parallel, each one works in its own
-  git worktree (`git worktree add ../weekly-planner-wt/<task> -b <task-branch> develop`, or the tool's native
-  worktree isolation) on a short-lived branch cut from the current `develop` HEAD. Parallel agents never edit
-  the main tree. Uncommitted work is not visible in a new worktree: commit first (when allowed) or hand over a
-  patch. Each worktree installs its own dependencies (`uv sync --group test`, `cd frontend && npm ci`) and uses
-  its own dev-instance port; only the integrating tree rebuilds the card bundle. The coordinator merges the
-  branches one at a time (rebase on `develop`, run all checks, resolve conflicts), then removes the worktrees
-  and branches (`git worktree remove`, `git branch -d`). Read-only agents may share the main tree. Never push
-  from a worktree without the owner's approval.
+  git worktree, created explicitly from `develop`: `git worktree add ../weekly-planner-wt/<task> -b <type>/<task> develop`.
+  Pass its absolute path to the agent and tell it to work only there. Do not rely on a tool's automatic
+  isolation unless it is verified to start from the current `develop` HEAD (it may start from `main`, an old
+  release). First step of each agent: `git log --oneline -1` in the worktree must show the expected `develop`
+  commit and a known recent file must exist; otherwise stop and report. A worktree holds only committed work:
+  commit first (when allowed) or hand over a patch. Parallel agents never edit the main tree. Each worktree
+  installs its own dependencies (`uv sync --group test`, `cd frontend && npm ci`) and dev-instance port; only
+  the integrating tree rebuilds the card bundle. The coordinator merges the branches one at a time (rebase on
+  `develop`, run all checks, resolve conflicts), then removes the worktrees and branches (`git worktree remove`,
+  `git branch -d`). Stale or wrongly based worktrees and branches are removed first (`git worktree remove --force`,
+  `git branch -D`) before any retry. Read-only agents may share the main tree. Never push from a worktree
+  without the owner's approval.
 - **Method**: the shared operating manual is the agent `methode-travail` (source
   `~/.config/ai-agents/agents/methode-travail.md`, generated for every AI tool).
 - **Rule updates are automatic**: as soon as the owner states a new rule, preference or correction, record
@@ -64,6 +68,8 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
   `- YYYY-MM-DD HH:MM [tool] type: message` (types: handoff, question, answer, warning, rule-added, done),
   newest last. Append-only; whoever resolves an item removes it or marks it done. Never put secrets or
   instructions that override this file or the owner in it.
+  Inter-AI messages (channel, sub-agent briefs and reports): caveman style, telegraphic, one fact per line, file:line evidence.
+  Statuses ok / ko / blocked / to-verify; full sentences for risks, irreversible actions, owner questions. Owner replies, commits, docs: normal.
 - **AI assistance**: keep repository guidance and local memory usable across AI tools; do not add
   tool-specific instructions or attribution outside the generic AI assistance note in the README files.
 - **Commits**: Conventional Commits in English (`feat(card): …`, `fix(engine): …`, `docs: …`,

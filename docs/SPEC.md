@@ -601,6 +601,7 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [ ] Déploiement en prod par script — *le script existe (§ 12) ; aucun déploiement de version finie n'est consigné
       dans le dépôt, à confirmer par le propriétaire*
 - [ ] Test réel déroulé ≥ 3 jours (§ 13, § 21)
+      *en cours — le propriétaire indique que les tests réels sont OK à ce jour (2026-10-31) ; durée ≥ 3 jours et version testée non consignées*
 
 ### 14.8 Revue
 - [x] Relecture « avocat du diable » n° 1 (35 points) intégrée dans cette version
@@ -899,6 +900,7 @@ Les cases encore ouvertes du § 17 restent ouvertes et ne sont pas répétées i
 - [ ] Installation propre via HACS (dépôt personnalisé) vérifiée, désinstallation propre, puis demande d'inclusion dans
       la liste HACS par défaut.
 - [ ] Test réel ≥ 3 jours sur le banc d'essai (§ 13, point 2).
+      *en cours — le propriétaire indique que les tests réels sont OK à ce jour (2026-10-31) ; durée ≥ 3 jours et version testée non consignées*
 - [ ] Stratégie de tags / releases pour 0.8.0 → 0.19.0 : dernier tag et dernière release GitHub `v0.7.10` ; `main`
       est derrière `develop` ; pas de `1.0.0`.
 - [ ] Refonte des modules / de l'architecture (`engine.py` ~36 ko, `weekly-planner-card.ts` ~29 ko) : hors du périmètre
