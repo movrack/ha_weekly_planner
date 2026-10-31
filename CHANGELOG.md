@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-10-31
+
+### Added
+- Card: a collapsible "Chart" button under the week bars of each device shows the day chart without opening the schedule screen. Collapsed by default (no history is read while collapsed); the choice is remembered in the browser. Hidden when the card option "Show the chart" is off. The new card option `chart_collapsed` (default `true`) sets the initial state when the browser has no saved choice.
+
+- Card YAML: `filter.programs` and `program` accept a program name as well as its ID (`filter: { programs: [Bureau, Lampe du salon] }`). An exact ID wins; otherwise the name matches ignoring case and accents, and every program with that name is shown. Unmatched entries are ignored. The visual editor counts a name as selecting that program and rewrites the selection as IDs on edit. Existing ID lists are unchanged.
+
+### Fixed
+- Adding the card: the code editor now lists every setting the visual editor shows (`schedule_view: bars`, `show_chart: true`, `chart_collapsed: true`, `filter: {}`) instead of only `filter: {}`. Opening an existing card changes nothing; the first change in the visual editor writes the full configuration.
+
 ## [0.20.2] - 2026-10-31
 
 ### Fixed

@@ -73,13 +73,45 @@ filter:
 
 | Option | Comportement |
 |---|---|
-| `program` | Identifiant interne existant. Une valeur non vide affiche ce programme au lieu d’appliquer les filtres. |
+| `program` | Identifiant interne existant, ou nom de programme (voir ci-dessous). Une valeur non vide affiche ce programme au lieu d’appliquer les filtres. |
 | `filter.types` | Domaines d’entités présents dans les programmes. Absent ou vide = tous les domaines. Les domaines inconnus restent utilisables. |
 | `filter.area` | Correspondance exacte avec la zone du programme, définie dans Général. Les pièces HA des appareils ne sont pas déduites. |
-| `filter.programs` | Liste facultative d’identifiants de programmes, croisée avec les autres filtres. Absent = tous, futurs compris ; `[]` = aucun. |
+| `filter.programs` | Liste facultative d’identifiants ou de noms de programmes (voir ci-dessous), croisée avec les autres filtres. Absent = tous, futurs compris ; `[]` = aucun. |
 | `title` | Titre facultatif. |
 | `schedule_view` | `bars` par défaut, `list`, `radial` pour 24 h, ou `radial_12h` pour deux cercles de 12 h. Disponibles pour un programme ou une liste filtrée. |
 | `show_chart` | Graphique dans les horaires, `true` par défaut. |
+| `chart_collapsed` | Booléen, `true` par défaut : le graphique du jour sous chaque appareil démarre replié (`false` : déplié). Un choix fait avec le bouton du graphique est mémorisé par navigateur et prime ensuite. |
+| `show_week`, `show_advanced` | Obsolètes, acceptés et ignorés. |
+
+**Référence YAML.** Toutes les options de l’éditeur visuel se règlent aussi dans l’éditeur de code YAML,
+avec le même effet ; passer de l’un à l’autre conserve toutes les clés (même inconnues). Types : `title`,
+`program`, `filter.area` = texte ; `filter.types` et `filter.programs` = listes de textes (un texte seul
+vaut une liste d’un élément) ; `schedule_view` = `bars`, `list`, `radial` ou `radial_12h` ; `show_chart` et
+`chart_collapsed` = booléens. Une valeur du mauvais type est ignorée et la valeur par défaut s’applique ;
+une configuration qui n’est pas un mapping YAML affiche une carte d’erreur explicite. Dans l’éditeur
+visuel, les interrupteurs de type et de programme écrivent `filter.programs` (et ne font qu’élargir, ou
+retirer pour un type vide, `filter.types`) : une configuration YAML avec seulement `filter.types` continue
+de fonctionner. Une liste `filter.programs` écrite par l’éditeur n’ajoute pas automatiquement les futurs
+programmes ; utiliser **Tous les programmes** (ou omettre `filter.programs`) pour cela.
+
+`filter.programs` et `program` acceptent un **nom** de programme en plus de son identifiant, par exemple
+`filter: { programs: [Bureau, Lampe du salon] }`. Un identifiant exact est prioritaire ; sinon le nom est
+comparé sans tenir compte des majuscules, des accents ni des espaces autour, et tous les programmes de ce
+nom sont affichés (les doublons correspondent tous). Une entrée sans correspondance est ignorée sans erreur.
+Attention : renommer un programme casse une liste basée sur son nom ; l’éditeur visuel réécrit la sélection
+en identifiants (stables) au premier changement.
+
+```yaml
+type: custom:weekly-planner-card
+title: Horaires                 # défaut : aucun
+schedule_view: bars             # bars | list | radial | radial_12h
+show_chart: true                # défaut true
+chart_collapsed: true           # défaut true (replié)
+filter:                         # ignoré si `program` est renseigné
+  types: [climate, cover]       # défaut : tous
+  area: Salon                   # défaut : toutes les zones
+  programs: [ID1, Bureau]          # défaut : tous (futurs compris)
+```
 
 Un identifiant de programme est généré par l’intégration : ce n’est ni son nom ni
 un nom simplifié. Le trouver dans l’attribut `program_id` de son interrupteur ou

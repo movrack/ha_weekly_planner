@@ -716,6 +716,8 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Version 0.7.3 (manifest, pyproject, package.json, lock), CHANGELOG
 
 ### 14.12 À faire et suivi 0.8 → 0.16
+- [x] Éditeur de carte, onglet Affichage : la ligne « Types » est supprimée ; dans « Programmes à afficher », les programmes sont groupés par type (domaine, noms HA, repli brut, tri par libellé) en sous-sections repliables (chevron, `aria-expanded`, clavier) ; interrupteurs (`ha-switch`) à la place des cases, un interrupteur par type (tout/rien, état partiel atténué + compteur n/N). Correspondance : `filter.programs` explicite ; `filter.types` seulement élargi (ou retiré pour un type sans programme) ; anciens `types` seuls toujours valides. Modules `filter-editor.ts`, `config.ts`.
+- [x] Configuration YAML : toutes les options de l'éditeur réglables en YAML, aller-retour sans perte (clés inconnues conservées), types invalides ignorés (défaut), config non-mapping = erreur claire, `chart_collapsed` optionnel ; référence dans les README.
 *(Liste tenue au fil des versions, sans ordre chronologique ; les éléments datés indiquent leur version.)*
 - [x] Première documentation utilisateur française, atlas des 36 écrans actuels et 13 captures complémentaires (49 PNG), liens vérifiés et images versionnables.
 - [x] Faire respecter l’option globale `reapply_default` lors de la création d’un programme (serveur et formulaire, `defaults` du snapshot, 0.19.0).
@@ -997,3 +999,19 @@ Corrections issues du contrôle visuel 0.20.1 (`docs/CONTROLE_VISUEL_0.20.md`).
 - [x] Carte : à partir de 768 px, ouvrir un éditeur d'horaire ne fait défiler la fenêtre que si le haut de l'éditeur est hors de vue (le schéma reste visible) ; cellules de grille vides masquées. Graphique et Supprimer restent masqués pendant l'édition (voulu). Mobile inchangé. Test : `frontend/src/__tests__/two-columns.test.ts`.
 - [ ] Non testé : ordre de Tab jusqu'à Supprimer ; édition d'un autre mode ; vérification en navigateur de la correction de défilement.
 
+
+---
+
+## 27. Release 0.21.0 : graphique sous le schéma hebdomadaire
+
+Demande du propriétaire (2026-10-31) : « graphique sous le schéma en mode modal, également dans la vue dashboard (modale fermée) sous le schéma hebdomadaire, avec un bouton collapse ».
+
+- [x] Modale : le graphique du jour est déjà directement sous le schéma des 7 jours (ordre du DOM mobile du § 25 inchangé, colonne droite sur ordinateur) ; rien à déplacer.
+- [x] Vue carte (modale fermée) : sous « Semaine » de chaque appareil, un bouton « Graphique » (`mdi:chevron-down` / `mdi:chevron-up`, `aria-expanded`, clavier natif) affiche le même composant `wp-chart` que la modale (jour courant, prévisions déjà chargées par la carte).
+- [x] Replié par défaut (mode simple), option de carte `chart_collapsed` (défaut `true`) pour l'état initial ; l'état ouvert/fermé choisi est mémorisé par appareil (navigateur) dans `localStorage` (`weekly-planner:chart-choices`, try/catch) et prime.
+- [x] Replié : aucun composant, donc aucune lecture d'historique HA. Option de carte `show_chart: false` : ni bouton ni graphique.
+- [x] Sans historique ni prévision : les états vides existants du graphique s'appliquent.
+- [x] Tests : `frontend/src/__tests__/chart-state.test.ts`.
+- [x] Éditeur de code = éditeur visuel : `getStubConfig()` contient tous les réglages affichés avec leurs défauts effectifs ; premier changement dans l'éditeur visuel écrit la config complète (`withDefaults`) ; ouverture seule n'écrit rien. Tests dans `yaml-config.test.ts`.
+- [x] YAML : `filter.programs` et `program` acceptent un nom de programme (id exact d'abord, puis nom insensible à la casse et aux accents ; doublons = tous ; sans correspondance = ignoré) ; l'éditeur visuel compte un nom comme sélection et réécrit en identifiants. Tests : `filter-editor.test.ts`. README FR/EN à jour.
+- [ ] Vérifier en navigateur à 360 px et ≥ 1400 px, clair et sombre (non testé).

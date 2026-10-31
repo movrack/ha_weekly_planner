@@ -64,14 +64,34 @@ export function friendlyName(hass: HomeAssistant, entityId: string): string {
   return hass.states[entityId]?.attributes.friendly_name ?? entityId;
 }
 
+/** Case-, accent- and surrounding-space-insensitive form of a program name. */
+export const normalizeName = (name: string): string => name.normalize("NFD").replace(/\p{M}/gu, "").trim().toLowerCase();
+
+/**
+ * Ids of the programs designated by `refs`. Each ref is a program id (exact match, wins) or else a program
+ * name (normalized; every program with that name matches). A ref matching nothing is ignored.
+ */
+export function selectedProgramIds(programs: Pick<Program, "id" | "name">[], refs: string[]): Set<string> {
+  const ids = new Set<string>();
+  const known = new Set(programs.map((p) => p.id));
+  for (const ref of refs) {
+    if (known.has(ref)) { ids.add(ref); continue; }
+    const wanted = normalizeName(String(ref));
+    if (!wanted) continue;
+    for (const p of programs) if (normalizeName(p.name) === wanted) ids.add(p.id);
+  }
+  return ids;
+}
+
 export function filterPrograms(data: PlannerData, config: { program?: string; filter?: { types?: string[]; area?: string; programs?: string[] } }): Program[] {
-  if (config.program) return data.programs.filter((p) => p.id === config.program);
+  if (config.program) { const one = selectedProgramIds(data.programs, [config.program]); return data.programs.filter((p) => one.has(p.id)); }
   const types = config.filter?.types;
   const area = config.filter?.area;
+  const chosen = config.filter?.programs === undefined ? undefined : selectedProgramIds(data.programs, config.filter.programs);
   return data.programs
     .filter((p) => !types?.length || p.entities.some((e) => types.includes(entityDomain(e.entity_id))))
     .filter((p) => !area || p.area === area)
-    .filter((p) => config.filter?.programs === undefined || config.filter.programs.includes(p.id))
+    .filter((p) => !chosen || chosen.has(p.id))
     .sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
 }
 
