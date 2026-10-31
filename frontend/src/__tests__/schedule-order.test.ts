@@ -50,4 +50,37 @@ describe("schedule screen order", () => {
     expect(html.indexOf("<select")).toBeLessThan(html.indexOf("row add"));
     expect(html.indexOf("row add")).toBeLessThan(html.indexOf("mdi:delete-outline"));
   });
+  it("shows the day focus header, notes and errors above the list", () => {
+    const view = screen();
+    view._focus = 2;
+    view._note = "note-text";
+    view._error = "error-text";
+    const html = flat(view.render());
+    expect(html).toContain("mdi:arrow-left");
+    expect(html).toContain("note-text");
+    expect(html).toContain("error-text");
+    expect(html.indexOf("note-text")).toBeLessThan(html.indexOf('class="list"'));
+    expect(html.indexOf("[REST]")).toBeLessThan(html.indexOf("mdi:arrow-left"));
+  });
+  it("blocks adding and warns when the mode no longer exists or the data is read-only", () => {
+    const view = screen("gone");
+    view.data.read_only = true;
+    const html = flat(view.render());
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("?disabled=");
+  });
+  it("renders only an empty message when there is no program", () => {
+    const view = screen();
+    view.data.programs = [];
+    expect(flat(view.render())).not.toContain('class="switch"');
+  });
+  it("hides the switch, chart and Delete while a slot is being edited", () => {
+    const view = screen();
+    view._open = "new";
+    const html = flat(view.render());
+    expect(html).not.toContain('class="switch"');
+    expect(html).not.toContain("[CHART]");
+    expect(html).not.toContain("danger-line alone");
+    expect(html).not.toContain("row add");
+  });
 });
