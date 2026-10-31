@@ -263,8 +263,9 @@ export function middle(start: number, end: number): number | null {
 }
 
 /**
- * Cuts a slot (or a gap) in two at its middle. A slot keeps its first half and its copy takes the second half.
- * A gap gets a new slot on its second half, with the default label. `handle` is the new boundary.
+ * Cuts a slot (or a gap) in two at its middle. A slot keeps its setting on the first half; the second half becomes
+ * "None" (no slot there: the rest of the time applies). `handle` is the new boundary (the end of the first half).
+ * A gap gets a new slot on its second half, with the default label.
  */
 export function splitAt(slots: Slot[], target: Target, ctx: DayCtx & { defaultLabel?: string }): { slots: Slot[]; handle: Handle } | null {
   const newId = ctx.newId ?? defaultNewId;
@@ -279,10 +280,9 @@ export function splitAt(slots: Slot[], target: Target, ctx: DayCtx & { defaultLa
   const e = eff(slot, ctx.at);
   const mid = middle(e.start, e.end as number);
   if (mid === null) return null;
-  const second: Slot = { ...structuredClone(slot), id: newId(), start: fixedTime(mid) };
   const first: Slot = { ...slot, end: fixedTime(mid) };
-  const next = slots.flatMap((s) => (s.id === slot.id ? [first, second] : [s]));
-  return { slots: sortByStart(next, ctx), handle: { id: second.id, edge: "start" } };
+  const next = slots.map((s) => (s.id === slot.id ? first : s));
+  return { slots: sortByStart(next, ctx), handle: { id: slot.id, edge: "end" } };
 }
 
 /** Sets the label of a slot; a gap becomes a slot with that label over the whole gap. */
