@@ -4,6 +4,7 @@
 
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { ifDefined } from "lit/directives/if-defined.js";
 import { repeat } from "lit/directives/repeat.js";
 import "./day-bar";
 import "./dialog";
@@ -70,6 +71,8 @@ export class WpBarEditor extends LitElement {
   /** "Press and hold to edit" shown after a plain tap (first times only). */
   @state() private _hint = false;
   private _hintTimer?: number;
+  /** Edit mode was entered with the keyboard: focus goes to the first handle, then back to the bar. */
+  private _kbd = false;
 
   private _sun = new Map<string, number>();
   private _keep = new Set<string>();
@@ -136,9 +139,12 @@ export class WpBarEditor extends LitElement {
       if (this.editing) {
         this._clearHint();
         this._listen(true);
+        if (this._kbd) this.renderRoot.querySelector<HTMLElement>(".hd")?.focus();
       }
       else {
         this._listen(false);
+        if (this._kbd) this.renderRoot.querySelector<HTMLElement>(".zone")?.focus();
+        this._kbd = false;
         this._flushNudge();
         this._selected = null;
         this._hsel = null;
@@ -250,6 +256,18 @@ export class WpBarEditor extends LitElement {
     window.clearTimeout(this._hintTimer);
     this._hintTimer = undefined;
     this._hint = false;
+  }
+
+  /** Keyboard: Enter or Space on the focused bar does what a click does. */
+  private _zoneKey(e: KeyboardEvent): void {
+    if (this.editing || e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+    e.preventDefault();
+    if (this.editable) {
+      this._kbd = true;
+      this._clearHint();
+      dismissHoldHint();
+      this._emit("edit-request");
+    } else this._emit("open-day");
   }
 
   private _zoneCancel(): void {
@@ -676,7 +694,9 @@ export class WpBarEditor extends LitElement {
   render() {
     if (!this.hass || !this.data || !this.program) return nothing;
     return html`
-      <div class="zone ${this.editing ? "editing" : ""}"
+      <div class="zone ${this.editing ? "editing" : ""}" tabindex=${ifDefined(this.editing ? undefined : 0)}
+        role=${ifDefined(this.editing ? undefined : "button")} aria-label=${ifDefined(this.editing ? undefined : t(this.lang, "edit_bar"))}
+        @keydown=${this._zoneKey}
         @pointerdown=${this._zoneDown} @pointermove=${this._zoneMove} @pointerup=${this._zoneUp}
         @pointercancel=${this._zoneCancel} @contextmenu=${(e: Event) => { if (this._press && !this._press.mouse) e.preventDefault(); }}>
         <wp-day-bar ?show-hours=${this.hours} notches lang=${this.lang} ?tall=${this.editing} .spans=${this._spansNow()} .now=${this.now}
@@ -691,8 +711,10 @@ export class WpBarEditor extends LitElement {
   static styles = [editorStyles, css`
     :host { display: block; min-width: 0; }
     .zone { position: relative; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: pointer; }
+    .zone:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 3px; border-radius: 14px; }
+    /* above the "now" line of the bar (z-index 5) */
     .hint {
-      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 3; max-width: 96%;
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; max-width: 96%;
       padding: 6px 12px; border-radius: 16px; font-size: 13px; line-height: 1.3; text-align: center; pointer-events: none;
       background: var(--primary-text-color); color: var(--card-background-color, #fff);
     }

@@ -4,6 +4,16 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
+/** Open dialogs, oldest first: only the newest one answers Escape. */
+const openDialogs: WpDialog[] = [];
+
+/** The focused element, looking through shadow roots. */
+function deepActive(): HTMLElement | null {
+  let el: Element | null = document.activeElement;
+  while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+  return el && el !== document.body ? (el as HTMLElement) : null;
+}
+
 @customElement("wp-dialog")
 export class WpDialog extends LitElement {
   @property() heading = "";
@@ -20,7 +30,38 @@ export class WpDialog extends LitElement {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     this.removeEventListener("keydown", this._onKey);
+    this._release();
   }
+
+  private _opener: HTMLElement | null = null;
+  private _tracked = false;
+
+  private _track(): void {
+    if (this._tracked) return;
+    this._tracked = true;
+    this._opener = deepActive();
+    openDialogs.push(this);
+    document.addEventListener("keydown", this._onDocKey);
+  }
+
+  /** Stops listening and gives the focus back to the element that opened the dialog. */
+  private _release(): void {
+    if (!this._tracked) return;
+    this._tracked = false;
+    const at = openDialogs.indexOf(this);
+    if (at >= 0) openDialogs.splice(at, 1);
+    if (!openDialogs.length) document.removeEventListener("keydown", this._onDocKey);
+    const opener = this._opener;
+    this._opener = null;
+    if (opener?.isConnected) opener.focus({ preventScroll: true });
+  }
+
+  // Escape still closes when the focus fell back to the page (for example after a row was opened).
+  private _onDocKey = (ev: KeyboardEvent) => {
+    if (ev.key !== "Escape" || ev.defaultPrevented || openDialogs[openDialogs.length - 1] !== this) return;
+    ev.stopPropagation();
+    this.close();
+  };
 
   // Swipe down from the header closes the dialog on phones (button equivalent: the close button).
   private _sw?: { id: number; y: number; x: number; dy: number };
@@ -81,13 +122,16 @@ export class WpDialog extends LitElement {
   };
 
   updated(changed: Map<string, unknown>): void {
-    if (changed.has("open") && this.open) {
+    if (!changed.has("open")) return;
+    if (this.open) {
+      this._track();
       requestAnimationFrame(() => this.renderRoot.querySelector<HTMLElement>(".panel")?.focus());
-    }
+    } else this._release();
   }
 
   close(): void {
     this.open = false;
+    this._release();
     this.dispatchEvent(new CustomEvent("closed", { bubbles: true, composed: true }));
   }
 

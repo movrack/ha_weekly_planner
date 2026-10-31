@@ -42,10 +42,8 @@ export function randomDelayRangeText(lang: string, spec: TimeSpec): string {
       return limits.length ? `${value} (${limits.join(", ")})` : value;
     };
     start = bound(solar(spec.offset ?? 0), spec.earliest, spec.latest);
-    // Bounds apply to the base first; the latest bound also caps the delayed result.
-    end = spec.earliest || spec.latest
-      ? bound(`${start} + ${duration(delay)}`, undefined, spec.latest)
-      : solar((spec.offset ?? 0) + delay);
+    // Bounds apply to the base first; they are stated once, on the start (the latest one also caps the delayed result).
+    end = spec.earliest || spec.latest ? `${start} + ${duration(delay)}` : solar((spec.offset ?? 0) + delay);
   }
   return t(lang, "random_range", { start, end });
 }
@@ -277,13 +275,16 @@ export class WpSlotForm extends LitElement {
       border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); cursor: pointer; --mdc-icon-size: 20px;
     }
     .chip.on, .day.on { background: var(--primary-color); border-color: var(--primary-color); color: var(--text-primary-color, #fff); font-weight: 600; }
+    .day.on { border-color: transparent; background-clip: padding-box; box-shadow: inset 0 0 0 1px var(--primary-color); }
     .chip:disabled, .day:disabled { opacity: 0.5; cursor: default; }
     .chip.small { padding: 0 14px; }
     .only { display: inline-flex; align-items: center; min-height: 48px; font-size: 16px; font-weight: 500; margin-right: 8px; }
-    .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 8px; }
+    /* 7 x 44 px at 360 px: the row borrows the editor's side padding; the pill is drawn inside a transparent 2 px border so the touch target stays 44 px wide */
+    .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0; margin: 0 -8px 8px; }
     .day {
-      min-height: 48px; min-width: 0; padding: 0; border-radius: 12px; border: 1px solid var(--divider-color);
-      background: none; color: var(--primary-text-color); font: inherit; font-size: 14px; cursor: pointer;
+      min-height: 48px; min-width: 44px; padding: 0; border-radius: 14px; border: 2px solid transparent; background-clip: padding-box;
+      box-shadow: inset 0 0 0 1px var(--divider-color);
+      background-color: transparent; color: var(--primary-text-color); font: inherit; font-size: 14px; cursor: pointer;
       display: flex; flex-direction: column; align-items: center; justify-content: center; --mdc-icon-size: 14px;
     }
   `];

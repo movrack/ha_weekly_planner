@@ -530,7 +530,7 @@ export class WeeklyPlannerCard extends LitElement {
     .week { display: flex; flex-direction: column; gap: 0; padding-bottom: 4px; }
     .wday { display: flex; align-items: flex-start; gap: 8px; min-height: 48px; width: 100%; }
     .wnamebtn {
-      flex: none; width: 36px; height: 48px; padding: 0; border: none; border-radius: 8px; background: none; color: inherit;
+      flex: none; width: 44px; margin-right: -8px; height: 48px; padding: 0; border: none; border-radius: 8px; background: none; color: inherit;
       font: inherit; cursor: pointer; text-align: left; display: flex; align-items: center;
     }
     .wnamebtn:hover .wname { text-decoration: underline; }
