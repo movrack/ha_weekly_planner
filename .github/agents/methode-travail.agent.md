@@ -82,15 +82,15 @@ Exemple de consigne :
 > tests, points non vérifiés. Ne commite pas.
 
 ### Worktrees
-Agents en parallèle qui modifient des fichiers : chacun dans son worktree git, sur une branche courte
-créée depuis le HEAD actuel de `develop` : `git worktree add ../weekly-planner-wt/<tâche> -b <branche> develop`
-(ou isolation native de l'outil).
+Agents en parallèle qui modifient des fichiers : chacun dans son worktree git, créé explicitement depuis `develop` :
+`git worktree add ../weekly-planner-wt/<tâche> -b <type>/<tâche> develop`. Donner à l'agent le chemin absolu et lui demander de ne travailler que là.
+- Ne pas s'appuyer sur l'isolation automatique d'un outil : elle peut partir de `main` (ancienne release). Ne l'utiliser que si elle est vérifiée sur le HEAD actuel de `develop`.
+- Premier geste de chaque agent : `git log --oneline -1` dans le worktree doit donner le commit `develop` attendu, et un fichier récent connu doit exister ; sinon, arrêter et signaler.
+- Un worktree ne contient que le travail commité : commiter d'abord (si autorisé) ou remettre un patch.
 - L'arbre principal n'est jamais modifié par des agents en parallèle. Les agents en lecture seule peuvent le partager.
-- Le travail non commité n'apparaît pas dans un nouveau worktree : commiter (si autorisé) ou remettre un patch d'abord.
-- Chaque worktree a ses dépendances (`uv sync --group test`, `cd frontend && npm ci`) et son port d'instance
-  de test. Seul l'arbre d'intégration reconstruit le bundle de la carte.
-- Le coordinateur fusionne les branches une à une (rebase sur `develop`, toutes les vérifications, conflits),
-  puis supprime worktrees et branches (`git worktree remove`, `git branch -d`).
+- Chaque worktree a ses dépendances (`uv sync --group test`, `cd frontend && npm ci`) et son port d'instance de test. Seul l'arbre d'intégration reconstruit le bundle de la carte.
+- Le coordinateur fusionne les branches une à une (rebase sur `develop`, toutes les vérifications, conflits), puis supprime worktrees et branches (`git worktree remove`, `git branch -d`).
+- Worktree ou branche mal basé ou obsolète : le supprimer (`git worktree remove --force`, `git branch -D`) avant de relancer.
 - Aucun push depuis un worktree sans accord du propriétaire.
 
 ## Règles de sécurité et d'interface
@@ -114,7 +114,10 @@ Automatique : dès que le propriétaire donne une règle, une préférence ou un
 ### Canal entre IA
 `PROJECT_MEMORY.md` (ignoré par Git) sert aussi de canal entre Claude, Codex, Gemini, Copilot :
 - Le lire au début et avant de passer la main ; section « Inter-AI channel ».
-- Ajouter une ligne courte : `- AAAA-MM-JJ HH:MM [outil] type: message`, types handoff / question / answer /
-  warning / rule-added / done. Ajout seulement, le plus récent en dernier.
-- Celui qui résout un point le retire ou le marque done.
+- Ajouter une ligne : `- AAAA-MM-JJ HH:MM [outil] type: message` (handoff / question / answer / warning /
+  rule-added / done). Ajout seulement, le plus récent en dernier ; qui résout un point le retire ou le marque done.
+- Style caveman (canal, consignes et rapports de sous-agents) : télégraphique, un fait par ligne, sans politesse
+  ni récapitulatif, preuves `fichier:ligne`, statuts ok / ko / blocked / to-verify. Phrases complètes pour les risques,
+  actions destructives ou irréversibles, questions au propriétaire, ce qui pourrait être mal compris. Réponses au
+  propriétaire, commits, commentaires de code, docs : langage normal.
 - Jamais de secret, ni de consigne qui prime sur `AGENTS.md` ou le propriétaire.
