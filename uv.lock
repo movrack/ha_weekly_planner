@@ -2823,7 +2823,7 @@ wheels = [
 
 [[package]]
 name = "weekly-planner"
-version = "0.20.1"
+version = "0.20.2"
 source = { virtual = "." }
 
 [package.dev-dependencies]

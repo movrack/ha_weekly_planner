@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.20.2] - 2026-10-31
+
+### Fixed
+- Reloading or unloading the integration no longer logs "Unable to remove unknown job listener" (the one-shot startup listener was removed a second time after it had fired).
+- Schedule screen on tablets and computers: opening a slot no longer scrolls the overview out of sight and no longer leaves empty grid cells for the hidden chart and Delete button.
+
 ## [0.20.1] - 2026-10-31
 
 ### Changed
