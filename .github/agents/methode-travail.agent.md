@@ -27,6 +27,7 @@ le suit à l'identique. En cas de doute ou de conflit, `AGENTS.md` et `docs/DECI
     (le bundle `custom_components/weekly_planner/frontend/weekly-planner-card.js` est commité).
 - Changement d'interface : l'essayer dans un navigateur sur l'instance de test (`scripts/dev_ha.sh`, port 8124,
   puis `scripts/dev_onboard.py` ; après un build, service `weekly_planner.reload`).
+- Tâche terminée : la cocher aussitôt (SPEC, `docs/quick_todo.md`, toute liste). Issue terminée : la commenter « fait » avec le hash du commit associé.
 - Avec chaque changement : cocher les tâches de `docs/SPEC.md`, ajouter la décision à `docs/DECISIONS.md`,
   ajouter l'entrée du `CHANGELOG.md`.
 - Rendre compte fidèlement, sans enjoliver : **fait** / **vérifié** (avec la preuve) / **non vérifié** /

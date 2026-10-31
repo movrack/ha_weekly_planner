@@ -74,6 +74,9 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
   tool-specific instructions or attribution outside the generic AI assistance note in the README files.
 - **Commits**: Conventional Commits in English (`feat(card): …`, `fix(engine): …`, `docs: …`,
   `test: …`, `chore: …`). No trailers.
+- **Tick tasks and close the loop on issues**: as soon as a task is done, tick its checkbox (`docs/SPEC.md`
+  task lists, `docs/quick_todo.md`, any list that tracks it). When a GitHub issue is done, comment on it
+  that it is done and give the associated commit (hash); commit and push only within the commit rules.
 - **Versions**: SemVer, changed together in `custom_components/weekly_planner/manifest.json`,
   `pyproject.toml`, `frontend/package.json` (and its lock file), with an entry in `CHANGELOG.md`
   (Keep a Changelog).
@@ -131,5 +134,10 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
   tree even if changes are uncommitted; never require a commit or another approval solely for that reason.
   Keep the commit guard intact and report uncommitted changes and the deployed bundle checksum.
 - `scripts/deploy_prod.sh` (dry run by default, `--apply` to copy; it runs the tests first).
+- Deploy command: `WP_HOST=<ssh alias of the owner's HA> scripts/deploy_prod.sh --apply`. The alias is in the
+  owner's `~/.ssh/config` and local AI memory, not in the repo. When the owner says "deploy", the AI runs
+  the script itself (never hands the command back to the owner), then reloads and verifies the remote
+  bundle hash and version.
+  Other scripts: `scripts/dev_ha.sh` (local test HA, port 8124), `scripts/dev_onboard.py`, `scripts/bench.py`.
 - Card-only change: `weekly_planner.reload`. Python change: back up Home Assistant, then restart it.
   The owner explicitly authorizes any necessary restart when requesting deployment; do not ask again.
