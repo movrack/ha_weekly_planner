@@ -456,7 +456,7 @@ SVG maison, un jour (précédent / suivant).
   ils sont repérés seulement par l'écart avec les actions de Weekly Planner (± 1 min), sans pouvoir dire qui les a faits.
   **Le moteur n'est pas concerné.**
 - **Valeur prévue en escalier (0.7.0)** : pour toute action numérique, ligne horizontale par palier dans la couleur de son réglage, raccords verticaux fins, retour à la valeur par défaut (aussi avant le premier horaire et jusqu'à la fin du jour) ; point plein + valeur au début de chaque horaire ; cercle creux seulement là où la valeur revient vraiment au défaut (fin d'une suite d'horaires contigus). Actions non numériques : repères seuls.
-- **Activité réelle (0.7.0)** : sous l'escalier prévu, zone translucide (~25 %) dans la couleur de le réglage en vigueur, seulement pendant les périodes où l'appareil était actif d'après l'historique déjà chargé, et jusqu'à « maintenant ». Actif : climat = `hvac_action` (chauffe, refroidit, déshumidifie…) sinon consigne − mesure > 0,3 °C (< −0,3 °C en mode froid) ; lumière, prise, ventilateur, interrupteur = `on` ; volet = `opening` / `closing` ; aspirateur = `cleaning` / `returning` ; lecteur = `playing` ; le reste = ni `off`, `idle`, `unavailable`, `unknown`, `docked`. Appareils à bandes : même règle, bande translucide. Légende « Actif » seulement si une zone est visible.
+- **Activité réelle** : pendant chaque période où l'appareil était actif d'après l'historique déjà chargé, et jusqu'à « maintenant », une bande translucide (28 %) sur toute la hauteur du tracé avec un liseré plein de 3 px le long de l'axe des heures, dans une seule couleur (`--wp-active-color`, sinon la couleur principale du thème), dessinée sous les courbes. Indépendante des réglages en vigueur (une activité hors de tout horaire est montrée aussi), au moins 3 px de large. Actif : climat = `hvac_action` (chauffe, refroidit, déshumidifie…) sinon consigne − mesure > 0,3 °C (< −0,3 °C en mode froid) ; lumière, prise, ventilateur, interrupteur = `on` ; volet = `open` / `opening` / `closing` (ouvert ou en mouvement) ; aspirateur = `cleaning` / `returning` ; lecteur = `playing` ; le reste = ni `off`, `idle`, `unavailable`, `unknown`, `docked`. Appareils à bandes : même bande, par-dessus les bandes d'état. Légende « En marche ou ouvert » (même pastille que la bande : bloc translucide + liseré) seulement si une bande est dessinée.
 - **Légende minimale** : « Mesuré », « Réglé » (courbes), « Prévu », et « Manuel » en rouge ; aucune couleur inexpliquée.
 
 ### 10.5 Exigences transverses
@@ -1036,3 +1036,13 @@ Demande du propriétaire (2026-10-31) : « Corrige les bugs connus » (`docs/CON
 - [x] Icône « maintenant » : marge réservée au-dessus de la barre du jour et des barres de la semaine.
 - [x] Éditeur d'horaire ouvert à 1440 px : le graphique et « Supprimer » (tout supprimer) sont masqués pendant l'édition, par décision (0.20.2) ; Supprimer de l'horaire reste dans l'éditeur.
 - [ ] Non rejoué dans le navigateur : toutes ces corrections (pas d'instance de développement isolée pour ce correctif).
+
+## 29. Graphique du jour : bande « En marche ou ouvert »
+
+- [x] Cause : la zone n'était dessinée que sous une valeur prévue numérique (un réglage « Éteindre » / « Fermer » n'en a pas : rien dessiné, légende « Actif » quand même), à la hauteur de cette valeur (à 15 °C en bas d'axe : 9 px), seulement à l'intérieur d'un réglage en vigueur (aucun défaut ni horaire : rien) ; un volet n'était « actif » que pendant les secondes de mouvement (moins d'un pixel).
+- [x] Bande sur toute la hauteur, une seule couleur, liseré de 3 px, sous les courbes, au moins 3 px de large, indépendante des réglages ; volet actif quand ouvert ou en mouvement.
+- [x] Légende « En marche ou ouvert » / « On or open », pastille identique à la bande.
+- [x] Tests : `planned.test.ts` (domaines, minuit, maintenant, indisponible) et `chart-shade.test.ts` (rendu SVG : position, largeur, hauteur, ordre, légende, opacité).
+- [x] Vérifié en navigateur (instance locale, 360 px, clair et sombre) : lumière, prise, aspirateur, volet, climat.
+- [ ] Vérifier sur l'instance réelle (« Volets – Salle de bain », « Bureau »).
+

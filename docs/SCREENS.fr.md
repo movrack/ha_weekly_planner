@@ -221,7 +221,7 @@ Ce choix définit l’action par défaut de l’appareil. Ne rien changer signif
 
 ## S15 — Graphique du jour
 
-Le bouton **Graphique du jour** ouvre le graphique sous l’appareil, avec sa légende (Programme, Actif). Le graphique rapproche les actions prévues et l’historique disponible.
+Le bouton **Graphique du jour** ouvre le graphique sous l’appareil, avec sa légende (Programme, En marche ou ouvert). Le graphique rapproche les actions prévues et l’historique disponible ; une bande colorée marque les moments où l’appareil était en marche (ou le volet ouvert).
 
 <a href="images/guide/s15-chart.png"><img src="images/guide/s15-chart.png" width="320" alt="S15 — Graphique du jour" /></a>
 
