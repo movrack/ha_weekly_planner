@@ -747,7 +747,9 @@ export class WpSchedule extends LitElement {
     const rows = this._rows();
     const missingMode = this.scope.kind === "program" && !this._modeProfile(this._programs[0]);
     return html`
-      <wp-dialog open heading=${this._title}>
+      <wp-dialog open columns heading=${this._title}>
+        <div class="cols">
+        <div class="params">
         ${missingMode ? html`<p class="err" role="alert">${t(lang, "mode_removed")}</p>` : nothing}
         ${!this._canEdit ? html`<p class="err" role="alert">${t(lang, "read_only")}</p>` : nothing}
         ${this._error && !this._open ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
@@ -777,15 +779,32 @@ export class WpSchedule extends LitElement {
           ${this._open === null ? html`<button class="row add" ?disabled=${!this._canEdit || missingMode} @click=${() => this._add()}>
             <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${this._focus === null ? t(lang, "w_add") : t(lang, "w_add_day", { day: strings(lang).days[this._focus].toLocaleLowerCase(lang) })}</span></button>` : nothing}
         </div>
-        ${this._renderWeek()}
-        ${this._open !== null ? nothing : this._renderChart()}
-        ${this._open !== null || this._modeOnly ? nothing : html`<button class="btn danger-line alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteAll()}>
-          <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete_schedule")}</button>`}
+        </div>
+        <div class="area-week">${this._renderWeek()}</div>
+        <div class="area-chart">${this._open !== null ? nothing : this._renderChart()}</div>
+        <div class="area-delete">${this._open !== null || this._modeOnly ? nothing : html`<button class="btn danger-line alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteAll()}>
+          <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete_schedule")}</button>`}</div>
+        </div>
       </wp-dialog>`;
   }
 
   static styles = [editorStyles, css`
     :host { display: contents; }
+    /* One DOM order (the phone order of section 24.2 = keyboard order). From 768 px the same order is laid out in two
+       columns by the grid alone: parameters (and Delete) on the left, the 7-day schematic then the day chart on the right. */
+    .cols, .params { display: block; }
+    @media (min-width: 768px) {
+      .cols {
+        display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 24px; row-gap: 0; align-items: start;
+        grid-template-rows: auto 1fr auto;
+        grid-template-areas: "params week" "params chart" "delete chart";
+      }
+      .params { grid-area: params; min-width: 0; }
+      .area-week { grid-area: week; min-width: 0; }
+      .area-chart { grid-area: chart; min-width: 0; }
+      .area-delete { grid-area: delete; min-width: 0; }
+      .area-delete .btn.alone { margin-top: 0; }
+    }
     .mode-select { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
     .mode-select select { flex: 1; min-width: 0; min-height: 44px; }
     .schematic { margin-bottom: 16px; }
