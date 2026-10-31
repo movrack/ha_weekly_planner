@@ -1,6 +1,6 @@
 # Weekly Planner — spécification v1
 
-> Statut : **0.20.1** — un seul modèle pour tous les appareils depuis la 0.6 (§ 5 et § 6 ; les anciennes règles retirées en
+> Statut : **0.20.2** — un seul modèle pour tous les appareils depuis la 0.6 (§ 5 et § 6 ; les anciennes règles retirées en
 > 0.6.0 sont marquées « retiré en 0.6.0 ») ; modes, sources, cibles, délais aléatoires et limites solaires : § 5.10, § 6, § 17 à 20.
 > Écarts connus entre cette spec et le code : § 21.
 > Dépôt : `ha_weekly_planner` · domaine HA : `weekly_planner` · cible : Home Assistant ≥ 2026.10.
@@ -986,3 +986,14 @@ Décisions du propriétaire du 2026-10-31, statut **implémenté** en 0.20.1 (§
 
 ### 25.3 Livraison 0.20.1
 - [x] Version 0.20.1 alignée (`manifest.json`, `pyproject.toml`, `frontend/package.json` et son verrou), entrée CHANGELOG, bundle reconstruit et commité par le coordinateur.
+
+---
+
+## 26. Release 0.20.2
+
+Corrections issues du contrôle visuel 0.20.1 (`docs/CONTROLE_VISUEL_0.20.md`).
+
+- [x] Moteur : l'écouteur à usage unique `EVENT_HOMEASSISTANT_STARTED` se retire de `_static_unsubs` quand il se déclenche ; `async_stop` ne le retire plus une seconde fois (plus d'erreur « Unable to remove unknown job listener »). Test : `tests/test_engine_more.py`.
+- [x] Carte : à partir de 768 px, ouvrir un éditeur d'horaire ne fait défiler la fenêtre que si le haut de l'éditeur est hors de vue (le schéma reste visible) ; cellules de grille vides masquées. Graphique et Supprimer restent masqués pendant l'édition (voulu). Mobile inchangé. Test : `frontend/src/__tests__/two-columns.test.ts`.
+- [ ] Non testé : ordre de Tab jusqu'à Supprimer ; édition d'un autre mode ; vérification en navigateur de la correction de défilement.
+
