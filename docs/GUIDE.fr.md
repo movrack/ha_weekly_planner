@@ -1,10 +1,7 @@
 # Weekly Planner — mes horaires, simplement
 
-Cette page explique la version **0.21.0**. Les images S01 à S36 ont été prises
-avec la version 0.10.0 et S37 à S45 avec la 0.16.2 : certains noms et boutons ont changé depuis
-(carte avec bouton **Graphique du jour**, éditeur de carte par groupes de types). Le texte
-décrit les choix actuels. Les captures montrent une maison de démonstration,
-sans commande d’un appareil réel. Voir aussi les [captures actuelles S37 à S45](SCREENS.fr.md#s37).
+Les captures montrent une maison de démonstration, sans commande d’un
+appareil réel. Voir aussi les [captures S37 à S45](SCREENS.fr.md#s37).
 
 Un **programme** réunit les appareils et leurs horaires. Un **réglage** donne
 un nom à ce qu’ils doivent faire : par exemple **Confort = 20 °C**.
@@ -205,9 +202,7 @@ le dernier mode reste actif. Un mode contrôlé de cette façon ne se choisit pl
 manuellement ici : changer le sélecteur habituel de la maison.
 
 Les appareils et **Le reste du temps** restent communs aux modes. Un mode vide
-ne signifie donc pas forcément que l’appareil sera éteint. Les anciennes images
-[S31 à S33](SCREENS.fr.md#s31) utilisent encore le mot Saisons ; elles ne montrent
-pas les nouveaux réglages de mode.
+ne signifie donc pas forcément que l’appareil sera éteint. 
 
 ## Je veux changer la présentation ou créer un programme
 
@@ -225,7 +220,7 @@ Dans **Programmes à afficher**, des interrupteurs par type d’appareil et par 
 ce que la carte montre. Sous **Présentation de la journée**, choisir **Barres**, **Cadran 24 heures**, **Double
 cadran 12 heures** ou **Liste compacte**. Les cadrans sont aussi possibles en
 liste filtrée. Enregistrer la carte et terminer l’édition du tableau de bord.
-L’ancienne capture [S25](SCREENS.fr.md#s25) montre moins de choix.
+
 
 Voir [la création S37](SCREENS.fr.md#s37), [la pièce S40](SCREENS.fr.md#s40) et [les filtres S41](SCREENS.fr.md#s41).
 
@@ -290,7 +285,7 @@ droits de modification avec la personne qui a installé la carte.
 - Appareils → Actions proposées limite les choix de services. Les modes et favoris
   dépendent de ce que Home Assistant expose : [exemples](GENERIC_ACTIONS.md).
 - Réappliquer peut envoyer l’action courante après un changement ou un redémarrage.
-  Les fins manquées restent un cas de rattrapage. Les anciens identifiants de profils sont conservés pour les automatisations.
+  Les fins manquées restent un cas de rattrapage. Les identifiants de profils restent stables pour les automatisations.
 - La pièce du programme se définit dans Général ; le filtre de carte propose les
   pièces existantes. Les cadrans fonctionnent aussi dans une liste filtrée.
 - Les options globales se trouvent dans Paramètres → Appareils et services →

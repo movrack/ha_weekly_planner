@@ -10,7 +10,7 @@ service et les scènes. Les horaires utilisent des réglages partagés, une fin
 facultative et une action par défaut par entité. La découverte repose sur les
 métadonnées Home Assistant, sans catalogue de marques ou d’appareils.
 
-Ce README décrit la version **0.16.2** pour les intégrateurs Home Assistant. Pour les utilisateurs de la
+Ce README s’adresse aux intégrateurs Home Assistant. Pour les utilisateurs de la
 maison : [guide illustré pas à pas](docs/GUIDE.fr.md) et
 [atlas des écrans](docs/SCREENS.fr.md).
 
@@ -81,7 +81,6 @@ filter:
 | `schedule_view` | `bars` par défaut, `list`, `radial` pour 24 h, ou `radial_12h` pour deux cercles de 12 h. Disponibles pour un programme ou une liste filtrée. |
 | `show_chart` | Booléen, `true` par défaut. Actif : un bouton **Graphique du jour** sous chaque appareil sur la carte, et le graphique dans la fenêtre des horaires. Éteint : ni bouton ni graphique nulle part sur cette carte. Dans l’éditeur : « Bouton Graphique sous chaque appareil ». |
 | `chart_collapsed` | Booléen, `true` par défaut : le graphique sous chaque appareil démarre fermé (`false` : ouvert). N’a d’effet que si `show_chart` est actif. Dans l’éditeur : l’interrupteur « Graphique ouvert d’office » (l’inverse). Un choix fait avec le bouton du graphique est mémorisé par navigateur, par carte et par appareil, et prime ensuite. |
-| `show_week`, `show_advanced` | Obsolètes, acceptés et ignorés. |
 
 **Référence YAML.** Toutes les options de l’éditeur visuel se règlent aussi dans l’éditeur de code YAML,
 avec le même effet ; passer de l’un à l’autre conserve toutes les clés (même inconnues). Types : `title`,
@@ -90,7 +89,7 @@ vaut une liste d’un élément) ; `schedule_view` = `bars`, `list`, `radial` ou
 `chart_collapsed` = booléens. Une valeur du mauvais type est ignorée et la valeur par défaut s’applique ;
 une configuration qui n’est pas un mapping YAML affiche une carte d’erreur explicite. Dans l’éditeur
 visuel, les interrupteurs de type et de programme écrivent `filter.programs` (et ne font qu’élargir, ou
-retirer pour un type vide, `filter.types`) : une configuration YAML avec seulement `filter.types` continue
+enlever pour un type vide, `filter.types`) : une configuration YAML avec seulement `filter.types` continue
 de fonctionner. Une liste `filter.programs` écrite par l’éditeur n’ajoute pas automatiquement les futurs
 programmes ; utiliser **Tous les programmes** (ou omettre `filter.programs`) pour cela.
 
@@ -126,8 +125,7 @@ Les cadrans partagent les couleurs, repères horaires et marqueurs solaires des
 barres. Le double cadran affiche minuit–midi à l’intérieur et midi–minuit à
 l’extérieur. Toucher un cadran ouvre les horaires ; ses arcs ne se déplacent pas.
 En liste compacte, toucher une ligne déplie sa barre. La semaine se déplie à la
-demande ; les anciens champs `show_week` et `show_advanced` ne pilotent plus
-l’affichage. Toucher le titre d’une modale agrandit sa largeur sur ordinateur ;
+demande. Toucher le titre d’une modale agrandit sa largeur sur ordinateur ;
 sur téléphone elle occupe déjà l’écran.
 
 ## Modèle et exécution
@@ -172,7 +170,7 @@ Les services, descriptions et champs viennent de HA. Un nouvel appareil commence
 avec `restrict_services: true` et `allowed_services: []` : **aucune commande de
 service sélectionnée**. La création invite à les choisir ; le choix reste
 modifiable dans **Appareils**. Une liste `allowed_services` non vide limite les
-actions à cette liste. Les anciennes listes vides ou absentes sans le drapeau
+actions à cette liste. Les listes vides ou absentes sans le drapeau
 `restrict_services` restent sans restriction. Les scènes sont distinctes de ce
 filtre. Les champs incompatibles et services demandant du texte ou un objet brut
 sont masqués. Les presets viennent des attributs de l’entité, sans modes de marque
@@ -225,9 +223,9 @@ peuvent pas servir de source pour éviter les boucles. Aucun changement par date
 n’est implicite : une automatisation externe peut changer la source.
 
 Le `select` de profil HA reste disponible en sélection manuelle via
-`select.select_option`. L’ancien interrupteur global Vacances est devenu une
-commande distincte **Suspension de tous les programmes**, avec identité conservée.
-Voir la [référence des modes](docs/SEASONS.md) et les
+`select.select_option`. L’interrupteur global **Suspension de tous les programmes** est une
+commande distincte.
+Voir la [référence des modes](docs/MODES.md) et les
 [exemples d’actions natives](docs/GENERIC_ACTIONS.md).
 
 ## Entités et services HA
@@ -239,7 +237,7 @@ un identifiant anglais généré sur une autre installation.
 | Entité | Comportement |
 |---|---|
 | Interrupteur de programme | Active ou suspend. Attributs : `program_id`, profil actif, plages en cours et prochaines actions. |
-| Interrupteur global | Suspend les programmes et applique une fois les défauts éligibles. L’ancien identifiant Vacances reste stable. |
+| Interrupteur global | Suspend les programmes et applique une fois les défauts éligibles. |
 | Sélecteur de profil | Choisit le mode actif par son nom exact en sélection manuelle. |
 
 ```yaml
@@ -297,7 +295,7 @@ Programmes et réglages sont des données de l’intégration, pas du YAML de ca
 Fichiers HA : `.storage/weekly_planner`, `.storage/weekly_planner.runtime` et
 `.storage/weekly_planner.journal`. Sauvegarder la configuration HA, y compris
 `.storage`, avant une mise à jour Python ou une récupération. Ne pas modifier ces
-fichiers à chaud. Les migrations conservent une copie antérieure ; une corruption
+fichiers à chaud. Une copie des fichiers précédents est conservée ; une corruption
 ne doit pas remplacer silencieusement les données par une configuration vide.
 
 La carte suit `weekly_planner/subscribe`. `card_version` identifie le bundle ; une
@@ -366,8 +364,7 @@ La règle de commit du lundi au vendredi entre 08 h et 17 h n’interdit pas les
 déploiements ; les garde-fous de commit restent actifs.
 
 Références : [spécification](docs/SPEC.md), [décisions](docs/DECISIONS.md),
-[inventaire des captures](docs/SCREEN_INVENTORY.md), [première revue Mamy](docs/MAMY_REVIEW.md),
-[revue de configuration et corrections](docs/MAMY_REVIEW_0.16.0.md),
+[inventaire des captures](docs/SCREEN_INVENTORY.md),
 [journal des modifications](CHANGELOG.md).
 
 ## Licence

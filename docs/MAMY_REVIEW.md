@@ -34,7 +34,7 @@ calendar icon remains usable rather than restricting supported device types.
 
 The season explanation should name the actual activation path: the Home Assistant
 profile select entity. There is no season activation control in the existing
-Weekly Planner schedule dialog. See [Seasons](SEASONS.md) for the detailed guide.
+Weekly Planner schedule dialog. See [Seasons](MODES.md) for the detailed guide.
 
 These improvements should be checked in the final built card; this source review
 does not substitute for browser verification.
