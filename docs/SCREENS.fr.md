@@ -2,7 +2,7 @@
 
 [Lire le guide pas à pas](GUIDE.fr.md)
 
-Les anciennes captures S01 à S36 de Weekly Planner **0.10.0** (à jour de la 0.21.0 : texte seulement, voir le guide) ont été réalisées le 29 octobre 2026,
+Les captures S01 à S36 de Weekly Planner datent de la version **0.10.0**. Cinq ont été refaites avec la **0.21.0** le 31 octobre 2026 : S01, S15 (clair et sombre), S24 et S40, ainsi que S41. Les autres montrent d’anciens libellés ; le guide décrit les choix actuels ont été réalisées le 29 octobre 2026,
 avec des programmes et appareils de démonstration du salon. Les écrans utilisent
 les vrais composants de l’application ; leurs données sont préparées pour
 expliquer les fonctions. Les vues d’historique, de profil et d’options sont celles
@@ -55,7 +55,7 @@ Associer chaque état à un mode. Ici, Présence activée correspond à Maison e
 
 ### S40 — Zone du programme
 
-Définir la zone dans Général puis Appliquer au programme. Elle ne vient pas automatiquement des pièces des appareils.
+Capture 0.21.0. Définir la pièce dans Général (« Pièce du programme ») puis Appliquer au programme. Elle ne vient pas automatiquement des pièces des appareils.
 
 <a href="images/guide/s40-program-area.png"><img src="images/guide/s40-program-area.png" width="320" alt="Zone du programme" /></a>
 
@@ -63,7 +63,7 @@ Définir la zone dans Général puis Appliquer au programme. Elle ne vient pas a
 
 ### S41 — Filtres et présentation
 
-La zone se choisit dans une liste. Les filtres se combinent. Les deux cadrans sont disponibles en liste filtrée.
+Capture 0.21.0. Choisir la pièce, les programmes à afficher et la présentation de la journée. Les interrupteurs « Bouton Graphique sous chaque appareil » et « Graphique ouvert d’office » règlent le graphique.
 
 <a href="images/guide/s41-card-filter.png"><img src="images/guide/s41-card-filter.png" width="320" alt="Filtres et présentation" /></a>
 
@@ -107,7 +107,7 @@ Pour la création, les modes et les filtres, suivre les captures actuelles ci-de
 
 ## S01 — Vue d’ensemble
 
-Les trois programmes du salon montrent leur état, leur prochaine action, leur interrupteur et la barre du jour.
+Les programmes du salon montrent leur état, leur prochaine action, leur interrupteur et la barre du jour ; le bouton **Graphique du jour** est ouvert sous la lampe (0.21.0).
 
 <a href="images/guide/s01-overview.png"><img src="images/guide/s01-overview.png" width="320" alt="S01 — Vue d’ensemble" /></a>
 
@@ -223,7 +223,7 @@ Ce choix définit l’action par défaut de l’appareil. Ne rien changer signif
 
 ## S15 — Graphique du jour
 
-Le graphique rapproche les actions prévues et l’historique disponible. Les flèches changent le jour consulté.
+Capture 0.21.0 : le bouton **Graphique du jour** ouvre le graphique sous l’appareil, avec sa légende (Programme, Actif). Le graphique rapproche les actions prévues et l’historique disponible.
 
 <a href="images/guide/s15-chart.png"><img src="images/guide/s15-chart.png" width="320" alt="S15 — Graphique du jour" /></a>
 
@@ -299,7 +299,7 @@ Suite de l’écran :
 
 ## S24 — Affichage : liste filtrée
 
-Les types proviennent des programmes existants. Le cadran reste visible dans les choix, mais nécessite le mode Un programme.
+Capture 0.21.0 : choix de la pièce, présentation de la journée et réglages du graphique pour « Plusieurs appareils ».
 
 <a href="images/guide/s24-card-filter-settings.png"><img src="images/guide/s24-card-filter-settings.png" width="320" alt="S24 — Affichage : liste filtrée" /></a>
 
@@ -417,9 +417,9 @@ Ces états complètent les mêmes écrans sans ajouter une nouvelle façon de pr
 
 <a href="images/guide/s08-dark.png"><img src="images/guide/s08-dark.png" width="320" alt="Formulaire d’horaire en thème sombre" /></a>
 
-### Graphique en thème sombre
+### Graphique en thème sombre (0.21.0)
 
-<a href="images/guide/s15-dark.png"><img src="images/guide/s15-dark.png" width="320" alt="Graphique en thème sombre" /></a>
+<a href="images/guide/s15-dark.png"><img src="images/guide/s15-dark.png" width="320" alt="Graphique en thème sombre (0.21.0)" /></a>
 
 ### Carte sans programme
 
