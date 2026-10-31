@@ -910,8 +910,8 @@ Les cases encore ouvertes du § 17 restent ouvertes et ne sont pas répétées i
 - [x] `docs/controle-visuel.md` réécrit pour la carte actuelle et déroulé. Temps de rendu mesuré (20 programmes) :
       rendu de la carte ~2 ms, mise à jour de `hass` peinte en 20-35 ms, page entière 244 ms sans bridage et
       803 ms avec CPU ×4.
-- [ ] Reste de la passe : l'icône « maintenant » touche le texte d'une ligne longue à 1440 px (non corrigé).
-- [ ] Commentaire de `frontend/src/components/gestures.ts` qui renvoie au § 10.7 retiré (cosmétique).
+- [x] Reste de la passe : l'icône « maintenant » touche le texte d'une ligne longue à 1440 px (0.21.1 : marge réservée au-dessus des barres de la carte ; non revérifié dans le navigateur).
+- [x] Commentaire de `frontend/src/components/gestures.ts` qui renvoie au § 10.7 retiré (0.21.1 : renvoie au § 10.8).
 
 ### 21.3 Publication et validation réelle
 - [ ] Installation propre via HACS (dépôt personnalisé) vérifiée, désinstallation propre, puis demande d'inclusion dans
@@ -1024,3 +1024,14 @@ Demande du propriétaire (2026-10-31) : « graphique sous le schéma en mode mod
 - [x] H : un réglage dont le nom est un identifiant de service brut (« vacuum.start ») s’affiche avec le nom de service traduit par Home Assistant, sinon la partie service lisible (« Démarrer l’aspirateur ») ; le nom enregistré n’est pas modifié. « Allumer (2) » est un nom enregistré (doublon créé par une ancienne migration), pas un compteur : la carte ne l’invente pas et ne le modifie pas.
 - [x] Vérifié en navigateur (instance locale) à 360 px et 1440 px, thème sombre : carte, éditeur, légende du graphique.
 - [ ] Vérifier le thème clair et un programme multi-appareils (non testé).
+
+## 28. Release 0.21.1 : anomalies connues du contrôle visuel
+
+Demande du propriétaire (2026-10-31) : « Corrige les bugs connus » (`docs/CONTROLE_VISUEL_RESULTATS.md`).
+
+- [x] N° 1 dupliquer un horaire solaire > 4 h : le décalage (`shiftTimeSpec`, 0.19.1) convertit déjà en heure fixe au-delà de ±240 min ; 0.21.1 ajoute le cas d'une copie repoussée après minuit (vide) : elle garde sa durée et finit à 24:00. Test `schedule-overlap.test.ts`.
+- [x] Chevauchement : message précis (jour, deux horaires avec leur réglage et leurs heures, fr/en) quand l'écran d'horaires le détecte avant l'envoi ; code serveur `overlapping_slots` inchangé ; message général conservé pour un refus du serveur seul (fenêtres aléatoires, solaires).
+- [x] N° 2 (instance périmée), 3 et 7 (cibles 44 px), 4 et 5 (Échap, focus), 6 (barre au clavier), 8 (« Continuer la création »), 9 (astuce / trait), 10 (pluriels, 18,5, axe, aide du délai) : déjà corrigés en 0.19.1-0.21.0, couverts par `ui-visual-pass.test.ts` et `dialog-keyboard.test.ts`.
+- [x] Icône « maintenant » : marge réservée au-dessus de la barre du jour et des barres de la semaine.
+- [x] Éditeur d'horaire ouvert à 1440 px : le graphique et « Supprimer » (tout supprimer) sont masqués pendant l'édition, par décision (0.20.2) ; Supprimer de l'horaire reste dans l'éditeur.
+- [ ] Non rejoué dans le navigateur : toutes ces corrections (pas d'instance de développement isolée pour ce correctif).

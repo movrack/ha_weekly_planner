@@ -48,10 +48,10 @@ Résultats datés : `docs/CONTROLE_VISUEL_RESULTATS.md`.
       est conservé.
 - [x] Supprimer : confirmation plein écran « Oui / Non », puis la ligne disparaît.
 - [x] Modifier la fin, enregistrer, rétablir ; la barre se met à jour.
-- [ ] Dupliquer un horaire solaire de plus de 4 h : l'enregistrement échoue (voir résultats, bug n° 1).
+- [x] Dupliquer un horaire solaire de plus de 4 h : l'enregistrement échoue (voir résultats, bug n° 1). *(0.21.1 : corrigé et couvert par test unitaire `schedule-overlap.test.ts`; non rejoué dans le navigateur.)*
 - [ ] Ajouter un horaire avec « Ajouter un horaire » (non déroulé en entier).
 - [ ] « Appliquer à d'autres jours », copie vers Lun→Ven, Sam+Dim (non déroulé).
-- [ ] Chevauchement : message précis (aujourd'hui : message générique, voir résultats).
+- [x] Chevauchement : message précis (aujourd'hui : message générique, voir résultats). *(0.21.1 : message précis jour + horaires; test unitaire; non rejoué dans le navigateur.)*
 - [ ] Conflit de révision (modification dans un autre onglet).
 - [ ] Jour de 23 h / 25 h (changement d'heure) ; horaire passant minuit ; fin `24:00`.
 
@@ -65,7 +65,7 @@ Résultats datés : `docs/CONTROLE_VISUEL_RESULTATS.md`.
 - [x] **Astuce « Restez appuyé pour modifier »** : un appui court au doigt sur une barre l'affiche ~2 s, puis ouvre
       l'écran d'horaires ; trois fois seulement par appareil (compteur `weekly_planner.hold_hint`), ensuite l'écran
       s'ouvre sans astuce.
-- [ ] Entrer dans l'édition **au clavier** : la barre n'est pas atteignable par Tab (voir résultats, bug n° 6).
+- [x] Entrer dans l'édition **au clavier** : la barre n'est pas atteignable par Tab (voir résultats, bug n° 6). *(test unitaire de `_zoneKey` + CSS; non rejoué dans le navigateur.)*
 - [ ] Sélection d'un horaire ou d'un trou, ciseaux, « Copier vers… », fenêtre de conflit.
 
 ## 5. Éditeur visuel Lovelace (×4)
@@ -99,8 +99,8 @@ Résultats datés : `docs/CONTROLE_VISUEL_RESULTATS.md`.
       programme suivant.
 - [x] Interrupteurs, boutons et poignées nommés (`aria-label`, `role="switch"`, `role="slider"`).
 - [x] Échap ferme l'écran d'horaires quand le focus est dans la fenêtre, et le clic extérieur aussi.
-- [ ] Échap après avoir ouvert une ligne d'horaire (le focus tombe sur `body`, voir résultats, bug n° 4).
-- [ ] Le focus revient sur le bouton d'origine à la fermeture (aujourd'hui : sur `body`, bug n° 5).
+- [x] Échap après avoir ouvert une ligne d'horaire (le focus tombe sur `body`, voir résultats, bug n° 4). *(test `dialog-keyboard.test.ts`; non rejoué dans le navigateur.)*
+- [x] Le focus revient sur le bouton d'origine à la fermeture (aujourd'hui : sur `body`, bug n° 5). *(test `dialog-keyboard.test.ts`; non rejoué dans le navigateur.)*
 - [ ] Cibles tactiles ≥ 44 px partout : jours du formulaire (40 px) et noms de jours de la semaine (36 px) en
       dessous (bugs n° 3 et 7).
 

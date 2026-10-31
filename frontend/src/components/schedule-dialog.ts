@@ -12,7 +12,7 @@ import "./label-picker";
 import "./slot-form";
 import { daysText, groupSlots, specText, ALL_DAYS } from "../actions";
 import type { SlotGroup } from "../actions";
-import { applyEdit, compareOrigin, dayView, findGroup, freshGroup, groupId, nextTimes, overlapDay, splitBusyDays } from "../edits";
+import { applyEdit, compareOrigin, dayView, findGroup, freshGroup, groupId, nextTimes, overlapPair, splitBusyDays } from "../edits";
 import type { RowEdit } from "../edits";
 import { allowedOf, compatible, entityAction, labelName, labelOf, labelsFor } from "../labels";
 import type { LabelDraft } from "./label-picker";
@@ -22,7 +22,7 @@ import { strings, t } from "../i18n";
 import { loadServiceNames } from "../services";
 import { activeProfile, friendlyName } from "../planner";
 import { fetchPreview } from "../preview-cache";
-import { DAY, localDateIso } from "../time";
+import { DAY, localDateIso, minutesToClock } from "../time";
 import { shiftTimeSpec, specMinutes, sunBoundsInvalid } from "../slots";
 import { editorStyles, langOf } from "../editors/shared";
 import type { Action, HomeAssistant, PlannerData, PreviewSlot, Profile, Program, Slot, TimeSpec } from "../types";
@@ -315,6 +315,11 @@ export class WpSchedule extends LitElement {
       start: shiftTimeSpec(this.hass, start, length),
       end: end ? shiftTimeSpec(this.hass, end, length) : null,
     };
+    // a copy pushed past midnight would be empty: keep its length and end it at 24:00 instead
+    if (copy.slot.end && specMinutes(this.hass, copy.slot.start) >= specMinutes(this.hass, copy.slot.end)) {
+      copy.slot.start = { time: minutesToClock(Math.max(0, DAY - length)) };
+      copy.slot.end = { time: minutesToClock(DAY) };
+    }
     const origin = this._origin;
     const profileId = this._editProfileId;
     this._expand("new", program, copy, { dayOnly });
@@ -400,6 +405,22 @@ export class WpSchedule extends LitElement {
         else delete overrides[o.labelId];
       }
       return { ...e, label_overrides: overrides };
+    });
+  }
+
+  /** Names the two colliding slots, the day and their times (the generic sentence when nothing is found). */
+  private _overlapText(profile: Profile): string {
+    const lang = this._lang;
+    const pair = overlapPair(profile);
+    if (!pair) return t(lang, "w_err_overlap");
+    const name = (slot: Slot) => {
+      const label = labelOf(this.data, slot.label);
+      return label ? labelName(this.hass, label) : t(lang, "w_err_overlap_slot");
+    };
+    const time = (slot: Slot) => `${specText(lang, slot.start)}${slot.end ? ` → ${specText(lang, slot.end)}` : ""}`;
+    return t(lang, "w_err_overlap_detail", {
+      day: strings(lang).days_short[pair.day],
+      a: name(pair.a), a_time: time(pair.a), b: name(pair.b), b_time: time(pair.b),
     });
   }
 
@@ -505,12 +526,12 @@ export class WpSchedule extends LitElement {
       dropped = [];
       if (this._dropBusy) {
         const { free, busy } = splitBusyDays(current, include, this._minutes, draft.slot, draft.days);
-        if (!free.length) return { error: t(this._lang, "w_err_overlap") };
+        if (!free.length) return { error: this._overlapText(applyEdit(current, include, this._minutes, { openId: this._openId, rest: this._rest, draft })) };
         group = { ...draft, days: free };
         dropped = busy;
       }
       const next = applyEdit(current, include, this._minutes, { openId: this._openId, rest: this._rest, draft: group });
-      if (overlapDay(next) !== null) return { error: t(this._lang, "w_err_overlap") };
+      if (overlapPair(next)) return { error: this._overlapText(next) };
       return { program: { ...live, entities: this._withOverrides(live), profiles: live.profiles.map((p) => (p.id === profile.id ? next : p)) } };
     });
     if (saved && !changed) {

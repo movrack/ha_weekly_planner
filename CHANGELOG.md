@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.21.1] - 2026-10-31
+
+### Fixed
+- Schedule screen: an overlap error now says the day, the two schedules and their times instead of "Two schedules overlap." (French and English).
+- Duplicating a schedule that would end after midnight keeps its length and ends at 24:00 instead of producing an empty copy.
+- Card: the "now" clock above the day bars no longer touches the text above a long row.
+- Stale spec reference in the gesture helpers.
+
 ## [0.21.0] - 2026-10-31
 
 ### Added

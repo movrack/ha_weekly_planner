@@ -71,6 +71,15 @@ export function overlapDay(profile: Profile): number | null {
   return day < 0 ? null : day;
 }
 
+/** The first overlap of a profile: the day and the two slots that collide (null: none). */
+export function overlapPair(profile: Profile): { day: number; a: Slot; b: Slot } | null {
+  for (let day = 0; day < profile.days.length; day++) {
+    const pair = findOverlap(profile.days[day]);
+    if (pair) return { day, a: pair[0], b: pair[1] };
+  }
+  return null;
+}
+
 /** Days where a slot would overlap nothing: `days` split into the free ones and the busy ones. */
 export function splitBusyDays(
   profile: Profile, include: Include, minutes: Minutes, slot: Slot, days: number[] = ALL_DAYS,
