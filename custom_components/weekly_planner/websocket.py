@@ -80,6 +80,11 @@ def _snapshot(engine: PlannerEngine) -> dict[str, Any]:
 
 
 def _build_snapshot(engine: PlannerEngine) -> dict[str, Any]:
+    with engine.shared_pass():  # one input view and occurrence/sun cache for every program status
+        return _snapshot_data(engine)
+
+
+def _snapshot_data(engine: PlannerEngine) -> dict[str, Any]:
     entities = {
         eid: {k: rt.get(k) for k in ("segment", "target", "suppressed", "pending")}
         for eid, rt in engine.store.runtime["entities"].items()

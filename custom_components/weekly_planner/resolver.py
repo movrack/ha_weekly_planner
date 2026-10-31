@@ -50,19 +50,50 @@ def active_profile(program: dict, active_profiles: dict[str, str]) -> dict:
     return next((p for p in profiles if p["id"] == wanted), profiles[0])
 
 
+def _profile_day(profile: dict, day: date, tz: tzinfo, sun: SunProvider, program_id: str) -> list[tuple[Occurrence, dict]]:
+    slots = profile["days"][day.weekday()]
+    by_id = {s["id"]: s for s in slots}
+    return [(occ, by_id[occ.slot_id])
+            for occ in day_occurrences(slots, day, tz, sun, identity=(program_id, profile["id"]))]
+
+
+class OccurrenceCache:
+    """Occurrences of a profile per local day, shared by every lookup of one engine pass.
+
+    A day's occurrences depend only on the profile, the day, the time zone and the sun, never on
+    the current time, so lookups at different moments of the pass can share them. The profile
+    object is part of the key and kept alive: an edited (replaced) profile never hits a stale day.
+    The engine creates one cache per pass and drops it afterwards (docs/SPEC.md § 21).
+    """
+
+    __slots__ = ("_days",)
+
+    def __init__(self) -> None:
+        self._days: dict[tuple, tuple[dict, list[tuple[Occurrence, dict]]]] = {}
+
+    def day(self, profile: dict, day: date, tz: tzinfo, sun: SunProvider, program_id: str) -> list[tuple[Occurrence, dict]]:
+        key = (id(profile), program_id, day)
+        hit = self._days.get(key)
+        if hit is not None and hit[0] is profile:
+            return hit[1]
+        found = _profile_day(profile, day, tz, sun, program_id)
+        self._days[key] = (profile, found)
+        return found
+
+
 def occurrences_around(
     profile: dict, moment: datetime, tz: tzinfo, sun: SunProvider, days: Iterable[int] = (-1, 0, 1),
-    *, program_id: str = ""
+    *, program_id: str = "", cache: OccurrenceCache | None = None,
 ) -> list[tuple[Occurrence, dict]]:
     """Occurrences of a profile for the days around ``moment`` (yesterday covers midnight)."""
     local_day = moment.astimezone(tz).date()
     result: list[tuple[Occurrence, dict]] = []
     for delta in days:
         day: date = local_day + timedelta(days=delta)
-        slots = profile["days"][day.weekday()]
-        by_id = {s["id"]: s for s in slots}
-        for occ in day_occurrences(slots, day, tz, sun, identity=(program_id, profile["id"])):
-            result.append((occ, by_id[occ.slot_id]))
+        if cache is None:
+            result.extend(_profile_day(profile, day, tz, sun, program_id))
+        else:
+            result.extend(cache.day(profile, day, tz, sun, program_id))
     return result
 
 
@@ -75,9 +106,10 @@ def running_slot(
     sun: SunProvider,
     conditions_ok: ConditionCheck,
     resolve: Resolve,
+    cache: OccurrenceCache | None = None,
 ) -> tuple[Occurrence, dict] | None:
     """The slot of this program running at ``moment`` that acts on this entity, if any."""
-    for occ, slot in occurrences_around(profile, moment, tz, sun, program_id=program["id"]):
+    for occ, slot in occurrences_around(profile, moment, tz, sun, program_id=program["id"], cache=cache):
         if not occ.runs or occ.end is None:
             continue  # one-shot slots (no end) are events, handled by the engine
         if occ.start <= moment < occ.end and conditions_ok(slot.get("conditions", [])):
@@ -97,6 +129,7 @@ def resolve_entity(
     *,
     vacation: bool = False,
     active_profiles: dict[str, str] | None = None,
+    cache: OccurrenceCache | None = None,
 ) -> Segment:
     """Winning segment for an entity at ``moment`` (UTC)."""
     active_profiles = active_profiles or {}
@@ -117,7 +150,7 @@ def resolve_entity(
         if not conditions_ok(program.get("conditions", [])):
             continue
         profile = active_profile(program, active_profiles)
-        found = running_slot(program, profile, entity_id, moment, tz, sun, conditions_ok, resolve)
+        found = running_slot(program, profile, entity_id, moment, tz, sun, conditions_ok, resolve, cache)
         if found:
             occ, slot = found
             return Segment(
@@ -142,6 +175,7 @@ def next_transition(
     sun: SunProvider,
     *,
     active_profiles: dict[str, str] | None = None,
+    cache: OccurrenceCache | None = None,
 ) -> datetime | None:
     """Earliest slot start or end strictly after ``moment`` among enabled programs."""
     active_profiles = active_profiles or {}
@@ -150,7 +184,8 @@ def next_transition(
         if not program.get("enabled", True):
             continue
         profile = active_profile(program, active_profiles)
-        for occ, _slot in occurrences_around(profile, moment, tz, sun, days=(-1, 0, 1, 2), program_id=program["id"]):
+        for occ, _slot in occurrences_around(profile, moment, tz, sun, days=(-1, 0, 1, 2), program_id=program["id"],
+                                           cache=cache):
             if not occ.runs:
                 continue
             for edge in (occ.start, occ.end):

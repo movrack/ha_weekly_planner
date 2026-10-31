@@ -7,9 +7,13 @@ condition, program or vacation change) and does not watch what a device becomes 
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections import deque
+from collections.abc import Awaitable, Callable, Iterator
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta
+from functools import partial
 import logging
+import time
 from typing import Any
 
 from homeassistant.components import persistent_notification
@@ -23,11 +27,20 @@ from homeassistant.helpers.sun import get_astral_event_date
 from homeassistant.util import dt as dt_util
 
 from .actions import call_for, resolve_action
-from .conditions import ConditionTracker
+from .conditions import ConditionTracker, condition_key
 from .const import CONF_REAPPLY_DEFAULT, DEFAULT_PRIORITY, DEFAULT_REAPPLY, DOMAIN
 from .registry import async_check_missing, async_track_registry
-from .resolver import Segment, active_profile, default_label, next_transition, occurrences_around, resolve_entity
+from .resolver import (
+    OccurrenceCache,
+    Segment,
+    active_profile,
+    default_label,
+    next_transition,
+    occurrences_around,
+    resolve_entity,
+)
 from .store import PlannerStore
+from .validation import service_accepts
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,6 +52,101 @@ UNAVAILABLE = ("unavailable", "unknown")
 REAPPLY_REASONS = frozenset({"startup", "enable", "modification", "profile", "vacation_off"})
 
 SIGNAL_UPDATED = f"{DOMAIN}_updated"
+
+# A long recompute hands the event loop back at least this often (spec § 21): Home Assistant must
+# never be held by one of our callbacks for more than a few tens of milliseconds.
+YIELD_SLICE_S = 0.01
+
+
+class _Pass:
+    """Inputs of one engine pass, read once, and the caches shared by all its lookups.
+
+    Created at the start of a recompute, a notification or a standalone lookup, and dropped at its
+    end, so nothing is reused across time or configuration changes. A recompute decides every entity
+    from this one view even when it yields between entities, exactly as the former single-block
+    recompute did: changes arriving meanwhile are handled by the next pass.
+    """
+
+    __slots__ = ("programs", "labels", "profiles", "vacation", "effective", "check", "descriptions",
+                 "occurrences", "actions", "tz", "_sun", "_suns", "_by_id", "_owners", "_lookups")
+
+    def __init__(self, engine: PlannerEngine, occurrences: OccurrenceCache | None = None) -> None:
+        store = engine.store
+        self.programs: list[dict] = list(store.programs)
+        self._by_id: dict[str, dict] | None = None
+        self._owners: dict[str, list[dict]] | None = None
+        self._lookups = 0
+        self.labels = engine.labels
+        self.profiles = engine._profiles()  # noqa: SLF001
+        self.vacation = store.config.get("vacation", False)
+        self.effective = effective = engine.conditions.effective()
+        # ConditionTracker.check on the effective values of the start of the pass
+        self.check = lambda conds: all(effective.get(condition_key(c)) is True for c in conds)
+        self.descriptions = engine.descriptions
+        self.occurrences = occurrences or OccurrenceCache()
+        self.actions: dict[tuple, dict | None] = {}
+        self.tz = engine.tz
+        self._sun = engine.sun
+        self._suns: dict[tuple[str, date], datetime | None] = {}  # every program shares the sun times
+
+    @property
+    def by_id(self) -> dict[str, dict]:
+        if self._by_id is None:
+            self._by_id = {p["id"]: p for p in self.programs}
+        return self._by_id
+
+    @property
+    def owners(self) -> dict[str, list[dict]]:
+        """Entity -> its programs, in configuration order (every managed entity is a key)."""
+        if self._owners is None:
+            owners: dict[str, list[dict]] = {}
+            for program in self.programs:
+                for entity in program["entities"]:
+                    listed = owners.setdefault(entity["entity_id"], [])
+                    if not listed or listed[-1] is not program:
+                        listed.append(program)
+            self._owners = owners
+        return self._owners
+
+    def programs_of(self, entity_id: str) -> list[dict]:
+        """Programs of an entity; a pass with a few lookups only scans, a longer one indexes once."""
+        if self._owners is None and self._lookups < 4:
+            self._lookups += 1
+            return [p for p in self.programs if any(e["entity_id"] == entity_id for e in p["entities"])]
+        return self.owners.get(entity_id, [])
+
+    def sun(self, event: str, day: date) -> datetime | None:
+        key = (event, day)
+        try:
+            return self._suns[key]
+        except KeyError:
+            moment = self._suns[key] = self._sun(event, day)
+            return moment
+
+    def still_current(self, engine: PlannerEngine) -> bool:
+        """Do the inputs read by a program status still match this pass (nothing replaced since)?"""
+        programs = engine.store.programs
+        return (
+            len(programs) == len(self.programs) and all(a is b for a, b in zip(programs, self.programs, strict=True))
+            and engine.labels == self.labels and engine.store.config.get("vacation", False) == self.vacation
+            and engine._profiles() == self.profiles and engine.conditions.effective() == self.effective  # noqa: SLF001
+            and engine.descriptions is self.descriptions
+        )
+
+    def accepts(self, entity_id: str, action: dict) -> bool:
+        """Same rule as :meth:`PlannerEngine.accepts`, on the descriptions of this pass."""
+        if action.get("kind") != "service":
+            return True
+        return service_accepts(self.descriptions, action.get("service", ""), action.get("target_entity_id", entity_id))
+
+    def resolve(self, program: dict, entity_id: str, label_id: str | None) -> dict | None:
+        """:meth:`PlannerEngine.resolve`, computed once per (program, entity, label) in this pass."""
+        key = (id(program), entity_id, label_id)  # programs stay referenced by ``self.programs``
+        try:
+            return self.actions[key]
+        except KeyError:
+            action = self.actions[key] = resolve_action(program, entity_id, label_id, self.labels, self.accepts)
+            return action
 
 
 class PlannerEngine:
@@ -64,6 +172,14 @@ class PlannerEngine:
         self._notification_view: dict | None = None
         self._status_memo: dict[str, dict] = {}  # program_status, valid during one notification only
         self._notifying = False
+        self._notifications = 0  # publications so far: a pre-computed status is dropped if one came between
+        self._pass: _Pass | None = None  # shared inputs and caches of the synchronous pass in progress
+        # Serialises recomputes and commands: a recompute may now yield between entities, and
+        # nothing else may change the runtime state it is deciding from meanwhile.
+        self._lock = asyncio.Lock()
+        self._stopped = False
+        self._deferred_states: deque[tuple[Event, datetime]] = deque()  # arrived during a pass
+        self._slice_start = 0.0  # perf_counter() when the recompute last took the loop
         self.descriptions: dict | None = None  # service descriptions, to know which entity a service suits
 
     # ------------------------------------------------------------------ lifecycle
@@ -87,14 +203,16 @@ class PlannerEngine:
         )
 
     async def _async_startup(self, _now: datetime | None = None) -> None:
-        self._ready = True
-        await self.async_load_descriptions()
-        async_check_missing(self.hass, self)
-        self._observe_all_conditions()
-        self._sync_mode_sources()
-        await self.async_recompute("startup")
+        async with self._lock:
+            self._ready = True
+            await self.async_load_descriptions()
+            async_check_missing(self.hass, self)
+            self._observe_all_conditions()
+            self._sync_mode_sources()
+            await self._async_recompute("startup")
 
     async def async_stop(self) -> None:
+        self._stopped = True  # a recompute paused between entities stops there
         for unsub in self._unsubs + self._static_unsubs:
             unsub()
         self._unsubs.clear()
@@ -111,17 +229,41 @@ class PlannerEngine:
         self._listeners.append(listener)
         return lambda: self._listeners.remove(listener)
 
-    def _notify_listeners(self) -> None:
+    def _notify_listeners(self, occurrences: OccurrenceCache | None = None,
+                          statuses: dict[str, dict] | None = None) -> None:
+        """Publish to every listener in one synchronous block.
+
+        ``statuses``: program statuses already computed for this publication (see
+        :meth:`_async_publish`); the others are computed on demand, once each.
+        """
+        self._notifications += 1
         self._notifying = True
         self._notification_view = None
-        self._status_memo = {}
+        self._status_memo = dict(statuses) if statuses else {}
         try:
-            for listener in list(self._listeners):
-                listener()
+            with self.shared_pass(occurrences):
+                for listener in list(self._listeners):
+                    listener()
         finally:
             self._notifying = False
             self._notification_view = None
             self._status_memo = {}
+
+    @contextmanager
+    def shared_pass(self, occurrences: OccurrenceCache | None = None) -> Iterator[_Pass]:
+        """Scope of a synchronous pass: lookups inside share one input view and its caches.
+
+        Re-entrant; never held across an ``await``. ``occurrences`` lets a notification reuse the
+        occurrences its recompute just computed (they do not depend on the current time).
+        """
+        if self._pass is not None:
+            yield self._pass
+            return
+        self._pass = _Pass(self, occurrences)
+        try:
+            yield self._pass
+        finally:
+            self._pass = None
 
     def shared_notification_view(self, build: Callable[[], dict]) -> dict:
         """Share derived websocket data only during one synchronous publication."""
@@ -153,8 +295,6 @@ class PlannerEngine:
         """Does the action suit the entity? Scenes always do; a service must target its domain."""
         if action.get("kind") != "service":
             return True
-        from .validation import service_accepts
-
         return service_accepts(self.descriptions, action.get("service", ""), action.get("target_entity_id", entity_id))
 
     def resolve(self, program: dict, entity_id: str, label_id: str | None) -> dict | None:
@@ -175,10 +315,20 @@ class PlannerEngine:
                 if r.get("active_profile")}
 
     def segment(self, entity_id: str, at: datetime | None = None) -> Segment:
+        at = at or dt_util.utcnow()
+        if self._pass is not None:
+            return self._segment_in(self._pass, entity_id, at)
+        # A single lookup: nothing to share, read the inputs directly.
         return resolve_entity(
-            entity_id, self.store.programs, self.resolve, at or dt_util.utcnow(), self.tz,
-            self.sun, self.conditions.check, vacation=self.store.config.get("vacation", False),
-            active_profiles=self._profiles(),
+            entity_id, self.store.programs, self.resolve, at, self.tz, self.sun, self.conditions.check,
+            vacation=self.store.config.get("vacation", False), active_profiles=self._profiles(),
+        )
+
+    def _segment_in(self, ctx: _Pass, entity_id: str, at: datetime) -> Segment:
+        # Only the programs of the entity: resolve_entity ignores the others anyway.
+        return resolve_entity(
+            entity_id, ctx.programs_of(entity_id), ctx.resolve, at, ctx.tz, ctx.sun, ctx.check,
+            vacation=ctx.vacation, active_profiles=ctx.profiles, cache=ctx.occurrences,
         )
 
     def rt(self, entity_id: str) -> dict[str, Any]:
@@ -200,66 +350,62 @@ class PlannerEngine:
         # synchronous notification, where nothing can change: compute it once.
         if self._notifying and program_id in self._status_memo:
             return self._status_memo[program_id]
-        status = self._program_status(program_id)
+        with self.shared_pass() as ctx:
+            status = self._program_status(ctx, program_id)
         if self._notifying:
             self._status_memo[program_id] = status
         return status
 
-    def _program_status(self, program_id: str) -> dict[str, Any]:
-        program = self.store.program(program_id)
+    def _program_status(self, ctx: _Pass, program_id: str) -> dict[str, Any]:
+        program = ctx.by_id.get(program_id)
         if not program:
             return {}
         now = dt_util.utcnow()
-        occurrences: dict[str, list] = {}  # shared by the entities of this program
         current: dict[str, Any] = {}
         for entity in program["entities"]:
             eid = entity["entity_id"]
             seg = self.rt(eid).get("segment") or []
             if seg and seg[0] == "slot" and seg[1] == program_id:
                 current[eid] = seg[2]
-        nxt = next_transition([program], now, self.tz, self.sun, active_profiles=self._profiles())
+        nxt = next_transition([program], now, ctx.tz, ctx.sun, active_profiles=ctx.profiles, cache=ctx.occurrences)
         prt = self.store.runtime["programs"].get(program_id, {})
         return {
             "program_id": program_id,
-            "active_profile": self.active_profile_id(program_id),
+            "active_profile": active_profile(program, ctx.profiles)["id"],
             **self._mode_source_status(program),
             "current_slots": current,
             "next_change": nxt.isoformat() if nxt else None,
             "skip_next": prt.get("skip_at"),
             "next_actions": {
                 e["entity_id"]: action for e in program["entities"]
-                if (action := self.next_action(e["entity_id"], now, occurrences))
+                if (action := self._next_action_in(ctx, e["entity_id"], now))
             },
         }
 
-    def next_action(self, entity_id: str, now: datetime | None = None,
-                    occurrences: dict[str, list] | None = None) -> dict[str, Any] | None:
+    def next_action(self, entity_id: str, now: datetime | None = None) -> dict[str, Any] | None:
         """Next thing the plan does to an entity: ``{"at": iso, "action": {...}, "label": id}``.
 
         Looks at the next days of the enabled programs: a slot gives its action at its start and,
         when it has an end, the default action at its end.
         """
-        now = now or dt_util.utcnow()
-        if self.store.config.get("vacation"):
+        with self.shared_pass() as ctx:
+            return self._next_action_in(ctx, entity_id, now or dt_util.utcnow())
+
+    def _next_action_in(self, ctx: _Pass, entity_id: str, now: datetime) -> dict[str, Any] | None:
+        if ctx.vacation:
             return None
-        previous_key = self.segment(entity_id, now).key
-        profiles = self._profiles()
+        previous_key = self._segment_in(ctx, entity_id, now).key
         edges: dict[datetime, dict] = {}
-        for program in self.store.programs:
-            if not program.get("enabled", True) or not any(
-                e["entity_id"] == entity_id for e in program["entities"]
-            ):
+        for program in ctx.programs_of(entity_id):
+            if not program.get("enabled", True):
                 continue
-            profile = active_profile(program, profiles)
-            found = occurrences.get(program["id"]) if occurrences is not None else None
-            if found is None:
-                found = list(occurrences_around(profile, now, self.tz, self.sun, days=range(-1, 8), program_id=program["id"]))
-                if occurrences is not None:
-                    occurrences[program["id"]] = found
+            profile = active_profile(program, ctx.profiles)
+            found = occurrences_around(profile, now, ctx.tz, ctx.sun, days=range(-1, 8),
+                                       program_id=program["id"], cache=ctx.occurrences)
             for occ, slot in found:
                 if not occ.runs:
                     continue
-                action = self.resolve(program, entity_id, slot.get("label"))
+                action = ctx.resolve(program, entity_id, slot.get("label"))
                 if action is None:
                     continue
                 if occ.start > now:
@@ -267,7 +413,7 @@ class PlannerEngine:
                 if occ.end is not None and occ.end > now:
                     edges.setdefault(occ.end, {"oneshot": False, "action": None, "label": None})
         for moment in sorted(edges):
-            seg = self.segment(entity_id, moment)
+            seg = self._segment_in(ctx, entity_id, moment)
             edge = edges[moment]
             action = edge["action"] if edge["oneshot"] else seg.action
             changed = seg.key != previous_key
@@ -316,21 +462,50 @@ class PlannerEngine:
 
     @callback
     def _on_state(self, event: Event) -> None:
+        if not self._ready:
+            return
+        now = dt_util.utcnow()
+        if self._lock.locked() or self._deferred_states:
+            # A pass is deciding from its own view of the inputs: handle this change right after it,
+            # in arrival order, exactly as when a pass was one synchronous block.
+            if not self._deferred_states:
+                self.hass.async_create_task(self._async_drain_states())
+            self._deferred_states.append((event, now))
+            return
+        for job in self._state_jobs(event, now):
+            self.hass.async_create_task(self._async_locked(job))
+
+    async def _async_locked(self, job: Callable[[], Awaitable[None]]) -> None:
+        async with self._lock:
+            await job()
+
+    async def _async_drain_states(self) -> None:
+        """Handle the state changes that arrived during a pass, one after the other."""
+        async with self._lock:
+            while self._deferred_states and not self._stopped:
+                event, now = self._deferred_states.popleft()
+                for job in self._state_jobs(event, now):
+                    await job()
+            self._deferred_states.clear()
+
+    def _state_jobs(self, event: Event, now: datetime) -> Iterator[Callable[[], Awaitable[None]]]:
+        """What a state change does, in order; each job runs with the engine lock held.
+
+        Synchronous effects (condition values, timer) happen between the jobs, where the caller
+        resumes the generator: right after the previous job was started (or awaited, once deferred).
+        """
         entity_id = event.data["entity_id"]
         new: State | None = event.data.get("new_state")
         old: State | None = event.data.get("old_state")
-        if not self._ready:
-            return
         if entity_id in self._mode_source_entities and (old is None or new is None or old.state != new.state):
-            self.hass.async_create_task(self._async_mode_source_changed())
-        now = dt_util.utcnow()
+            yield self._async_mode_source_changed_locked
         cond_changed = False
         conditions = self._conditions_by_entity.get(entity_id, [])
         before_settle = self.conditions.next_settle() if conditions else None
         for cond in conditions:
             cond_changed |= self.conditions.observe(cond, new, now)
         if cond_changed:
-            self.hass.async_create_task(self.async_recompute("condition"))
+            yield partial(self._async_recompute, "condition")
         elif conditions and before_settle != self.conditions.next_settle():
             self._arm_timer()
         # Recover only pending owners whose actual target became commandable.
@@ -347,7 +522,7 @@ class PlannerEngine:
                 and new.state not in unavailable
                 and (old is None or old.state in unavailable)
             ):
-                self.hass.async_create_task(self.async_apply(owner, "back_online"))
+                yield partial(self.async_apply, owner, "back_online")
 
     # ------------------------------------------------------------------ recompute
 
@@ -356,23 +531,71 @@ class PlannerEngine:
         """Re-evaluate every managed entity and act on segment changes."""
         if not self._ready:
             return
+        async with self._lock:
+            await self._async_recompute(reason, program_id, profile_program_ids=profile_program_ids)
+
+    async def _async_recompute(self, reason: str, program_id: str | None = None, *,
+                               profile_program_ids: set[str] | None = None) -> None:
+        """Body of :meth:`async_recompute`; the caller holds ``self._lock``.
+
+        Decides from one view of the inputs taken at the start (:class:`_Pass`), in the same order
+        and with the same rules as a single synchronous block, but hands the event loop back every
+        ``YIELD_SLICE_S`` between entities (spec § 21).
+        """
+        if not self._ready or self._stopped:
+            return
+        self._slice_start = time.perf_counter()
         now = dt_util.utcnow()
         self.conditions.settle(now)
         affected = profile_program_ids if profile_program_ids is not None else ({program_id} if program_id else set())
         excluded = set(affected) if reason == "profile" else set()
+        ctx = _Pass(self)
         if reason in {"startup", "modification"}:
-            excluded |= {p["id"] for p in self.store.programs if p.get("mode_source")}
-        await self._fire_one_shots(now, excluded)
-        for entity_id in sorted(self.managed_entities()):
-            await self._process_entity(entity_id, reason, now, affected)
+            excluded |= {p["id"] for p in ctx.programs if p.get("mode_source")}
+        entities = sorted(ctx.owners)  # every managed entity
+        segments: dict[str, Segment] = {}
+        for entity_id in entities:
+            segments[entity_id] = self._segment_in(ctx, entity_id, now)
+            if not await self._pause():
+                return
+        await self._fire_one_shots(now, excluded, ctx=ctx, segments=segments)
+        for entity_id in entities:
+            await self._process_entity(entity_id, reason, now, affected, segments[entity_id], ctx.by_id)
+            if not await self._pause():
+                return
         self.store.runtime["last_tick"] = now.isoformat()
         self._persist()
-        self._arm_timer()
-        self._notify_listeners()
+        self._arm_timer(ctx.occurrences)
+        await self._async_publish(ctx.occurrences)
 
-    async def _process_entity(self, entity_id: str, reason: str, now: datetime, profile_program_ids: set[str]) -> None:
+    async def _async_publish(self, occurrences: OccurrenceCache) -> None:
+        """Notify listeners, computing the program statuses (switch attributes) between yields first.
+
+        The statuses are only used if nothing they read changed meanwhile and no other publication
+        happened; otherwise the notification computes them itself, as before.
+        """
+        published = self._notifications
+        ctx = _Pass(self, occurrences)
+        statuses: dict[str, dict] = {}
+        for program in ctx.programs:
+            statuses[program["id"]] = self._program_status(ctx, program["id"])
+            if not await self._pause():
+                return
+        current = published == self._notifications and ctx.still_current(self)
+        self._notify_listeners(occurrences, statuses if current else None)
+
+    async def _pause(self) -> bool:
+        """Yield to the event loop once the current slice is used up; False once the engine stopped."""
+        if time.perf_counter() - self._slice_start >= YIELD_SLICE_S:
+            await asyncio.sleep(0)
+            self._slice_start = time.perf_counter()
+        return not self._stopped
+
+    async def _process_entity(self, entity_id: str, reason: str, now: datetime, profile_program_ids: set[str],
+                              seg: Segment | None = None, programs: dict[str, dict] | None = None) -> None:
         rt = self.rt(entity_id)
-        seg = self.segment(entity_id, now)
+        if seg is None:
+            seg = self.segment(entity_id, now)
         key = list(seg.key)
         changed = rt.get("segment") != key
         if not changed and reason not in REAPPLY_REASONS:
@@ -380,7 +603,10 @@ class PlannerEngine:
 
         if reason == "profile" and profile_program_ids and not changed and seg.program_id not in profile_program_ids:
             return
-        program = self.store.program(seg.program_id) if seg.program_id else None
+        if programs is None:
+            program = self.store.program(seg.program_id) if seg.program_id else None
+        else:
+            program = programs.get(seg.program_id) if seg.program_id else None
         reapply = program.get("reapply", True) if program else True
         skip = self._consume_skip(seg.program_id, now) if changed else False
         missed_end = self._missed_end(rt, seg)
@@ -425,50 +651,64 @@ class PlannerEngine:
             return True
         return False
 
-    async def _fire_one_shots(self, now: datetime, excluded: set[str] | None = None) -> None:
-        """Run the slots without an end whose time came since the last tick (spec § 5.2)."""
+    async def _fire_one_shots(self, now: datetime, excluded: set[str] | None = None, *,
+                              ctx: _Pass | None = None, segments: dict[str, Segment] | None = None) -> None:
+        """Run the slots without an end whose time came since the last tick (spec § 5.2).
+
+        ``segments`` are the segments of this recompute at ``now`` (the same values a fresh
+        lookup gives: sending an action changes none of their inputs).
+        """
         last = self.store.parse(self.store.runtime.get("last_tick"))
-        if last is None or self.store.config.get("vacation"):
+        ctx = ctx or _Pass(self)
+        if last is None or ctx.vacation:
             return
         excluded = excluded or set()
-        profiles = self._profiles()
-        for program in self.store.programs:
-            if program["id"] in excluded or not program.get("enabled", True) or not self.conditions.check(program.get("conditions", [])):
+        due: list[tuple[str, dict]] = []
+        for program in ctx.programs:
+            if program["id"] in excluded or not program.get("enabled", True) or not ctx.check(program.get("conditions", [])):
                 continue
-            profile = active_profile(program, profiles)
-            for occ, slot in occurrences_around(profile, now, self.tz, self.sun, program_id=program["id"]):
+            profile = active_profile(program, ctx.profiles)
+            for occ, slot in occurrences_around(profile, now, ctx.tz, ctx.sun, program_id=program["id"], cache=ctx.occurrences):
                 if occ.end is not None or not occ.runs or not (last < occ.start <= now):
                     continue
-                if not self.conditions.check(slot.get("conditions", [])):
+                if not ctx.check(slot.get("conditions", [])):
                     continue
                 for entity in program["entities"]:
                     eid = entity["entity_id"]
-                    action = self.resolve(program, eid, slot.get("label"))
+                    action = ctx.resolve(program, eid, slot.get("label"))
                     if action is None:
                         continue
-                    seg = self.segment(eid, now)
-                    higher = seg.in_slot and seg.program_id != program["id"] and self._priority(seg.program_id) < program.get("priority", DEFAULT_PRIORITY)
+                    seg = segments[eid] if segments is not None else self._segment_in(ctx, eid, now)
+                    higher = seg.in_slot and seg.program_id != program["id"] and self._priority(seg.program_id, ctx.by_id) < program.get("priority", DEFAULT_PRIORITY)
                     if higher:
                         continue  # skipped under a higher priority slot (Q-L)
-                    await self._async_send(eid, action, "one_shot", oneshot=True)
+                    due.append((eid, action))
+        for eid, action in due:
+            await self._async_send(eid, action, "one_shot", oneshot=True)
         for prt in self.store.runtime["programs"].values():
             if prt.pop("skip_consumed", False):
                 prt.pop("skip_at", None)
 
-    def _priority(self, program_id: str | None) -> int:
-        program = self.store.program(program_id) if program_id else None
+    def _priority(self, program_id: str | None, programs: dict[str, dict] | None = None) -> int:
+        if programs is not None:
+            program = programs.get(program_id) if program_id else None
+        else:
+            program = self.store.program(program_id) if program_id else None
         return program.get("priority", DEFAULT_PRIORITY) if program else DEFAULT_PRIORITY
 
     # ------------------------------------------------------------------ timer
 
     @callback
-    def _arm_timer(self) -> None:
+    def _arm_timer(self, occurrences: OccurrenceCache | None = None) -> None:
         if self._timer:
             self._timer()
             self._timer = None
+        if self._stopped:
+            return
         now = dt_util.utcnow()
         candidates = [
-            next_transition(self.store.programs, now, self.tz, self.sun, active_profiles=self._profiles()),
+            next_transition(self.store.programs, now, self.tz, self.sun, active_profiles=self._profiles(),
+                            cache=occurrences),
             self.conditions.next_settle(),
             self._next_local_midnight(now),
         ]
@@ -488,18 +728,19 @@ class PlannerEngine:
 
     async def _async_on_timer(self, _now: datetime) -> None:
         self._timer = None
-        now = dt_util.utcnow()
-        for entity_id, rt in list(self.store.runtime["entities"].items()):
-            retry_at = self.store.parse(rt.get("retry_at"))
-            if retry_at and now >= retry_at:
-                rt.pop("retry_at", None)
-                await self._async_retry(entity_id)
-            notify_at = self.store.parse(rt.get("notify_at"))
-            if notify_at and now >= notify_at:
-                rt.pop("notify_at", None)
-                if rt.get("pending"):
-                    self._notify_unavailable(entity_id)
-        await self.async_recompute("timer")
+        async with self._lock:
+            now = dt_util.utcnow()
+            for entity_id, rt in list(self.store.runtime["entities"].items()):
+                retry_at = self.store.parse(rt.get("retry_at"))
+                if retry_at and now >= retry_at:
+                    rt.pop("retry_at", None)
+                    await self._async_retry(entity_id)
+                notify_at = self.store.parse(rt.get("notify_at"))
+                if notify_at and now >= notify_at:
+                    rt.pop("notify_at", None)
+                    if rt.get("pending"):
+                        self._notify_unavailable(entity_id)
+            await self._async_recompute("timer")
 
     # ------------------------------------------------------------------ actions
 
@@ -641,6 +882,10 @@ class PlannerEngine:
     # ------------------------------------------------------------------ commands
 
     async def async_apply_now(self, program_id: str) -> None:
+        async with self._lock:
+            await self._async_apply_now(program_id)
+
+    async def _async_apply_now(self, program_id: str) -> None:
         program = self.store.program(program_id)
         if not program:
             return
@@ -665,6 +910,10 @@ class PlannerEngine:
         self._notify_listeners()
 
     async def async_set_enabled(self, program_id: str, enabled: bool) -> None:
+        async with self._lock:
+            await self._async_set_enabled(program_id, enabled)
+
+    async def _async_set_enabled(self, program_id: str, enabled: bool) -> None:
         program = self.store.program(program_id)
         if not program or program.get("enabled", True) == enabled:
             return
@@ -677,7 +926,7 @@ class PlannerEngine:
             self._notify_listeners()
             return
         if enabled:
-            await self.async_recompute("enable")
+            await self._async_recompute("enable")
             return
         # deactivation: the program's own default applies once to entities it frees (Q-J)
         now = dt_util.utcnow()
@@ -689,9 +938,13 @@ class PlannerEngine:
                     self.rt(eid)["target"] = defaults[eid]
                     await self.async_apply(eid, "disable")
                     self.rt(eid)["target"] = None
-        await self.async_recompute("disable")
+        await self._async_recompute("disable")
 
     async def async_set_vacation(self, on: bool) -> None:
+        async with self._lock:
+            await self._async_set_vacation(on)
+
+    async def _async_set_vacation(self, on: bool) -> None:
         if bool(self.store.config.get("vacation")) == on:
             return
         if on:
@@ -711,11 +964,11 @@ class PlannerEngine:
                 if action:
                     self.rt(eid)["target"] = action
                     await self.async_apply(eid, "vacation")
-            await self.async_recompute("vacation_on")
+            await self._async_recompute("vacation_on")
         else:
             self.store.config["vacation"] = False
             self.store.save_config()
-            await self.async_recompute("vacation_off")
+            await self._async_recompute("vacation_off")
 
     def _mode_source_status(self, program: dict) -> dict:
         source = program.get("mode_source")
@@ -742,12 +995,13 @@ class PlannerEngine:
                 changed.append(program["id"])
         return changed
 
-    async def _async_mode_source_changed(self) -> None:
+    async def _async_mode_source_changed_locked(self) -> None:
+        """A mode source entity changed state; the caller holds the engine lock."""
         # Update every association first: one source can drive several programs atomically.
         changed = self._sync_mode_sources()
         if changed:
             if self._ready:
-                await self.async_recompute("profile", profile_program_ids=set(changed))
+                await self._async_recompute("profile", profile_program_ids=set(changed))
             else:
                 self._persist()
                 self._notify_listeners()
@@ -755,6 +1009,10 @@ class PlannerEngine:
             self._notify_listeners()
 
     async def async_set_profile(self, program_id: str, profile_id: str) -> None:
+        async with self._lock:
+            await self._async_set_profile(program_id, profile_id)
+
+    async def _async_set_profile(self, program_id: str, profile_id: str) -> None:
         program = self.store.program(program_id)
         if program is None:
             raise ServiceValidationError("Unknown program")
@@ -770,9 +1028,13 @@ class PlannerEngine:
             self._persist()
             self._notify_listeners()
             return
-        await self.async_recompute("profile", program_id)
+        await self._async_recompute("profile", program_id)
 
     async def async_config_changed(self, *, reapply: bool = True) -> None:
+        async with self._lock:
+            await self._async_config_changed(reapply=reapply)
+
+    async def _async_config_changed(self, *, reapply: bool = True) -> None:
         """Programs edited: re-subscribe and re-evaluate (spec § 5.5)."""
         self._release_removed()
         await self.async_load_descriptions()
@@ -782,9 +1044,9 @@ class PlannerEngine:
             async_check_missing(self.hass, self)  # programs/entities edited: refresh the repair issue
         changed = self._sync_mode_sources()
         if not reapply and changed:
-            await self.async_recompute("profile", profile_program_ids=set(changed))
+            await self._async_recompute("profile", profile_program_ids=set(changed))
         else:
-            await self.async_recompute("modification" if reapply else "inactive_mode_edit")
+            await self._async_recompute("modification" if reapply else "inactive_mode_edit")
 
     def _release_removed(self) -> None:
         """Forget the runtime state of entities that are no longer in any program."""

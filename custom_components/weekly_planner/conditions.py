@@ -81,3 +81,7 @@ class ConditionTracker:
     def check(self, conditions: list[dict]) -> bool:
         """All conditions true (unknown counts as false)."""
         return all(self._state.get(condition_key(c), {}).get("effective") is True for c in conditions)
+
+    def effective(self) -> dict[str, bool | None]:
+        """Copy of the effective values (key -> value): :meth:`check` reads ``.get(key) is True``."""
+        return {key: entry["effective"] for key, entry in self._state.items()}

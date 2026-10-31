@@ -6,7 +6,8 @@ Two kinds of assertion, so a regression fails without flaking on a slow CI runne
   median measured on a laptop (Apple silicon, Python 3.14). A budget is a ceiling for the BEST run, so
   scheduler noise cannot fail it; a real algorithmic regression multiplies the cost and does.
 Run ``scripts/bench.py`` for the medians. Home Assistant's loop must never be held by one callback
-for more than ``BUDGET_CALLBACK_S``.
+for more than ``BUDGET_CALLBACK_S``: a recompute shares one occurrence cache per pass and yields
+between entities (SPEC section 21).
 """
 
 from __future__ import annotations
@@ -33,21 +34,23 @@ from .perf_data import ENTITIES_PER_PROGRAM, PROGRAMS, big_program, big_programs
 
 pytestmark = pytest.mark.performance
 
-# Wall-clock ceilings in seconds for the BEST of N runs. "measured" = median on the reference machine.
+# Wall-clock ceilings in seconds for the BEST of N runs. "measured" = median on the reference machine
+# (0.19.0 value before the per-pass cache and yielding, in brackets).
 BUDGETS = {
-    "day_occurrences_all": 0.025,   # 50 programs x 1 day x 6 slots; measured median 1.3 ms
-    "resolve_all_entities": 0.30,   # segment() for 200 entities at one instant; measured 36 ms
-    "program_status_all": 0.80,     # program_status for 50 programs (200 next_action); measured 126 ms
-    "snapshot_build": 0.80,         # websocket snapshot of the whole install; measured 132 ms
-    "check_program_big": 0.025,     # one 3-mode x 7-day x 6-slot program, week overlap included; measured 1.3 ms
-    "engine_startup": 1.5,          # _async_startup (descriptions + recompute of 200 entities); measured 221 ms
-    "recompute": 1.2,               # async_recompute after a state change, 200 entities; measured 169 ms
+    "day_occurrences_all": 0.025,   # 50 programs x 1 day x 6 slots; measured median 1.4 ms
+    "resolve_all_entities": 0.30,   # standalone segment() for 200 entities at one instant; measured 34 ms [36]
+    "program_status_all": 0.25,     # program_status for 50 programs (200 next_action); measured 34 ms [126]
+    "snapshot_build": 0.25,         # websocket snapshot of the whole install; measured 31 ms [132]
+    "check_program_big": 0.025,     # one 3-mode x 7-day x 6-slot program, week overlap included; measured 1.0 ms
+    "engine_startup": 0.45,         # _async_startup (descriptions + recompute of 200 entities); measured 56 ms [221]
+    "recompute": 0.25,              # async_recompute after a state change, 200 entities, with its yields; measured 30 ms [169]
 }
-# Operation counts are deterministic: the bound is the measured value.
+# Operation counts are deterministic: the bound is the measured value (plus a small margin).
 OPS = {
-    "program_status_occurrences": 245,     # occurrence() calls for one 4-entity program_status; measured 222
+    "program_status_occurrences": 60,      # occurrence() calls for one 4-entity program_status = 9 days x 6 slots; measured 54 [222]
     "check_program_day_calls": 100,        # day_occurrences() calls to validate one big program (3 modes x 8 days x 4 fixed slots = 96)
     "recompute_resolve_per_entity": 3,     # resolve_entity() per managed entity in a recompute; measured 3.0
+    "recompute_occurrences": 3000,         # occurrence() calls for a whole recompute (+ timer + publication) = 50 x 9 days x 6; measured 2700 [~16 800]
 }
 BUDGET_CALLBACK_S = 0.05  # no single loop callback of ours may hold Home Assistant longer than this
 RUNS = 5
@@ -158,7 +161,7 @@ async def test_status_occurrence_work_is_bounded(big, monkeypatch):
     """One program_status = one next_action sweep per entity; occurrences are shared per program."""
     counter = Counter(monkeypatch, timeline, "occurrence")
     big.program_status("p0")
-    # Measured on 0.19.0: see OPS_STATUS. A bound well under "recompute everything per entity".
+    # 9 days x 6 slots, each placed once per status (see OPS); 0.19.0 placed 222.
     print("[ops] program_status occurrences", counter.count)
     assert counter.count <= OPS["program_status_occurrences"], counter.count
 
@@ -221,6 +224,14 @@ async def test_recompute_after_state_change(big):
     within("recompute", await best_of_async(lambda: big.async_recompute("tick"), runs=3))
 
 
+async def test_recompute_occurrence_work_is_bounded(big, monkeypatch):
+    """A recompute places each day of each program once (one cache per pass), whatever the lookups."""
+    counter = Counter(monkeypatch, timeline, "occurrence")
+    await big.async_recompute("tick")
+    print("[ops] recompute occurrences", counter.count)
+    assert counter.count <= OPS["recompute_occurrences"], counter.count
+
+
 async def test_recompute_resolutions_per_entity_are_bounded(big, monkeypatch):
     """A recompute resolves each managed entity a bounded number of times (segment + 2 next_action sweeps)."""
     counter = Counter(monkeypatch, engine_module, "resolve_entity")
@@ -275,8 +286,6 @@ async def test_state_change_burst_does_not_block_loop(big, caplog):
     assert not slow, slow[:3]
 
 
-@pytest.mark.xfail(strict=True, reason="known slow spot: a full recompute is one ~180 ms callback on 200 entities "
-                                       "(SPEC section 21); remove this marker once it yields or gets faster")
 async def test_condition_burst_recompute_does_not_block_loop(big, caplog):
     """A condition change starts a recompute of every entity: it must not hold the loop over the budget."""
     longest, slow = await _burst(big, caplog, late=True)
