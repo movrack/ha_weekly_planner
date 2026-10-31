@@ -34,6 +34,7 @@ le suit à l'identique. En cas de doute ou de conflit, `AGENTS.md` et `docs/DECI
   « ancien / ex- / remplacé », pas de légende de capture datée par version ; l'historique va dans CHANGELOG/DECISIONS.
 - Avant la v1.0.0, TOUTES les captures (docs/images/guide, images du wiki) doivent être refaites avec l'interface finale ;
   d'ici là elles peuvent être en retard mais ne portent jamais de numéro de version.
+- Renuméroter l'atlas des écrans à la release v1.0.0 (trous de numérotation admis d'ici là).
 - Rendre compte fidèlement, sans enjoliver : **fait** / **vérifié** (avec la preuve) / **non vérifié** /
   **comment annuler**. Ce qui n'a pas été prouvé est écrit « non vérifié ».
 

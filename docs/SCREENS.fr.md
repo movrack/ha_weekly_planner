@@ -197,7 +197,7 @@ Le formulaire intégré définit le nom, la couleur et l’action. L’enregistr
 
 ## S12 — Modifier un réglage partagé
 
-Le crayon ouvre le réglage sélectionné. La mention Partagé indique qu’une modification peut concerner d’autres programmes.
+Le crayon ouvre le réglage sélectionné. La mention Partagé indique qu’une modification peut concerner d’autres programmes. La corbeille voisine supprime le réglage pour tous les appareils après confirmation ; elle est refusée, avec les noms des programmes concernés, tant que le réglage sert.
 
 <a href="images/guide/s12-edit-shared-label.png"><img src="images/guide/s12-edit-shared-label.png" width="320" alt="S12 — Modifier un réglage partagé" /></a>
 

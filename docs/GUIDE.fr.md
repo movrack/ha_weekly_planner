@@ -112,7 +112,11 @@ mention **Partagé** signale une utilisation dans un autre programme.
 
 Pour une exception, **Valeur pour cet appareil** permet un autre réglage pour
 cet appareil seulement : [S13](SCREENS.fr.md#s13). **Revenir à la valeur commune**
-enlève cette exception. Un réglage utilisé ne peut pas être supprimé.
+enlève cette exception.
+
+Pour supprimer un réglage, le choisir puis toucher la corbeille à côté du crayon. Une phrase demande
+confirmation : **la suppression vaut pour tous les appareils**. Un réglage encore utilisé par un horaire ou un
+programme ne peut pas être supprimé ; la phrase donne les noms des programmes à modifier d’abord.
 
 ## Je veux utiliser une position favorite ou une valeur qui change
 

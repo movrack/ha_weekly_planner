@@ -53,6 +53,9 @@ export class WpLabelPicker extends LitElement {
   @state() private _error = "";
   @state() private _saving = false;
   @state() private _valueFor: string | null = null;
+  /** The delete confirmation (or the refusal) is shown for the chosen label. */
+  @state() private _confirmDel = false;
+  @state() private _delError = "";
   private _loaded = "";
 
   private get _lang(): string { return langOf(this.hass); }
@@ -182,7 +185,46 @@ export class WpLabelPicker extends LitElement {
     }
   }
 
+  /** Deletes the chosen label for everyone (the server refuses while a program uses it). */
+  private async _delete(label: Label): Promise<void> {
+    this._saving = true;
+    try {
+      await this.hass.callWS({ type: "weekly_planner/label/delete", label_id: label.id });
+      this._confirmDel = false;
+      this._delError = "";
+      this._form = false;
+      this._changed();
+      this._emit("label-change", null);
+    } catch (err) {
+      const e = err as { code?: string; message?: string };
+      this._delError = e?.code === "in_use"
+        ? t(this._lang, "lb_delete_used", { name: labelName(this.hass, label), programs: e.message || "" })
+        : e?.code === "unauthorized" ? t(this._lang, "err_unauthorized") : t(this._lang, "lb_err_delete");
+    } finally {
+      this._saving = false;
+    }
+  }
+
+  private _renderDelete(chosen: Label) {
+    const lang = this._lang;
+    const name = labelName(this.hass, chosen);
+    const users = labelUsers(this.data, chosen.id);
+    const used = users.length > 0 || !!this._delError;
+    const msg = this._delError
+      || (users.length ? t(lang, "lb_delete_used", { name, programs: users.join(", ") }) : t(lang, "lb_delete_ask", { name }));
+    return html`<div class="delbox" role="alert">
+      <p class="${used ? "err" : ""}">${msg}</p>
+      <div class="btns">
+        ${used ? nothing : html`<button class="btn danger-line" ?disabled=${this._saving || this.disabled} @click=${() => void this._delete(chosen)}>
+          <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete")}</button>`}
+        <button class="btn" @click=${() => { this._confirmDel = false; this._delError = ""; }}>${t(lang, used ? "close" : "cancel")}</button>
+      </div>
+    </div>`;
+  }
+
   private _choose(id: string | null): void {
+    this._confirmDel = false;
+    this._delError = "";
     if (this._form) {
       this._form = false;
       this._changed();
@@ -242,8 +284,12 @@ export class WpLabelPicker extends LitElement {
           ${labelUsers(this.data, chosen.id).some((n) => n !== this.program.name) ? html`<span class="shared">${t(lang, "shared")}</span>` : nothing}
           ${this.readonlySettings ? nothing : html`<button class="pen ${this._form ? "on" : ""}" aria-label=${t(lang, "rename_label")} title=${t(lang, "rename_label")}
             aria-pressed=${this._form} ?disabled=${this.disabled}
-            @click=${() => (this._form && this._editId ? this._close() : this._open(true))}><ha-icon icon="mdi:pencil"></ha-icon></button>`}
+            @click=${() => (this._form && this._editId ? this._close() : this._open(true))}><ha-icon icon="mdi:pencil"></ha-icon></button>
+          <button class="pen ${this._confirmDel ? "on" : ""}" aria-label=${t(lang, "lb_delete")} title=${t(lang, "lb_delete")}
+            aria-expanded=${this._confirmDel} ?disabled=${this.disabled}
+            @click=${() => { this._confirmDel = !this._confirmDel; this._delError = ""; }}><ha-icon icon="mdi:delete-outline"></ha-icon></button>`}
         </div>
+        ${this._confirmDel && !this.readonlySettings ? this._renderDelete(chosen) : nothing}
         ${this._form && !this.readonlySettings ? nothing : html`
           <div class="sum"><span class="what">${actionSummary(this.hass, lang, chosen.action, this.entityIds[0])}</span></div>
           ${this.entityIds.map((eid) => {
@@ -311,6 +357,9 @@ export class WpLabelPicker extends LitElement {
     .sw.on { border-color: var(--primary-text-color); box-shadow: 0 0 0 2px var(--card-background-color) inset; }
     .btns { display: flex; gap: 8px; margin-top: 12px; }
     .btns .btn { flex: 1; }
+    .delbox p { margin: 4px 0 0; }
+    .delbox .btns { margin-top: 8px; }
+    .danger-line { color: var(--error-color, #db4437); border-color: var(--error-color, #db4437); }
     .err { color: var(--error-color, #db4437); margin: 8px 0 0; }
     .dev { margin-top: 6px; }
     .sum { margin-top: 2px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; font-size: 15px; }
