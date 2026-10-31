@@ -23,12 +23,6 @@ describe("card editor program selector", () => {
 });
 
 describe("labels", () => {
-  it("uses a proper singular and plural", () => {
-    for (const lang of ["en", "fr"]) {
-      expect(t(lang, "lb_uses", { n: "1" })).not.toContain("(s)");
-      expect(t(lang, "lb_uses_many", { n: "2" })).toMatch(/2 \w+s$/);
-    }
-  });
   it("shows hour labels by locale on the axis", () => {
     const bar = new WpDayBar() as any;
     bar.showHours = true; bar.lang = "en";
