@@ -1,6 +1,8 @@
 # Weekly Planner — spécification v1
 
-> Statut : **0.6 — un seul modèle pour tous les appareils** (voir § 5 et § 6 ; les anciennes règles retirées en 0.6.0 sont marquées « retiré en 0.6.0 »).
+> Statut : **0.18.0** — un seul modèle pour tous les appareils depuis la 0.6 (§ 5 et § 6 ; les anciennes règles retirées en
+> 0.6.0 sont marquées « retiré en 0.6.0 ») ; modes, sources, cibles, délais aléatoires et limites solaires : § 5.10, § 6, § 17 à 20.
+> Écarts connus entre cette spec et le code : § 21.
 > Dépôt : `ha_weekly_planner` · domaine HA : `weekly_planner` · cible : Home Assistant ≥ 2026.10.
 > Les cases `[ ]` / `[x]` suivent l'avancement. Critère de fin de la v1 : **tout fonctionne** (§ 13).
 
@@ -61,7 +63,7 @@ Inclus : tout ce qui suit. **Hors v1 (v2)** : import des programmes `scheduler-c
 | D5 | Modes = bibliothèque **commune par type d'entité** ; valeur commune + exceptions par entité. — **(retiré en 0.6.0 : plus de modes communs)** |
 | D6 | État par défaut au choix (par type ou par entité) : mode/consigne par défaut (proposé) **ou** retour à l'état d'avant la plage. — **(remplacé en 0.6.0 : action par défaut facultative, plus d'« état d'avant »)** |
 | D7 | Pas de chevauchement dans un programme ; entre programmes, **priorité numérotée**, l'autre reprend la main ; conflits signalés. |
-| D8 | 7 jours indépendants + copie (raccourcis Lun→Ven, Sam+Dim) ; pas de 5 min ; plages passant minuit ; heures solaires (aube, lever, coucher, crépuscule ± décalage) avec bornes « au plus tôt / au plus tard ». |
+| D8 | 7 jours indépendants + copie (raccourcis Lun→Ven, Sam+Dim) ; pas de 5 min ; plages passant minuit ; heures solaires (lever, coucher ± décalage ; aube et crépuscule acceptés par le serveur, non proposés) avec bornes « au plus tôt / au plus tard ». |
 | D9 | Conditions simples par programme **et par plage** ; interrupteur global « Vacances / Absence ». Condition devenue fausse = fin de plage. — **(« dérogation » retirée en 0.6.0 ; conditions et Vacances conservées)** |
 | D10 | Réglage par programme « réappliquer en cours de plage » (oui par défaut) : redémarrage, activation, modification. |
 | D11 | Dépôt séparé ; dev et tests sur une instance HA locale (Docker) ; prod seulement pour des versions finies, copiées par script tant que le dépôt est privé. |
@@ -139,6 +141,9 @@ montre les changements manuels (§ 10.4) ; le moteur n'en sait rien.
 - Au démarrage, la première valeur connue d'une condition (ou sa dernière valeur persistée) **ne passe pas** par l'anti-rebond.
 - Fin d'horaire manquée pendant l'arrêt : **toujours rattrapée** (l'action par défaut est envoyée).
 - Désactivation d'un programme pendant un horaire : l'action par défaut est envoyée (comme une fin d'horaire).
+- Activation / désactivation **pendant la stabilisation** : la configuration est enregistrée et publiée tout de suite
+  (abonnés, switch HA), mais aucune action n'est envoyée aux appareils avant la fin de la stabilisation.
+- `apply_now` (§ 9) ne renvoie l'action qu'aux entités dont le segment en cours appartient à ce programme.
 
 ### 5.6 Conditions et Vacances (D9)
 - Condition = `entité` (+ attribut facultatif) `=`, `≠`, `<`, `>` `valeur` ; toutes vraies (ET) ; niveaux programme et horaire.
@@ -146,16 +151,29 @@ montre les changements manuels (§ 10.4) ; le moteur n'en sait rien.
 - Entité citée `unavailable`/`unknown` : la condition garde sa **dernière valeur connue** (inconnue au démarrage → on attend la stabilisation).
 - **Anti-rebond** : une condition doit rester dans son nouvel état pendant une durée minimale (réglable, 2 min par défaut) avant de faire commencer ou finir un horaire.
 - Condition devenue fausse pendant un horaire = fin d'horaire (défaut) ; redevenue vraie = début d'horaire (si `reapply`).
-- `switch.weekly_planner_vacances` : suspend tous les programmes et envoie le défaut (§ 5.4) ; à la désactivation, horaires en cours appliqués si `reapply`.
+- Interrupteur global (`switch.weekly_planner_vacation`, nom affiché « Suspension de tous les programmes » / « All
+  programs paused ») : suspend tous les programmes et envoie le défaut (§ 5.4) ; à la désactivation, horaires en cours appliqués si `reapply`.
 
 ### 5.7 Heures et calendrier
 - Saisie des heures à toute minute ; poignées au pas de 15 min ; horaire minimal 5 min ; jours indexés **0 = lundi … 6 = dimanche**.
-- Fin `24:00` autorisée (= minuit du jour suivant) ; `00:00 → 00:00` est refusé (utiliser `00:00 → 24:00`).
+- Fin `24:00` autorisée (= minuit du jour suivant). `00:00 → 00:00` devait être refusé (utiliser `00:00 → 24:00`) ;
+  **en réalité il est accepté** et placé comme un horaire de 24 h passant minuit (la fin, avant midi et pas après le
+  début, tombe le lendemain ; aucune règle de validation ne le rejette) — écart ouvert, § 21.
+- Une fin qui n'est pas après le début passe minuit **seulement si elle tombe avant midi** (DECISIONS 2026-10-25) ;
+  sinon l'horaire est vide ce jour-là.
 - Un horaire passant minuit appartient au jour de son début ; la validation de chevauchement porte sur la semaine entière.
-- Heure solaire : `aube | lever | coucher | crépuscule` ± décalage (min), bornes `au plus tôt` / `au plus tard`
-  facultatives ; calcul pour la date locale avec le **fuseau de HA** ; recalcul chaque jour à minuit.
-- Si, un jour donné, un horaire devient vide ou négatif (ex. « coucher → 21:00 » en juin) ou plus court que 5 min,
-  il est **ignoré ce jour-là** ; la carte le montre barré avec la raison.
+- Heure solaire : `aube | lever | coucher | crépuscule` (`dawn | sunrise | sunset | dusk`) ± décalage (−240 à +240 min),
+  bornes `au plus tôt` / `au plus tard` facultatives (`earliest` > `latest` refusé : `earliest_after_latest`, § 20) ;
+  calcul pour la date locale avec le **fuseau de HA** ; recalcul chaque jour à minuit. Ordre : événement, décalage,
+  bornes, puis **arrondi au pas de 5 min inférieur**, puis délai aléatoire (§ 19). Le formulaire ne propose que
+  Lever / Coucher (§ 20).
+- Délai aléatoire facultatif par frontière : `random_minutes` 0 à 240 (§ 19).
+- Si, un jour donné, un horaire ne peut pas être placé, il est **ignoré ce jour-là** avec une raison :
+  `sun_event_missing` (pas d'événement solaire ce jour-là), `skipped_by_dst` (entièrement dans l'heure sautée), `empty`
+  (vide ou négatif, ex. « coucher → 21:00 » en juin), `too_short` (moins de 5 min), `overlap` (chevauche un horaire
+  précédent sans laisser 5 min). Chevauchement calculé un jour donné (heures solaires) : **l'horaire le plus tardif perd** ;
+  il est rogné pour commencer à la fin du précédent, ou ignoré (`overlap`) s'il resterait moins de 5 min ou s'il n'a pas de fin.
+  La carte le montre barré avec la raison.
 - Changement d'heure : heures construites en heure locale puis normalisées par UTC. Heure inexistante → on avance
   (02:30 → 03:30) ; un horaire entièrement dans l'heure sautée est ignoré ce jour-là ; heure ambiguë → première occurrence.
 
@@ -163,11 +181,16 @@ montre les changements manuels (§ 10.4) ; le moteur n'en sait rien.
 - Un service HA est appelé sur l'entité (`target.entity_id`), une scène par `scene.turn_on`. Aucune vérification de l'état
   atteint : un appel qui réussit est un succès.
 - Entité `unavailable`/`unknown` : action en attente (sauf ponctuelle) ; au retour de l'entité, l'action voulue est
-  **recalculée** et envoyée. Notification persistante si l'entité reste indisponible plus de X min (30 par défaut).
+  **recalculée** et envoyée. Exception : une cible explicite (`target_entity_id`, § 6) n'est en attente que si elle est
+  `unavailable` ; `unknown` reste commandable (un bouton jamais pressé n'a pas d'état). Notification persistante si l'entité reste indisponible plus de X min (30 par défaut).
 - **Erreur d'appel** (hors `ServiceValidationError`) : reprises après 1, 2, 5, 10 puis 15 min tant que le segment est
   le même, puis notification persistante. `ServiceValidationError` (l'appareil refuse l'action) : **pas de reprise**,
   notification tout de suite.
-- Journal de bord : une entrée par **décision** (début, fin, échec définitif), pas par essai.
+- Journal de bord : une entrée par **décision** (début, fin, échec définitif), pas par essai. Le journal de bord HA
+  affiche ces événements (`weekly_planner_event`) en texte lisible fr / en (`logbook.py` : action lancée, en attente
+  d'une entité indisponible, action impossible).
+- Notifications persistantes : `weekly_planner_<entity_id>_failed` (échec ou indisponibilité prolongée) et
+  `weekly_planner_storage` (stockage illisible, § 8).
 - *Retiré en 0.6.0 : grâce, vérification de la cible, essais sur l'état, verrou Versatile Thermostat, contextes Weekly Planner mémorisés.*
 
 ### 5.9 Dérogation volontaire — *retiré en 0.6.0*
@@ -195,8 +218,17 @@ luminosité, température de couleur, effet, `by_type`), lumière « Automatique
 Thermostat / Evohome (`force_permanent`, garde « permanent », sous-jacents).*
 
 - Une **action** est :
-  - `{"kind": "service", "service": "<domaine>.<service>", "data": {…}}` : le service est appelé avec l'entité en cible ;
+  - `{"kind": "service", "service": "<domaine>.<service>", "data": {…}, "target_entity_id"?: "…", "data_sources"?: {…}}` :
+    le service est appelé avec l'entité en cible ;
   - `{"kind": "scene", "scene": "scene.x"}` : `scene.turn_on`.
+- **Cible explicite** : `target_entity_id` (facultatif) fait agir l'action sur une autre entité HA (ex. bouton de position
+  favorite via `button.press`) ; services et champs sont découverts sur cette cible réelle ; résumés et journal la nomment.
+- **Valeurs dynamiques** : `data_sources[champ] = {entity_id, attribute?, type}` avec `type` ∈ `number | boolean |
+  string | native` ; lue juste avant l'appel, prioritaire sur `data[champ]`, sans réaction au changement de la source ;
+  source manquante, `unknown` / `unavailable` ou conversion invalide → action refusée, sans repli.
+- **Cibles protégées** : `data` ne peut pas contenir `entity_id`, `device_id`, `area_id`, `floor_id`, `label_id`
+  (`TARGET_KEYS`), ni `data_sources` ces clés ou `target` (erreur `service_data_target`) ; jamais de redirection de cible
+  par les données.
 - Toute action vit dans une **étiquette**. `resolve_action(programme, entité, étiquette)` est **l'unique endroit** qui la
   résout : valeur propre à l'entité si elle existe, sinon action de l'étiquette ; `None` si l'étiquette est absente ou
   incompatible avec l'entité.
@@ -204,8 +236,10 @@ Thermostat / Evohome (`force_permanent`, garde « permanent », sous-jacents).*
   l'entité (domaine, fonctionnalités prises en charge), avec leur libellé traduit et un champ `ha-selector` par
   paramètre ; les services « techniques » (texte libre ou objet obligatoire) sont masqués ; les scènes HA qui contiennent
   l'entité sont ajoutées.
-- **Actions proposées (0.7.3)** : `entities[].allowed_services` (liste d'ids `domaine.service`, vide ou absente = tous)
-  restreint ce qu'on peut choisir pour un appareil (réglages, onglet Appareils) ; les scènes restent permises. Une
+- **Actions proposées (0.7.3)** : `entities[].allowed_services` (liste d'ids `domaine.service`) restreint ce qu'on peut
+  choisir pour un appareil (réglages, onglet Appareils) ; les scènes restent permises. Avec `restrict_services: true`
+  (défaut des nouveaux appareils depuis la 0.15), une liste vide signifie **aucune** commande ; sans ce drapeau
+  (configurations historiques), une liste vide ou absente garde **toutes** les commandes. Une
   étiquette dont le service n'est pas autorisé pour un appareil est incompatible pour lui (ignorée, avertissement).
 - Cadre de l'étiquette choisie : lecture seule ; un crayon ouvre un seul formulaire (nom, couleur, action, valeur pour
   cet appareil). Jamais plus d'une paire Enregistrer / Annuler visible.
@@ -226,28 +260,41 @@ correspondant sont supprimés. Les modes stockés sont convertis en actions à l
 ## 8. Données et stockage
 
 `.storage/weekly_planner` (`Store`, `version` + `minor_version`, `atomic_writes`, écriture différée 1 s, migrations testées).
-**Version 2 (0.6.0)** ; la version 1 est migrée automatiquement (voir ci-dessous).
+**Version 2, minor 1 (0.6.0)** (`STORAGE_VERSION = 2`, `STORAGE_MINOR_VERSION = 1`) ; la version 1 est migrée
+automatiquement (voir ci-dessous). Runtime : version 2 (migration depuis la 1), écriture différée 1 s. Journal : version 1,
+écriture différée 5 s.
 
 ```text
 racine
 ├─ vacation        : bool
-├─ labels[]        : id, name, color, action
-└─ programs[]      : id, revision, created_at, name, icon, priority, enabled, reapply,
-                     entities[]   : entity_id, default_label? (id d'étiquette), label_overrides{ label_id: action }
-                     conditions[] : entity_id, attribute?, op, value
-                     active_profile, profiles[] : id, name,
-                       days[0..6] : slots[] : id, start, end?, conditions[], label (id d'étiquette)
-runtime (`weekly_planner.runtime`) : par entité → segment courant, action en attente, reprises ; par programme → profil actif, skip_at
-journal (`weekly_planner.journal`) : segments et actions réellement envoyés (début, entité, action), 14 jours glissants
+├─ labels[]        : id, name (1–30 car.), color, action
+└─ programs[]      : id, revision, created_at, name (1–60 car.), icon?, area?, priority (1–100, défaut 10), enabled, reapply,
+                     entities[] (1–100) : entity_id, default_label? (id d'étiquette), label_overrides{ label_id: action },
+                                          allowed_services[], restrict_services
+                     conditions[] : entity_id, attribute?, op (eq|ne|lt|gt), value
+                     mode_source? : entity_id, mappings{ état_brut: id_du_mode }
+                     active_profile, profiles[] (1–20) : id, name (1–40 car., unique),
+                       days[0..6] : slots[] (≤ 50 par jour) : id, start, end?, conditions[] (≤ 10), color?, label (id d'étiquette)
+runtime (`weekly_planner.runtime`) : par entité → segment courant, action en attente, reprises ; par programme → profil actif,
+                     skip_at ; `conditions` → dernières valeurs connues des conditions (persistées pour le démarrage, § 5.5)
+journal (`weekly_planner.journal`) : 14 jours glissants, deux sortes d'entrées : segment décidé
+                     (`at, entity_id, segment, program_id, slot_id, action`) et action réellement envoyée (`at, entity_id, sent: true, action, reason`)
 ```
 - `start`/`end` : `{"time": "HH:MM"}` (fin jusqu'à `24:00`) ou `{"sun": "sunset", "offset": 15, "earliest": "18:00", "latest": "21:00"}`.
 - `action` (d'une étiquette ou d'une valeur propre) : `{"kind": "service", "service": "…", "data": {…}}` ou `{"kind": "scene", "scene": "…"}`.
 - **Concurrence** : chaque écriture fournit la `revision` lue ; si elle a changé → refus « modifié ailleurs, recharger ».
-- **Robustesse** : si le fichier existait mais se charge vide/corrompu → l'intégration démarre en lecture seule et
-  crée une alerte au lieu de repartir de zéro ; **sauvegarde du fichier avant la migration** ; retour à une version
-  antérieure = restaurer la sauvegarde.
-- **Renommage / suppression d'entité** : écoute de `entity_registry_updated` → `entity_id` mis à jour partout ;
-  entité supprimée → alerte Réparations.
+- **Robustesse** : si le fichier existait mais se charge vide/corrompu (ou version non prise en charge) → **l'entrée ne
+  se charge pas** (`ConfigStoreError`, `async_setup_entry` renvoie faux) : aucun programme ne tourne, le fichier n'est
+  jamais réécrit, une notification persistante (`weekly_planner_storage`) demande de restaurer
+  `.storage/weekly_planner` ; on ne repart jamais de zéro. (Le drapeau interne `read_only` et le bandeau « Lecture
+  seule » de la carte existent, mais ce cas n'est pas atteint par une entrée chargée.) **Sauvegarde du fichier avant la
+  migration** : copie `weekly_planner.v<N>-backup-<AAAAMMJJHHMMSS>` à côté de l'original ; retour à une version antérieure
+  = restaurer la sauvegarde. (`PlannerStore.async_backup`, qui écrirait `weekly_planner.backup-<horodatage>`, n'est
+  appelé nulle part.)
+- **Renommage / suppression d'entité** : écoute de `entity_registry_updated` → `entity_id` mis à jour partout (y compris
+  valeurs propres, cibles explicites, sources de valeurs, scènes et sources de mode, § 17) ; entité supprimée → alerte
+  Réparations `missing_entities`, vérifiée au démarrage et à chaque suppression dans le registre (pas à
+  l'enregistrement d'un programme, § 21).
 
 ### 8.1 Migration 1 → 2 (automatique, testée)
 Conversion des anciennes consignes en actions, puis **regroupement en étiquettes : des actions identiques donnent UNE
@@ -280,44 +327,94 @@ de 18 °C, défaut 15 °C → étiquettes « 18 °C » et « 15 °C ») et progr
 
 ## 9. Entités, services, API, droits
 
-**Entités** : `switch.weekly_planner_<programme>` (attributs `current_slots`, `next_change`, `next_actions`, `skip_next`, `active_profile`) ;
-`switch.weekly_planner_vacances` ; appareil « Weekly Planner » (`integration_type: service`) ;
-`select.weekly_planner_<programme>_profil` (§ 5.10).
+**Entités** : `switch.weekly_planner_<programme>` (attributs `program_id`, `active_profile`, `mode_source_state` et
+`mode_source_status` (`matched | unmapped | unavailable`, seulement avec une source de mode), `current_slots`,
+`next_change`, `skip_next`, `next_actions`) ;
+interrupteur global `switch.weekly_planner_vacation` (identifiant historique conservé par `suggested_object_id`
+« Vacation », nom affiché « Suspension de tous les programmes » / « All programs paused », § 5.6) ; appareil « Weekly
+Planner » (`integration_type: service`) ; un `select` par programme nommé « Mode {programme} » / « {program} mode »
+(clé de traduction `profile`, identifiant unique `<entry>_profile_<programme>` conservé, § 5.10).
 
 **Services** (`weekly_planner.*`) :
-- `apply_now` (programme) : envoie l'action en cours aux entités du programme, quel que soit `reapply` ;
+- `apply_now` (programme) : envoie l'action en cours aux entités du programme dont le segment en cours appartient à ce
+  programme, quel que soit `reapply` ;
 - `skip_next` (programme) : la prochaine transition du programme n'est pas appliquée (persisté, une seule fois, annulable) ;
 - `reload` (admin).
 - *Retirés en 0.6.0 : `resume`, `override`.*
 
-**API websocket** : `get` · `subscribe` · `program/save|delete|set_enabled` · `preview` (heures solaires résolues, horaires
-ignorés) · `label/save|delete` (suppression refusée tant qu'un programme l'utilise) · `journal` (actions et segments
-réellement décidés, pour le graphique). *Retirés : `mode/save`, `mode/delete`.*
+**API websocket** (`weekly_planner/…`) :
+- `get` · `subscribe` : instantané `{vacation, labels, programs, status{programme: attributs du switch}, warnings{programme: […]},
+  entities{entité: segment, target, suppressed, pending}, read_only, can_edit, card_version}` ; `get` ajoute `is_admin` ;
+  `subscribe` renvoie l'instantané à chaque changement ; `can_edit` est calculé par connexion.
+- `program/save` (édition ; `revision` vérifiée) · `program/delete` (édition) · `label/save` · `label/delete` (suppression
+  refusée tant qu'un programme l'utilise, erreur `in_use` avec la liste).
+- `program/set_enabled` et `program/set_profile` : **ouverts à tous** (comme le switch et le select HA), même avec `admin_only` ;
+  `set_profile` est refusé (`invalid`) sous contrôle d'une source de mode.
+- `preview {program_id, date? (AAAA-MM-JJ, défaut aujourd'hui), profile_id?}` → `{date, slots: [{slot_id, start, end, ignored, sun}]}`
+  (heures résolues, raison d'ignorance § 5.7).
+- `journal {entity_id?, days? (1–14, défaut 1)}` → `{segments: […]}` (les deux sortes d'entrées du journal, § 8).
+- Codes d'erreur : `conflict` (révision changée), `invalid` (validation), `unauthorized`, `not_found`, `in_use`, `not_loaded`.
+- Codes de validation (dans le message de `invalid`) : `unknown_service`, `invalid_service_data`, `service_not_for_entity`,
+  `unknown_label`, `unknown_mode_profile`, `empty_mode_state`, `circular_mode_source`, `duplicate_profile_name`,
+  `overlapping_slots`, `random_window_too_short`, `earliest_after_latest`, `service_data_target`, `invalid_random_minutes`,
+  `invalid_service_data_sources`.
+- *Retirés : `mode/save`, `mode/delete`.*
 
 **Droits**
-- `admin_only` (option globale, désactivée par défaut) : si actif, seule l'édition des programmes est réservée aux admins.
+- `admin_only` (option globale, désactivée par défaut) : si actif, seule l'édition des programmes et étiquettes est réservée
+  aux admins.
 - **Toujours réservé aux admins** : toute action visant un domaine sensible (`homeassistant`, `hassio`,
-  `alarm_control_panel`, `lock`, `alarmo`).
+  `alarm_control_panel`, `lock`, `alarmo`, `shell_command`, `python_script`, `pyscript`, `rest_command`).
 
-**Avertissements** affichés dans la carte (jamais bloquants) : deux programmes actifs sur la même entité ; entité aussi
-visée par un `switch.schedule_*` actif ou par une automatisation ; entité manquante.
+**Avertissements** affichés dans la carte (jamais bloquants), `{entity_id, code, detail}` : `other_program` (autre programme
+actif sur la même entité), `automation` (automatisation active qui la vise), `scheduler` (`switch.schedule_*` actif),
+`incompatible_label` (étiquettes ignorées pour cette entité), `missing` (entité absente).
 
-**Options** : `admin_only` ; délai d'alerte ; `reapply` par défaut ; anti-rebond des conditions. Instance unique.
+**Options** : `admin_only` ; délai d'alerte `notify_delay_min` (1–1440 min, 30 par défaut) ; `reapply_default` (proposé,
+mais **non utilisé** : § 21) ; anti-rebond `debounce_min` (0–60 min, 2 par défaut). Une modification des options recharge
+l'entrée. Instance unique.
 **Désinstallation** (`async_remove_entry`) : retrait de la ressource Lovelace, des entités et du stockage.
 
 ## 10. Carte `weekly-planner-card`
 
 ### 10.1 Configuration de la carte (éditeur visuel)
-`program: <id>` **ou** `filter: {types: [climate], area: bureau}` ; `title` ; `show_week` ; `show_chart`.
+Options réelles : `title` ; `program: <id>` **ou** `filter: {types: [domaines], area: <zone du programme>, programs:
+[ids]}` (`programs` absent = tous, futurs compris ; liste vide = aucun ; intersection avec type et zone) ;
+`schedule_view: bars | radial | radial_12h | list` (défaut `bars`) ; `show_chart` (défaut vrai).
+`show_week` et `show_advanced` sont encore déclarés dans le type `CardConfig` mais **n'ont aucun effet** (anciennes
+options ; la semaine est toujours repliable).
+Éditeur visuel Lovelace : onglets « Affichage de la carte » et « Réglages des programmes » (ce dernier pour les
+administrateurs) ; filtres de types dynamiques (§ 14.12), zone, programmes à afficher (section repliable), vue, graphique.
 
 ### 10.2 Consultation (par défaut)
+- Quatre vues : barres (défaut), cadran 24 h, double cadran 12 h, liste compacte (un programme déplié à la fois, chevron).
 - Une ligne par appareil : **icône, nom du programme, état traduit** (`formatEntityState`), et
-  « → libellé de la prochaine action + heure » (« demain » si c'est demain).
-- Dessous : barre du jour avec trait « maintenant » (heure du **serveur**), liste de la semaine, bouton calendrier.
-  Aucune ligne de dérogation ; aucune commande immédiate (c'est un planificateur).
-- Toucher la ligne ouvre l'**écran d'horaires** de l'appareil.
+  « → libellé de la prochaine action + heure » (« demain » si c'est demain) ; ligne « Mode : … » quand le programme a
+  plusieurs modes ou une source de mode.
+- À droite : interrupteur du programme (arrêt confirmé, double envoi bloqué, désactivé en lecture seule), bouton
+  calendrier (`mdi:calendar-edit`) qui ouvre l'**écran d'horaires**, badge rouge « Désactivé » sous les contrôles.
+- Dessous : barre du jour avec trait « maintenant » (heure du **serveur**), « Semaine » repliable (7 barres, lundi →
+  dimanche, chaque nom de jour est un bouton qui ouvre l'écran d'horaires sur ce jour). Aucune ligne de dérogation ;
+  aucune commande immédiate (c'est un planificateur).
+- La ligne elle-même **n'est pas cliquable** : un appui court au doigt sur une barre ouvre l'écran d'horaires ; un appui
+  long (doigt) ou un clic (souris) entre dans l'édition sur place (§ 10.8).
+- En-tête : titre, pastille « Tous les programmes suspendus » quand l'interrupteur global est actif, bouton « Étiquettes »
+  (`mdi:label-multiple-outline`) pour un administrateur qui peut éditer, si la carte n'est pas fixée sur un programme.
+- Bandeau « Lecture seule » si le stockage est en lecture seule ; état vide « Aucun programme pour l'instant » ou « Aucun
+  programme ne correspond aux filtres » ; bandeau « Modifié · Annuler » 6 s après une édition sur barre.
+- Mise à jour : abonnement `subscribe` ; rechargement automatique quand `card_version` change (page au repos), vérifié
+  aussi par un `get` toutes les 5 min et au retour de la page visible (`visibilitychange`).
 
 ### 10.3 Écran d'horaires et réglages
+*Mise à jour 0.8–0.18 :* l'engrenage a été retiré (0.8.0). Les réglages partagés vivent dans l'éditeur visuel Lovelace,
+onglet « Réglages des programmes » : choix du programme à modifier (« Nouveau programme » en tête), onglets
+**Général** (nom, icône, zone, priorité, conditions, réappliquer), **Appareils** (défaut, actions proposées par appareil
+avec descriptions HA) et **Modes** (modes, mode actif, source de mode et associations repliables) ; création courte
+(nom + appareils) avec reprise du brouillon ; Annuler / Rétablir (Ctrl/Cmd+Z, Ctrl/Cmd+Maj+Z, Ctrl/Cmd+Y) ; dupliquer,
+supprimer (confirmé). L'écran d'horaires garde : schéma des 7 jours (reflète le brouillon), sélecteur du mode à
+éditer, lignes d'horaires, formulaire d'horaire (pastilles Lever / Coucher, décalage, « Pas avant » / « Pas après »,
+délai aléatoire, pas ±15 min, « Appliquer à d'autres jours »), dupliquer, supprimer (§ 18), fermeture par glissement
+vers le bas sur téléphone. Le texte ci-dessous décrit la 0.6–0.7 ; l'engrenage qui y figure n'existe plus.
 - **Écran d'horaires** : lignes d'horaires (pastille de la couleur de l'étiquette + nom) ; formulaire d'horaire (début,
   fin facultative, jours) dont la section « Action » liste les étiquettes compatibles en pastilles colorées ;
   « + Nouvelle étiquette » ouvre un mini-formulaire en ligne (nom, couleur, action par le sélecteur générique ou une
@@ -327,8 +424,11 @@ visée par un `switch.schedule_*` actif ou par une automatisation ; entité manq
 - **Écran « Étiquettes »** (administrateurs) : ligne « Étiquettes » au-dessus de la liste des programmes ; liste des
   étiquettes (pastille, nom, résumé de l'action, nombre d'usages) ; renommer, recolorer, changer l'action, supprimer
   (refusé tant qu'elle est utilisée, avec la liste des programmes).
-- **Réglages (engrenage, administrateurs)** : nom, icône, priorité, conditions, « refaire l'action en cours au
-  redémarrage », appareils, saisons (profils). Plus de modes, plus de « permanent ».
+- ~~**Réglages (engrenage, administrateurs)** : nom, icône, priorité, conditions, « refaire l'action en cours au
+  redémarrage », appareils, saisons (profils).~~ *Remplacé en 0.8.0 par l'éditeur visuel Lovelace (voir l'encadré
+  ci-dessus) ; les « saisons » sont devenues les **modes** en 0.16.0 (§ 5.10).*
+- **Étiquettes** : bouton d'en-tête de la carte (§ 10.2) et non plus ligne au-dessus des programmes ; sélecteur
+  d'étiquette avec palette de 12 couleurs, valeur propre par appareil et « Revenir à la valeur commune ».
 - Sélecteurs HA publics (`ha-selector`, icône) si disponibles ; modales maison ; fr + en.
 
 ### 10.4 Graphique (tous les appareils)
@@ -364,6 +464,8 @@ Lit + TypeScript, bundle `custom_components/weekly_planner/frontend/weekly-plann
 en mode YAML ; garde `customElements.get()` avant `define`.
 
 ### 10.7 Mode simple et « Plus d'options » — *retiré* (depuis la 0.3 ; la carte n'a plus de commande immédiate ni de dérogation)
+*Note : `frontend/src/components/gestures.ts` cite encore « spec § 10.7 » pour ses aides gestuelles (balayage, appui
+long) ; l'appui long des barres est décrit au § 10.8.*
 Conservé de cette revue : persona « Mamy », écran 360 × 780, vocabulaire sans jargon, cibles tactiles ≥ 48 px,
 suppression toujours confirmée et séparée d'Enregistrer / Annuler.
 
@@ -386,7 +488,10 @@ Barre « Auj. » et sept barres de la semaine, doigt et souris (événements poi
 - **Trait « maintenant »** : icône `mdi:clock-outline` (12–14 px) centrée au-dessus, hors de la barre, `aria-label` « Maintenant » ; aussi sur le graphique.
 - **Renommer une étiquette sur place** (écran d'horaires) : crayon `mdi:pencil`, nom + couleur + action, `weekly_planner/label/save`, « Partagé » si utilisée ailleurs.
 - **Mise à jour automatique de la carte** : `card_version` dans `get` / `subscribe` ; différent de celui du bundle chargé et page au repos → rechargement
-  unique (mémorisé dans `sessionStorage`).
+  unique (mémorisé dans `sessionStorage`) ; `get` interrogé aussi toutes les 5 min et au retour de la page visible.
+- Les éditions sur barre, les reprises de conflit et « Annuler » restent attachées au mode d'origine (§ 17) ; la
+  fenêtre de conflit de « Copier vers… » bloque Échap tant qu'elle est ouverte.
+- *Non fait :* l'astuce « Restez appuyé pour modifier » après un appui court (§ 14.12, § 21).
 
 ## 11. Compatibilité
 
@@ -402,26 +507,37 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
   type (dont un thermostat « lent » qui confirme après 2 min et un volet qui bouge 90 s), montage de l'intégration.
 - Python des tests aligné sur HA (3.14, via `uv`) ; `pytest-homeassistant-custom-component` aligné 2026.10 ; temps simulé.
 - *Versatile Thermostat et Adaptive Lighting : plus simulés ni cités depuis la 0.6.0.*
-- `manifest.json` : `after_dependencies` = `frontend`, `lovelace`, `logbook`, `repairs`.
+- `manifest.json` : `dependencies` = `http`, `websocket_api` ; `after_dependencies` = `frontend`, `logbook`, `lovelace`,
+  `repairs` ; `single_config_entry: true`.
 - `scripts/deploy_prod.sh` : copie de l'intégration vers `/config/custom_components/weekly_planner` de la prod
-  (sauvegarde HA avant, vérification après) tant que le dépôt est privé.
-- CI : `hacs/action`, `hassfest`, pytest, build + lint de la carte, test Playwright de la carte sur l'instance Docker.
+  par SSH/rsync (`WP_HOST`, `WP_CONFIG`) : essai à blanc par défaut, `--apply` pour copier après les tests Python et
+  carte ; indique la révision (et l'état non commité) et l'empreinte SHA-256 du bundle. Ne redémarre rien et ne
+  sauvegarde pas HA : la sauvegarde avant un changement Python se fait à part (AGENTS.md).
+- CI (`.github/workflows`) : `hacs/action`, `hassfest`, pytest, et pour la carte `tsc --noEmit`, vitest, build et
+  vérification que le bundle commité est à jour. *Pas de test Playwright ni de lint de la carte en CI* (prévus
+  initialement).
 - `hacs.json`, `manifest.json` (`domain`, `name`, `version`, `documentation`, `issue_tracker`, `codeowners`,
-  `config_flow`, `iot_class: calculated`, `integration_type: service`, `dependencies: [http, frontend, websocket_api]`).
-- Docs : README (en) + `README.fr.md`, captures, CHANGELOG ; releases GitHub ; `0.x` puis `1.0.0`.
+  `config_flow`, `iot_class: calculated`, `integration_type: service`, `dependencies: [http, websocket_api]`).
+- Docs : README (en) + `README.fr.md`, captures, CHANGELOG ; releases GitHub. Tags et release GitHub seulement jusqu'à
+  `v0.7.10` ; les versions 0.8.0 à 0.18.0 ne sont ni taguées ni publiées, `main` est derrière `develop` ; pas de `1.0.0` (§ 21).
 - Contribution assistée : consignes communes dans `AGENTS.md` ; notes de contexte locales facultatives dans
   `PROJECT_MEMORY.md` (ignoré par Git), utilisables avec différents outils d'IA.
 
 ## 13. Définition de « fini » (v1)
 
-1. **Tests automatiques verts** : scénarios S1–S44 (§ 14.9), chacun relié à une tâche.
+1. **Tests automatiques verts** : `uv run --group test pytest -q` et, pour la carte, `tsc`, vitest et build. Les scénarios
+   encore valables du § 14.9 (ceux marqués « retiré en 0.6.0 » sont sans objet) ; tests Python actuels : `test_timeline`,
+   `test_resolver`, `test_engine`, `test_engine_more`, `test_actions`, `test_action_sources`, `test_action_targets`,
+   `test_mode_sources`, `test_random_times`, `test_migration`, `test_websocket`, `test_config_flow`, `test_qa_regressions`.
 2. **Test réel en prod** (copie par script) ≥ 3 jours sur le banc d'essai :
-   début, fin, dérogation à la main, « Déroger… » avec échéance, changement de profil, redémarrage de HA (avec
+   début, fin, action par défaut, action ponctuelle, changement de mode (manuel et par source), redémarrage de HA (avec
    accord), entité rendue injoignable (désactivation temporaire de l'entité), entrées du journal de bord vérifiées
-   une à une.
-3. **Vérification visuelle** selon `docs/controle-visuel.md` (420 px et ≥ 1400 px, clair/sombre, chaque modale, glisser,
-   copie, modes, graphique, clavier) ; zéro erreur console ; temps de rendu mesuré.
-4. CI verte ; puis, après passage en public, installation propre via HACS (dépôt personnalisé) et désinstallation propre.
+   une à une. *(Les exigences « dérogation à la main », « Déroger… », Adaptive Lighting et Versatile Thermostat sont
+   retirées depuis la 0.6.0.)*
+3. **Vérification visuelle** selon `docs/controle-visuel.md` (360 px et ≥ 1400 px, clair/sombre, chaque modale, glisser,
+   copie, modes, graphique, clavier) ; zéro erreur console ; temps de rendu mesuré. `controle-visuel.md` décrit encore
+   la carte d'avant la 0.6 (dérogations, `show_week`) et doit être remis à jour (§ 21).
+4. CI verte ; puis installation propre via HACS (dépôt personnalisé ; le dépôt est public) et désinstallation propre.
 
 ## 14. Tâches
 
@@ -429,8 +545,8 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Squelette du dépôt (arborescence § 12, `hacs.json`, `manifest.json`, `brand/`, README minimal)
 - [x] Environnement de dev + entités de démonstration (instance HA locale en Python, Docker Desktop ne télécharge plus d'images ; `scripts/dev_ha.sh`, `scripts/dev_onboard.py`)
 - [x] Python 3.14 (`uv`) + dépendances de test
-- [x] CI : hacs/action, hassfest, pytest, build carte
-- [x] **Prototype** : carte embarquée chargée comme ressource sur HA 2026.10 (S33)
+- [x] CI : hacs/action, hassfest, pytest, tsc + vitest + build carte, bundle à jour
+- [x] **Prototype** : carte embarquée chargée comme ressource sur HA 2026.10 (vérifié à la main ; test S33 manquant, § 21)
 
 ### 14.2 Moteur
 - [x] Modèle + `Store` versionné + robustesse + migration (S20, S28)
@@ -438,14 +554,14 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Résolution par entité : priorités, conditions, Vacances, défauts, état hors plage (S9, S10, S11, S12, S16, S24)
 - [x] Minuteur unique + recalcul + segments + abandon des actions périmées (S1, S21)
 - [x] Exécution : ordre, confirmation, grâce, essais espacés, entités injoignables (S13, S14, S22)
-- [x] Dérogation : règles § 5.3, persistance, `resume` (S5, S6, S15, S23, S25) (retiré en 0.6.0)
+- ~~Dérogation : règles § 5.3, persistance, `resume` (S5, S6, S15, S23, S25)~~ — *sans objet (retiré en 0.6.0)*
 - [x] Redémarrage / activation / modification, stabilisation, rattrapage des fins (S7, S8, S29)
 - [x] Conditions : dernière valeur connue, anti-rebond (S30)
 - [x] Journal de bord, journal des segments, notifications (S31)
 - [x] Renommage / suppression d'entités, alertes Réparations (S32)
-- [x] Dérogation volontaire avec échéance + service `override` (S35) (retiré en 0.6.0)
+- ~~Dérogation volontaire avec échéance + service `override` (S35)~~ — *sans objet (retiré en 0.6.0)*
 - [x] Profils + `select` du profil actif (S36)
-- [x] Adaptive Lighting : contrôle manuel pendant une consigne fixe, repli switch (S37) (retiré en 0.6.0)
+- ~~Adaptive Lighting : contrôle manuel pendant une consigne fixe, repli switch (S37)~~ — *sans objet (retiré en 0.6.0)*
 - [x] Activation / redémarrage hors plage : défaut appliqué (S38)
 
 ### 14.3 Intégration HA
@@ -454,7 +570,7 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Services + API websocket + droits (S19, S34)
 - [x] Détection des pilotes concurrents et contrôles VT (`check`) (contrôles VT retirés en 0.6.0)
 - [x] Traductions fr / en
-- [x] Désinstallation propre (S33)
+- [x] Désinstallation propre (code `async_remove_entry` : ressource Lovelace et stockage retirés ; test S33 manquant, § 21)
 
 ### 14.4 Carte
 - [x] Outillage Lit/TS + bundle + ressource + cache-busting
@@ -463,24 +579,28 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Modale Programme
 - [x] Modale Jour (glisser + loupe + ±5 min, liste, copie)
 - [x] Modale Plage
-- [x] Modes (retiré en 0.6.0)
+- ~~Modes communs par type (page « Modes »)~~ — *sans objet (retiré en 0.6.0)* ; les **modes de programme** (semaines
+  types) sont une autre fonction, revenue en 0.16.0 (§ 5.10, tâche « Modes unifiés » ci-dessous)
 - [x] Graphique 24 h
 - [ ] Responsive, thèmes, clavier, fr/en, mesure de rendu
 
 ### 14.5 Compatibilité
-- [x] Versatile Thermostat (requested_state, verrou, avertissements, fenêtre) (retiré en 0.6.0)
-- [x] Evohome (dérogation permanente, grâce 6 min) (retiré en 0.6.0)
-- [x] Adaptive Lighting (Automatique, contextes, switch de zone) (retiré en 0.6.0)
+- ~~Versatile Thermostat (requested_state, verrou, avertissements, fenêtre)~~ — *sans objet (retiré en 0.6.0)*
+- ~~Evohome (dérogation permanente, grâce 6 min)~~ — *sans objet (retiré en 0.6.0)*
+- ~~Adaptive Lighting (Automatique, contextes, switch de zone)~~ — *sans objet (retiré en 0.6.0)*
 
 ### 14.6 Documentation et publication
 - [x] README en / fr, captures, CHANGELOG, `docs/controle-visuel.md`
 - [x] `scripts/deploy_prod.sh`
-- [ ] Release `0.1.0` (prod par copie), puis `1.0.0` sur `main`
-- [ ] Dépôt public, installation HACS vérifiée, demande d'inclusion HACS par défaut
+- [x] Releases `0.1.0` à `0.7.10` taguées (`v0.7.10` = dernière release GitHub, sur `main`)
+- [ ] Tags / releases des versions 0.8.0 à 0.18.0 (non taguées, `main` derrière `develop`), puis `1.0.0` (§ 21)
+- [x] Dépôt public (GitHub `movrack/ha_weekly_planner`), `hacs.json`, `hacs/action` en CI
+- [ ] Installation propre via HACS vérifiée, demande d'inclusion dans la liste HACS par défaut (§ 21)
 
 ### 14.7 Validation réelle (banc d'essai)
-- [ ] Déploiement en prod par script
-- [ ] Test réel déroulé ≥ 3 jours
+- [ ] Déploiement en prod par script — *le script existe (§ 12) ; aucun déploiement de version finie n'est consigné
+      dans le dépôt, à confirmer par le propriétaire*
+- [ ] Test réel déroulé ≥ 3 jours (§ 13, § 21)
 
 ### 14.8 Revue
 - [x] Relecture « avocat du diable » n° 1 (35 points) intégrée dans cette version
@@ -493,8 +613,9 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] S2 plage passant minuit ; dimanche → lundi
 - [x] S3 heure solaire + décalage + bornes (été / hiver)
 - [x] S4 DST : 02:30 inexistante, 02:30 ambiguë, plage dans l'heure sautée
-- [x] S5 dérogation pendant la plage : rien réappliqué, fin appliquée (retiré en 0.6.0)
-- [x] S6 dérogation puis redémarrage : dérogation conservée (retiré en 0.6.0)
+- ~~S5 dérogation pendant la plage : rien réappliqué, fin appliquée~~ — *sans objet (retiré en 0.6.0)* ; le test marqué S5
+  vérifie désormais l'inverse : un changement manuel est ignoré par le moteur
+- ~~S6 dérogation puis redémarrage : dérogation conservée~~ — *sans objet (retiré en 0.6.0)*
 - [x] S7 redémarrage en cours de plage, `reappliquer` oui / non
 - [x] S8 fin de plage manquée pendant l'arrêt → rattrapée
 - [x] S9 deux programmes, priorités, reprise de la main
@@ -502,37 +623,39 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] S11 condition de plage
 - [x] S12 Vacances on / off
 - [x] S13 entité injoignable puis revenue (dans et hors plage) ; notification après délai, retirée ensuite
-- [x] S14 thermostat cloud lent (confirmation à 2 min, rafraîchissement 5 min) : pas de fausse dérogation (retiré en 0.6.0)
-- [x] S15 Adaptive Lighting : pas de fausse dérogation (retiré en 0.6.0)
-- [x] S16 défaut « état d'avant » avec deux programmes qui se croisent (retiré en 0.6.0)
-- [x] S17 modification d'un mode utilisé par plusieurs programmes (retiré en 0.6.0)
+- ~~S14 thermostat cloud lent (confirmation à 2 min, rafraîchissement 5 min) : pas de fausse dérogation~~ — *sans objet (retiré en 0.6.0)*
+- ~~S15 Adaptive Lighting : pas de fausse dérogation~~ — *sans objet (retiré en 0.6.0)*
+- ~~S16 défaut « état d'avant » avec deux programmes qui se croisent~~ — *sans objet (retiré en 0.6.0)*
+- ~~S17 modification d'un mode utilisé par plusieurs programmes~~ — *sans objet (retiré en 0.6.0)*
 - [x] S18 suppression d'un programme en pleine plage
 - [x] S19 `admin_only` ; actions sensibles refusées aux non-admins
 - [x] S20 migration du stockage n → n+1 ; sauvegarde
 - [x] S21 plage courte + action lente : l'essai périmé n'est pas renvoyé
-- [x] S22 VT verrouillé : échec immédiat et alerte (retiré en 0.6.0)
-- [x] S23 VT fenêtre ouverte : pas de dérogation, vérification sur `requested_state` (retiré en 0.6.0)
+- ~~S22 VT verrouillé : échec immédiat et alerte~~ — *sans objet (retiré en 0.6.0)*
+- ~~S23 VT fenêtre ouverte : pas de dérogation, vérification sur `requested_state`~~ — *sans objet (retiré en 0.6.0)*
 - [x] S24 défaut « rien » et plage ponctuelle
-- [x] S25 volet lent : pas de fausse dérogation pendant le mouvement (retiré en 0.6.0)
+- ~~S25 volet lent : pas de fausse dérogation pendant le mouvement~~ — *sans objet (retiré en 0.6.0)*
 - [x] S26 plage solaire vide un jour donné (ignorée, signalée)
-- [x] S27 fin `24:00`, refus de `00:00 → 00:00`, chevauchement entre jours
-- [x] S28 stockage corrompu : lecture seule + alerte
+- [x] S27 fin `24:00`, chevauchement entre jours — *le refus de `00:00 → 00:00` n'est pas implémenté ni testé (§ 5.7, § 21)*
+- [x] S28 stockage corrompu : l'entrée ne se charge pas, fichier intact (+ notification, § 8)
 - [x] S29 actions ponctuelles jamais réappliquées
 - [x] S30 condition sur entité indisponible ; anti-rebond
 - [x] S31 journal des segments utilisé pour le passé du graphique
 - [x] S32 renommage et suppression d'entité
-- [x] S33 ressource Lovelace : création, mise à jour de version, retrait à la désinstallation
+- [ ] S33 ressource Lovelace : création, mise à jour de version, retrait à la désinstallation — *code présent
+      (`frontend.py`, `async_remove_entry`), test manquant* (seul `card_version` est testé)
 - [x] S34 `revision` : écriture concurrente refusée
-- [x] S35 « Déroger… » : durée, jusqu'à HH:MM, fin de plage, « Reprendre » avant terme, redémarrage pendant (retiré en 0.6.0)
+- ~~S35 « Déroger… » : durée, jusqu'à HH:MM, fin de plage, « Reprendre » avant terme, redémarrage pendant~~ — *sans objet (retiré en 0.6.0)*
 - [x] S36 changement de profil en pleine plage
-- [x] S37 lumière sous Adaptive Lighting avec consigne fixe : pas de réajustement, rendue à AL à la fin (retiré en 0.6.0)
+- ~~S37 lumière sous Adaptive Lighting avec consigne fixe : pas de réajustement, rendue à AL à la fin~~ — *sans objet (retiré en 0.6.0)*
 - [x] S38 activation / redémarrage hors plage : défaut appliqué (et pas appliqué si `reappliquer = non`)
-- [x] S39 plages contiguës au même mode / défaut identique : la fin efface un réglage manuel (retiré en 0.6.0)
-- [x] S40 cible effective : « Déroger… » ne déclenche ni essais ni alerte ; `reappliquer = non` non plus (retiré en 0.6.0)
-- [x] S41 AL oublie le contrôle manuel (bascule du switch de zone, redémarrage) : réaffirmé, pas de fausse dérogation (retiré en 0.6.0)
+- ~~S39 plages contiguës au même mode / défaut identique : la fin efface un réglage manuel~~ — *sans objet (retiré en 0.6.0)* ;
+  les tests marqués S39 vérifient désormais que deux horaires contigus sont deux segments qui envoient chacun leur action
+- ~~S40 cible effective : « Déroger… » ne déclenche ni essais ni alerte ; `reappliquer = non` non plus~~ — *sans objet (retiré en 0.6.0)*
+- ~~S41 AL oublie le contrôle manuel (bascule du switch de zone, redémarrage) : réaffirmé, pas de fausse dérogation~~ — *sans objet (retiré en 0.6.0)*
 - [x] S42 `skip_next` et `apply_now`
-- [x] S43 retrait d'une entité Evohome : remise en suivi de programme (retiré en 0.6.0)
-- [x] S44 échéance de dérogation volontaire tombée pendant un arrêt de HA (retiré en 0.6.0)
+- ~~S43 retrait d'une entité Evohome : remise en suivi de programme~~ — *sans objet (retiré en 0.6.0)*
+- ~~S44 échéance de dérogation volontaire tombée pendant un arrêt de HA~~ — *sans objet (retiré en 0.6.0)*
 
 ### 14.10 Version 0.6.0 — un seul modèle pour tous les appareils
 - [x] Spec réécrite (§ 1 à 12) et cette liste de tâches
@@ -554,7 +677,8 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Instance de test locale : programmes migrés (Bureau, Lampe, Prise, Volet, Rocky) ; captures 360 × 780
 - [x] Version 0.6.0 (manifest, pyproject, package.json), CHANGELOG « BREAKING », deux README
 
-### 14.10 Version 0.7.0
+### 14.10 bis Version 0.7.0
+*(Numéro « 14.10 » en double dans l'historique ; renommé « 14.10 bis » pour le distinguer de la 0.6.0.)*
 - [x] Logique pure d'édition de journée dans `edits.ts` + tests (`moveBoundary`, `splitAt`, `setLabel`, `removeSlot`, `copyConflicts`, `copyToDays`, `mergeAdjacent`)
 - [x] Composant d'édition des barres (appui long / clic, poignées, bulle, enregistrement au relâcher, clavier)
 - [x] Bande de sélection (étiquettes, « Rien », ciseaux), « Copier vers… » et fenêtre de conflits
@@ -579,9 +703,10 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Tests vitest et pytest, vérification navigateur (360 px et ≥ 1400 px), captures
 - [x] Version 0.7.3 (manifest, pyproject, package.json, lock), CHANGELOG
 
-### 14.12 À faire
+### 14.12 À faire et suivi 0.8 → 0.16
+*(Liste tenue au fil des versions, sans ordre chronologique ; les éléments datés indiquent leur version.)*
 - [x] Première documentation utilisateur française, atlas des 36 écrans actuels et 13 captures complémentaires (49 PNG), liens vérifiés et images versionnables.
-- [ ] Faire respecter l’option globale `reapply_default` lors de la création d’un programme ; le formulaire initialise actuellement Réappliquer à vrai, limite signalée dans le guide.
+- [ ] Faire respecter l’option globale `reapply_default` lors de la création d’un programme ; le formulaire initialise actuellement Réappliquer à vrai, limite signalée dans le guide (§ 21).
 
 - [x] Déploiement indépendant des commits : arbre de travail testé autorisé en journée, contrôles préservés et empreinte du bundle indiquée, règle clarifiée dans AGENTS.md.
 
@@ -603,7 +728,7 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Dans le formulaire d’horaire, toucher « Tous les jours » déjà sélectionné désélectionne les sept jours.
 - [x] Afficher les sept barres de semaine au-dessus des horaires, conservées pendant l’édition et mises à jour avec le brouillon.
 - [ ] Barres sur mobile : un simple toucher affiche 2 s « Restez appuyé pour modifier » (les 3 premières fois
-      seulement, mémorisé par appareil), puis ouvre l'écran du jour comme aujourd'hui.
+      seulement, mémorisé par appareil), puis ouvre l'écran du jour comme aujourd'hui. *(Non fait, § 21.)*
 
 ## 15. v2 (hors périmètre)
 - Import des programmes `scheduler-component` (`.storage/scheduler.storage`, version 3) — nécessite plages ponctuelles et défaut « rien » (présents en v1).
@@ -611,22 +736,34 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - Droits par rôle / utilisateur / profil.
 
 ## 16. Questions tranchées (relecture n° 1)
+*Historique conservé. Les réponses marquées « dépassé » ne décrivent plus le produit actuel.*
 - Q-B Programme activé / HA redémarré **hors plage** : l'état par défaut est appliqué tout de suite (si `reappliquer`).
-- Q-C Dérogation depuis la carte : bouton « Déroger… » (§ 5.9). Dérogation externe : jusqu'à la fin de la plage.
+  — *Dépassé dans sa forme : il n'y a plus d'« état » par défaut mais une **action** par défaut ; le comportement
+  reste celui du § 5.5 (S38).*
+- Q-C ~~Dérogation depuis la carte : bouton « Déroger… » (§ 5.9). Dérogation externe : jusqu'à la fin de la plage.~~
+  — *Dépassé : toute dérogation est retirée en 0.6.0 (§ 5.3, § 5.9).*
 - Q-D Profils par programme (§ 5.10).
-- Q-E « Automatique » = switch Adaptive Lighting **ou** script / automatisation (§ 6.1).
+- Q-E ~~« Automatique » = switch Adaptive Lighting **ou** script / automatisation (§ 6.1).~~ — *Dépassé : retiré en 0.6.0.*
 - Q-F `admin_only` **désactivé** par défaut ; droits par rôle / utilisateur / profil en v2.
 - Q-G Lumière sous Adaptive Lighting + consigne fixe : `adaptive_lighting.set_manual_control` sur la lumière pendant
   la plage, réaffirmé quand AL l'oublie, rendue à AL à la fin (§ 6.1). Le repli « couper le switch de zone » est
-  abandonné (relecture n° 2 : il remet à zéro toute la zone).
-- Q-H Toucher une barre de jour : modale de lecture (graphique + liste) puis « Modifier ».
+  abandonné (relecture n° 2 : il remet à zéro toute la zone). — *Dépassé : Adaptive Lighting n'est plus connu depuis la 0.6.0 (§ 11).*
+- Q-H ~~Toucher une barre de jour : modale de lecture (graphique + liste) puis « Modifier ».~~ — *Dépassé : un appui court
+  ouvre l'écran d'horaires, un appui long / clic édite la barre sur place (§ 10.2, § 10.8).*
 
 ## 16 bis. Questions produit (relecture n° 2)
-- Q-I ✅ Vacances, désactivation ou changement de profil annulent la dérogation volontaire.
+*Historique conservé ; voir les notes « dépassé ».*
+- Q-I ✅ Vacances, désactivation ou changement de profil annulent la dérogation volontaire. — *Dépassé : plus de dérogation (0.6.0).*
 - Q-J ✅ Un programme désactivé libère ses entités (son défaut ne vaut que pour sa propre désactivation) ; Vacances : défaut du plus prioritaire, une fois.
-- Q-K ✅ Le réglage à la main l'emporte et remplace la dérogation volontaire (devient externe, échéance oubliée).
-- Q-L ✅ Sautée (priorité et dérogation l'emportent).
+  — *Toujours valable (§ 5.4) ; « Vacances » désigne ici l'interrupteur global « Suspension de tous les programmes », pas le mode Vacances (§ 5.10).*
+- Q-K ✅ Le réglage à la main l'emporte et remplace la dérogation volontaire (devient externe, échéance oubliée). — *Dépassé : plus de dérogation ni de détection du réglage à la main (0.6.0).*
+- Q-L ✅ Sautée (priorité et dérogation l'emportent). — *En partie dépassé : l'action ponctuelle est toujours sautée si un
+  programme plus prioritaire est dans un horaire (§ 5.2) ; la dérogation n'existe plus.*
 - Q-M ✅ Oui : avec `admin_only`, un non-admin garde lecture, switchs, Reprendre, Déroger…, profil ; à revoir en v2 (rôles).
+  — *« Reprendre » et « Déroger… » n'existent plus ; lecture, interrupteurs (`program/set_enabled`) et mode (`program/set_profile`) restent ouverts (§ 9).*
+
+*Les cases qui suivent sont des tâches livrées entre la 0.9 et la 0.16, ajoutées ici au fil de l'eau : elles prolongent
+le § 14.12 (laissées en place pour garder l'historique).*
 
 - [x] Cadrans : fond gris identique aux barres, couleurs des créneaux conservées, traits horaires et icônes soleil avec les mêmes info-bulles. Option deux anneaux 12 h (matin intérieur avec 3/6/9/12, après-midi extérieur avec 15/18/21/24), en plus du 24 h.
 
@@ -724,3 +861,49 @@ Les limites survivent au changement de décalage, au délai aléatoire, au passa
 - [x] Valider earliest <= latest côté carte et côté serveur, avec tests.
 - [x] Textes EN/FR, graphique et aperçu via la résolution existante.
 - [x] Aube / crépuscule : le modèle et le serveur les acceptent ; le formulaire ne propose toujours que Lever / Coucher (inchangé).
+
+
+## 21. Écarts connus et travaux ouverts (audit 0.18.0)
+
+Relevés en comparant cette spec au code de la 0.18.0. Chaque point est **non fait** ; la preuve indique où le vérifier.
+Les cases encore ouvertes du § 17 restent ouvertes et ne sont pas répétées ici, sauf mention.
+
+### 21.1 Moteur et données
+- [ ] **Option `reapply_default` sans effet** : proposée dans les options (`config_flow.py`) mais lue nulle part par le
+      moteur ; le schéma impose `reapply: true` par défaut (`validation.py`) et l'éditeur de programme crée un nouveau
+      programme avec `reapply: true` (`frontend/src/editors/program-editor.ts`). L'appliquer à la création, ou retirer l'option.
+- [ ] **`00:00 → 00:00` accepté** : documenté comme refusé (§ 5.7, S27), il est accepté et placé comme un horaire de 24 h
+      passant minuit (`timeline.occurrence` : fin avant midi et pas après le début → lendemain ; aucune règle dans
+      `validation.py`). Décider : le refuser à la validation, ou amender § 5.7 et S27.
+- [ ] **Priorité par défaut incohérente** : défaut du schéma 10 (`validation.py`, et l'éditeur de programme), mais repli
+      à 100 quand la clé manque dans `resolver.py` et `engine.py`. Sans effet pour un programme validé (la clé est
+      toujours remplie), à aligner.
+- [ ] **Réparations des entités supprimées** : l'alerte `missing_entities` n'est recalculée qu'au démarrage et à une
+      suppression dans le registre (`registry.py`), pas à l'enregistrement d'un programme ni à son retrait.
+- [ ] **Test S33 manquant** : création / mise à jour de version / retrait de la ressource Lovelace (`frontend.py`,
+      `async_remove_entry`) sans test pytest ; seul `card_version` est testé (`tests/test_websocket.py`).
+- [ ] `PlannerStore.async_backup` n'est appelé nulle part (la sauvegarde avant migration passe par `_VersionedStore`) :
+      l'utiliser ou le retirer.
+
+### 21.2 Carte
+- [ ] **`show_week` / `show_advanced` sans effet** : déclarés dans `CardConfig` (`frontend/src/types.ts`), jamais lus ;
+      la semaine est toujours repliable. Les retirer (en tolérant les anciennes configurations) ou les réimplémenter.
+- [ ] **Astuce « Restez appuyé pour modifier »** (§ 14.12) absente : aucun texte ni compteur dans la carte.
+- [x] **Aube / crépuscule** acceptés par le modèle et le serveur mais non proposés par les pastilles du formulaire
+      (`slot-form.ts` : lever / coucher seulement, § 20). Décision : uniquement lever/coucher dans la carte ; aube/crépuscule restent acceptés par le serveur (compatibilité).
+- [ ] Aperçus (`weekly_planner/preview`) demandés séparément par chaque carte et chaque écran d'horaires pour les mêmes
+      jours (§ 17, ouvert) : dédupliquer ou charger à la demande.
+- [ ] Profilage du rendu du graphique (balayages restants par intervalle manuel, § 17) et passe de régression
+      visuelle / interaction dans le navigateur sur l'instance locale (§ 17).
+- [ ] `docs/controle-visuel.md` décrit la carte d'avant la 0.6 (dérogations, « Reprendre », `show_week`, 420 px) et
+      aucune case n'y est cochée ; le temps de rendu n'a jamais été mesuré (§ 13, § 14.4). Le réécrire puis le dérouler.
+- [ ] Commentaire de `frontend/src/components/gestures.ts` qui renvoie au § 10.7 retiré (cosmétique).
+
+### 21.3 Publication et validation réelle
+- [ ] Installation propre via HACS (dépôt personnalisé) vérifiée, désinstallation propre, puis demande d'inclusion dans
+      la liste HACS par défaut.
+- [ ] Test réel ≥ 3 jours sur le banc d'essai (§ 13, point 2).
+- [ ] Stratégie de tags / releases pour 0.8.0 → 0.18.0 : dernier tag et dernière release GitHub `v0.7.10` ; `main`
+      est derrière `develop` ; pas de `1.0.0`.
+- [ ] Refonte des modules / de l'architecture (`engine.py` ~36 ko, `weekly-planner-card.ts` ~29 ko) : hors du périmètre
+      des corrections actuelles (§ 17), à planifier séparément.
