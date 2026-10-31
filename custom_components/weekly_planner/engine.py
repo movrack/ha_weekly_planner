@@ -192,9 +192,17 @@ class PlannerEngine:
             async_check_missing(self.hass, self)  # also covers weekly_planner.reload
             self._schedule_startup()
         else:
-            self._static_unsubs.append(
-                self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, lambda _e: self._schedule_startup())
-            )
+            unsub_started: CALLBACK_TYPE | None = None
+
+            @callback
+            def on_started(_event: Event) -> None:
+                # a one-shot listener is gone once fired: removing it again makes HA log an error
+                if unsub_started in self._static_unsubs:
+                    self._static_unsubs.remove(unsub_started)
+                self._schedule_startup()
+
+            unsub_started = self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, on_started)
+            self._static_unsubs.append(unsub_started)
 
     @callback
     def _schedule_startup(self) -> None:
