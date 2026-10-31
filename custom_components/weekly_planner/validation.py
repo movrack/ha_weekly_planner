@@ -11,6 +11,7 @@ import voluptuous as vol
 from homeassistant.helpers import config_validation as cv
 
 from .actions import needs_admin
+from .const import DEFAULT_PRIORITY, DEFAULT_REAPPLY
 from .timeline import SUN_EVENTS, day_occurrences, parse_clock
 
 
@@ -141,7 +142,7 @@ PROGRAM = vol.Schema({
     vol.Required("name"): vol.All(str, vol.Length(min=1, max=60)),
     vol.Optional("icon"): vol.Any(None, str),
     vol.Optional("area"): vol.Any(None, str),
-    vol.Optional("priority", default=10): vol.All(int, vol.Range(min=1, max=100)),
+    vol.Optional("priority", default=DEFAULT_PRIORITY): vol.All(int, vol.Range(min=1, max=100)),
     vol.Optional("enabled", default=True): bool,
     vol.Optional("reapply", default=True): bool,
     vol.Optional("conditions", default=list): [CONDITION],
@@ -207,9 +208,18 @@ def check_label(label: dict, hass: Any = None, descriptions: dict | None = None)
     return label
 
 
-def check_program(program: dict, labels: dict[str, dict], hass: Any = None, descriptions: dict | None = None) -> dict:
-    """Schema + semantic rules: unique profile names, known labels, valid overrides, no overlap on a day."""
-    program = PROGRAM(program)
+def with_defaults(program: dict, reapply_default: bool = DEFAULT_REAPPLY) -> dict:
+    """Copy of ``program`` where a missing ``reapply`` takes the global option (priority: schema default)."""
+    return {"reapply": reapply_default, **program}
+
+
+def check_program(program: dict, labels: dict[str, dict], hass: Any = None, descriptions: dict | None = None,
+                  reapply_default: bool = DEFAULT_REAPPLY) -> dict:
+    """Schema + semantic rules: unique profile names, known labels, valid overrides, no overlap on a day.
+
+    A program saved without ``reapply`` takes ``reapply_default`` (the integration option).
+    """
+    program = PROGRAM(with_defaults(program, reapply_default))
     source = program.get("mode_source")
     if source:
         profile_ids = {p["id"] for p in program["profiles"]}

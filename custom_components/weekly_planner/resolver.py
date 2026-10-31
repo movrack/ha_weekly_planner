@@ -11,6 +11,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, tzinfo
 
+from .const import DEFAULT_PRIORITY
 from .timeline import Occurrence, SunProvider, day_occurrences
 
 # conditions list -> bool (all must hold); evaluated by the caller with debounce
@@ -107,7 +108,7 @@ def resolve_entity(
             and not vacation
             and any(e["entity_id"] == entity_id for e in p["entities"])
         ),
-        key=lambda p: (p.get("priority", 100), p.get("created_at", "")),
+        key=lambda p: (p.get("priority", DEFAULT_PRIORITY), p.get("created_at", "")),
     )
     if not candidates:
         return Segment(("free",), None, None, None)

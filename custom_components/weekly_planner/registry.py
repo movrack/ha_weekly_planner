@@ -74,8 +74,8 @@ def async_track_registry(hass: HomeAssistant, engine) -> callback:
                     engine.store.runtime["entities"][data["entity_id"]] = rt
                 engine.store.save_config()
                 hass.async_create_task(engine.async_config_changed())
-        elif data["action"] == "remove":
-            async_check_missing(hass, engine)
+        elif data["action"] in ("remove", "create"):
+            async_check_missing(hass, engine)  # an entity (re)appearing clears the issue
 
     return hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, on_update)
 

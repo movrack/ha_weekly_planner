@@ -13,14 +13,14 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.util import dt as dt_util
 
-from .const import CONF_ADMIN_ONLY, DOMAIN
+from .const import CONF_ADMIN_ONLY, DEFAULT_PRIORITY, DOMAIN
 from .checks import program_warnings
 from .engine import PlannerEngine
 from .frontend import CARD_VERSION_KEY
 from .resolver import active_profile, occurrences_around
 from .store import new_id
 from .actions import needs_admin
-from .validation import PROGRAM, ProgramError, admin_required, check_label, check_program, label_users
+from .validation import PROGRAM, ProgramError, admin_required, check_label, check_program, label_users, with_defaults
 
 
 async def _descriptions(hass: HomeAssistant) -> dict | None:
@@ -63,7 +63,7 @@ def _is_inactive_mode_edit(engine: PlannerEngine, existing: dict, program: dict)
     """Only another mode's hours changed: the active mode's action must not be re-sent."""
     # Normalize legacy defaults before comparing metadata, without changing stored data.
     try:
-        old = PROGRAM(existing)
+        old = PROGRAM(with_defaults(existing, engine.reapply_default))
     except vol.Invalid:
         return False
     active_id = engine.active_profile_id(existing["id"])
@@ -95,6 +95,8 @@ def _build_snapshot(engine: PlannerEngine) -> dict[str, Any]:
         "read_only": engine.store.read_only,
         "can_edit": True,
         "card_version": engine.hass.data.get(CARD_VERSION_KEY),
+        # Initial values the card offers for a NEW program (additive field).
+        "defaults": {"reapply": engine.reapply_default, "priority": DEFAULT_PRIORITY},
     }
 
 
@@ -150,7 +152,7 @@ async def ws_program_save(hass, connection, msg) -> None:
         return
     try:
         descriptions = await _descriptions(hass)
-        program = check_program(program, engine.labels, hass, descriptions)
+        program = check_program(program, engine.labels, hass, descriptions, engine.reapply_default)
     except vol.Invalid as err:
         connection.send_error(msg["id"], "invalid", str(err))
         return
