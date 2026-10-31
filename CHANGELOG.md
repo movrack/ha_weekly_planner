@@ -6,6 +6,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.19.1] - 2026-10-31
+
+### Fixed
+- Duplicating a solar slot longer than 4 h gives a valid time: a solar offset beyond ±240 minutes becomes the fixed time it resolves to.
+- Clearer save error when a time is out of range.
+- Escape closes dialogs at any time, and the focus returns to the button that opened them.
+- Bars are reachable with Tab; Enter or Space starts editing (or opens the day when read-only).
+- Day buttons of the schedule form are at least 44 px wide.
+- The card editor selector no longer shows "Continue creating" while "New program" is selected.
+- The "press and hold" hint is drawn above the now line.
+- Singular and plural of label usage ("1 use", "2 uses").
+- Axis hours follow the locale.
+- The random-delay text no longer repeats its limits.
+
+### Changed
+- Performance: a recompute over 200 entities no longer holds the Home Assistant event loop. About 6x less work (30 ms instead of 180 ms), and it yields at least every 10 ms. Program statuses and the card snapshot are about 4x faster. Behaviour is unchanged.
+
+### Added
+- Code coverage reports with floors (Python 85 %; card 49 / 78 / 45 / 49).
+- Mutation testing (mutmut and StrykerJS) with a weekly `mutation.yml` workflow; informational only.
+- Performance budget tests and `scripts/bench.py`.
+- Visual control checklist rewritten, with the 2026-10-31 results.
+
 ## [0.19.0] - 2026-10-31
 
 ### Added
