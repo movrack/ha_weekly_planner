@@ -431,8 +431,10 @@ export class WpChart extends LitElement {
         if (hi - lo < 2) hi = lo + 2;
       }
     }
-    const unit = domain === "climate" ? "°C" : domain === "cover" || domain === "light" ? "%"
-      : (this.hass.states[this.entityId]?.attributes.unit_of_measurement ?? "");
+    // The unit comes from the device itself; only a device that states none (climate has no
+    // unit_of_measurement, a cover or light position is a percentage) falls back to what Home Assistant uses for it.
+    const unit = String(this.hass.states[this.entityId]?.attributes.unit_of_measurement
+      ?? (domain === "climate" ? this.hass.config?.unit_system?.temperature ?? "°C" : domain === "cover" || domain === "light" ? "%" : ""));
     return { span, pastEnd, isToday: startMs <= now && now < endMs, kind: numeric ? "curve" : "band",
       lines, bands, markers, planned, shade, manual, lo, hi, unit };
   }
@@ -496,6 +498,11 @@ export class WpChart extends LitElement {
       </div>` : nothing}`;
   }
 
+  /** Name the person sees on the card for this chart: the program's own name for a one-device program. */
+  private get _shownName(): string {
+    return this.program?.entities.length === 1 ? this.program.name : friendlyName(this.hass, this.entityId);
+  }
+
   private _legend(model: Model) {
     const lang = this._lang;
     const item = (cls: string, label: string, color?: string) =>
@@ -534,13 +541,23 @@ export class WpChart extends LitElement {
     const bandY = PAD.t;
     const bandH = H - PAD.t - PAD.b;
     const cyOf = (mk: Marker) => (curve && mk.value !== null ? y(mk.value) : top);
+    // Value texts of two markers close together (the start of a step and the return to the default, or the last
+    // markers of the day squeezed against the right edge) would print over each other ("15 15"): keep the first.
+    const shown: { x: number; y: number }[] = [];
+    const labelAt = (mk: Marker, cy: number) => {
+      const lx = Math.min(Math.max(x(mk.m), 14), W - 14), ly = Math.max(cy - 8, 9);
+      if (shown.some((o) => Math.abs(o.x - lx) < 26 && Math.abs(o.y - ly) < 12)) return null;
+      shown.push({ x: lx, y: ly });
+      return { lx, ly };
+    };
     const mark = (mk: Marker) => {
       const cy = cyOf(mk);
+      const at = mk.value !== null ? labelAt(mk, cy) : null;
       const color = mk.label.color;
       return svg`
         <line class="drop" x1=${x(mk.m)} x2=${x(mk.m)} y1=${cy} y2=${H - PAD.b}></line>
         ${mk.sun ? nothing : svg`<circle class="mk ${mk.end ? "end" : ""} ${mk.ignored ? "faded" : ""}" cx=${x(mk.m)} cy=${cy} r="5" style="--c:${color}"></circle>`}
-        ${mk.value !== null ? svg`<text class="val" x=${Math.min(Math.max(x(mk.m), 14), W - 14)} y=${Math.max(cy - 8, 9)} text-anchor="middle">${Number(mk.value.toFixed(1))}</text>` : nothing}`;
+        ${mk.value !== null && at ? svg`<text class="val" x=${at.lx} y=${at.ly} text-anchor="middle">${Number(mk.value.toFixed(1))}</text>` : nothing}`;
     };
     // the reference curve is the same for every manual interval: look it up once per render
     const base = curve ? model.lines.find((l) => l.key === "set") ?? model.lines.find((l) => l.key === "main") ?? model.lines[0] : undefined;
@@ -549,11 +566,12 @@ export class WpChart extends LitElement {
         <g class="nowicon" aria-hidden="true" transform="translate(${x(model.pastEnd) - 6}, ${PAD.t - 17}) scale(0.5)"><path d=${CLOCK}></path></g>` : nothing;
     return html`<div class="cwrap">
       <svg width=${W} height=${H} viewBox="0 0 ${W} ${H}" tabindex="0" role="button"
-        aria-label=${t(lang, "chart_open", { name: friendlyName(this.hass, this.entityId) })}
+        aria-label=${t(lang, "chart_open", { name: this._shownName })}
         @click=${() => this._open()}
         @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this._open(); } }}>
         ${ticksY.map((v) => svg`<line class="grid" x1=${PAD.l} x2=${W - PAD.r} y1=${y(v)} y2=${y(v)}></line>
-          <text class="ylab" x=${PAD.l - 4} y=${y(v) + 3} text-anchor="end">${Number(v.toFixed(model.unit === "°C" ? 1 : 0))}</text>`)}
+          <text class="ylab" x=${PAD.l - 4} y=${y(v) + 3} text-anchor="end">${Number(v.toFixed(1))}</text>`)}
+        ${curve && model.unit ? svg`<text class="unit" x="2" y="10">${model.unit}</text>` : nothing}
         ${ticksX.map((m) => svg`<text class="xlab" x=${x(m)} y=${H - 6} text-anchor=${m === 0 ? "start" : "middle"}>${Number(hourOf(m))}h</text>`)}
         ${curve ? nothing : svg`
           <rect class="track" x=${PAD.l} y=${bandY} width=${W - PAD.l - PAD.r} height=${bandH} rx="6"></rect>
@@ -575,7 +593,7 @@ export class WpChart extends LitElement {
           : svg`<rect class="shade" x=${x(sh.from)} y=${bandY} width=${Math.max(1, x(sh.to) - x(sh.from))} height=${bandH} style="--c:${sh.color}"></rect>`)}
         ${curve ? model.planned.steps.map((st) => svg`<path class="plan" d="M${x(st.from).toFixed(1)},${y(st.value).toFixed(1)}H${x(st.to).toFixed(1)}" style="--c:${st.color}"></path>`) : nothing}
         ${curve ? model.planned.risers.map((r) => svg`<line class="riser" x1=${x(r.m)} x2=${x(r.m)} y1=${y(r.from)} y2=${y(r.to)} style="--c:${r.color}"></line>`) : nothing}
-        ${model.markers.map(mark)}
+        ${[...model.markers].sort((a, b) => a.m - b.m).map(mark)}
         ${nowLine}
         <rect class="hit" x="0" y="0" width=${W} height=${H}></rect>
       </svg>
@@ -605,6 +623,7 @@ export class WpChart extends LitElement {
     svg:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; border-radius: 4px; }
     .grid { stroke: var(--divider-color, rgba(127, 127, 127, 0.3)); stroke-width: 1; }
     text { fill: var(--secondary-text-color); font-size: 10px; }
+    text.unit { font-size: 11px; }
     text.val { fill: var(--primary-text-color); font-weight: 600; }
     text.btxt { fill: var(--primary-text-color); font-size: 11px; }
     .line { fill: none; stroke-width: 1.8; stroke-linejoin: round; }
@@ -628,7 +647,7 @@ export class WpChart extends LitElement {
     .nowicon path { fill: var(--primary-text-color); }
     .hit { fill: transparent; }
     .note { padding: 24px 0; text-align: center; color: var(--secondary-text-color); font-size: 13px; }
-    .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 12px; color: var(--secondary-text-color); }
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 14px; color: var(--secondary-text-color); }
     .key { display: inline-flex; align-items: center; gap: 5px; }
     .key i { display: inline-block; width: 16px; height: 0; border-top: 3px solid var(--primary-color); }
     .key i.measured { border-top: 2px solid var(--accent-color, #ff9800); }

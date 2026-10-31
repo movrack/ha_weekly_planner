@@ -14,7 +14,7 @@ import { daysText, groupSlots, specText, ALL_DAYS } from "../actions";
 import type { SlotGroup } from "../actions";
 import { applyEdit, compareOrigin, dayView, findGroup, freshGroup, groupId, nextTimes, overlapDay, splitBusyDays } from "../edits";
 import type { RowEdit } from "../edits";
-import { allowedOf, compatible, entityAction, labelOf, labelsFor } from "../labels";
+import { allowedOf, compatible, entityAction, labelName, labelOf, labelsFor } from "../labels";
 import type { LabelDraft } from "./label-picker";
 import { addDaysIso } from "./chart";
 import { confirmAction } from "./confirm";
@@ -619,7 +619,7 @@ export class WpSchedule extends LitElement {
     const label = labelOf(this.data, group.slot.label);
     const days = daysText(lang, strings(lang).days_short, group.days);
     return {
-      text: [label?.name ?? "", this._when(group.slot)].filter(Boolean).join(" · "),
+      text: [label ? labelName(this.hass, label) : "", this._when(group.slot)].filter(Boolean).join(" · "),
       days,
       color: label?.color ?? "var(--disabled-text-color)",
     };
@@ -679,7 +679,7 @@ export class WpSchedule extends LitElement {
       const label = labelOf(this.data, entity.default_label);
       return html`<button class="row rest" aria-expanded="false" @click=${() => this._expand(key, program, null, { restLabel: entity.default_label ?? null })}>
         ${label ? html`<span class="dot" style="background:${label.color}"></span>` : html`<ha-icon icon="mdi:update"></ha-icon>`}
-        <span class="txt">${title} · <b>${label ? label.name : t(lang, "rest_none_short")}</b></span><ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
+        <span class="txt">${title} · <b>${label ? labelName(this.hass, label) : t(lang, "rest_none_short")}</b></span><ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
     });
   }
 
@@ -714,7 +714,7 @@ export class WpSchedule extends LitElement {
                 spans.push({
                   start: d === day ? start : 0,
                   end: d !== day ? end! : overnight ? DAY : end ?? start + 10,
-                  color: label.color, label: label.name, marker: end === null,
+                  color: label.color, label: labelName(this.hass, label), marker: end === null,
                   startSun: d === day ? sunDir(slot.start) : null,
                   endSun: overnight && d === day ? null : sunDir(slot.end),
                   startSpec: slot.start, endSpec: slot.end,

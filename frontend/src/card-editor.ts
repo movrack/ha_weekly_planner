@@ -7,9 +7,9 @@ import type { WpProgramEditor } from "./editors/program-editor";
 import { subscribePlanner } from "./planner";
 import { syncSelectValues } from "./select-value";
 import { programAreas } from "./program-areas";
-import { programDomains, type DomainLocalize } from "./domains";
+import { domainIcon, programDomains, type DomainLocalize } from "./domains";
 import { normalizeConfig, withDefaults } from "./config";
-import { allPrograms, isOn, toggleAllOff, toggleProgram, toggleType, typeGroups, typeState, type FilterConfig } from "./filter-editor";
+import { allPrograms, isOn, toggleAllOff, toggleProgram, toggleType, typeGroups, typeState, type FilterConfig, type FilterPatch } from "./filter-editor";
 import { t } from "./i18n";
 import type { CardConfig, HomeAssistant, PlannerData, Program } from "./types";
 import { editorStyles, langOf } from "./editors/shared";
@@ -24,6 +24,11 @@ export class WeeklyPlannerCardEditor extends LitElement {
   @state() private _section: "display" | "programs" = "display";
   @state() private _editing: string | null = null;
   @state() private _openTypes = new Set<string>();
+  /** The person turned something off while "All programs" was on: tell them what changes (until they go back). */
+  @state() private _leftAll = false;
+  /** Icon Home Assistant gives each domain (a type header shows it). */
+  @state() private _typeIcons = new Map<string, string>();
+  private _iconKey = "";
   @state() private _createdName = "";
   @state() private _createdProgramId: string | null = null;
   @state() private _scheduleProgramId: string | null = null;
@@ -60,6 +65,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
 
   /** HA owns domain names and their translations, including domains unknown to this card. */
   private _loadDomainNames(): void {
+    if (this.hass && this._data) this._loadDomainIcons(programDomains(this._data.programs, this._config.filter?.types));
     if (!this.hass?.loadBackendTranslation || !this._data) return;
     const domains = programDomains(this._data.programs, this._config.filter?.types);
     const key = `${this._lang}|${domains.join(",")}`;
@@ -73,6 +79,15 @@ export class WeeklyPlannerCardEditor extends LitElement {
       this.requestUpdate();
     }).catch(() => {
       if (key === this._domainLoadKey) this._domainLoadKey = "";
+    });
+  }
+
+  private _loadDomainIcons(domains: string[]): void {
+    const key = domains.join(",");
+    if (key === this._iconKey || !domains.length) return;
+    this._iconKey = key;
+    void Promise.all(domains.map(async (d) => [d, await domainIcon(this.hass!, d)] as const)).then((pairs) => {
+      this._typeIcons = new Map(pairs);
     });
   }
 
@@ -187,6 +202,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
 
   private _setMode(program: boolean): void {
     this._editing = null;
+    this._leftAll = false;
     const next = { ...this._config } as CardConfig;
     if (program) {
       delete next.filter;
@@ -211,9 +227,18 @@ export class WeeklyPlannerCardEditor extends LitElement {
     return this.hass?.localize?.(`component.${type}.title`) || this._domainLocalize?.(`component.${type}.title`) || type;
   }
 
-  private _switch(checked: boolean, label: string, onChange: (on: boolean) => void, partial = false) {
-    return html`<ha-switch class=${partial ? "partial" : ""} .checked=${checked} aria-label=${label}
+  private _switch(checked: boolean, label: string, onChange: (on: boolean) => void, partial = false, disabled = false) {
+    return html`<ha-switch class=${partial ? "partial" : ""} .checked=${checked} .disabled=${disabled} aria-label=${label}
       @change=${(e: Event) => onChange((e.target as HTMLInputElement).checked)}></ha-switch>`;
+  }
+
+  /** A change in the "programs to display" tree; leaving "All programs" is flagged so the card can say what it means. */
+  private _treeChange(patch: FilterPatch | { types: undefined; programs: undefined }): void {
+    const filter = this._config.filter;
+    const wasAll = filter?.programs === undefined && !filter?.types?.length;
+    if (patch.programs === undefined) this._leftAll = false;
+    else if (wasAll) this._leftAll = true;
+    this._setFilter(patch);
   }
 
   private _toggleType(type: string): void {
@@ -228,36 +253,47 @@ export class WeeklyPlannerCardEditor extends LitElement {
     const all = filter?.programs === undefined && !filter?.types?.length;
     const { groups, orphans } = typeGroups(programs, filter, (ty) => this._typeLabel(ty), this._lang);
     const byId = new Map(programs.map((p) => [p.id, p]));
-    const count = all ? this._tr("ce_all_programs") : String(programs.filter((p) => isOn(p, filter, programs)).length + orphans.length);
+    const count = all ? this._tr("ce_all_programs")
+      : this._tr("ce_of_total", { on: String(programs.filter((p) => isOn(p, filter, programs)).length + orphans.length), total: String(programs.length + orphans.length) });
     return html`<details class="display-programs">
       <summary>${this._tr("ce_display_programs")} · ${count}</summary>
       <p class="hint">${this._tr("ce_display_programs_hint")}</p>
       <div class="switch-row"><span class="grow">${this._tr("ce_all_programs")}</span>
-        ${this._switch(all, this._tr("ce_all_programs"), (on) => this._setFilter(on ? allPrograms() : toggleAllOff(programs, filter)))}</div>
+        ${this._switch(all, this._tr("ce_all_programs"), (on) => this._treeChange(on ? allPrograms() : toggleAllOff(programs, filter)))}</div>
+      ${!all && this._leftAll ? html`<div class="notice" role="status"><ha-icon icon="mdi:information-outline"></ha-icon>
+        <span class="grow">${this._tr("ce_left_all")}</span>
+        <button class="btn" @click=${() => this._treeChange(allPrograms())}><ha-icon icon="mdi:restore"></ha-icon>${this._tr("ce_back_all")}</button></div>` : nothing}
       ${!groups.length && !orphans.length ? html`<p class="hint">${this._tr("ce_no_types")}</p>` : nothing}
       <div role="group" aria-label=${this._tr("ce_display_programs")}>
         ${groups.map((g) => {
           const state = typeState(g, programs, filter);
-          const open = this._openTypes.has(g.type);
+          const many = g.programs.length >= 2;
+          const open = many && this._openTypes.has(g.type);
           const on = g.programs.filter((x) => isOn(byId.get(x.id)!, filter, programs)).length;
+          const partial = state === "partial";
+          const counter = String(this._tr("ce_type_count", { on: String(on), total: String(g.programs.length) }));
+          const titles = html`<ha-icon class="type-icon" icon=${this._typeIcons.get(g.type) ?? "mdi:shape-outline"}></ha-icon>
+            <span class="grow titles"><span class="type-title">${g.label}</span>
+              ${many ? html`<span class="count">${counter}${partial ? html` · <b>${this._tr("ce_partial")}</b>` : nothing}</span>` : nothing}
+              <span class="type-names">${g.programs.length ? g.programs.map((p) => p.name).join(", ") : this._tr("ce_type_empty")}</span></span>`;
+          const switchLabel = partial ? this._tr("ce_partial_label", { name: this._tr("ce_type_switch", { type: g.label }), on: String(on), total: String(g.programs.length) })
+            : this._tr("ce_type_switch", { type: g.label });
           return html`<div class="type-group" data-type=${g.type}>
             <div class="switch-row">
-              <button class="type-head" aria-expanded=${open} aria-controls=${`ce-type-${g.type}`} @click=${() => this._toggleType(g.type)}>
-                <ha-icon icon=${open ? "mdi:chevron-down" : "mdi:chevron-right"}></ha-icon>
-                <span class="grow">${g.label}</span>
-                <span class="muted">${this._tr("ce_type_count", { on: String(on), total: String(g.programs.length) })}</span>
-              </button>
-              ${this._switch(state !== "off", this._tr("ce_type_switch", { type: g.label }), (v) => this._setFilter(toggleType(programs, filter, g.type, v)), state === "partial")}
+              ${many
+                ? html`<button class="type-head" aria-expanded=${open} aria-controls=${`ce-type-${g.type}`} @click=${() => this._toggleType(g.type)}>
+                    <ha-icon icon=${open ? "mdi:chevron-down" : "mdi:chevron-right"}></ha-icon>${titles}</button>`
+                : html`<div class="type-head static"><span class="chev-space"></span>${titles}</div>`}
+              ${this._switch(state !== "off", switchLabel, (v) => this._treeChange(toggleType(programs, filter, g.type, v)), partial)}
             </div>
-            <div id=${`ce-type-${g.type}`} class="type-body" ?hidden=${!open}>
-              ${g.programs.length ? g.programs.map((p) => html`<div class="switch-row sub"><span class="grow">${p.name}</span>
-                ${this._switch(isOn(byId.get(p.id)!, filter, programs), p.name, (v) => this._setFilter(toggleProgram(programs, filter, p.id, v)))}</div>`)
-                : html`<p class="hint">${this._tr("ce_type_empty")}</p>`}
-            </div>
+            ${many ? html`<div id=${`ce-type-${g.type}`} class="type-body" ?hidden=${!open}>
+              ${g.programs.map((p) => html`<div class="switch-row sub"><span class="grow">${p.name}</span>
+                ${this._switch(isOn(byId.get(p.id)!, filter, programs), p.name, (v) => this._treeChange(toggleProgram(programs, filter, p.id, v)))}</div>`)}
+            </div>` : nothing}
           </div>`;
         })}
         ${orphans.length ? html`<div class="label">${this._tr("ce_other_programs")}</div>${orphans.map((id) => html`<div class="switch-row sub"><span class="grow">${id}</span>
-          ${this._switch(true, id, () => this._setFilter({ programs: (filter?.programs ?? []).filter((x) => x !== id) }))}</div>`)}` : nothing}
+          ${this._switch(true, id, () => this._treeChange({ programs: (filter?.programs ?? []).filter((x) => x !== id) }))}</div>`)}` : nothing}
       </div>
     </details>`;
   }
@@ -312,8 +348,12 @@ export class WeeklyPlannerCardEditor extends LitElement {
           <option value="list">${this._tr("ce_list")}</option>
         </select>
       </div>
-      <label class="check"><input type="checkbox" .checked=${c.show_chart !== false}
-        @change=${(e: Event) => this._set("show_chart", (e.target as HTMLInputElement).checked)} /> ${this._tr("ce_show_chart")}</label>
+      <div class="switch-row"><span class="grow">${this._tr("ce_show_chart")}</span>
+        ${this._switch(c.show_chart !== false, this._tr("ce_show_chart"), (on) => this._set("show_chart", on))}</div>
+      <p class="hint">${this._tr("ce_show_chart_hint")}</p>
+      <div class="switch-row"><span class="grow">${this._tr("ce_chart_open")}</span>
+        ${this._switch(c.chart_collapsed === false, this._tr("ce_chart_open"), (on) => this._set("chart_collapsed", !on), false, c.show_chart === false)}</div>
+      <p class="hint">${this._tr("ce_chart_open_hint")}</p>
     `;
     const admin = this._canManage;
     return html`
@@ -326,7 +366,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
         @closed=${(e: Event) => { e.stopPropagation(); this._scheduleProgramId = null; }}></wp-schedule>` : nothing}`;
   }
 
-  static styles = [editorStyles, css`:host { display: block; padding: 4px 0; } h3 { margin: 12px 0; font-size: 16px; } .program-settings { padding-top: 4px; } nav { display: flex; border-bottom: 1px solid var(--divider-color); margin-bottom: 12px; } nav button { flex: 1; min-height: 48px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--secondary-text-color); cursor: pointer; } nav button[aria-selected="true"] { color: var(--primary-color); border-bottom-color: var(--primary-color); font-weight: 600; } .hint { line-height: 1.5; } .display-programs { margin: 12px 0; border: 1px solid var(--divider-color); border-radius: 8px; padding: 8px 12px; } summary { min-height: 44px; align-content: center; cursor: pointer; } .display-programs .check { min-height: 44px; overflow-wrap: anywhere; } .switch-row { display: flex; align-items: center; gap: 8px; min-height: 48px; overflow-wrap: anywhere; } .switch-row.sub { padding-left: 28px; } .type-head { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; min-height: 48px; border: 0; background: none; color: inherit; text-align: start; cursor: pointer; } .type-body[hidden] { display: none; } ha-switch.partial { opacity: 0.6; --mdc-theme-secondary: var(--warning-color, #ffa600); } .program-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }`];
+  static styles = [editorStyles, css`:host { display: block; padding: 4px 0; } h3 { margin: 12px 0; font-size: 16px; } .program-settings { padding-top: 4px; } nav { display: flex; border-bottom: 1px solid var(--divider-color); margin-bottom: 12px; } nav button { flex: 1; min-height: 48px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--secondary-text-color); cursor: pointer; } nav button[aria-selected="true"] { color: var(--primary-color); border-bottom-color: var(--primary-color); font-weight: 600; } .hint { line-height: 1.5; } .display-programs { margin: 12px 0; border: 1px solid var(--divider-color); border-radius: 8px; padding: 8px 12px; } summary { min-height: 44px; align-content: center; cursor: pointer; } .display-programs .check { min-height: 44px; overflow-wrap: anywhere; } .switch-row { display: flex; align-items: center; gap: 8px; min-height: 48px; overflow-wrap: anywhere; } .switch-row.sub { padding-left: 28px; } .type-head { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; min-height: 48px; border: 0; background: none; color: inherit; text-align: start; cursor: pointer; } .type-body[hidden] { display: none; } ha-switch { padding: 12px 8px; margin: -12px -8px; flex: none; } ha-switch.partial { --mdc-theme-secondary: var(--warning-color, #ffa600); } .type-icon { flex: none; color: var(--secondary-text-color); } .titles { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; } .type-title { font-size: 16px; overflow-wrap: normal; word-break: keep-all; } .type-names { font-size: 14px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .count { font-size: 14px; color: var(--secondary-text-color); } .count b { color: var(--primary-text-color); } .type-head.static { cursor: default; } .chev-space { flex: none; width: 24px; } .notice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; padding: 8px 12px; border-radius: 8px; background: var(--secondary-background-color); border-inline-start: 4px solid var(--warning-color, #ffa600); line-height: 1.5; } .notice .grow { flex: 1 1 10em; min-width: 10em; } .notice .btn { flex: 1 1 100%; box-sizing: border-box; min-width: 0; max-width: 100%; min-height: 44px; height: auto; white-space: normal; text-align: center; overflow-wrap: anywhere; } .program-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }`];
 }
 
 declare global {
