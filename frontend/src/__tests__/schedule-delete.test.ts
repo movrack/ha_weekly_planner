@@ -93,3 +93,32 @@ describe("delete an edited schedule slot", () => {
     expect(view.hass.callWS).not.toHaveBeenCalled();
   });
 });
+
+describe("duplicate a solar slot", () => {
+  it("never produces a sun offset beyond the server limit", () => {
+    const { view } = setup();
+    view._group.slot.start = { sun: "sunrise", offset: 0 };
+    view._group.slot.end = { time: "23:00" };
+    view._problem = () => "";
+    view._duplicate();
+    const { start, end } = view._group.slot;
+    expect("time" in start).toBe(true);
+    expect(end && "time" in end).toBe(true);
+  });
+
+  it("keeps the sun event when the shifted offset stays in range", () => {
+    const { view } = setup();
+    view._group.slot.start = { sun: "sunset", offset: 0 };
+    view._group.slot.end = { sun: "dusk", offset: 0 };
+    view._problem = () => "";
+    view._duplicate();
+    expect(view._group.slot.start).toMatchObject({ sun: "sunset" });
+  });
+
+  it("shows a specific message for range errors", async () => {
+    const { view, program } = setup();
+    view.hass.callWS = vi.fn(async () => { throw { message: "value must be at most 240 for dictionary value @ offset" }; });
+    await view._saveProgram(program);
+    expect(view._error).toBe("A time is out of range. Shorten the delay or pick a time.");
+  });
+});

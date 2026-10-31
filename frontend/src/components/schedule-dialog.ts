@@ -22,8 +22,8 @@ import { strings, t } from "../i18n";
 import { loadServiceNames } from "../services";
 import { activeProfile, friendlyName } from "../planner";
 import { fetchPreview } from "../preview-cache";
-import { DAY, localDateIso, minutesToClock } from "../time";
-import { specMinutes, sunBoundsInvalid } from "../slots";
+import { DAY, localDateIso } from "../time";
+import { shiftTimeSpec, specMinutes, sunBoundsInvalid } from "../slots";
 import { editorStyles, langOf } from "../editors/shared";
 import type { Action, HomeAssistant, PlannerData, PreviewSlot, Profile, Program, Slot, TimeSpec } from "../types";
 
@@ -295,14 +295,13 @@ export class WpSchedule extends LitElement {
     const { start, end } = g.slot;
     const from = specMinutes(this.hass, start);
     const length = end ? Math.max(15, specMinutes(this.hass, end) - from) : 60;
-    const shift = (spec: { random_minutes?: number }, m: number) => ({ ...spec, time: minutesToClock(Math.min(DAY, m)) });
     const base: RowEdit = { openId: this._openId, rest: this._rest, draft: structuredClone(g) };
     const dayOnly = this._dayOnly;
     const copy = freshGroup(g.slot.label, g.days);
     copy.slot = {
       ...structuredClone(g.slot), id: copy.slot.id,
-      start: "time" in start ? shift(start, from + length) : { ...start, offset: (start.offset ?? 0) + length },
-      end: !end ? null : "time" in end ? shift(end, from + 2 * length) : { ...end, offset: (end.offset ?? 0) + length },
+      start: shiftTimeSpec(this.hass, start, length),
+      end: end ? shiftTimeSpec(this.hass, end, length) : null,
     };
     const origin = this._origin;
     const profileId = this._editProfileId;
@@ -338,6 +337,7 @@ export class WpSchedule extends LitElement {
       else if (e?.message?.includes("earliest_after_latest")) this._error = t(this._lang, "err_sun_bounds");
       else if (e?.message?.includes("random_window_too_short")) this._error = t(this._lang, "random_too_short");
       else if (e?.message?.includes("overlapping_slots")) this._error = t(this._lang, "w_err_overlap");
+      else if (/offset|invalid_random_minutes|at most|at least|out of range|invalid_time|invalid_clock/i.test(e?.message ?? "")) this._error = t(this._lang, "err_time_range");
       else this._error = t(this._lang, "ss_err_save");
       return "error";
     } finally {

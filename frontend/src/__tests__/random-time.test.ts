@@ -93,7 +93,7 @@ describe("random delay explanation", () => {
   });
   it("expresses solar clamping before the delay and retains the final latest cap", () => {
     expect(randomDelayRangeText("fr", { sun: "sunset", offset: 60, earliest: "18:00", latest: "22:00", random_minutes: 15 }))
-      .toBe("Aléatoirement entre Coucher + 1h (Pas avant 18:00, Pas après 22:00) et Coucher + 1h (Pas avant 18:00, Pas après 22:00) + 15 min (Pas après 22:00)");
+      .toBe("Aléatoirement entre Coucher + 1h (Pas avant 18:00, Pas après 22:00) et Coucher + 1h (Pas avant 18:00, Pas après 22:00) + 15 min");
   });
 });
 
