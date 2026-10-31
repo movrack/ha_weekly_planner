@@ -14,6 +14,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Changed
 - Solar time form: the limits are now labelled "Au plus tôt à" / "Au plus tard à" ("Not earlier than" / "Not later than"), with a plain sentence giving the actual time and today's result.
 - The random-delay help is one plain sentence ("Chaque jour, démarre au hasard entre 18:00 et 18:15.") instead of repeating the solar time and its limits.
+- Card: settings are edited per program in the schedule screen only. The card no longer has a global "Settings" dialog.
+
+### Removed
+- Card: the "Settings" button at the top right of the card header, and the blank band it left above the first program. The header now appears only with a title or the vacation chip.
 
 ## [0.21.1] - 2026-10-31
 

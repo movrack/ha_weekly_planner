@@ -402,8 +402,8 @@ administrateurs) ; filtres de types dynamiques (§ 14.12), zone, programmes à a
   aucune commande immédiate (c'est un planificateur).
 - La ligne elle-même **n'est pas cliquable** : un appui court au doigt sur une barre ouvre l'écran d'horaires ; un appui
   long (doigt) ou un clic (souris) entre dans l'édition sur place (§ 10.8).
-- En-tête : titre, pastille « Tous les programmes suspendus » quand l'interrupteur global est actif, bouton « Réglages »
-  (`mdi:label-multiple-outline`) pour un administrateur qui peut éditer, si la carte n'est pas fixée sur un programme.
+- En-tête : titre, pastille « Tous les programmes suspendus » quand l'interrupteur global est actif. Aucun bouton « Réglages » :
+  les réglages se modifient par programme, dans la fenêtre d'horaires (§ 10.3) ; sans titre ni pastille, la carte n'a pas d'en-tête.
 - Bandeau « Lecture seule » si le stockage est en lecture seule ; état vide « Aucun programme pour l'instant » ou « Aucun
   programme ne correspond aux filtres » ; bandeau « Modifié · Annuler » 6 s après une édition sur barre.
 - Mise à jour : abonnement `subscribe` ; rechargement automatique quand `card_version` change (page au repos), vérifié
@@ -425,13 +425,10 @@ vers le bas sur téléphone. Le texte ci-dessous décrit la 0.6–0.7 ; l'engren
   scène) qui crée le réglage et la sélectionne ; pour le réglage choisi, un lien « Valeur pour cet appareil »
   modifie la valeur propre de l'appareil (même sélecteur) avec « Revenir à la valeur commune » ; ligne « Le reste du temps » :
   un réglage ou « Rien » ; interrupteur de pause, dupliquer, supprimer (confirmé, bouton rouge isolé).
-- **Écran « Réglages »** (administrateurs) : ligne « Réglages » au-dessus de la liste des programmes ; liste des
-  réglages (pastille, nom, résumé de l'action, nombre d'usages) ; renommer, recolorer, changer l'action, supprimer
-  (refusé tant qu'elle est utilisée, avec la liste des programmes).
 - ~~**Réglages (engrenage, administrateurs)** : nom, icône, priorité, conditions, « refaire l'action en cours au
   redémarrage », appareils, saisons (profils).~~ *Remplacé en 0.8.0 par l'éditeur visuel Lovelace (voir l'encadré
   ci-dessus) ; les « saisons » sont devenues les **modes** en 0.16.0 (§ 5.10).*
-- **Réglages** : bouton d'en-tête de la carte (§ 10.2) et non plus ligne au-dessus des programmes ; sélecteur
+- **Réglages** : modifiés uniquement par programme, dans la fenêtre d'horaires (pas de fenêtre globale sur la carte) ; sélecteur
   de réglage avec palette de 12 couleurs, valeur propre par appareil et « Revenir à la valeur commune ».
 - Sélecteurs HA publics (`ha-selector`, icône) si disponibles ; modales maison ; fr + en.
 
@@ -681,7 +678,7 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Migration automatique du stockage (version 1 → 2) avec sauvegarde : actions converties puis regroupées en réglages (doublons fusionnés), testée sur les formes de production (« Bureau » : « 18 °C » / « 15 °C » ; « Volet du bureau » : « Fermer » / « Ouvrir »)
 - [x] Carte : ligne icône + nom du programme + état traduit + « → prochaine action + heure » (« demain »), barre du jour, semaine, calendrier, sans ligne de dérogation
 - [x] Carte : écran d'horaires (lignes colorées, formulaire d'horaire avec pastilles de réglages compatibles, « + Nouvelle réglage » en ligne, « Valeur pour cet appareil », « Le reste du temps » = réglage ou « Rien », pause, dupliquer, supprimer)
-- [x] Carte : écran « Réglages » (admins) : liste, renommer, recolorer, changer l'action, supprimer (refusé si utilisée)
+- [x] Carte : pas de bouton ni d'écran global « Réglages » ; les réglages se modifient par programme dans la fenêtre d'horaires
 - [x] Couleurs des réglages (palette de 12, choix automatique) sur la barre du jour, les barres de la semaine et les repères du graphique
 - [x] Carte : réglages (engrenage) sans modes ni « permanent »
 - [x] Graphique pour tous les appareils : historique HA (courbe ou bande d'états), repères des actions prévues avec valeur, trait « maintenant », toucher → historique HA du jour, légende minimale

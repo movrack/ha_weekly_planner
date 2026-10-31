@@ -39,8 +39,6 @@ claiming that invisible controls fit on the phone.
 | S19 | `s19-copy-days.png` | Copy a segment to days | With a segment selected under a bar, choose Copy to, then select destination weekdays. Show destination chips and Copy action before executing it. |
 | S20 | `s20-copy-conflict.png` | Copy overlap decision | Choose a destination containing an overlapping slot and choose Copy. Show Before/After previews, Replace and Do not copy this day. Capture before applying. |
 | S21 | `s21-bar-undo.png` | Saved bar change with undo | Make a harmless local bar edit and release it. Capture Changed · Undo during its six-second display. This is distinct from program-settings history. |
-| S22 | `s22-label-library.png` | Global label library | On a multi-program card choose the label-multiple icon. Show labels, action summaries and usage counts. It is not exposed in a fixed one-program header. |
-| S23 | `s23-label-library-edit.png` | Global label editing | Open a label row in the library. Show name, palette, device context/action and Save/Cancel. Deletion is separate and refused while the label is used. |
 | S24 | `s24-card-filter-settings.png` | Card appearance, filtered mode | Edit the dashboard card → Card appearance → Filtered list. Show dynamic types, optional area, view choices and the visible disabled radial choice with explanation. |
 | S25 | `s25-card-one-settings.png` | Card appearance, fixed program | Choose One program, then an existing program. Show the program selector and the available Bars / 24-hour dial / Compact list view choices. |
 | S26 | `s26-program-selector.png` | Shared-program selection | Card editor → Program settings in filtered mode. The native dropdown popup is not exported by the browser screenshot: capture the selector closed and explain its option order in the guide (Choose a program, New program, separators, existing programs). |
@@ -105,8 +103,6 @@ and writes to the local test instance.
   `_copyOpen`, `_copyDays` and `_copyGo()` drive the actual copy path. Configure a
   real overlap in a test destination so `_copyGo()` produces its genuine conflict
   model rather than assigning a fake confirmation state.
-- The card routes the global label dialog with `_dialog = {kind: "labels"}`.
-  `wp-labels._expand(label)` edits a real label from subscription data.
 - The card editor has `_section: "display" | "programs"` and `_editing` containing
   a saved program ID or `"new"`. It retains the actual `wp-program-editor` instances
   per program. Inside a program editor `_tab` is `"general"`, `"entities"` or
