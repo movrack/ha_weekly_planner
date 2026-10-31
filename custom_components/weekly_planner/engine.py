@@ -24,7 +24,8 @@ from homeassistant.util import dt as dt_util
 
 from .actions import call_for, resolve_action
 from .conditions import ConditionTracker
-from .const import DOMAIN
+from .const import CONF_REAPPLY_DEFAULT, DEFAULT_PRIORITY, DEFAULT_REAPPLY, DOMAIN
+from .registry import async_check_missing, async_track_registry
 from .resolver import Segment, active_profile, default_label, next_transition, occurrences_around, resolve_entity
 from .store import PlannerStore
 
@@ -61,18 +62,18 @@ class PlannerEngine:
         self._conditions_by_entity: dict[str, list[dict]] = {}
         self._mode_source_entities: set[str] = set()
         self._notification_view: dict | None = None
+        self._status_memo: dict[str, dict] = {}  # program_status, valid during one notification only
         self._notifying = False
         self.descriptions: dict | None = None  # service descriptions, to know which entity a service suits
 
     # ------------------------------------------------------------------ lifecycle
 
     async def async_start(self) -> None:
-        from .registry import async_track_registry
-
         self.conditions.restore(self.store.runtime.get("conditions", {}))
         self._subscribe()
         self._static_unsubs.append(async_track_registry(self.hass, self))
         if self.hass.is_running:
+            async_check_missing(self.hass, self)  # also covers weekly_planner.reload
             self._schedule_startup()
         else:
             self._static_unsubs.append(
@@ -86,8 +87,6 @@ class PlannerEngine:
         )
 
     async def _async_startup(self, _now: datetime | None = None) -> None:
-        from .registry import async_check_missing
-
         self._ready = True
         await self.async_load_descriptions()
         async_check_missing(self.hass, self)
@@ -115,12 +114,14 @@ class PlannerEngine:
     def _notify_listeners(self) -> None:
         self._notifying = True
         self._notification_view = None
+        self._status_memo = {}
         try:
             for listener in list(self._listeners):
                 listener()
         finally:
             self._notifying = False
             self._notification_view = None
+            self._status_memo = {}
 
     def shared_notification_view(self, build: Callable[[], dict]) -> dict:
         """Share derived websocket data only during one synchronous publication."""
@@ -131,6 +132,11 @@ class PlannerEngine:
         return self._notification_view
 
     # ------------------------------------------------------------------ helpers
+
+    @property
+    def reapply_default(self) -> bool:
+        """Global option: whether a program saved without ``reapply`` re-sends its action."""
+        return bool(self.options.get(CONF_REAPPLY_DEFAULT, DEFAULT_REAPPLY))
 
     @property
     def tz(self):
@@ -190,10 +196,21 @@ class PlannerEngine:
 
     def program_status(self, program_id: str) -> dict[str, Any]:
         """What a program does now (switch attributes, card summary)."""
+        # Switch attributes and the websocket snapshot ask for the same status during one
+        # synchronous notification, where nothing can change: compute it once.
+        if self._notifying and program_id in self._status_memo:
+            return self._status_memo[program_id]
+        status = self._program_status(program_id)
+        if self._notifying:
+            self._status_memo[program_id] = status
+        return status
+
+    def _program_status(self, program_id: str) -> dict[str, Any]:
         program = self.store.program(program_id)
         if not program:
             return {}
         now = dt_util.utcnow()
+        occurrences: dict[str, list] = {}  # shared by the entities of this program
         current: dict[str, Any] = {}
         for entity in program["entities"]:
             eid = entity["entity_id"]
@@ -211,17 +228,18 @@ class PlannerEngine:
             "skip_next": prt.get("skip_at"),
             "next_actions": {
                 e["entity_id"]: action for e in program["entities"]
-                if (action := self.next_action(e["entity_id"]))
+                if (action := self.next_action(e["entity_id"], now, occurrences))
             },
         }
 
-    def next_action(self, entity_id: str) -> dict[str, Any] | None:
+    def next_action(self, entity_id: str, now: datetime | None = None,
+                    occurrences: dict[str, list] | None = None) -> dict[str, Any] | None:
         """Next thing the plan does to an entity: ``{"at": iso, "action": {...}, "label": id}``.
 
         Looks at the next days of the enabled programs: a slot gives its action at its start and,
         when it has an end, the default action at its end.
         """
-        now = dt_util.utcnow()
+        now = now or dt_util.utcnow()
         if self.store.config.get("vacation"):
             return None
         previous_key = self.segment(entity_id, now).key
@@ -233,7 +251,12 @@ class PlannerEngine:
             ):
                 continue
             profile = active_profile(program, profiles)
-            for occ, slot in occurrences_around(profile, now, self.tz, self.sun, days=range(-1, 8), program_id=program["id"]):
+            found = occurrences.get(program["id"]) if occurrences is not None else None
+            if found is None:
+                found = list(occurrences_around(profile, now, self.tz, self.sun, days=range(-1, 8), program_id=program["id"]))
+                if occurrences is not None:
+                    occurrences[program["id"]] = found
+            for occ, slot in found:
                 if not occ.runs:
                     continue
                 action = self.resolve(program, entity_id, slot.get("label"))
@@ -424,7 +447,7 @@ class PlannerEngine:
                     if action is None:
                         continue
                     seg = self.segment(eid, now)
-                    higher = seg.in_slot and seg.program_id != program["id"] and self._priority(seg.program_id) < program.get("priority", 100)
+                    higher = seg.in_slot and seg.program_id != program["id"] and self._priority(seg.program_id) < program.get("priority", DEFAULT_PRIORITY)
                     if higher:
                         continue  # skipped under a higher priority slot (Q-L)
                     await self._async_send(eid, action, "one_shot", oneshot=True)
@@ -434,7 +457,7 @@ class PlannerEngine:
 
     def _priority(self, program_id: str | None) -> int:
         program = self.store.program(program_id) if program_id else None
-        return program.get("priority", 100) if program else 100
+        return program.get("priority", DEFAULT_PRIORITY) if program else DEFAULT_PRIORITY
 
     # ------------------------------------------------------------------ timer
 
@@ -677,7 +700,7 @@ class PlannerEngine:
             for eid in sorted(self.managed_entities()):
                 owners = sorted((p for p in self.store.programs if p.get("enabled", True)
                                  and any(e["entity_id"] == eid for e in p["entities"])),
-                                key=lambda p: (p.get("priority", 100), p.get("created_at", "")))
+                                key=lambda p: (p.get("priority", DEFAULT_PRIORITY), p.get("created_at", "")))
                 if owners:
                     plan[eid] = self.resolve(owners[0], eid, default_label(owners[0], eid))
             self.store.config["vacation"] = True
@@ -755,6 +778,8 @@ class PlannerEngine:
         await self.async_load_descriptions()
         self._subscribe()
         self._observe_all_conditions()
+        if self._ready:
+            async_check_missing(self.hass, self)  # programs/entities edited: refresh the repair issue
         changed = self._sync_mode_sources()
         if not reapply and changed:
             await self.async_recompute("profile", profile_program_ids=set(changed))
