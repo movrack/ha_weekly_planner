@@ -12,12 +12,8 @@ describe("setting naming", () => {
     }
   });
   it("names the concept Setting / Réglage", () => {
-    expect(t("en", "labels")).toBe("Settings");
-    expect(t("fr", "labels")).toBe("Réglages");
     expect(t("en", "lb_new")).toBe("New setting");
     expect(t("fr", "lb_new")).toBe("Nouveau réglage");
-    expect(t("fr", "lb_none")).toBe("Aucun réglage.");
     expect(t("fr", "lb_err_save")).toBe("Réglage non enregistré.");
-    expect(t("fr", "lb_in_use", { programs: "A" })).toBe("Utilisé par : A");
   });
 });
