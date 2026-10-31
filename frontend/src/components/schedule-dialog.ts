@@ -220,8 +220,20 @@ export class WpSchedule extends LitElement {
     this._error = "";
     this._note = "";
     // Show the top of the opened row, not the bottom of its form.
-    void this.updateComplete.then(() => requestAnimationFrame(() =>
-      this.renderRoot.querySelector<HTMLElement>(".editor")?.scrollIntoView({ block: "start" })));
+    void this.updateComplete.then(() => requestAnimationFrame(() => this._revealEditor()));
+  }
+
+  /** Brings the opened editor into view. In two columns the schematic sits beside it: scroll only if the editor's top is out of view. */
+  private _revealEditor(): void {
+    const editor = this.renderRoot.querySelector<HTMLElement>(".editor");
+    if (!editor) return;
+    const twoColumns = typeof matchMedia === "function" && matchMedia("(min-width: 768px)").matches;
+    const content = this.renderRoot.querySelector("wp-dialog")?.shadowRoot?.querySelector<HTMLElement>(".content");
+    if (!twoColumns || !content) { editor.scrollIntoView({ block: "start" }); return; }
+    const e = editor.getBoundingClientRect();
+    const c = content.getBoundingClientRect();
+    if (e.top >= c.top && e.top < c.bottom) return; // already in view: do not push the schematic out of sight
+    content.scrollTop += e.top - c.top;
   }
 
   /** Opens a slot row: the whole group, or only the focused day of it. */
@@ -804,6 +816,8 @@ export class WpSchedule extends LitElement {
       .area-chart { grid-area: chart; min-width: 0; }
       .area-delete { grid-area: delete; min-width: 0; }
       .area-delete .btn.alone { margin-top: 0; }
+      /* Hidden while a slot editor is open (nothing rendered): no empty grid cell. */
+      .area-chart:empty, .area-delete:empty { display: none; }
     }
     .mode-select { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
     .mode-select select { flex: 1; min-width: 0; min-height: 44px; }
