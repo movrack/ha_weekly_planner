@@ -40,8 +40,8 @@ Résultats datés : `docs/CONTROLE_VISUEL_RESULTATS.md`.
       « Le reste du temps », graphique du jour avec ◀ ▶, interrupteur « Horaires actifs », Supprimer isolé.
 - [x] Ouvrir une ligne : un seul « Enregistrer / Annuler », « Dupliquer » et « Supprimer » sous le formulaire.
 - [x] Début : pas ±15 min, pastilles Lever / Coucher, décalage affiché (« Coucher +30 min »).
-- [x] « Pas avant » / « Pas après » : saisie libre ; si l'ordre est inversé, message
-      « « Pas avant » doit précéder « Pas après » » et l'enregistrement est refusé.
+- [x] « Au plus tôt à » / « Au plus tard à » : saisie libre ; si l'ordre est inversé, message
+      « « Au plus tôt » doit précéder « Au plus tard » » et l'enregistrement est refusé.
 - [x] Délai aléatoire (début et fin) : case + « Délai maximum (minutes) » ; l'horaire est enregistré avec
       `random_minutes` et réaffiché (« Dans les 20 prochaines minutes »).
 - [x] **Dupliquer** un horaire avec délai aléatoire : le brouillon garde le délai ; une fois enregistré et rouvert, il
