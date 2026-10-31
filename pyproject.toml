@@ -7,10 +7,14 @@ license = "MIT"
 
 [dependency-groups]
 test = [
+  "pytest-cov>=7.1.0",
   "pytest-homeassistant-custom-component==0.13.374",
 ]
 lint = [
   "ruff",
+]
+mutation = [
+    "mutmut>=3.8.1",
 ]
 
 [tool.pytest.ini_options]
@@ -22,3 +26,43 @@ pythonpath = ["."]
 [tool.ruff]
 target-version = "py314"
 line-length = 100
+
+[tool.coverage.run]
+source = ["custom_components/weekly_planner"]
+branch = true
+
+[tool.coverage.report]
+# Floor just below the measured 87.2 % (branch coverage included): no regression.
+fail_under = 85
+show_missing = true
+skip_covered = false
+exclude_also = [
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+]
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.mutmut]
+paths_to_mutate = [
+  "custom_components/weekly_planner/timeline.py",
+  "custom_components/weekly_planner/resolver.py",
+  "custom_components/weekly_planner/validation.py",
+]
+pytest_add_cli_args_test_selection = [
+  "tests/test_timeline.py",
+  "tests/test_resolver.py",
+  "tests/test_random_times.py",
+  "tests/test_mutation_survivors.py",
+  "tests/test_action_sources.py",
+  "tests/test_action_targets.py",
+  "tests/test_actions.py",
+  "tests/test_defaults_and_repairs.py",
+  "tests/test_mode_sources.py",
+]
+also_copy = ["custom_components/", "tests/", "pyproject.toml"]
+

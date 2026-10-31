@@ -104,6 +104,15 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
   itself when its version changes.
 - Update the spec, the decisions and the CHANGELOG with the change.
 
+### Coverage and mutation testing
+- Python coverage (fails under the floor in `pyproject.toml`): `uv run --group test pytest -q --cov --cov-report=term-missing`.
+- Card coverage (floors in `frontend/vite.config.ts`): `cd frontend && npm run coverage`.
+- Python mutation (mutmut, slow, on demand): `uv run --group test --group mutation mutmut run` then
+  `mutmut results` / `mutmut show <name>`; `mutants/` is not committed.
+- Card mutation (StrykerJS, pure modules only): `cd frontend && npm run mutation`; report in `frontend/reports/`.
+- Raise the floors when coverage rises; never lower them to make a change pass. The weekly CI job
+  `mutation.yml` is informational and never required for a pull request.
+
 ## Deploying to a real instance
 - The weekday 08:00–17:00 restriction applies to commits, cherry-picks, merges and reverts only.
   It does not prohibit deployments. When the owner requests deployment, deploy the tested working
