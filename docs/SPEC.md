@@ -1,6 +1,6 @@
 # Weekly Planner — spécification v1
 
-> Statut : **0.19.0** — un seul modèle pour tous les appareils depuis la 0.6 (§ 5 et § 6 ; les anciennes règles retirées en
+> Statut : **0.20.0** — un seul modèle pour tous les appareils depuis la 0.6 (§ 5 et § 6 ; les anciennes règles retirées en
 > 0.6.0 sont marquées « retiré en 0.6.0 ») ; modes, sources, cibles, délais aléatoires et limites solaires : § 5.10, § 6, § 17 à 20.
 > Écarts connus entre cette spec et le code : § 21.
 > Dépôt : `ha_weekly_planner` · domaine HA : `weekly_planner` · cible : Home Assistant ≥ 2026.10.
@@ -32,7 +32,7 @@ entité, puis une **action par défaut** à la fin.
 - **Réglage** (nom affiché ; clés internes `label` / `labels`, comme les étiquettes de Netatmo) : `{id, name, color, action}`, **global** (partagé par tous les programmes),
   stockée par l'intégration. Tout passe par un réglage : un horaire en référence une (`slot.label`), le « reste du
   temps » aussi (`entity.default_label`). Exemple : « Confort » = 19 °C ; les horaires sont « Confort 10:00–12:00 ».
-  Nom affiché : « Réglage » (décision 2026-10-31, à implémenter ; clés internes inchangées).
+  Nom affiché : « Réglage » (décision 2026-10-31, 0.20.0 ; clés internes inchangées).
 - **Action** (celle d'un réglage) : un service HA, `{"kind":"service","service":"climate.set_temperature","data":{"temperature":18}}`,
   ou une scène, `{"kind":"scene","scene":"scene.x"}`. Les services proposés viennent du sélecteur générique de la carte
   (services dont la cible accepte l'entité).
@@ -485,8 +485,8 @@ Barre « Auj. » et sept barres de la semaine, doigt et souris (événements poi
 - **Enregistrer** au relâcher, **pour ce jour seulement** (jour de la semaine de la date dans le profil actif) ; changement refait sur les
   données COURANTES, un conflit de révision est retenté une fois, jamais de « rechargez ». Bandeau « Modifié · Annuler » ~6 s ;
   « Annuler » remet les horaires précédents de ces jours. Deux horaires voisins de même réglage (fin == début) sont fusionnés.
-- **Sélection** (toucher un horaire ou un trou) : bande sous la barre avec les réglages compatibles, « Rien », ciseaux
-  (`mdi:content-cut`, coupe au milieu, pas de 15 min) et « Copier vers… » (`mdi:content-copy`) : pastilles Lun…Dim sans le jour courant ;
+- **Sélection** (toucher un horaire ou un trou) : bande sous la barre : « Rien », ciseaux
+  (`mdi:content-cut`, coupe au milieu, pas de 15 min : la partie gauche garde le réglage, la partie droite devient « Rien ») et « Copier vers… » (`mdi:content-copy`), puis les réglages compatibles (choix seulement, sans crayon). Copie : pastilles Lun…Dim sans le jour courant ;
   sans chevauchement la copie est directe ; sinon petite fenêtre listant les jours en conflit, chacun « Remplacer » (défaut) ou
   « Ne pas copier ce jour ». « Remplacer » rogne ou coupe les horaires existants autour de la plage (mer. 8 h 45–17 h 18 °C + copie de
   12–14 h 19 °C = 8 h 45–12 h 18 °C, 12–14 h 19 °C, 14–17 h 18 °C).
@@ -951,15 +951,19 @@ Les cases encore ouvertes du § 17 restent ouvertes et ne sont pas répétées i
 - [x] Versions 0.19.1 alignées (manifest, pyproject, carte, verrous), CHANGELOG, décisions.
 - [ ] Stratégie de tags / releases, installation HACS, test réel ≥ 3 jours (en cours), icône « maintenant » sur ligne longue à 1440 px, survivants de mutation de `validation.py` : hors de cette version.
 
-## 24. Évolutions décidées (0.20.0, à implémenter)
+## 24. Évolutions décidées (0.20.0, implémentées)
 
-Décisions du propriétaire du 2026-10-31, non encore implémentées ; implémentation en attente de son feu vert (§ « décisions » : `docs/DECISIONS.md`).
+Décisions du propriétaire du 2026-10-31, implémentées en 0.20.0 (§ « décisions » : `docs/DECISIONS.md`).
 
 ### 24.1 Panneau de la barre (mobile, § 10)
-- [ ] Quand une barre est en édition sur mobile, « Rien », ciseaux et « Copier vers… » sont placés au-dessus de la liste des réglages (15 °C, Comfort…) ; la carte de détail du réglage choisi (avec le crayon) reste sous la liste.
-- [ ] Couper un créneau : la partie gauche garde le réglage coupé, la partie droite devient « Rien » (aucune action sur cette plage).
+- [x] Quand une barre est en édition sur mobile, « Rien », ciseaux et « Copier vers… » sont placés au-dessus de la liste des réglages (15 °C, Comfort…) ; la carte de détail du réglage choisi (avec le crayon) reste sous la liste.
+- [x] Couper un créneau : la partie gauche garde le réglage coupé, la partie droite devient « Rien » (aucune action sur cette plage).
+
+### 24.1 bis Panneau en ligne : choisir sans configurer
+- [x] Dans le panneau sous une barre, un réglage se choisit seulement : ni crayon, ni « Nouveau réglage », ni renommage, couleur, valeur par appareil ou action. La configuration reste dans l'écran d'horaires (`wp-label-picker` sans `readonly-settings`).
+- [x] Renommage « Réglage » (§ 2, interface fr/en, README, guide) ; clés `label` / `labels` inchangées.
 
 ### 24.2 Écran d'horaires d'un programme (§ 10)
-- [ ] Nouvel ordre vertical : 1) interrupteur « Horaires actifs / En marche », 2) sélecteur de Mode, 3) réglages (ligne « Le reste du temps · <réglage par défaut> »), 4) liste des horaires avec « Ajouter un horaire », 5) schéma des 7 jours, 6) graphique du jour, puis bouton Supprimer en bas.
-- [ ] Mêmes fonctions qu'aujourd'hui ; rien de retiré.
+- [x] Nouvel ordre vertical : 1) interrupteur « Horaires actifs / En marche », 2) sélecteur de Mode, 3) réglages (ligne « Le reste du temps · <réglage par défaut> »), 4) liste des horaires avec « Ajouter un horaire », 5) schéma des 7 jours, 6) graphique du jour, puis bouton Supprimer en bas.
+- [x] Mêmes fonctions qu'aujourd'hui ; rien de retiré.
 - *Interprétation à confirmer : « réglages » = la ligne « Le reste du temps ».*

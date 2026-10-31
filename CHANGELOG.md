@@ -6,6 +6,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-31
+
+### Changed
+- "Label" is now called "Setting" ("Réglage" in French) everywhere in the interface, README and guides. Keys, API and storage are unchanged.
+- Bar panel (edit mode): None, cut and Copy to are above the list of settings; the selected setting card stays below.
+- In the bar panel, settings can only be chosen. Creating, renaming, recolouring and per-device values stay in the schedule screen.
+- Cutting a slot keeps its setting on the left part; the right part becomes None.
+- Schedule screen order: on/off switch, mode, the rest of the time, slots with Add, the 7-day overview, the day chart, then Delete.
+
 ## [0.19.1] - 2026-10-31
 
 ### Fixed
