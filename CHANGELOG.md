@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+- Solar time form: the limits are now labelled "Au plus tôt à" / "Au plus tard à" ("Not earlier than" / "Not later than"), with a plain sentence giving the actual time and today's result.
+- The random-delay help is one plain sentence ("Chaque jour, démarre au hasard entre 18:00 et 18:15.") instead of repeating the solar time and its limits.
+
 ## [0.21.1] - 2026-10-31
 
 ### Fixed
