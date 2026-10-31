@@ -10,7 +10,6 @@ import "./components/radial-day";
 import { confirmAction } from "./components/confirm";
 import { sunDir } from "./components/day-bar";
 import "./components/dialog";
-import "./components/labels-dialog";
 import "./components/schedule-dialog";
 import type { BarSpan } from "./components/day-bar";
 import { scopeKey } from "./components/schedule-dialog";
@@ -30,7 +29,6 @@ import type { CardConfig, HomeAssistant, PlannerData, PreviewSlot, Program, Slot
 
 type Dialog =
   | { kind: "schedule"; scope: Scope; day?: { weekday: number; offset: number } }
-  | { kind: "labels" }
   | null;
 
 @customElement("weekly-planner-card")
@@ -472,17 +470,13 @@ export class WeeklyPlannerCard extends LitElement {
     const lang = this._lang;
     const data = this._data;
     const programs = data ? filterPrograms(data, this._config) : [];
-    const admin = Boolean(data) && Boolean(this.hass.user?.is_admin) && Boolean(data?.can_edit);
-    const globalLabels = admin && this._config.program === undefined;
     const showTitle = this._config.title !== undefined && this._config.title !== "";
     return html`
       <ha-card>
-        ${showTitle || globalLabels || data?.vacation
+        ${showTitle || data?.vacation
           ? html`<div class="head">
               <h1>${this._config.title ?? ""}</h1>
               ${data?.vacation ? html`<span class="chip"><ha-icon icon="mdi:pause-circle-outline"></ha-icon> ${t(lang, "vacation")}</span>` : nothing}
-              ${globalLabels ? html`<button class="gear" aria-label=${t(lang, "labels")} @click=${() => (this._dialog = { kind: "labels" })}>
-                <ha-icon icon="mdi:label-multiple-outline"></ha-icon></button>` : nothing}
             </div>`
           : nothing}
         ${this._error ? html`<div class="error">${t(lang, "error", { message: this._error })}</div>` : nothing}
@@ -504,8 +498,6 @@ export class WeeklyPlannerCard extends LitElement {
       case "schedule":
         return keyed(scopeKey(d.scope), html`<wp-schedule .hass=${this.hass} .data=${this._data} .scope=${d.scope} .day=${d.day ?? null}
           .chart=${this._config.show_chart !== false} @closed=${close}></wp-schedule>`);
-      case "labels":
-        return html`<wp-labels .hass=${this.hass} .data=${this._data} @closed=${close}></wp-labels>`;
     }
   }
 
@@ -524,11 +516,6 @@ export class WeeklyPlannerCard extends LitElement {
     .head { display: flex; align-items: center; gap: 8px; min-height: 48px; }
     h1 { flex: 1; min-width: 0; margin: 0; font-size: 20px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .chip { display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 14px; font-size: 14px; padding: 2px 10px; border-radius: 12px; background: var(--warning-color, #ff9800); color: #fff; }
-    .gear {
-      border: none; background: none; color: inherit; width: 48px; height: 48px; border-radius: 24px; cursor: pointer;
-      display: inline-flex; align-items: center; justify-content: center; --mdc-icon-size: 22px; flex: none;
-    }
-    .gear:hover { background: var(--secondary-background-color); }
     .block { padding: 8px 0; border-top: 1px solid var(--divider-color); }
     .block:first-of-type, .head + .block { border-top: none; }
     .line { display: flex; align-items: flex-start; gap: 10px; min-height: 28px; }

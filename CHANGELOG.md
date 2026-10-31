@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+- Card: settings are edited per program in the schedule screen only. The card no longer has a global "Settings" dialog.
+
+### Removed
+- Card: the "Settings" button at the top right of the card header, and the blank band it left above the first program. The header now appears only with a title or the vacation chip.
+
 ## [0.21.1] - 2026-10-31
 
 ### Fixed

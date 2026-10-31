@@ -113,7 +113,7 @@ Les programmes du salon montrent leur état, leur prochaine action, leur interru
 
 ## S02 — Un seul programme
 
-Une carte fixée sur le chauffage du salon donne accès à ses horaires sans ouvrir la bibliothèque globale des réglages.
+Une carte fixée sur le chauffage du salon donne accès à ses horaires sans passer par une liste de tous les réglages ; les réglages se modifient dans la fenêtre des horaires.
 
 <a href="images/guide/s02-one-program.png"><img src="images/guide/s02-one-program.png" width="320" alt="S02 — Un seul programme" /></a>
 
@@ -273,26 +273,6 @@ Après l’enregistrement au relâcher, le bandeau Modifié · Annuler permet de
 
 <a href="images/guide/s21-bar-undo.png"><img src="images/guide/s21-bar-undo.png" width="320" alt="S21 — Annuler une modification de barre" /></a>
 
-<a id="s22"></a>
-
-## S22 — Bibliothèque des réglages
-
-L’écran global liste les réglages, leurs actions et leur utilisation. Il s’ouvre depuis une carte avec plusieurs programmes.
-
-<a href="images/guide/s22-label-library.png"><img src="images/guide/s22-label-library.png" width="320" alt="S22 — Bibliothèque des réglages" /></a>
-
-<a id="s23"></a>
-
-## S23 — Modifier dans la bibliothèque
-
-Nom, couleur et action se règlent dans une seule fiche. La suite de la capture montre les commandes inférieures.
-
-<a href="images/guide/s23-label-library-edit.png"><img src="images/guide/s23-label-library-edit.png" width="320" alt="S23 — Modifier dans la bibliothèque" /></a>
-
-Suite de l’écran :
-
-<a href="images/guide/s23-label-library-edit-suite.png"><img src="images/guide/s23-label-library-edit-suite.png" width="320" alt="S23 — suite" /></a>
-
 <a id="s24"></a>
 
 ## S24 — Affichage : liste filtrée
@@ -434,10 +414,6 @@ Ces états complètent les mêmes écrans sans ajouter une nouvelle façon de pr
 ### Horaires en lecture seule
 
 <a href="images/guide/s06-read-only.png"><img src="images/guide/s06-read-only.png" width="320" alt="Horaires en lecture seule" /></a>
-
-### Suppression refusée d’un réglage utilisé
-
-<a href="images/guide/s23-label-in-use.png"><img src="images/guide/s23-label-in-use.png" width="320" alt="Suppression refusée d’un réglage utilisé" /></a>
 
 ### Validation d’un nouveau programme incomplet
 
