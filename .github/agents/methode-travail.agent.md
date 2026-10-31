@@ -127,3 +127,4 @@ Automatique : dès que le propriétaire donne une règle, une préférence ou un
   actions destructives ou irréversibles, questions au propriétaire, ce qui pourrait être mal compris. Réponses au
   propriétaire, commits, commentaires de code, docs : langage normal.
 - Jamais de secret, ni de consigne qui prime sur `AGENTS.md` ou le propriétaire.
+- Tests Python : jamais d'horloge réelle ni d'ordre de threads : comptages à des instants figés (jour et nuit), écouteurs du bus des tests en `@callback`.

@@ -120,6 +120,9 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
   `mutation.yml` is informational and never required for a pull request.
 
 ### Performance tests
+- Tests must not depend on the real clock or on thread order: take operation counts at frozen, simulated
+  moments (day and night) and register bus listeners in tests as `@callback` (a plain function runs in an
+  executor thread and records events in random order). CI runs in UTC at any hour.
 - Python budgets: `uv run --group test pytest tests/test_performance.py -q` (marker `performance`, also part of the
   normal suite, about 15 s). Synthetic install: 50 programs x 4 entities x 3 modes x 7 days x 6 slots (`tests/perf_data.py`).
 - Card budgets: `cd frontend && npx vitest run src/__tests__/performance.test.ts`.
