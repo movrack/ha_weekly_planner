@@ -711,3 +711,16 @@ For fixed-time ranges, reject settings whose maximum start delay would leave les
 - [x] Label each boundary option “Délai aléatoire” / “Random delay” and place it after the sunrise/sunset chips.
 - [x] Explain the possible interval explicitly: “Aléatoirement entre 16:45 et 17:00”, or “Aléatoirement entre Coucher + 1h et Coucher + 1h15”. Keep the existing daily-delay scheduling semantics.
 - [x] In the program-settings selector, place New program immediately after the placeholder, with a native separator above and below; retain creation drafts through the existing creation path.
+
+
+## 20. Solar time limits — 0.18.0
+
+Un début ou une fin solaire (lever / coucher) accepte déjà `earliest` et `latest` (heures `HH:MM`, minute libre). Le formulaire d'horaire les expose : deux champs d'heure facultatifs « Pas avant » / « Pas après » sous les pastilles Lever / Coucher, chacun avec un bouton pour retirer la limite. Ils n'apparaissent que pour une heure solaire. Résolution inchangée : décalage, puis limites, puis délai aléatoire (la limite « après » plafonne aussi le résultat).
+
+Les limites survivent au changement de décalage, au délai aléatoire, au passage lever/coucher, au regroupement et à la duplication ; revenir à une heure fixe ou glisser une barre vers une heure exacte remplace la définition, comme avant. Une limite « avant » postérieure à « après » est refusée dans le formulaire (message clair) et par le serveur (`earliest_after_latest`) ; des limites égales sont acceptées.
+
+- [x] Champs « Pas avant » / « Pas après » (tactiles, 44 px, bouton retirer) pour chaque début/fin solaire.
+- [x] Conserver les limites lors des autres modifications ; glisser vers une heure exacte les remplace.
+- [x] Valider earliest <= latest côté carte et côté serveur, avec tests.
+- [x] Textes EN/FR, graphique et aperçu via la résolution existante.
+- [x] Aube / crépuscule : le modèle et le serveur les acceptent ; le formulaire ne propose toujours que Lever / Coucher (inchangé).

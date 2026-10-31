@@ -141,3 +141,23 @@ async def test_random_one_shot_fires_once_without_recompute_replay(hass, hass_st
     await hass.async_block_till_done()
     assert [call for call in rec.calls if call[0] == "climate.set_preset_mode"] == [
         ("climate.set_preset_mode", {"preset_mode": "boost"})]
+
+
+def test_sun_bounds_accept_either_or_both_ordered():
+    for extra in ({}, {"earliest": "18:00"}, {"latest": "21:00"},
+                  {"earliest": "18:00", "latest": "21:00"}, {"earliest": "20:00", "latest": "20:00"}):
+        assert TIME_SPEC({"sun": "sunset", **extra})["sun"] == "sunset"
+
+
+@pytest.mark.parametrize("earliest,latest", [("21:00", "18:00"), ("20:01", "20:00"), ("24:00", "23:59")])
+def test_sun_bounds_reject_earliest_after_latest(earliest, latest):
+    with pytest.raises(vol.Invalid, match="earliest_after_latest"):
+        TIME_SPEC({"sun": "sunset", "earliest": earliest, "latest": latest})
+
+
+def test_sun_bounds_still_reject_invalid_clock_and_resolve():
+    with pytest.raises(vol.Invalid):
+        TIME_SPEC({"sun": "dusk", "earliest": "25:00"})
+    spec = {"sun": "sunset", "earliest": "21:00"}
+    assert placed(spec).start == datetime(2026, 6, 21, 21, tzinfo=TZ)
+    assert placed({"sun": "sunset", "latest": "19:00"}).start == datetime(2026, 6, 21, 19, tzinfo=TZ)

@@ -22,7 +22,7 @@ import { strings, t } from "../i18n";
 import { loadServiceNames } from "../services";
 import { activeProfile, friendlyName } from "../planner";
 import { DAY, localDateIso, minutesToClock } from "../time";
-import { specMinutes } from "../slots";
+import { specMinutes, sunBoundsInvalid } from "../slots";
 import { editorStyles, langOf } from "../editors/shared";
 import type { Action, HomeAssistant, PlannerData, PreviewSlot, Profile, Program, Slot, TimeSpec } from "../types";
 
@@ -335,6 +335,7 @@ export class WpSchedule extends LitElement {
       if (e?.code === "conflict") return "conflict";
       if (e?.code === "unauthorized") this._error = t(this._lang, "err_unauthorized");
       else if (e?.message?.includes("unknown_label")) this._error = t(this._lang, "err_label");
+      else if (e?.message?.includes("earliest_after_latest")) this._error = t(this._lang, "err_sun_bounds");
       else if (e?.message?.includes("random_window_too_short")) this._error = t(this._lang, "random_too_short");
       else if (e?.message?.includes("overlapping_slots")) this._error = t(this._lang, "w_err_overlap");
       else this._error = t(this._lang, "ss_err_save");
@@ -395,6 +396,7 @@ export class WpSchedule extends LitElement {
     const g = this._group;
     if (!g) return "";
     if (!g.days.length) return t(lang, "err_days");
+    if (sunBoundsInvalid(g.slot.start) || sunBoundsInvalid(g.slot.end)) return t(lang, "err_sun_bounds");
     if (g.slot.end && JSON.stringify(g.slot.start) === JSON.stringify(g.slot.end)) return t(lang, "w_err_same");
     if (!labelOf(this.data, g.slot.label) && !this._fresh.has(g.slot.label)) return t(lang, "err_action");
     return "";
