@@ -1,6 +1,6 @@
 # Weekly Planner — spécification v1
 
-> Statut : **0.20.0** — un seul modèle pour tous les appareils depuis la 0.6 (§ 5 et § 6 ; les anciennes règles retirées en
+> Statut : **0.20.1** — un seul modèle pour tous les appareils depuis la 0.6 (§ 5 et § 6 ; les anciennes règles retirées en
 > 0.6.0 sont marquées « retiré en 0.6.0 ») ; modes, sources, cibles, délais aléatoires et limites solaires : § 5.10, § 6, § 17 à 20.
 > Écarts connus entre cette spec et le code : § 21.
 > Dépôt : `ha_weekly_planner` · domaine HA : `weekly_planner` · cible : Home Assistant ≥ 2026.10.
@@ -968,21 +968,21 @@ Décisions du propriétaire du 2026-10-31, implémentées en 0.20.0 (§ « déci
 - [x] Mêmes fonctions qu'aujourd'hui ; rien de retiré.
 - *Interprétation à confirmer : « réglages » = la ligne « Le reste du temps ».*
 
-## 25. Évolutions décidées (0.20.1, à implémenter)
+## 25. Évolutions décidées (0.20.1, implémenté)
 
-Décisions du propriétaire du 2026-10-31, statut **à implémenter** : elles attendent son feu vert et sont prévues pour 0.20.1 (§ « décisions » : `docs/DECISIONS.md`).
+Décisions du propriétaire du 2026-10-31, statut **implémenté** en 0.20.1 (§ « décisions » : `docs/DECISIONS.md`).
 
 ### 25.1 Légende du graphique du jour (§ 10.4)
-- [ ] Symbole « Prévu » : point plein à gauche, de même taille et même couleur que le point affiché au début de chaque palier prévu, suivi du trait. « Mesuré » et « Réglé » inchangés.
-- [ ] Vérifier en 360 px et ≥ 1400 px, clair et sombre.
+- [x] Symbole « Prévu » : point plein à gauche, de même taille et même couleur que le point affiché au début de chaque palier prévu, suivi du trait. « Mesuré » et « Réglé » inchangés.
+- [ ] Vérifier en 360 px et ≥ 1400 px, clair et sombre (non testé en navigateur ; tests CSS seulement).
 
 ### 25.2 Modale d'horaires sur ordinateur (§ 10.3)
-- [ ] Seuil de deux colonnes à fixer avec les points de rupture existants (600 px et 480 px) ; référence ≥ 1400 px.
-- [ ] Colonne gauche : interrupteur « Horaires actifs », Mode, réglages / « Le reste du temps », liste des horaires et « Ajouter un horaire », Supprimer.
-- [ ] Colonne droite : schéma des 7 jours, puis graphique du jour.
-- [ ] Mobile (360 px) : ordre vertical du § 24.2 inchangé ; rien retiré.
-- [ ] Ordre du DOM unique (ordre mobile), colonnes en CSS ; contrôler le parcours clavier sur ordinateur.
-- [ ] Vérifier en navigateur à 360 px et ≥ 1400 px, clair et sombre, sans erreur console.
+- [x] Seuil de deux colonnes : **768 px** (tablette), au-dessus des points de rupture existants 600 px (feuille plein écran) et 480 px ; entre 601 et 767 px la modale reste en colonne unique de 560 px ; référence ≥ 1400 px. Largeur de la modale : jusqu'à 960 px dès 768 px.
+- [x] Colonne gauche : interrupteur « Horaires actifs », Mode, réglages / « Le reste du temps », liste des horaires et « Ajouter un horaire », Supprimer.
+- [x] Colonne droite : schéma des 7 jours, puis graphique du jour.
+- [x] Mobile (360 px) : ordre vertical du § 24.2 inchangé ; rien retiré.
+- [x] Ordre du DOM unique (ordre mobile), colonnes en CSS (grille `params / week / chart / delete`) : au clavier, on passe de la liste d'horaires au schéma et au graphique (colonne droite), puis au bouton Supprimer (colonne gauche). Colonne droite non « collante » (sticky) : non retenu, la grille imposée par l'ordre du DOM ne s'y prête pas sans risque.
+- [ ] Vérifier en navigateur à 360 px, 820 px et ≥ 1400 px, clair et sombre, sans erreur console (non testé en navigateur par l'implémentation ; tests CSS et ordre du DOM seulement).
 
 ### 25.3 Livraison 0.20.1
-- [ ] Version 0.20.1 alignée (`manifest.json`, `pyproject.toml`, `frontend/package.json` et son verrou), entrée CHANGELOG, bundle commité.
+- [x] Version 0.20.1 alignée (`manifest.json`, `pyproject.toml`, `frontend/package.json` et son verrou), entrée CHANGELOG, bundle reconstruit et commité par le coordinateur.
