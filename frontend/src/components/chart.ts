@@ -265,7 +265,8 @@ export class WpChart extends LitElement {
       }
       default: {
         const n = Number(p.s);
-        return { ...none, main: Number.isFinite(n) ? n : null };
+        // a numeric sensor reports a measured quantity
+        return { ...none, measured: Number.isFinite(n) ? n : null };
       }
     }
   }
@@ -460,6 +461,13 @@ export class WpChart extends LitElement {
 
   // ---- render ----
 
+  /**
+   * Path of a recorded series, by its role. A value that is SET (cover position, light brightness, setpoint: the
+   * "main" and "set" series) holds until the next recorded change: staircase (horizontal, vertical jump at the
+   * change time, last value held up to "now"), never an oblique line that would invent a progressive movement.
+   * A MEASURED probe value (the "measured" series) is a continuous quantity sampled by history: a line through
+   * the recorded points, then the last value held up to "now".
+   */
   private _path(pts: Pt[], model: Model, x: (m: number) => number, y: (v: number) => number, step: boolean, within?: Span): string {
     let d = "";
     let pen = false;
@@ -594,11 +602,11 @@ export class WpChart extends LitElement {
             return fitText(b.text, w) ? svg`<text class="btxt" x=${x(b.s) + w / 2} y=${bandY + bandH / 2 + 4} text-anchor="middle">${fitText(b.text, w)}</text>` : nothing;
           })}
           ${model.manual.map(([a, b]) => svg`<rect class="red-band" x=${x(a)} y=${bandY} width=${Math.max(3, x(b) - x(a))} height=${bandH}></rect>`)}`}
-        ${curve ? model.lines.map((l) => svg`<path class="line ${l.key}" d=${this._path(l.pts, model, x, y, l.key === "set")}></path>`) : nothing}
+        ${curve ? model.lines.map((l) => svg`<path class="line ${l.key}" d=${this._path(l.pts, model, x, y, l.key !== "measured")}></path>`) : nothing}
         ${curve ? model.manual.map((span) => {
           const pt = base?.pts.find((p, i) => p.v !== null && (base.pts[i + 1]?.m ?? Infinity) > span[0]);
           const dot = pt?.v ?? null;
-          return svg`${base ? svg`<path class="line red" d=${this._path(base.pts, model, x, y, base.key === "set", span)}></path>` : nothing}
+          return svg`${base ? svg`<path class="line red" d=${this._path(base.pts, model, x, y, base.key !== "measured", span)}></path>` : nothing}
             ${dot !== null ? svg`<circle class="reddot" cx=${x(span[0])} cy=${y(dot)} r="3.5"></circle>` : nothing}`;
         }) : nothing}
         ${curve ? model.planned.steps.map((st) => svg`<path class="plan" d="M${x(st.from).toFixed(1)},${y(st.value).toFixed(1)}H${x(st.to).toFixed(1)}" style="--c:${st.color}"></path>`) : nothing}

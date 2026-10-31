@@ -78,6 +78,7 @@ export class WpProgramEditor extends LitElement {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     this.removeEventListener("keydown", this._historyKey);
+    this._applied = false; // leaving the screen (other program or tab) drops the leftover notice
   }
 
   private _snapshot(): EditorSnapshot {
@@ -376,8 +377,9 @@ export class WpProgramEditor extends LitElement {
       if (saved) {
         this._p = structuredClone(saved);
         this._origin = structuredClone(saved);
+        // The "updated on all cards" notice only follows an update of an existing program, never a creation.
+        this._applied = !this._isNew;
         this._isNew = false;
-        this._applied = true;
         ++this._iconEpoch;
         this._history.clear();
         this.dispatchEvent(new CustomEvent("program-saved", { detail: saved, bubbles: true, composed: true }));

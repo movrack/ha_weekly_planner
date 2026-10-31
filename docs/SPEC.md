@@ -410,6 +410,12 @@ administrateurs) ; filtres de types dynamiques (§ 14.12), zone, programmes à a
 SVG maison, un jour (précédent / suivant).
 - **Données** : historique HA de l'entité sur le jour. Valeur numérique → **courbe** : climat `current_temperature`
   (mesurée) et attribut `temperature` (réglée), volet `current_position`, lumière luminosité en %. Sinon → **bande d'états**.
+  Le tracé dépend du **rôle** de la série : une valeur **réglée ou demandée** (position du volet, luminosité, consigne
+  « Demandé à l'appareil ») est un **escalier** : l'historique HA n'enregistre qu'un changement, donc la valeur reste
+  constante jusqu'au point suivant (horizontale), saute à l'heure du changement (verticale), et la dernière valeur est
+  tenue jusqu'à « maintenant » ; jamais d'oblique, elle inventerait un mouvement progressif. Une valeur **mesurée**
+  (« Valeur mesurée » : `current_temperature`, capteur numérique) reste une **ligne continue passant par les points
+  enregistrés**, puis tenue jusqu'à « maintenant ».
 - **Actions prévues** : repères aux heures prévues, avec la valeur quand l'action en contient une
   (`temperature`, `position`, `brightness_pct`).
 - **Maintenant** : trait vertical sur le jour courant.

@@ -4205,7 +4205,7 @@ let ot = class extends U {
       }
       default: {
         const i = Number(t.s);
-        return { ...e, main: Number.isFinite(i) ? i : null };
+        return { ...e, measured: Number.isFinite(i) ? i : null };
       }
     }
   }
@@ -4367,6 +4367,13 @@ let ot = class extends U {
     this.dispatchEvent(new CustomEvent("open-history", { detail: this._historyPath, bubbles: !0, composed: !0 }));
   }
   // ---- render ----
+  /**
+   * Path of a recorded series, by its role. A value that is SET (cover position, light brightness, setpoint: the
+   * "main" and "set" series) holds until the next recorded change: staircase (horizontal, vertical jump at the
+   * change time, last value held up to "now"), never an oblique line that would invent a progressive movement.
+   * A MEASURED probe value (the "measured" series) is a continuous quantity sampled by history: a line through
+   * the recorded points, then the last value held up to "now".
+   */
   _path(t, e, i, s, r, n) {
     let o = "", l = !1;
     return t.forEach((a, d) => {
@@ -4453,13 +4460,13 @@ let ot = class extends U {
       return Ks(g.text, P) ? D`<text class="btxt" x=${o(g.s) + P / 2} y=${f + b / 2 + 4} text-anchor="middle">${Ks(g.text, P)}</text>` : p;
     })}
           ${t.manual.map(([g, P]) => D`<rect class="red-band" x=${o(g)} y=${f} width=${Math.max(3, o(P) - o(g))} height=${b}></rect>`)}`}
-        ${s ? t.lines.map((g) => D`<path class="line ${g.key}" d=${this._path(g.pts, t, o, l, g.key === "set")}></path>`) : p}
+        ${s ? t.lines.map((g) => D`<path class="line ${g.key}" d=${this._path(g.pts, t, o, l, g.key !== "measured")}></path>`) : p}
         ${s ? t.manual.map((g) => {
       const P = S == null ? void 0 : S.pts.find((et, Q) => {
         var de;
         return et.v !== null && (((de = S.pts[Q + 1]) == null ? void 0 : de.m) ?? 1 / 0) > g[0];
       }), I = (P == null ? void 0 : P.v) ?? null;
-      return D`${S ? D`<path class="line red" d=${this._path(S.pts, t, o, l, S.key === "set", g)}></path>` : p}
+      return D`${S ? D`<path class="line red" d=${this._path(S.pts, t, o, l, S.key !== "measured", g)}></path>` : p}
             ${I !== null ? D`<circle class="reddot" cx=${o(g[0])} cy=${l(I)} r="3.5"></circle>` : p}`;
     }) : p}
         ${s ? t.planned.steps.map((g) => D`<path class="plan" d="M${o(g.from).toFixed(1)},${l(g.value).toFixed(1)}H${o(g.to).toFixed(1)}" style="--c:${g.color}"></path>`) : p}
@@ -6248,7 +6255,7 @@ let L = class extends U {
     super.connectedCallback(), this.addEventListener("keydown", this._historyKey), this._picker || gr().then((t) => this._picker = t);
   }
   disconnectedCallback() {
-    super.disconnectedCallback(), this.removeEventListener("keydown", this._historyKey);
+    super.disconnectedCallback(), this.removeEventListener("keydown", this._historyKey), this._applied = !1;
   }
   _snapshot() {
     return structuredClone({
@@ -6467,7 +6474,7 @@ let L = class extends U {
           if (s || l.code !== "conflict") throw l;
         }
       }
-      i && (this._p = structuredClone(i), this._origin = structuredClone(i), this._isNew = !1, this._applied = !0, ++this._iconEpoch, this._history.clear(), this.dispatchEvent(new CustomEvent("program-saved", { detail: i, bubbles: !0, composed: !0 }))), this.embedded || this._close();
+      i && (this._p = structuredClone(i), this._origin = structuredClone(i), this._applied = !this._isNew, this._isNew = !1, ++this._iconEpoch, this._history.clear(), this.dispatchEvent(new CustomEvent("program-saved", { detail: i, bubbles: !0, composed: !0 }))), this.embedded || this._close();
     } catch (e) {
       this._error = this._errorText(e);
     } finally {

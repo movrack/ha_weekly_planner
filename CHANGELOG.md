@@ -6,6 +6,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-10-31
+
+### Changed
+- Day chart: values that are set (cover position, light brightness, switch, requested temperature) are drawn as a staircase: a value holds until the next recorded change, then jumps vertically at the change time (and is held up to now), instead of an oblique line between sparse history points that made a shutter that opened at 9:30 look like it opened progressively from midnight. Measured values (probe temperature, numeric sensors) keep a continuous line through the recorded points.
+
+### Fixed
+- test: make the CI Python suite deterministic: performance operation counts are taken at fixed simulated times (day and night bounds) instead of the real clock, and the engine/reference trace records events with a loop-side `@callback` listener instead of an executor job (fixes CI failures between 23:00 and 02:00 Brussels time and a random "step N, events" flake).
+- Card editor: the notice "Program updated on all cards." no longer appears after creating a program (only the "created and selected" banner does); it shows only after updating an existing program and is cleared when switching program or tab.
+
 ## [0.22.0] - 2026-10-31
 
 ### Added

@@ -146,3 +146,38 @@ describe("creation form errors", () => {
     expect(e._error).toBe("");
   });
 });
+
+describe("\"updated on all cards\" notice", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const editor = (isNew: boolean) => {
+    vi.stubGlobal("customElements", { get: () => undefined });
+    const e = new WpProgramEditor() as any;
+    const base = prog("p1", "Office");
+    e._p = structuredClone(base); e._isNew = isNew; e._origin = isNew ? undefined : structuredClone(base);
+    e.embedded = true; e._profileId = "";
+    e.data = data([base]);
+    e.hass = { language: "en", states: {}, connection: {}, callWS: vi.fn(async (m: any) =>
+      m.type === "weekly_planner/get" ? data([base]) : { program: { ...base, revision: 2 } }) };
+    return e;
+  };
+  const text = (v: any): string => typeof v === "string" ? v : Array.isArray(v) ? v.map(text).join("") : v?.strings ? v.strings.map((s: string, i: number) => s + (i < v.values.length ? text(v.values[i]) : "")).join("") : "";
+  const applied = t("en", "ce_program_applied");
+  it("is not shown after creating a program", async () => {
+    const e = editor(true);
+    await e._save();
+    expect(e._isNew).toBe(false);
+    expect(e._applied).toBe(false);
+    expect(text(e.render())).not.toContain(applied);
+  });
+  it("is shown after updating an existing program, and cleared on leaving or editing", async () => {
+    const e = editor(false);
+    await e._save();
+    expect(e._applied).toBe(true);
+    expect(text(e.render())).toContain(applied);
+    e.disconnectedCallback(); // switching program or tab removes the editor
+    expect(e._applied).toBe(false);
+    await e._save();
+    e._patch({ name: "Other" });
+    expect(e._applied).toBe(false);
+  });
+});
