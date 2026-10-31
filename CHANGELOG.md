@@ -6,6 +6,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-31
+
+### Added
+- Touch hint "Press and hold to edit" on the first three taps on a bar, remembered per device.
+- Preview cache shared between cards and dialogs, invalidated when the configuration revision or card version changes.
+- Server defaults (`defaults: {reapply, priority}`) in the `weekly_planner/get` and subscribe snapshot; new programs in the card start from them.
+- Lovelace resource lifecycle tests (creation, version update, removal).
+
+### Changed
+- One default priority (10) everywhere; stored priorities are unchanged, only a missing priority key now resolves to 10 instead of 100.
+- Missing-entity repairs are recomputed when programs or labels are saved, duplicated or deleted, when entities are renamed, created or removed, at startup and on reload.
+- Program status is computed once per notification and occurrences are shared between the entities of a program (internal).
+- `show_week` and `show_advanced` card options are deprecated: still accepted, now ignored.
+- Specification: `00:00 → 00:00` is documented as an accepted 24-hour slot (behaviour unchanged).
+
+### Fixed
+- The `reapply_default` option now applies: a program saved without `reapply` takes the configured default.
+
+### Removed
+- Unused internal `PlannerStore.async_backup` (the pre-migration backup is made by the versioned store).
+
 ## [0.18.0] - 2026-10-31
 
 ### Changed

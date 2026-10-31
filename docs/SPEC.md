@@ -1,6 +1,6 @@
 # Weekly Planner — spécification v1
 
-> Statut : **0.18.0** — un seul modèle pour tous les appareils depuis la 0.6 (§ 5 et § 6 ; les anciennes règles retirées en
+> Statut : **0.19.0** — un seul modèle pour tous les appareils depuis la 0.6 (§ 5 et § 6 ; les anciennes règles retirées en
 > 0.6.0 sont marquées « retiré en 0.6.0 ») ; modes, sources, cibles, délais aléatoires et limites solaires : § 5.10, § 6, § 17 à 20.
 > Écarts connus entre cette spec et le code : § 21.
 > Dépôt : `ha_weekly_planner` · domaine HA : `weekly_planner` · cible : Home Assistant ≥ 2026.10.
@@ -156,9 +156,8 @@ montre les changements manuels (§ 10.4) ; le moteur n'en sait rien.
 
 ### 5.7 Heures et calendrier
 - Saisie des heures à toute minute ; poignées au pas de 15 min ; horaire minimal 5 min ; jours indexés **0 = lundi … 6 = dimanche**.
-- Fin `24:00` autorisée (= minuit du jour suivant). `00:00 → 00:00` devait être refusé (utiliser `00:00 → 24:00`) ;
-  **en réalité il est accepté** et placé comme un horaire de 24 h passant minuit (la fin, avant midi et pas après le
-  début, tombe le lendemain ; aucune règle de validation ne le rejette) — écart ouvert, § 21.
+- Fin `24:00` autorisée (= minuit du jour suivant). `00:00 → 00:00` est **accepté** (décision 0.19.0) et placé comme un horaire de 24 h
+  passant minuit (la fin, avant midi et pas après le début, tombe le lendemain) ; `00:00 → 24:00` reste équivalent.
 - Une fin qui n'est pas après le début passe minuit **seulement si elle tombe avant midi** (DECISIONS 2026-10-25) ;
   sinon l'horaire est vide ce jour-là.
 - Un horaire passant minuit appartient au jour de son début ; la validation de chevauchement porte sur la semaine entière.
@@ -289,8 +288,7 @@ journal (`weekly_planner.journal`) : 14 jours glissants, deux sortes d'entrées 
   `.storage/weekly_planner` ; on ne repart jamais de zéro. (Le drapeau interne `read_only` et le bandeau « Lecture
   seule » de la carte existent, mais ce cas n'est pas atteint par une entrée chargée.) **Sauvegarde du fichier avant la
   migration** : copie `weekly_planner.v<N>-backup-<AAAAMMJJHHMMSS>` à côté de l'original ; retour à une version antérieure
-  = restaurer la sauvegarde. (`PlannerStore.async_backup`, qui écrirait `weekly_planner.backup-<horodatage>`, n'est
-  appelé nulle part.)
+  = restaurer la sauvegarde. (L'ancien `PlannerStore.async_backup`, jamais appelé, a été retiré en 0.19.0.)
 - **Renommage / suppression d'entité** : écoute de `entity_registry_updated` → `entity_id` mis à jour partout (y compris
   valeurs propres, cibles explicites, sources de valeurs, scènes et sources de mode, § 17) ; entité supprimée → alerte
   Réparations `missing_entities`, vérifiée au démarrage et à chaque suppression dans le registre (pas à
@@ -344,7 +342,9 @@ Planner » (`integration_type: service`) ; un `select` par programme nommé « M
 
 **API websocket** (`weekly_planner/…`) :
 - `get` · `subscribe` : instantané `{vacation, labels, programs, status{programme: attributs du switch}, warnings{programme: […]},
-  entities{entité: segment, target, suppressed, pending}, read_only, can_edit, card_version}` ; `get` ajoute `is_admin` ;
+  entities{entité: segment, target, suppressed, pending}, read_only, can_edit, card_version, defaults{reapply, priority}}`
+  (`defaults` : champ additif, valeurs par défaut du serveur — option `reapply_default`, `DEFAULT_PRIORITY` = 10 — dont la carte
+  initialise les nouveaux programmes, avec repli vrai / 10) ; `get` ajoute `is_admin` ;
   `subscribe` renvoie l'instantané à chaque changement ; `can_edit` est calculé par connexion.
 - `program/save` (édition ; `revision` vérifiée) · `program/delete` (édition) · `label/save` · `label/delete` (suppression
   refusée tant qu'un programme l'utilise, erreur `in_use` avec la liste).
@@ -519,7 +519,7 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - `hacs.json`, `manifest.json` (`domain`, `name`, `version`, `documentation`, `issue_tracker`, `codeowners`,
   `config_flow`, `iot_class: calculated`, `integration_type: service`, `dependencies: [http, websocket_api]`).
 - Docs : README (en) + `README.fr.md`, captures, CHANGELOG ; releases GitHub. Tags et release GitHub seulement jusqu'à
-  `v0.7.10` ; les versions 0.8.0 à 0.18.0 ne sont ni taguées ni publiées, `main` est derrière `develop` ; pas de `1.0.0` (§ 21).
+  `v0.7.10` ; les versions 0.8.0 à 0.19.0 ne sont ni taguées ni publiées, `main` est derrière `develop` ; pas de `1.0.0` (§ 21).
 - Contribution assistée : consignes communes dans `AGENTS.md` ; notes de contexte locales facultatives dans
   `PROJECT_MEMORY.md` (ignoré par Git), utilisables avec différents outils d'IA.
 
@@ -593,7 +593,7 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] README en / fr, captures, CHANGELOG, `docs/controle-visuel.md`
 - [x] `scripts/deploy_prod.sh`
 - [x] Releases `0.1.0` à `0.7.10` taguées (`v0.7.10` = dernière release GitHub, sur `main`)
-- [ ] Tags / releases des versions 0.8.0 à 0.18.0 (non taguées, `main` derrière `develop`), puis `1.0.0` (§ 21)
+- [ ] Tags / releases des versions 0.8.0 à 0.19.0 (non taguées, `main` derrière `develop`), puis `1.0.0` (§ 21)
 - [x] Dépôt public (GitHub `movrack/ha_weekly_planner`), `hacs.json`, `hacs/action` en CI
 - [ ] Installation propre via HACS vérifiée, demande d'inclusion dans la liste HACS par défaut (§ 21)
 
@@ -636,14 +636,13 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] S24 défaut « rien » et plage ponctuelle
 - ~~S25 volet lent : pas de fausse dérogation pendant le mouvement~~ — *sans objet (retiré en 0.6.0)*
 - [x] S26 plage solaire vide un jour donné (ignorée, signalée)
-- [x] S27 fin `24:00`, chevauchement entre jours — *le refus de `00:00 → 00:00` n'est pas implémenté ni testé (§ 5.7, § 21)*
+- [x] S27 fin `24:00`, chevauchement entre jours ; `00:00 → 00:00` accepté comme horaire de 24 h (§ 5.7)
 - [x] S28 stockage corrompu : l'entrée ne se charge pas, fichier intact (+ notification, § 8)
 - [x] S29 actions ponctuelles jamais réappliquées
 - [x] S30 condition sur entité indisponible ; anti-rebond
 - [x] S31 journal des segments utilisé pour le passé du graphique
 - [x] S32 renommage et suppression d'entité
-- [ ] S33 ressource Lovelace : création, mise à jour de version, retrait à la désinstallation — *code présent
-      (`frontend.py`, `async_remove_entry`), test manquant* (seul `card_version` est testé)
+- [x] S33 ressource Lovelace : création, mise à jour de version, retrait à la désinstallation (`tests/test_frontend_resource.py`)
 - [x] S34 `revision` : écriture concurrente refusée
 - ~~S35 « Déroger… » : durée, jusqu'à HH:MM, fin de plage, « Reprendre » avant terme, redémarrage pendant~~ — *sans objet (retiré en 0.6.0)*
 - [x] S36 changement de profil en pleine plage
@@ -706,7 +705,7 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 ### 14.12 À faire et suivi 0.8 → 0.16
 *(Liste tenue au fil des versions, sans ordre chronologique ; les éléments datés indiquent leur version.)*
 - [x] Première documentation utilisateur française, atlas des 36 écrans actuels et 13 captures complémentaires (49 PNG), liens vérifiés et images versionnables.
-- [ ] Faire respecter l’option globale `reapply_default` lors de la création d’un programme ; le formulaire initialise actuellement Réappliquer à vrai, limite signalée dans le guide (§ 21).
+- [x] Faire respecter l’option globale `reapply_default` lors de la création d’un programme (serveur et formulaire, `defaults` du snapshot, 0.19.0).
 
 - [x] Déploiement indépendant des commits : arbre de travail testé autorisé en journée, contrôles préservés et empreinte du bundle indiquée, règle clarifiée dans AGENTS.md.
 
@@ -727,8 +726,8 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] Sélecteur d’action compact : liste déroulante, description HA de l’action choisie visible et infobulle sur les options ; absence de description indiquée.
 - [x] Dans le formulaire d’horaire, toucher « Tous les jours » déjà sélectionné désélectionne les sept jours.
 - [x] Afficher les sept barres de semaine au-dessus des horaires, conservées pendant l’édition et mises à jour avec le brouillon.
-- [ ] Barres sur mobile : un simple toucher affiche 2 s « Restez appuyé pour modifier » (les 3 premières fois
-      seulement, mémorisé par appareil), puis ouvre l'écran du jour comme aujourd'hui. *(Non fait, § 21.)*
+- [x] Barres sur mobile : un simple toucher affiche 2 s « Restez appuyé pour modifier » (les 3 premières fois
+      seulement, mémorisé par appareil), puis ouvre l'écran du jour comme aujourd'hui. *(Fait en 0.19.0.)*
 
 ## 15. v2 (hors périmètre)
 - Import des programmes `scheduler-component` (`.storage/scheduler.storage`, version 3) — nécessite plages ponctuelles et défaut « rien » (présents en v1).
@@ -806,7 +805,7 @@ le § 14.12 (laissées en place pour garder l'historique).*
 - [x] Use consecutive HA-local calendar dates across 23/25-hour days.
 - [x] Share a visible-page refresh signal for today's charts; bound history retention per connection and calculate numeric bounds without argument spreading.
 - [x] Sort temporal lookup inputs once and use binary searches for chart attribution and interval ends.
-- [ ] Profile and, if justified, remove the remaining chart render scans per manual interval; deduplicate/lazily load seven-day previews across cards.
+- [x] Profile and, if justified, remove the remaining chart render scans per manual interval; deduplicate/lazily load seven-day previews across cards (shared preview cache, 0.19.0).
 - [ ] Complete a browser visual/interaction regression pass on the local test instance; production validation remains separate.
 
 - [x] Follow all typed entity references during registry rename, including global/overridden action sources and targets, scenes and mode sources; advance configuration revisions.
@@ -815,7 +814,7 @@ le § 14.12 (laissées en place pour garder l'historique).*
 - [x] Index condition dependencies by entity and avoid timer reconstruction for ordinary watched state updates without a relevant deadline change.
 - [x] Share the derived websocket snapshot within one synchronous notification, with per-connection permissions copied separately.
 - [x] Cancel/invalidate obsolete action generations when a segment changes or a replacement target is unavailable; preserve eager task execution and ignore obsolete completions.
-- [ ] Profile repeated status work outside websocket notification cycles, including switch attributes and version checks, before adding broader caching.
+- [x] Profile repeated status work outside websocket notification cycles, including switch attributes and version checks, before adding broader caching (status memoised within one notification, 0.19.0).
 - [ ] Broader architecture/module refactoring remains outside this focused correction batch.
 
 
@@ -863,38 +862,35 @@ Les limites survivent au changement de décalage, au délai aléatoire, au passa
 - [x] Aube / crépuscule : le modèle et le serveur les acceptent ; le formulaire ne propose toujours que Lever / Coucher (inchangé).
 
 
-## 21. Écarts connus et travaux ouverts (audit 0.18.0)
+## 21. Écarts connus et travaux ouverts (audit 0.18.0, mis à jour en 0.19.0)
 
-Relevés en comparant cette spec au code de la 0.18.0. Chaque point est **non fait** ; la preuve indique où le vérifier.
+Relevés en comparant cette spec au code de la 0.18.0 ; les points cochés ont été clos en 0.19.0 (§ 22), les autres
+restent **non faits**. La preuve indique où le vérifier.
 Les cases encore ouvertes du § 17 restent ouvertes et ne sont pas répétées ici, sauf mention.
 
 ### 21.1 Moteur et données
-- [ ] **Option `reapply_default` sans effet** : proposée dans les options (`config_flow.py`) mais lue nulle part par le
-      moteur ; le schéma impose `reapply: true` par défaut (`validation.py`) et l'éditeur de programme crée un nouveau
-      programme avec `reapply: true` (`frontend/src/editors/program-editor.ts`). L'appliquer à la création, ou retirer l'option.
-- [ ] **`00:00 → 00:00` accepté** : documenté comme refusé (§ 5.7, S27), il est accepté et placé comme un horaire de 24 h
-      passant minuit (`timeline.occurrence` : fin avant midi et pas après le début → lendemain ; aucune règle dans
-      `validation.py`). Décider : le refuser à la validation, ou amender § 5.7 et S27.
-- [ ] **Priorité par défaut incohérente** : défaut du schéma 10 (`validation.py`, et l'éditeur de programme), mais repli
-      à 100 quand la clé manque dans `resolver.py` et `engine.py`. Sans effet pour un programme validé (la clé est
-      toujours remplie), à aligner.
-- [ ] **Réparations des entités supprimées** : l'alerte `missing_entities` n'est recalculée qu'au démarrage et à une
-      suppression dans le registre (`registry.py`), pas à l'enregistrement d'un programme ni à son retrait.
-- [ ] **Test S33 manquant** : création / mise à jour de version / retrait de la ressource Lovelace (`frontend.py`,
-      `async_remove_entry`) sans test pytest ; seul `card_version` est testé (`tests/test_websocket.py`).
-- [ ] `PlannerStore.async_backup` n'est appelé nulle part (la sauvegarde avant migration passe par `_VersionedStore`) :
-      l'utiliser ou le retirer.
+- [x] **Option `reapply_default`** : désormais effective. Le serveur renseigne `reapply` s'il manque
+      (`validation.with_defaults`), le snapshot porte `defaults` (§ 9) et le formulaire de programme en part.
+- [x] **`00:00 → 00:00` accepté** : décision 0.19.0, accepté comme horaire de 24 h passant minuit ; § 5.7 et S27 corrigés,
+      code inchangé.
+- [x] **Priorité par défaut** : une seule constante `DEFAULT_PRIORITY = 10` (`const.py`) partout ; les priorités
+      enregistrées sont inchangées, seule une clé absente passe de 100 à 10.
+- [x] **Réparations des entités supprimées** : `missing_entities` recalculée à l'enregistrement, la duplication et la
+      suppression d'un programme, à l'enregistrement et la suppression d'une étiquette, au renommage, à la création et au
+      retrait dans le registre, au démarrage et à `weekly_planner.reload` (sans scrutation).
+- [x] **Test S33** : `tests/test_frontend_resource.py` (création / mise à jour de version / retrait).
+- [x] `PlannerStore.async_backup` retiré (la sauvegarde avant migration passe par `_VersionedStore`).
 
 ### 21.2 Carte
-- [ ] **`show_week` / `show_advanced` sans effet** : déclarés dans `CardConfig` (`frontend/src/types.ts`), jamais lus ;
-      la semaine est toujours repliable. Les retirer (en tolérant les anciennes configurations) ou les réimplémenter.
-- [ ] **Astuce « Restez appuyé pour modifier »** (§ 14.12) absente : aucun texte ni compteur dans la carte.
+- [x] **`show_week` / `show_advanced`** : conservés mais obsolètes (acceptés, ignorés) pour ne pas casser les anciennes
+      configurations.
+- [x] **Astuce « Restez appuyé pour modifier »** (§ 14.12) : affichée aux 3 premiers touchers, compteur par appareil
+      (`localStorage`, `frontend/src/hold-hint.ts`).
 - [x] **Aube / crépuscule** acceptés par le modèle et le serveur mais non proposés par les pastilles du formulaire
       (`slot-form.ts` : lever / coucher seulement, § 20). Décision : uniquement lever/coucher dans la carte ; aube/crépuscule restent acceptés par le serveur (compatibilité).
-- [ ] Aperçus (`weekly_planner/preview`) demandés séparément par chaque carte et chaque écran d'horaires pour les mêmes
-      jours (§ 17, ouvert) : dédupliquer ou charger à la demande.
-- [ ] Profilage du rendu du graphique (balayages restants par intervalle manuel, § 17) et passe de régression
-      visuelle / interaction dans le navigateur sur l'instance locale (§ 17).
+- [x] Aperçus (`weekly_planner/preview`) : cache partagé entre cartes et écrans d'horaires, invalidé au changement de
+      `revision` ou de `card_version`.
+- [ ] Passe de régression visuelle / interaction dans le navigateur sur l'instance locale (§ 17).
 - [ ] `docs/controle-visuel.md` décrit la carte d'avant la 0.6 (dérogations, « Reprendre », `show_week`, 420 px) et
       aucune case n'y est cochée ; le temps de rendu n'a jamais été mesuré (§ 13, § 14.4). Le réécrire puis le dérouler.
 - [ ] Commentaire de `frontend/src/components/gestures.ts` qui renvoie au § 10.7 retiré (cosmétique).
@@ -903,7 +899,19 @@ Les cases encore ouvertes du § 17 restent ouvertes et ne sont pas répétées i
 - [ ] Installation propre via HACS (dépôt personnalisé) vérifiée, désinstallation propre, puis demande d'inclusion dans
       la liste HACS par défaut.
 - [ ] Test réel ≥ 3 jours sur le banc d'essai (§ 13, point 2).
-- [ ] Stratégie de tags / releases pour 0.8.0 → 0.18.0 : dernier tag et dernière release GitHub `v0.7.10` ; `main`
+- [ ] Stratégie de tags / releases pour 0.8.0 → 0.19.0 : dernier tag et dernière release GitHub `v0.7.10` ; `main`
       est derrière `develop` ; pas de `1.0.0`.
 - [ ] Refonte des modules / de l'architecture (`engine.py` ~36 ko, `weekly-planner-card.ts` ~29 ko) : hors du périmètre
       des corrections actuelles (§ 17), à planifier séparément.
+
+
+## 22. Release 0.19.0
+
+- [x] `reapply_default` effectif (serveur + carte) ; champ additif `defaults` dans `get` / `subscribe` (§ 9).
+- [x] Une seule priorité par défaut (`DEFAULT_PRIORITY = 10`).
+- [x] Réparations `missing_entities` recalculées sur les événements de configuration et du registre, sans scrutation.
+- [x] `PlannerStore.async_backup` retiré ; statut d'un programme mémorisé pendant une notification, occurrences partagées.
+- [x] Carte : astuce « Restez appuyé », cache d'aperçus partagé, `show_week` / `show_advanced` obsolètes.
+- [x] Test S33 (ressource Lovelace) et tests associés.
+- [x] Spec corrigée : `00:00 → 00:00` accepté comme horaire de 24 h ; Lever / Coucher seulement (déjà décidé).
+- [ ] Passe visuelle (tâches 12/13 de la revue), tags / releases, HACS, test réel, `docs/controle-visuel.md` : hors de cette version.
