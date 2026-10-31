@@ -20,6 +20,7 @@ import { actionText, entityAction, labelOf } from "./labels";
 import { strings, t } from "./i18n";
 import { loadServiceNames } from "./services";
 import { reloadIfOutdated } from "./update";
+import { fetchPreview } from "./preview-cache";
 import { activeProfile, filterPrograms, friendlyName, subscribePlanner } from "./planner";
 import { dayBounds, addDaysIso } from "./components/chart";
 import { formatWhen, localDateIso, localMinutes, localWeekday, nominal, spillover, DAY } from "./time";
@@ -177,8 +178,8 @@ export class WeeklyPlannerCard extends LitElement {
     let failed = false;
     const previews: Record<string, Record<string, PreviewSlot[]>> = {};
     await Promise.all(dates.flatMap((date) => programs.map((p) =>
-      this.hass.callWS<{ slots: PreviewSlot[] }>({ type: "weekly_planner/preview", program_id: p.id, date })
-        .then((res) => { (previews[date] ??= {})[p.id] = res.slots; })
+      fetchPreview(this.hass, p.id, p.revision, date, activeProfile(p, this._data!).id, false)
+        .then((slots) => { (previews[date] ??= {})[p.id] = slots; })
         .catch(() => { failed = true; }))));
     // a newer edit started its own loading meanwhile: these previews are stale
     if (key === this._previewKey) {

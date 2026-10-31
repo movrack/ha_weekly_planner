@@ -17,6 +17,7 @@ import {
 } from "../edits";
 import type { At, DayCtx, Handle, Target } from "../edits";
 import { editorStyles } from "../editors/shared";
+import { dismissHoldHint, HOLD_HINT_MS, takeHoldHint } from "../hold-hint";
 import { strings, t } from "../i18n";
 import { entityAction, labelOf, labelsFor } from "../labels";
 import { activeProfile, newId } from "../planner";
@@ -66,6 +67,9 @@ export class WpBarEditor extends LitElement {
   @state() private _conflict: { to: number[]; days: number[]; skip: number[]; id: string } | null = null;
   @state() private _error = "";
   @state() private _hover = false;
+  /** "Press and hold to edit" shown after a plain tap (first times only). */
+  @state() private _hint = false;
+  private _hintTimer?: number;
 
   private _sun = new Map<string, number>();
   private _keep = new Set<string>();
@@ -129,7 +133,10 @@ export class WpBarEditor extends LitElement {
 
   updated(changed: Map<string, unknown>): void {
     if (changed.has("editing")) {
-      if (this.editing) this._listen(true);
+      if (this.editing) {
+        this._clearHint();
+        this._listen(true);
+      }
       else {
         this._listen(false);
         this._flushNudge();
@@ -148,6 +155,7 @@ export class WpBarEditor extends LitElement {
     this._listen(false);
     window.clearTimeout(this._clearTimer);
     window.clearTimeout(this._errTimer);
+    window.clearTimeout(this._hintTimer);
     window.clearTimeout(this._press?.timer);
   }
 
@@ -192,6 +200,8 @@ export class WpBarEditor extends LitElement {
         if (!this._press) return;
         this._press.fired = true;
         navigator.vibrate?.(12);
+        this._clearHint();
+        dismissHoldHint();
         this._emit("edit-request");
       }, LONG_PRESS_MS);
     }
@@ -213,7 +223,33 @@ export class WpBarEditor extends LitElement {
     this._press = undefined;
     if (p.fired) return; // the long press already did its job
     if (p.mouse && this.editable) this._emit("edit-request");
+    else if (this.editable && !p.mouse) this._tapHint();
     else this._emit("open-day");
+  }
+
+  /** A plain touch on an editable bar: tell how to edit for 2 s, then open the day screen as before (a second tap opens it at once). */
+  private _tapHint(): void {
+    if (this._hint) {
+      this._clearHint();
+      this._emit("open-day");
+      return;
+    }
+    if (!takeHoldHint()) {
+      this._emit("open-day");
+      return;
+    }
+    this._hint = true;
+    this._hintTimer = window.setTimeout(() => {
+      this._hint = false;
+      this._hintTimer = undefined;
+      this._emit("open-day");
+    }, HOLD_HINT_MS);
+  }
+
+  private _clearHint(): void {
+    window.clearTimeout(this._hintTimer);
+    this._hintTimer = undefined;
+    this._hint = false;
   }
 
   private _zoneCancel(): void {
@@ -645,6 +681,7 @@ export class WpBarEditor extends LitElement {
         @pointercancel=${this._zoneCancel} @contextmenu=${(e: Event) => { if (this._press && !this._press.mouse) e.preventDefault(); }}>
         <wp-day-bar ?show-hours=${this.hours} notches lang=${this.lang} ?tall=${this.editing} .spans=${this._spansNow()} .now=${this.now}
           aria-label=${t(this.lang, "edit_bar")}>${this.editing ? this._overlay_() : nothing}</wp-day-bar>
+        <div class="hint" role="status">${this._hint ? t(this.lang, "hold_hint") : nothing}</div>
       </div>
       ${this.editing ? this._strip() : nothing}
       ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
@@ -653,7 +690,13 @@ export class WpBarEditor extends LitElement {
 
   static styles = [editorStyles, css`
     :host { display: block; min-width: 0; }
-    .zone { touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: pointer; }
+    .zone { position: relative; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: pointer; }
+    .hint {
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 3; max-width: 96%;
+      padding: 6px 12px; border-radius: 16px; font-size: 13px; line-height: 1.3; text-align: center; pointer-events: none;
+      background: var(--primary-text-color); color: var(--card-background-color, #fff);
+    }
+    .hint:empty { display: none; }
     .zone.editing { touch-action: none; cursor: default; }
     .ov { position: absolute; inset: 0; touch-action: none; z-index: 2; }
     .ov.grab { cursor: ew-resize; }

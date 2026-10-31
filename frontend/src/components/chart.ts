@@ -542,6 +542,8 @@ export class WpChart extends LitElement {
         ${mk.sun ? nothing : svg`<circle class="mk ${mk.end ? "end" : ""} ${mk.ignored ? "faded" : ""}" cx=${x(mk.m)} cy=${cy} r="5" style="--c:${color}"></circle>`}
         ${mk.value !== null ? svg`<text class="val" x=${Math.min(Math.max(x(mk.m), 14), W - 14)} y=${Math.max(cy - 8, 9)} text-anchor="middle">${Number(mk.value.toFixed(1))}</text>` : nothing}`;
     };
+    // the reference curve is the same for every manual interval: look it up once per render
+    const base = curve ? model.lines.find((l) => l.key === "set") ?? model.lines.find((l) => l.key === "main") ?? model.lines[0] : undefined;
     const nowLine = model.isToday
       ? svg`<line class="now" x1=${x(model.pastEnd)} x2=${x(model.pastEnd)} y1=${PAD.t - 4} y2=${H - PAD.b}></line>
         <g class="nowicon" aria-hidden="true" transform="translate(${x(model.pastEnd) - 6}, ${PAD.t - 17}) scale(0.5)"><path d=${CLOCK}></path></g>` : nothing;
@@ -563,7 +565,6 @@ export class WpChart extends LitElement {
           ${model.manual.map(([a, b]) => svg`<rect class="red-band" x=${x(a)} y=${bandY} width=${Math.max(3, x(b) - x(a))} height=${bandH}></rect>`)}`}
         ${curve ? model.lines.map((l) => svg`<path class="line ${l.key}" d=${this._path(l.pts, model, x, y, l.key === "set")}></path>`) : nothing}
         ${curve ? model.manual.map((span) => {
-          const base = model.lines.find((l) => l.key === "set") ?? model.lines.find((l) => l.key === "main") ?? model.lines[0];
           const pt = base?.pts.find((p, i) => p.v !== null && (base.pts[i + 1]?.m ?? Infinity) > span[0]);
           const dot = pt?.v ?? null;
           return svg`${base ? svg`<path class="line red" d=${this._path(base.pts, model, x, y, base.key === "set", span)}></path>` : nothing}

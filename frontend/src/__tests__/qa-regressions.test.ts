@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { WpBarEditor } from "../components/bar-editor";
 import { WeeklyPlannerCard } from "../weekly-planner-card";
+import { clearPreviewCache } from "../preview-cache";
 import { localDateIso, formatWhen } from "../time";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
@@ -45,13 +46,14 @@ it("recalculates preview for runtime mode changes and recovers a failed load", a
   await card._loadPreviews();
   expect(card.hass.callWS).toHaveBeenCalledTimes(16);
   card._previewKey = "";
+  clearPreviewCache(); // the shared cache would otherwise answer from the mode already loaded
   card.hass.callWS.mockRejectedValueOnce(new Error("offline"));
   await card._loadPreviews();
   await card._loadPreviews();
   expect(card.hass.callWS).toHaveBeenCalledTimes(24);
   vi.spyOn(Date, "now").mockReturnValue(Date.now() + 6000);
   await card._loadPreviews();
-  expect(card.hass.callWS).toHaveBeenCalledTimes(32);
+  expect(card.hass.callWS).toHaveBeenCalledTimes(25); // only the failed day is asked again: the 7 others are cached
 });
 
 it("builds seven distinct civil dates during a 25-hour day", () => {

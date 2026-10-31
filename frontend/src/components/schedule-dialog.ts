@@ -21,6 +21,7 @@ import { confirmAction } from "./confirm";
 import { strings, t } from "../i18n";
 import { loadServiceNames } from "../services";
 import { activeProfile, friendlyName } from "../planner";
+import { fetchPreview } from "../preview-cache";
 import { DAY, localDateIso, minutesToClock } from "../time";
 import { specMinutes, sunBoundsInvalid } from "../slots";
 import { editorStyles, langOf } from "../editors/shared";
@@ -167,7 +168,7 @@ export class WpSchedule extends LitElement {
       const key = `${owner.id}|${owner.revision}|${this._modeProfile(owner)?.id}|${this._date}`;
       if (key !== this._loaded) {
         this._loaded = key;
-        void this._loadPreview(owner.id, this._date, key, this._modeProfile(owner)?.id);
+        void this._loadPreview(owner.id, owner.revision, this._date, key, this._modeProfile(owner)?.id);
       }
     }
   }
@@ -175,12 +176,11 @@ export class WpSchedule extends LitElement {
   private get _today(): string { return localDateIso(new Date(), this._tz); }
   private get _date(): string { return addDaysIso(this._today, this._offset); }
 
-  private async _loadPreview(programId: string, date: string, key: string, profileId?: string): Promise<void> {
+  private async _loadPreview(programId: string, revision: number, date: string, key: string, profileId?: string): Promise<void> {
     const token = ++this._token;
     try {
-      const results = await Promise.all([addDaysIso(date, -1), date].map((day) =>
-        this.hass.callWS<{ slots: PreviewSlot[] }>({ type: "weekly_planner/preview", program_id: programId, date: day, profile_id: profileId })));
-      if (token === this._token && key === this._loaded) this._slots = results.flatMap((res) => res.slots);
+      const results = await Promise.all([addDaysIso(date, -1), date].map((day) => fetchPreview(this.hass, programId, revision, day, profileId)));
+      if (token === this._token && key === this._loaded) this._slots = results.flat();
     } catch {
       if (token === this._token) this._slots = null;
     }
