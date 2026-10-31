@@ -21,7 +21,7 @@ Unknown entity domains remain usable when HA exposes compatible services.
 
 ## Thermostat presets
 
-Select the thermostat, allow its preset action and create a label using
+Select the thermostat, allow its preset action and create a setting using
 `climate.set_preset_mode`. Choices come from the actual entity’s `preset_modes`
 attribute. Eco, Comfort or Boost only appear if the entity exposes them. HVAC
 modes are a separate action and list. A missing preset is not synthesized.
@@ -31,10 +31,10 @@ modes are a separate action and list. A missing preset is not synthesized.
 A favourite-position button performs an action; it does not necessarily expose
 its stored percentage. To use one while keeping the blind in the program:
 
-1. Create or edit a label and choose **Another entity** as the action target.
+1. Create or edit a setting and choose **Another entity** as the action target.
 2. Select the button exposed by HA and its `button.press` action.
 3. Ensure that service is selected in the program device’s offered actions.
-4. Schedule the label without an end for a one-shot press.
+4. Schedule the setting without an end for a one-shot press.
 
 ```json
 {"kind":"service","service":"button.press","target_entity_id":"button.example_favourite"}
@@ -67,8 +67,8 @@ not targets.
 ## Enable an automation during a time window
 
 1. Add the `automation.*` entity and allow `automation.turn_on` and `automation.turn_off`.
-2. Create Enabled and Disabled labels using those services.
-3. Choose Disabled as the entity’s **The rest of the time** label.
+2. Create Enabled and Disabled settings using those services.
+3. Choose Disabled as the entity’s **The rest of the time** setting.
 4. Add a bounded slot, for example 18:00–23:00, using Enabled.
 
 This enables its triggers during the slot; it does not run the automation now.

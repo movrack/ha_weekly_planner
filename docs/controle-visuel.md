@@ -22,14 +22,14 @@ Résultats datés : `docs/CONTROLE_VISUEL_RESULTATS.md`.
 ## 2. Consultation de la carte (×4)
 
 - [x] Barres (vue par défaut) : icône, nom du programme, état traduit, « → action suivante + heure ».
-- [x] Barre « Auj. » : trait « maintenant » avec icône horloge, couleurs des étiquettes, icône soleil sur une
+- [x] Barre « Auj. » : trait « maintenant » avec icône horloge, couleurs des réglages, icône soleil sur une
       frontière solaire, légende des heures 0 / 6 / 12 / 18 / 24 h.
 - [x] Interrupteur du programme et bouton calendrier : cibles ≥ 44 px.
 - [x] Semaine repliable : sept barres, jour courant en gras, trait « maintenant » sur le jour courant seulement.
 - [x] Cadran 24 h (`radial`), double cadran 12 h (`radial_12h`), liste compacte (`list`) : lisibles, sans
       défilement horizontal.
 - [ ] Liste compacte : chevron dépliant un programme à la fois (non déroulé).
-- [x] Bouton « Étiquettes » dans l'en-tête ; ouvre la liste des étiquettes.
+- [x] Bouton « Réglages » dans l'en-tête ; ouvre la liste des réglages.
 - [x] Français et anglais (jours, état, « Today / Week », heures « 5:20 pm »).
 - [x] Contrastes corrects en clair et en sombre.
 - [ ] Bandeau « Lecture seule », état vide, filtres sans résultat (non déroulé).
@@ -82,7 +82,7 @@ Résultats datés : `docs/CONTROLE_VISUEL_RESULTATS.md`.
       bug n° 8 : elle apparaît aussi juste après avoir choisi « Nouveau programme »).
 - [ ] Reprise du brouillon après changement de programme, création réelle d'un programme.
 
-## 6. Étiquettes
+## 6. Réglages
 
 - [x] Liste : pastille, nom, résumé de l'action, nombre d'usages ; cibles ≥ 44 px (360 px clair, 1440 px sombre,
       360 px sombre anglais).
@@ -95,7 +95,7 @@ Résultats datés : `docs/CONTROLE_VISUEL_RESULTATS.md`.
 
 ## 8. Clavier et accessibilité
 
-- [x] Tab dans la carte : étiquettes, interrupteur, horaires, icône « maintenant » / soleil (infobulle), Semaine,
+- [x] Tab dans la carte : réglages, interrupteur, horaires, icône « maintenant » / soleil (infobulle), Semaine,
       programme suivant.
 - [x] Interrupteurs, boutons et poignées nommés (`aria-label`, `role="switch"`, `role="slider"`).
 - [x] Échap ferme l'écran d'horaires quand le focus est dans la fenêtre, et le clic extérieur aussi.
