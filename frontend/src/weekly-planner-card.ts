@@ -16,8 +16,8 @@ import type { BarSpan } from "./components/day-bar";
 import { scopeKey } from "./components/schedule-dialog";
 import type { Scope } from "./components/schedule-dialog";
 import { nb } from "./actions";
-import { isChartOpen, loadChartChoices, openHistory, saveChartChoices } from "./chart-state";
-import { actionText, entityAction, labelOf } from "./labels";
+import { cardIdentity, chartKey, isChartOpen, loadChartChoices, openHistory, saveChartChoices } from "./chart-state";
+import { actionText, entityAction, labelName, labelOf } from "./labels";
 import { strings, t } from "./i18n";
 import { loadServiceNames } from "./services";
 import { reloadIfOutdated } from "./update";
@@ -45,7 +45,7 @@ export class WeeklyPlannerCard extends LitElement {
   @state() private _now = new Date();
   @state() private _week = new Set<string>();
   @state() private _expandedProgram: string | null = null;
-  /** Day charts shown on the card (key: scope|entity). Initial state from `chart_collapsed` (default collapsed); the choice is remembered per device. */
+  /** Day charts shown on the card (key: card|scope|entity). Initial state from `chart_collapsed` (default collapsed); the choice is remembered per device. */
   @state() private _charts = loadChartChoices();
   /** Bar being edited in place (null: none), and the "Changed · Undo" bar. */
   @state() private _edit: string | null = null;
@@ -226,7 +226,7 @@ export class WeeklyPlannerCard extends LitElement {
       const of = (slot: Slot) => entityAction(program, entityId, labelOf(data, slot.label));
       const mk = (slot: Slot, start: number, end: number, extra: Partial<BarSpan> = {}): BarSpan => {
         const label = labelOf(data, slot.label)!;
-        return { start, end, color: label.color, label: label.name, slotId: slot.id, startSun: sunDir(slot.start),
+        return { start, end, color: label.color, label: labelName(this.hass, label), slotId: slot.id, startSun: sunDir(slot.start),
           endSun: slot.end ? sunDir(slot.end) : null, startSpec: slot.start, endSpec: slot.end ?? null, marker: !slot.end, ...extra };
       };
       const date = localDateIso(at, this._tz);
@@ -345,7 +345,7 @@ export class WeeklyPlannerCard extends LitElement {
             ${opts.button && programs.length === 1 ? this._modeName(programs[0]) : nothing}
             <span class="now">
               <span class="nw">${stateObj ? (this.hass.formatEntityState?.(stateObj) ?? stateObj.state) : "—"}</span>
-              ${next ? html`<span class="next">→ ${nextLabel?.name ?? actionText(this.hass, lang, next.action)}
+              ${next ? html`<span class="next">→ ${nextLabel ? labelName(this.hass, nextLabel) : actionText(this.hass, lang, next.action)}
                 <span class="when nw">${nb(formatWhen(next.at, this._tz, lang, this._now))}</span></span>` : nothing}
             </span>
           </div>
@@ -356,32 +356,53 @@ export class WeeklyPlannerCard extends LitElement {
         </div>
         ${(this._config.schedule_view === "radial" || this._config.schedule_view === "radial_12h") ? html`<wp-radial-day
           .spans=${this._spans(entityId, programs)} .now=${localMinutes(this._now, this._tz)} lang=${lang}
-          .rest=${labelOf(data, programs[0].entities.find((e) => e.entity_id === entityId)?.default_label)?.name ?? t(lang, "rest_none")}
+          .rest=${(() => { const l = labelOf(data, programs[0].entities.find((e) => e.entity_id === entityId)?.default_label); return l ? labelName(this.hass, l) : t(lang, "rest_none"); })()}
           .double=${this._config.schedule_view === "radial_12h"}
           @open-day=${open}></wp-radial-day>` : html`<div class="today">
           <span class="wname">${t(lang, "today_short")}</span>
           ${this._bar(entityId, programs[0], 0, "today", open)}
         </div>`}
-        ${this._weekRows(`${scopeKey(opts.open)}|${entityId}`, entityId, programs, opts.open)}
-        ${this._chartRow(`${scopeKey(opts.open)}|${entityId}`, entityId, programs[0])}
+        ${this._extras(opts.open, entityId, programs)}
       </div>`;
   }
 
-  /** Collapsible list of the next 6 days, one thin bar each, below today's bar. */
-  private _weekRows(key: string, entityId: string, programs: Program[], scope: Scope) {
+  /**
+   * The two collapsible parts under today's bar: the next 6 days (one thin bar each) and, unless `show_chart` is off,
+   * the chart of today (same component as the schedule screen; no history is fetched while it is collapsed).
+   * The buttons sit on one row, 16 px apart; the panels open below. The chart choice is remembered per card and device.
+   */
+  private _extras(scope: Scope, entityId: string, programs: Program[]) {
     const lang = this._lang;
-    const open = this._week.has(key);
-    const toggle = () => {
+    const key = `${scopeKey(scope)}|${entityId}`;
+    const weekOpen = this._week.has(key);
+    const toggleWeek = () => {
       const week = new Set(this._week);
-      if (open) week.delete(key);
+      if (weekOpen) week.delete(key);
       else week.add(key);
       this._week = week;
     };
     const days = strings(lang).days_short;
+    const showChart = this._config.show_chart !== false && Boolean(this._data);
+    const chartId = chartKey(cardIdentity(this._config), scopeKey(scope), entityId);
+    const chartOpen = showChart && isChartOpen(this._charts, chartId, this._config.chart_collapsed !== false);
+    const toggleChart = () => {
+      const next = new Map(this._charts);
+      next.set(chartId, !chartOpen);
+      this._charts = next;
+      saveChartChoices(next);
+    };
+    const program = programs[0];
+    const date = localDateIso(this._now, this._tz);
+    const slots = this._preview[date]?.[program.id];
+    const previous = this._preview[addDaysIso(date, -1)]?.[program.id];
     return html`
-      <button class="weekbtn" aria-expanded=${open} @click=${toggle}>
-        <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>${t(lang, "week")}</button>
-      ${open ? html`<div class="week">
+      <div class="toggles">
+        <button class="weekbtn" aria-expanded=${weekOpen} @click=${toggleWeek}>
+          <ha-icon icon=${weekOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>${t(lang, "week")}</button>
+        ${showChart ? html`<button class="weekbtn chartbtn" aria-expanded=${chartOpen} @click=${toggleChart}>
+          <ha-icon icon="mdi:chart-line"></ha-icon>${t(lang, "chart_day")}<ha-icon class="after" icon=${chartOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>` : nothing}
+      </div>
+      ${weekOpen ? html`<div class="week">
         ${[0, 1, 2, 3, 4, 5, 6].map((weekday) => {
           // the whole week, Monday to Sunday, each day at its next occurrence (today included)
           const o = (weekday - localWeekday(this._now, this._tz) + 7) % 7;
@@ -389,29 +410,10 @@ export class WeeklyPlannerCard extends LitElement {
           return html`<div class="wday">
             <button class="wnamebtn" aria-label=${days[weekday]} @click=${openDay}>
               <span class="wname ${o === 0 ? "today" : ""}">${days[weekday]}</span></button>
-            ${this._bar(entityId, programs[0], o, "week", openDay)}</div>`;
+            ${this._bar(entityId, program, o, "week", openDay)}</div>`;
         })}
-      </div>` : nothing}`;
-  }
-
-  /** Collapsible chart of today under the week bars (same component as the schedule screen; no history is fetched while collapsed). */
-  private _chartRow(key: string, entityId: string, program: Program) {
-    if (this._config.show_chart === false || !this._data) return nothing;
-    const lang = this._lang;
-    const open = isChartOpen(this._charts, key, this._config.chart_collapsed !== false);
-    const toggle = () => {
-      const next = new Map(this._charts);
-      next.set(key, !open);
-      this._charts = next;
-      saveChartChoices(next);
-    };
-    const date = localDateIso(this._now, this._tz);
-    const slots = this._preview[date]?.[program.id];
-    const previous = this._preview[addDaysIso(date, -1)]?.[program.id];
-    return html`
-      <button class="weekbtn chartbtn" aria-expanded=${open} @click=${toggle}>
-        <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>${t(lang, "chart")}</button>
-      ${open ? html`<div class="chartbox"><wp-chart .hass=${this.hass} .data=${this._data} .program=${program}
+      </div>` : nothing}
+      ${chartOpen ? html`<div class="chartbox"><wp-chart .hass=${this.hass} .data=${this._data} .program=${program}
         entity-id=${entityId} date=${date} .slots=${slots ? [...(previous ?? []), ...slots] : null}
         @open-history=${(e: CustomEvent<string>) => openHistory(e.detail)}></wp-chart></div>` : nothing}`;
   }
@@ -449,7 +451,7 @@ export class WeeklyPlannerCard extends LitElement {
         <button class="summary" aria-expanded=${expanded} aria-controls=${`compact-${p.id}`}
           @click=${() => { this._expandedProgram = expanded ? null : p.id; this._edit = null; }}>
           <strong>${p.name}<ha-icon icon=${expanded ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></strong>${this._modeName(p)}
-          ${next.length ? html`<span>${labelOf(this._data!, next[0].next!.label)?.name ?? actionText(this.hass, this._lang, next[0].next!.action)} · ${nb(formatWhen(next[0].next!.at, this._tz, this._lang, this._now))}</span>` : html`${p.enabled ? html`<span>${t(this._lang, "hours")}</span>` : nothing}`}
+          ${next.length ? html`<span>${(() => { const l = labelOf(this._data!, next[0].next!.label); return l ? labelName(this.hass, l) : actionText(this.hass, this._lang, next[0].next!.action); })()} · ${nb(formatWhen(next[0].next!.at, this._tz, this._lang, this._now))}</span>` : html`${p.enabled ? html`<span>${t(this._lang, "hours")}</span>` : nothing}`}
         </button><div class="header-actions"><div class="header-icons">${this._programToggle(p)}
         ${expanded ? html`<button class="hours" aria-label=${t(this._lang, "hours")} title=${t(this._lang, "hours")}
           @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>` : nothing}</div>
@@ -459,8 +461,7 @@ export class WeeklyPlannerCard extends LitElement {
             ${p.entities.length > 1 ? html`<strong class="compact-device">${friendlyName(this.hass, e.entity_id)}</strong>` : nothing}
             <div class="today"><span class="wname">${t(this._lang, "today_short")}</span>
               ${this._bar(e.entity_id, p, 0, "today", () => this._open(scope))}</div>
-            ${this._weekRows(`${scopeKey(scope)}|${e.entity_id}`, e.entity_id, [p], scope)}
-            ${this._chartRow(`${scopeKey(scope)}|${e.entity_id}`, e.entity_id, p)}
+            ${this._extras(scope, e.entity_id, [p])}
           `)}
         </div>` : nothing}</section>`;
     });
@@ -551,11 +552,12 @@ export class WeeklyPlannerCard extends LitElement {
     }
     button.hours:hover { background: var(--secondary-background-color); }
     wp-bar-editor { margin-top: 2px; }
+    .toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }
     .weekbtn {
-      display: inline-flex; align-items: center; gap: 4px; min-height: 48px; padding: 0 8px 0 0; border: none;
-      background: none; color: var(--primary-color); font: inherit; font-size: 14px; cursor: pointer; --mdc-icon-size: 20px;
+      display: inline-flex; align-items: center; gap: 4px; min-height: 48px; min-width: 48px; padding: 0 8px 0 0; border: none;
+      background: none; color: var(--primary-color); font: inherit; font-size: 16px; cursor: pointer; --mdc-icon-size: 22px;
     }
-    .chartbtn { margin-top: 0; }
+    .chartbtn .after { --mdc-icon-size: 20px; }
     .chartbox { padding: 4px 0 8px; }
     .week { display: flex; flex-direction: column; gap: 0; padding-bottom: 4px; }
     .wday { display: flex; align-items: flex-start; gap: 8px; min-height: 48px; width: 100%; }

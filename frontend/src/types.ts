@@ -4,7 +4,7 @@ export interface HomeAssistant {
   states: Record<string, HassEntity>;
   language: string;
   locale?: { language: string };
-  config: { time_zone: string };
+  config: { time_zone: string; unit_system?: { temperature?: string } };
   user?: { is_admin: boolean; name: string };
   themes?: { darkMode?: boolean };
   services?: Record<string, Record<string, unknown>>;

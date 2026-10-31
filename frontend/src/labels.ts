@@ -18,6 +18,21 @@ export function nextColor(labels: Label[]): string {
 export const labelOf = (data: PlannerData, id: string | null | undefined): Label | undefined =>
   id ? data.labels.find((l) => l.id === id) : undefined;
 
+const SERVICE_ID = /^[a-z0-9_]+\.[a-z0-9_]+$/;
+
+/**
+ * Name to show for a setting. A name that is a raw service id ("vacuum.start", what an unnamed setting got
+ * from its action) is shown with Home Assistant's translated service name, else the service part made readable.
+ * The stored name is never changed.
+ */
+export function labelName(hass: HomeAssistant, label: Pick<Label, "name">): string {
+  if (!SERVICE_ID.test(label.name)) return label.name;
+  const translated = serviceLabel(hass, label.name);
+  if (translated !== label.name) return translated;
+  const part = label.name.split(".")[1].replace(/_/g, " ");
+  return part.charAt(0).toUpperCase() + part.slice(1);
+}
+
 /** Scenes that contain the entity (attribute `entity_id` of `scene.*`). */
 export function scenesOf(hass: HomeAssistant, entityId: string): HassEntity[] {
   return Object.values(hass.states)

@@ -4,7 +4,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "./action-picker";
-import { actionSummary, actionText, allowedOf, entityAction, hasOverride, labelOf, labelsFor, labelUsers, nextColor, PALETTE } from "../labels";
+import { actionSummary, actionText, allowedOf, entityAction, hasOverride, labelName, labelOf, labelsFor, labelUsers, nextColor, PALETTE } from "../labels";
 import { t } from "../i18n";
 import { friendlyName } from "../planner";
 import { loadServiceNames, missingFields } from "../services";
@@ -238,7 +238,7 @@ export class WpLabelPicker extends LitElement {
       <!-- framed in the label's colour so it clearly belongs to it -->
       <div class="details" style="--lc:${chosen.color}">
         <div class="dhead">
-          <i class="dot" style="background:${chosen.color}"></i><b>${chosen.name}</b>
+          <i class="dot" style="background:${chosen.color}"></i><b>${labelName(this.hass, chosen)}</b>
           ${labelUsers(this.data, chosen.id).some((n) => n !== this.program.name) ? html`<span class="shared">${t(lang, "shared")}</span>` : nothing}
           ${this.readonlySettings ? nothing : html`<button class="pen ${this._form ? "on" : ""}" aria-label=${t(lang, "rename_label")} title=${t(lang, "rename_label")}
             aria-pressed=${this._form} ?disabled=${this.disabled}
@@ -267,7 +267,7 @@ export class WpLabelPicker extends LitElement {
     return html`
       <div class="chips" role="radiogroup" aria-label=${t(lang, "action")}>
         ${this.allowNone ? chip(t(lang, "rest_none"), this.value === null, () => this._choose(null)) : nothing}
-        ${labels.map((l) => chip(l.name, l.id === this.value, () => this._choose(l.id), l.color))}
+        ${labels.map((l) => chip(labelName(this.hass, l), l.id === this.value, () => this._choose(l.id), l.color))}
         ${this.value && !chosen ? chip("?", true, () => undefined) : nothing}
         ${this.compact || this.readonlySettings ? nothing : html`<button class="chip add ${this._form && !this._editId ? "on" : ""}" ?disabled=${this.disabled}
           @click=${() => (this._form && !this._editId ? this._close() : this._open(false))}>

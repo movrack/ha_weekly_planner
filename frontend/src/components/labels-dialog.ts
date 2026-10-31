@@ -6,7 +6,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import "./action-picker";
 import "./dialog";
 import { confirmAction } from "./confirm";
-import { actionText, labelUsers, PALETTE } from "../labels";
+import { actionText, labelName, labelUsers, PALETTE } from "../labels";
 import { t } from "../i18n";
 import { friendlyName } from "../planner";
 import { loadServiceNames, missingFields } from "../services";
@@ -75,7 +75,7 @@ export class WpLabels extends LitElement {
       this._error = t(lang, "lb_in_use", { programs: users.join(", ") });
       return;
     }
-    if (!(await confirmAction(this, t(lang, "confirm_delete", { name: label.name }), t(lang, "delete"), t(lang, "cancel")))) return;
+    if (!(await confirmAction(this, t(lang, "confirm_delete", { name: labelName(this.hass, label) }), t(lang, "delete"), t(lang, "cancel")))) return;
     try {
       await this.hass.callWS({ type: "weekly_planner/label/delete", label_id: label.id });
       this._open = null;
@@ -96,7 +96,7 @@ export class WpLabels extends LitElement {
           if (this._open !== l.id) {
             return html`<button class="row" @click=${() => this._expand(l)}>
               <i class="dot" style="background:${l.color}"></i>
-              <span class="txt"><b>${l.name}</b><span class="sub">${actionText(this.hass, lang, l.action)} · ${t(lang, users > 1 ? "lb_uses_many" : "lb_uses", { n: String(users) })}</span></span>
+              <span class="txt"><b>${labelName(this.hass, l)}</b><span class="sub">${actionText(this.hass, lang, l.action)} · ${t(lang, users > 1 ? "lb_uses_many" : "lb_uses", { n: String(users) })}</span></span>
               <ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
           }
           const entities = this._entities(l);

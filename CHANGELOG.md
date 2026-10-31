@@ -13,7 +13,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 - Card YAML: `filter.programs` and `program` accept a program name as well as its ID (`filter: { programs: [Bureau, Lampe du salon] }`). An exact ID wins; otherwise the name matches ignoring case and accents, and every program with that name is shown. Unmatched entries are ignored. The visual editor counts a name as selecting that program and rewrites the selection as IDs on edit. Existing ID lists are unchanged.
 
+### Changed
+- Card editor: the chart option is now two switches, "Chart button under each device" (`show_chart`) and "Chart open by default" (`chart_collapsed`, inverted), each with a short explanation. The chart button is called "Today’s chart", uses the chart icon, is 16 px text with a 16 px gap from "Week", and its screen-reader label uses the name shown on the card.
+- Card editor, programs to display: each type shows Home Assistant’s icon and the names of its programs; a type with a single program is one row with its switch (no expander); counts read "3 of 5"; a partly selected type says "partly" in text and keeps a crisp switch; turning something off while "All programs" is on explains that new programs will no longer appear automatically, with a one-tap way back.
+- Plainer words: "Several devices", "One program only", "Room (optional)" (was "Area"), "Day layout", and a shorter hint. Configuration keys are unchanged.
+- Chart legend: "Schedule", "Measured value", "Requested from device", "Active". The vertical axis shows the device’s own unit.
+- A setting whose name is a raw service id (for example `vacuum.start`) is shown with Home Assistant’s service name; the stored name is not changed.
+
 ### Fixed
+- Card editor on a narrow phone (360 px): the "Show all programs again" button wraps inside its notice instead of running off the edge, and a type's name is no longer cut letter by letter; its count ("2 of 3 · partly") now sits under the name so the name and program names get the full width.
+- Chart: value labels of markers that are close together (for example "15 15" at the end of the day) no longer overlap.
+- The remembered open/closed state of the card chart is now per card and device, not per device only (an older per-device choice is no longer read).
 - Adding the card: the code editor now lists every setting the visual editor shows (`schedule_view: bars`, `show_chart: true`, `chart_collapsed: true`, `filter: {}`) instead of only `filter: {}`. Opening an existing card changes nothing; the first change in the visual editor writes the full configuration.
 
 ## [0.20.2] - 2026-10-31
