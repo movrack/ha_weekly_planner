@@ -751,11 +751,13 @@ export class WpSchedule extends LitElement {
         ${missingMode ? html`<p class="err" role="alert">${t(lang, "mode_removed")}</p>` : nothing}
         ${!this._canEdit ? html`<p class="err" role="alert">${t(lang, "read_only")}</p>` : nothing}
         ${this._error && !this._open ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
-        ${this._focus !== null && this._open === null ? html`<div class="focus">
-          <button class="chip back" @click=${() => { this._focus = null; this._note = ""; }}>
-            <ha-icon icon="mdi:arrow-left"></ha-icon>${t(lang, "w_whole_week")}</button>
-          <h3>${strings(lang).days[this._focus]}</h3></div>` : nothing}
-        ${this._note && this._open === null ? html`<p class="muted note">${this._note}</p>` : nothing}
+        ${this._open !== null || this._modeOnly ? nothing : html`<label class="switch">
+          <span class="grow">${t(lang, "schedule_on")}</span>
+          <span class="state">${this._enabled ? t(lang, "running") : t(lang, "stopped")}</span>
+          <input type="checkbox" .checked=${this._enabled} ?disabled=${!this._canEdit || this._toggling}
+            @change=${(e: Event) => void this._setEnabled((e.target as HTMLInputElement).checked, e.target as HTMLInputElement)} />
+          <span class="track"></span>
+        </label>`}
         ${this.scope.kind === "program" ? html`<label class="mode-select">${t(lang, "profile")}
           <select .value=${this._modeProfile(this._programs[0])?.id ?? ""} ?disabled=${this.profileId !== null || this._open !== null}
             @change=${(e: Event) => { this._viewProfileId = (e.target as HTMLSelectElement).value; this._slots = null; this._error = ""; }}>
@@ -763,24 +765,22 @@ export class WpSchedule extends LitElement {
             ${this._programs[0].profiles.map((p) => html`<option value=${p.id} ?selected=${p.id === this._modeProfile(this._programs[0])?.id}>${p.name}</option>`)}
           </select></label>` : nothing}
         ${this._modeOnly ? html`<p class="muted note">${t(lang, "mode_schedule_hint")}</p>` : nothing}
-        ${this._renderWeek()}
+        ${this._modeOnly ? nothing : html`<div class="rests">${this._renderRest()}</div>`}
+        ${this._focus !== null && this._open === null ? html`<div class="focus">
+          <button class="chip back" @click=${() => { this._focus = null; this._note = ""; }}>
+            <ha-icon icon="mdi:arrow-left"></ha-icon>${t(lang, "w_whole_week")}</button>
+          <h3>${strings(lang).days[this._focus]}</h3></div>` : nothing}
+        ${this._note && this._open === null ? html`<p class="muted note">${this._note}</p>` : nothing}
         <div class="list">
           ${rows.length ? rows.map((r) => this._renderRow(r)) : (this._open === "new" ? nothing : html`<p class="muted">${t(lang, "w_none")}</p>`)}
           ${this._group && (this._open === "new" || (this._open !== null && !rows.some((r) => r.key === this._open))) ? this._renderEditor(this._programs.find((p) => p.id === this._programId) ?? this._programs[0], this._open!) : nothing}
           ${this._open === null ? html`<button class="row add" ?disabled=${!this._canEdit || missingMode} @click=${() => this._add()}>
             <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${this._focus === null ? t(lang, "w_add") : t(lang, "w_add_day", { day: strings(lang).days[this._focus].toLocaleLowerCase(lang) })}</span></button>` : nothing}
-          ${this._modeOnly ? nothing : this._renderRest()}
         </div>
-        ${this._open !== null ? nothing : html`${this._renderChart()}
-        ${this._modeOnly ? nothing : html`<label class="switch">
-          <span class="grow">${t(lang, "schedule_on")}</span>
-          <span class="state">${this._enabled ? t(lang, "running") : t(lang, "stopped")}</span>
-          <input type="checkbox" .checked=${this._enabled} ?disabled=${!this._canEdit || this._toggling}
-            @change=${(e: Event) => void this._setEnabled((e.target as HTMLInputElement).checked, e.target as HTMLInputElement)} />
-          <span class="track"></span>
-        </label>
-        <button class="btn danger-line alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteAll()}>
-          <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete_schedule")}</button>`}`}
+        ${this._renderWeek()}
+        ${this._open !== null ? nothing : this._renderChart()}
+        ${this._open !== null || this._modeOnly ? nothing : html`<button class="btn danger-line alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteAll()}>
+          <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete_schedule")}</button>`}
       </wp-dialog>`;
   }
 
@@ -793,7 +793,9 @@ export class WpSchedule extends LitElement {
     .schema-day { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 32px; }
     .schema-day > span { font-size: 12px; color: var(--secondary-text-color); }
     .schema-day wp-day-bar { min-width: 0; }
-    .list { display: flex; flex-direction: column; gap: 8px; }
+    .list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    .rests { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    .rests:empty { display: none; }
     .row {
       display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 12px; border-radius: 12px; text-align: left;
       border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); font: inherit; font-size: 16px;
@@ -829,7 +831,7 @@ export class WpSchedule extends LitElement {
     .chart { margin-top: 16px; }
     .chart .nav { display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 500; }
     .chart select { margin-bottom: 4px; }
-    .switch { position: relative; min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; margin-top: 12px; font-size: 16px; }
+    .switch { position: relative; min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; margin-bottom: 8px; font-size: 16px; }
     .switch .state { font-size: 14px; color: var(--secondary-text-color); }
     .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
     .switch .track { position: relative; width: 44px; height: 24px; border-radius: 12px; background: var(--disabled-color, #bdbdbd); transition: background 0.2s; flex: none; }
