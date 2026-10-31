@@ -1,26 +1,14 @@
 // Reusable editing pieces: styles, entity picker and conditions editor.
 
 import { LitElement, css, html, nothing } from "lit";
-import type { TemplateResult } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
-import { strings, t } from "../i18n";
+import { customElement, property } from "lit/decorators.js";
+import { t } from "../i18n";
 import { entityDomain, friendlyName } from "../planner";
 import type { Condition, HassEntity, HomeAssistant } from "../types";
 
 export type K = Parameters<typeof t>[1];
 
 export const langOf = (hass?: HomeAssistant): string => hass?.locale?.language ?? hass?.language ?? "en";
-
-/** Display name of a device type (falls back to the raw type). */
-export function typeLabel(lang: string, type: string): string {
-  const text = (strings(lang) as Record<string, unknown>)[`type_${type}`];
-  return typeof text === "string" ? text : type;
-}
-
-export const SUPPORTED_DOMAINS = [
-  "climate", "cover", "light", "switch", "input_boolean", "fan", "water_heater",
-  "media_player", "input_number", "input_select",
-];
 
 export const editorStyles = css`
   :host { display: block; color: var(--primary-text-color); font-size: 14px; }
@@ -80,6 +68,8 @@ export class WpEntityPicker extends LitElement {
   @property({ attribute: false }) hass!: HomeAssistant;
   @property() value = "";
   @property() label = "";
+  @property({ type: Boolean }) disabled = false;
+  @property({ type: Boolean }) required = false;
   @property({ attribute: false }) domains: string[] = [];
   @property({ attribute: false }) exclude: string[] = [];
   @property({ attribute: false }) filter?: (entityId: string) => boolean;
@@ -101,7 +91,7 @@ export class WpEntityPicker extends LitElement {
     if (customElements.get("ha-entity-picker")) {
       const filter = this.filter;
       return html`<ha-entity-picker
-        .hass=${this.hass} .value=${this.value} .label=${this.label}
+        .hass=${this.hass} .value=${this.value} .label=${this.label} .disabled=${this.disabled} .required=${this.required}
         .includeDomains=${this.domains.length ? this.domains : undefined}
         .excludeEntities=${this.exclude}
         .entityFilter=${filter ? (e: HassEntity) => filter(e.entity_id) : undefined}
@@ -114,7 +104,7 @@ export class WpEntityPicker extends LitElement {
     return html`
       <div class="field">
         ${this.label ? html`<label>${this.label}</label>` : nothing}
-        <input type="text" list=${this._listId} .value=${this.value} autocomplete="off"
+        <input type="text" ?disabled=${this.disabled} ?required=${this.required} list=${this._listId} .value=${this.value} autocomplete="off"
           aria-label=${this.label || "entity"} placeholder="domain.entity"
           @change=${(ev: Event) => {
             const v = (ev.target as HTMLInputElement).value.trim();

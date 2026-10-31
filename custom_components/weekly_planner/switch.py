@@ -62,7 +62,12 @@ class VacationSwitch(_Base):
     """Suspend every program and apply defaults."""
 
     _attr_translation_key = "vacation"
-    _attr_icon = "mdi:bag-suitcase"
+    _attr_icon = "mdi:pause-circle-outline"
+
+    @property
+    def suggested_object_id(self) -> str:
+        # Keep the historical ID even on fresh installations after the display-name change.
+        return "Vacation"
 
     def __init__(self, engine: PlannerEngine, entry: ConfigEntry) -> None:
         super().__init__(engine, entry)

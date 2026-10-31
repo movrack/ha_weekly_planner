@@ -318,7 +318,7 @@ export function mergeAdjacent(slots: Slot[], ctx: DayCtx, keep: ReadonlySet<stri
     if (prev && prev.end && slot.end) {
       const a = eff(prev, ctx.at);
       const b = eff(slot, ctx.at);
-      if (!a.wrap && a.end === b.start && sameKind(prev, slot) && !keep.has(prev.id) && !keep.has(slot.id)) {
+      if (!a.wrap && a.end === b.start && !prev.end.random_minutes && !slot.start.random_minutes && sameKind(prev, slot) && !keep.has(prev.id) && !keep.has(slot.id)) {
         out[out.length - 1] = { ...prev, end: slot.end };
         continue;
       }

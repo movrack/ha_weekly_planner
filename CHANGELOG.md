@@ -6,6 +6,203 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-31
+
+### Added
+- Touch hint "Press and hold to edit" on the first three taps on a bar, remembered per device.
+- Preview cache shared between cards and dialogs, invalidated when the configuration revision or card version changes.
+- Server defaults (`defaults: {reapply, priority}`) in the `weekly_planner/get` and subscribe snapshot; new programs in the card start from them.
+- Lovelace resource lifecycle tests (creation, version update, removal).
+
+### Changed
+- One default priority (10) everywhere; stored priorities are unchanged, only a missing priority key now resolves to 10 instead of 100.
+- Missing-entity repairs are recomputed when programs or labels are saved, duplicated or deleted, when entities are renamed, created or removed, at startup and on reload.
+- Program status is computed once per notification and occurrences are shared between the entities of a program (internal).
+- `show_week` and `show_advanced` card options are deprecated: still accepted, now ignored.
+- Specification: `00:00 → 00:00` is documented as an accepted 24-hour slot (behaviour unchanged).
+
+### Fixed
+- The `reapply_default` option now applies: a program saved without `reapply` takes the configured default.
+
+### Removed
+- Unused internal `PlannerStore.async_backup` (the pre-migration backup is made by the versioned store).
+
+## [0.18.0] - 2026-10-31
+
+### Changed
+- Repository hardening: security policy, Dependabot updates, read-only CI token and actions pinned to commit SHAs.
+- Internal backend cleanup (shared websocket edit guard, fewer repeated computations, dead code removed); no behaviour change.
+- Rename the random-time option to “Random delay”, move it below the solar shortcuts and show the explicit fixed or solar-relative interval.
+- Put New program immediately after the settings selector placeholder, between native separators, while preserving creation drafts.
+
+### Added
+- Not before / Not after limits on sunrise and sunset start or end times (for example "sunset, but not before 18:00 and not after 21:00"), set with two optional time fields under the solar choice. Limits survive offset, delay, sunrise/sunset switching, grouping and duplication; dragging a bar to an exact time still replaces the solar time.
+- Reject a "Not before" later than "Not after" in the form and on the server.
+- Choose the programs displayed by each filtered card in a collapsible checklist; combine the selection with type and area filters without changing program execution.
+- French illustrated guide for 0.16.2 with nine current mobile captures, 49 explicitly historical screenshots, local demo provenance and links from both integrator READMEs.
+- Track the guide's screenshots under a narrow image-ignore exception and document the screen coverage inventory.
+
+## [0.17.0] - 2026-10-30
+
+### Added
+- Optional daily random delays on fixed or solar start/end times, with a configurable window up to 240 minutes and a 15-minute default when enabled. Delays are deterministic per occurrence and stable across recalculation and restart. See [#22](https://github.com/movrack/ha_weekly_planner/issues/22).
+- Resolve delayed times consistently in previews and charts, including previous-day tails and actions delayed across midnight; preserve solar latest limits and validate fixed-time duration/overlap envelopes.
+
+## [0.16.4] - 2026-10-30
+
+### Fixed
+- Keep Delete available in the schedule form while a label has unsaved changes. Confirm deletion of an existing slot using fresh data and its original mode/day, without saving the label draft; discard a new unsaved slot locally without a server write.
+- Disable slot deletion while saving or when editing is forbidden.
+
+## [0.16.3] - 2026-10-30
+
+### Fixed
+- Follow renamed entities in mode sources, explicit action targets, scenes and dynamic field sources, advancing affected configuration revisions.
+- Accept typed times at any minute while retaining minimum slot duration and drag-step rules.
+- Recheck program revisions after asynchronous metadata loading, returning clean conflicts for concurrent saves.
+- Index condition dependencies and avoid rebuilding deadlines for unrelated state attributes; share derived websocket snapshots within each notification.
+- Invalidate obsolete action generations on segment changes, including empty defaults and unavailable targets, without suppressing valid eagerly started tasks.
+- Keep bar edits and Undo attached to their original mode, preserving concurrent changes to restored days.
+- Refresh solar previews after runtime mode changes and recover preview/subscription failures without manual reloads.
+- Keep week dates consecutive across daylight-saving transitions and refresh current-day charts on a shared visible-page clock.
+- Bound chart history caches per connection, avoid oversized min/max argument lists, and replace repeated temporal scans with sorted lookups.
+
+## [0.16.2] - 2026-10-29
+
+### Fixed
+- Replace free-text card area filters with existing program areas, preserving missing selections, and expose program area assignment in General settings.
+- Explain filtered empty lists and distinguish missing or unavailable history from days without planned actions in charts.
+
+## [0.16.1] - 2026-10-29
+
+### Fixed
+- Synchronize native selects after their dynamic options render: active mode, external-state associations and action-source attributes display their actual stored values without emitting edits. Preserve unavailable configured choices.
+- Clearly separate immediate mode activation from unapplied settings and explain its effect next to the control.
+- Mark additional device selection as optional, explain zero selected commands, and provide a direct schedule setup action after creating a program.
+- Collapse external-state associations into a counted section and keep one primary Apply/Create action reachable while scrolling, separate from destructive actions.
+
+## [0.16.0] - 2026-10-29
+
+### Added
+- Unified program modes with their own weekly schedules, including Vacation as an ordinary mode. Choose the active mode manually or map an external entity’s raw states to program modes; retain the last mode when the source is unavailable or unmapped.
+- Edit inactive modes’ schedules without activating them or reapplying active device actions; capture the edited mode across concurrent external changes and refuse writes to deleted modes. Show the active mode in cards and expose live source status.
+- Validate mode associations, reject circular Weekly Planner sources and prevent manual overrides while external control is configured.
+
+### Changed
+- Rename Seasons to Modes throughout the UI and Home Assistant selectors. Preserve entity IDs and existing schedules. Rename the legacy global Vacation suspension to All programs paused, preserving its behavior and automations.
+
+## [0.15.1] - 2026-10-29
+
+### Fixed
+- Show Home Assistant action descriptions below each offered-action checkbox, with accessible descriptions and mobile wrapping. Use translated descriptions when available; do not invent missing descriptions.
+
+## [0.15.0] - 2026-10-29
+
+### Changed
+- New devices start with no service actions selected. Show their action checklist during program creation and when adding a device, with guidance to choose the useful commands. Allow deselecting the last action.
+- Use an explicit restriction flag to preserve historical empty-list behavior for existing programs. Keep configured service choices visible when their service/target disappears, including actions on other entities.
+
+## [0.14.0] - 2026-10-29
+
+### Added
+- Label service actions can explicitly control another Home Assistant entity, such as pressing a shutter favorite-position button or starting a script. Discover actions and fields from the selected target, show its name in summaries, and retain per-device overrides and service restrictions.
+
+## [0.13.0] - 2026-10-29
+
+### Fixed
+- Show a red Disabled badge below the program controls in bar, radial and compact-list views instead of the ambiguous pause icon.
+
+### Added
+- Read service field values from a Home Assistant entity state or attribute, including helpers, as an alternative to fixed values. Resolve and convert values when the action executes, without triggering actions when only the source changes.
+- Show source selection and current value in the label editor; retain generic entity discovery and per-device action overrides. Refuse unavailable or invalid source values instead of sending an old fixed fallback.
+
+## [0.12.0] - 2026-10-29
+
+### Added
+- Allow both radial schedule views in filtered lists, rendering each program with its own resolved device spans; remove disabled choices and the single-program restriction.
+- Expand the clicked compact-list program in place into editable daily bars and optional week rows. Keep one program expanded at a time, with an explicit calendar button for schedule editing and an independent enable switch.
+
+## [0.11.3] - 2026-10-29
+
+### Fixed
+- Simplify creation to a single name-and-devices form with an explicit Create program action, then select the saved program and return to card display. Show a resume action for retained drafts.
+- Keep device management only in the Devices tab for existing programs.
+- Make program creation visible beside the card program selector, with a direct edit shortcut. Always show a labelled program selector in program settings, listing every program independently of card filters and retaining existing drafts.
+
+## [0.11.2] - 2026-10-29
+
+### Fixed
+- Restore live program-state subscriptions when Home Assistant reattaches a cached card or editor without replacing its hass object. Keep bar, dial, compact list and open schedule switches synchronized.
+- Prevent duplicate toggle requests while confirmation or a request is pending; restore the schedule checkbox after cancellation or failure.
+- Publish program enable changes to every WebSocket subscriber and the native HA switch during startup stabilization, without executing device actions early.
+
+## [0.11.1] - 2026-10-29
+
+### Fixed
+- Put the morning on the inner 12-hour ring with 3/6/9/12 labels, and the afternoon on the outer ring with 15/18/21/24 labels. Keep solar and current-time markers on their corresponding ring.
+
+## [0.11.0] - 2026-10-29
+
+### Added
+- Optional concentric 12-hour schedule rings, with morning outside and afternoon inside, alongside the existing 24-hour dial.
+- Hourly dial ticks and the same sunrise, sunset and current-time icons and accessible tooltips as the linear view.
+
+### Fixed
+- Match linear schedule colours: unscheduled time stays grey regardless of the default action label colour. Split noon-crossing slots without duplicating solar endpoints.
+
+## [0.10.0] - 2026-10-29
+
+### Fixed
+- Deploy tested working-tree changes independently of commit status, reporting the base revision, uncommitted state and card checksum. Keep the daytime commit restriction separate from deployment authorization.
+
+### Added
+- Undo and redo for unapplied program settings, including devices, conditions, season forms and duplication, retained across editor navigation.
+- Keep up to 50 local draft steps, grouping short typing bursts; start a new redo branch after a new edit and reset history after a successful save.
+- Keyboard shortcuts outside text fields; text inputs keep their native typing undo. Undo never reverses an action already applied to Home Assistant.
+
+## [0.9.1] - 2026-10-29
+
+### Fixed
+- Retain unapplied program drafts when switching programs, card modes or editor tabs, including pending season names.
+- Keep background saves attached to their own program without replacing the current selection.
+- Make the radial option visible in list mode with guidance to select one program.
+- Distinguish active seasons from the season being managed and open the actual Home Assistant profile selector directly.
+- Use labelled season actions and one Apply action for season names and shared settings, with explicit scope and success feedback.
+- Support keyboard tab navigation and related ARIA labels in both configuration editors.
+
+## [0.9.0] - 2026-10-29
+
+### Added
+- Optional single-program 24-hour dial with a text legend and access to schedule editing.
+- Compact program list and dashboard enabled switches.
+- Notices naming other programs using a selected device and their priorities.
+- Season and generic-action guides, configuration usability review.
+
+### Changed
+- Select devices before the icon; use Home Assistant icon metadata for the first device without a domain catalogue.
+- Put New program after the placeholder, between separators.
+- Click dialog titles to expand or reduce desktop width.
+- Hide the global label manager in single-program cards; contextual editing stays available.
+- Explain season management versus activation through the HA profile entity.
+
+## [0.8.0] - 2026-10-28
+
+### Changed
+- Discover card filter types from program entity domains and existing selections, using Home Assistant domain titles. Remove the fixed type catalogue and the implicit thermostat filter for new cards.
+- Record generic metadata-driven discovery as a shared contributor and AI-agent rule.
+- Move shared program settings (General, Devices, Seasons), creation and duplication into the dashboard card editor. Remove program settings from the schedule screen.
+- Apply shared settings explicitly, with fresh data and one retry on revision conflicts, preserving concurrent schedule edits.
+
+
+### Added
+- Show the schematic week above the schedule list, including unsaved slot edits.
+
+### Changed
+- Replace action chips with a compact dropdown and display the selected action’s Home Assistant description.
+- Clicking the selected “Every day” shortcut clears the day selection in the slot editor.
+- Document generic AI assistance in both READMEs and keep project guidance independent of any specific AI tool.
+- Add a Git-ignored local project memory for context shared across AI tools.
+
 ## [0.7.10] - 2026-10-26
 
 ### Fixed
