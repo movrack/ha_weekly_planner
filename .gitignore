@@ -67,3 +67,12 @@ captures/
 
 # Versioned screenshots for the illustrated user guide
 !docs/images/guide/*.png
+
+# Coverage and mutation testing output
+coverage.xml
+.coverage.*
+mutants/
+.mutmut-cache/
+frontend/reports/
+frontend/.stryker-tmp/
+frontend/coverage/
