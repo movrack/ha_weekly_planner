@@ -160,7 +160,8 @@ export class WpProgramEditor extends LitElement {
     } else {
       const pid = newId();
       this._p = {
-        id: "", revision: 0, name: "", icon: "mdi:calendar-clock", priority: 10, enabled: true, reapply: true,
+        id: "", revision: 0, name: "", icon: "mdi:calendar-clock", priority: this.data.defaults?.priority ?? 10, enabled: true,
+        reapply: this.data.defaults?.reapply ?? true,
         conditions: [], entities: [], active_profile: pid,
         profiles: [{ id: pid, name: this._tr("profile_default"), days: EMPTY_DAYS() }],
       };

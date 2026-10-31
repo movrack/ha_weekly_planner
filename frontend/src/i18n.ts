@@ -104,6 +104,7 @@ const en = {
   shared: "Shared",
   rename_label: "Edit label",
   edit_bar: "Edit the day",
+  hold_hint: "Press and hold to edit",
   handle: "Boundary {time}",
   rest_gap: "Rest of the time",
   // --- labels (0.6) ---
@@ -401,6 +402,7 @@ const fr: typeof en = {
   shared: "Partagé",
   rename_label: "Modifier l'étiquette",
   edit_bar: "Modifier la journée",
+  hold_hint: "Restez appuyé pour modifier",
   handle: "Limite {time}",
   rest_gap: "Le reste du temps",
   lb_err_save: "Étiquette non enregistrée.",

@@ -123,6 +123,8 @@ export interface PlannerData {
   is_admin?: boolean;
   /** Version (hash) of the card bundle the integration serves now. */
   card_version?: string | null;
+  /** Defaults for a new program (absent on older integrations). */
+  defaults?: { reapply: boolean; priority: number };
 }
 
 export interface PreviewSlot {
@@ -139,7 +141,9 @@ export interface CardConfig {
   program?: string;
   filter?: { types?: string[]; area?: string; programs?: string[] };
   schedule_view?: "bars" | "radial" | "radial_12h" | "list";
+  /** Deprecated: accepted and ignored (the week list is always collapsible); kept so existing YAML never breaks. */
   show_week?: boolean;
   show_chart?: boolean;
+  /** Deprecated: accepted and ignored; kept so existing YAML never breaks. */
   show_advanced?: boolean;
 }

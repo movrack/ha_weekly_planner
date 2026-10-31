@@ -1,5 +1,6 @@
 // Shared data access: one subscription per page, helpers to read programs and labels.
 
+import { syncPreviewCache } from "./preview-cache";
 import type { HomeAssistant, PlannerData, Program } from "./types";
 
 type Listener = (data: PlannerData) => void;
@@ -19,6 +20,7 @@ function connectPlanner(hass: HomeAssistant): void {
     if (token !== generation) return;
     retryDelay = 1000;
     current = data;
+    syncPreviewCache(data);
     listeners.forEach((listener) => listener(data));
   }, { type: "weekly_planner/subscribe" });
   unsubscribe = pending;
