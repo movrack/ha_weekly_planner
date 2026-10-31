@@ -30,6 +30,10 @@ le suit à l'identique. En cas de doute ou de conflit, `AGENTS.md` et `docs/DECI
 - Tâche terminée : la cocher aussitôt (SPEC, `docs/quick_todo.md`, toute liste). Issue terminée : la commenter « fait » avec le hash du commit associé.
 - Avec chaque changement : cocher les tâches de `docs/SPEC.md`, ajouter la décision à `docs/DECISIONS.md`,
   ajouter l'entrée du `CHANGELOG.md`.
+- Docs destinées aux utilisateurs (wiki, guide, READMEs) : ne décrire que le produit actuel — pas d'historique, pas de
+  « ancien / ex- / remplacé », pas de légende de capture datée par version ; l'historique va dans CHANGELOG/DECISIONS.
+- Avant la v1.0.0, TOUTES les captures (docs/images/guide, images du wiki) doivent être refaites avec l'interface finale ;
+  d'ici là elles peuvent être en retard mais ne portent jamais de numéro de version.
 - Rendre compte fidèlement, sans enjoliver : **fait** / **vérifié** (avec la preuve) / **non vérifié** /
   **comment annuler**. Ce qui n'a pas été prouvé est écrit « non vérifié ».
 

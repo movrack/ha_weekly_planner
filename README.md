@@ -10,7 +10,7 @@ It schedules compatible Home Assistant service calls or scenes through shared
 settings, with optional end times and a per-entity default action. Discovery uses
 Home Assistant metadata, without a device-brand catalogue.
 
-This README describes version **0.16.2** for Home Assistant integrators. For household users, use the
+This README is for Home Assistant integrators. For household users, use the
 [illustrated French guide](docs/GUIDE.fr.md) and [screen atlas](docs/SCREENS.fr.md).
 
 <a href="docs/SCREENS.fr.md#s01"><img src="docs/images/guide/s01-overview.png" width="300" alt="Weekly Planner overview" /></a>
@@ -88,7 +88,6 @@ filter:
 | `schedule_view` | `bars` (default), `list`, `radial` (24-hour dial), or `radial_12h` (concentric 12-hour dials). All work with single-program and filtered cards. |
 | `show_chart` | Boolean, default `true`. On: a **Today’s chart** button under each device on the card, and the chart in the schedule window. Off: no button and no chart anywhere on this card. In the editor: “Chart button under each device”. |
 | `chart_collapsed` | Boolean, default `true`: the chart under each device starts closed (`false`: starts open). Only matters when `show_chart` is on. In the editor: the switch “Chart open by default” (the inverse). A choice made with the chart button is remembered per browser, per card and per device, and wins afterwards. |
-| `show_week`, `show_advanced` | Deprecated, accepted and ignored. |
 
 **YAML reference.** Every option of the visual editor can be set in the YAML code editor, with the same
 effect, and switching between both keeps all keys (including keys this card does not know). Types:
@@ -126,8 +125,7 @@ above with a real ID. Entity IDs may also vary with language and renaming.
 
 Set a program’s optional area in **Program settings → General**. This is a name
 used to group programs; it is independent of HA device rooms.
-The week is expanded interactively; legacy `show_week` and `show_advanced` fields
-are not active presentation controls in the current card.
+The week is expanded interactively.
 
 The dial displays the same resolved schedule data as the bars and opens the
 existing editor. The inner 12-hour ring covers midnight–noon and the outer ring noon–midnight.
@@ -210,7 +208,7 @@ attributes. New devices start with `restrict_services: true` and
 `allowed_services: []`: no service action is selected. The creation form asks the
 user to choose the offered commands, with descriptions supplied by HA. These
 choices can be changed later in **Devices**. A nonempty `allowed_services` list
-restricts actions to that list. Legacy empty/missing lists without
+restricts actions to that list. Empty or missing lists without
 `restrict_services` remain unrestricted. Scenes are separate from this filter.
 The picker hides unsupported fields and services requiring raw text/object input.
 Presets come from entity attributes; no manufacturer-specific modes are synthesized.
@@ -239,20 +237,20 @@ cannot be used as sources, preventing circular selection. Modes do not switch by
 calendar date unless an external automation changes their source.
 
 The per-program HA profile `select` remains available for manual selection using
-`select.select_option`. The old global vacation switch is a separate **Pause all
-programs** control; its entity identity is preserved. See the
-[mode reference](docs/SEASONS.md) and [native-action examples](docs/GENERIC_ACTIONS.md).
+`select.select_option`. The global switch is a separate **Suspension of all
+programs** control. See the
+[mode reference](docs/MODES.md) and [native-action examples](docs/GENERIC_ACTIONS.md).
 
 ## Created entities and HA actions
 
-The integration creates one global pause switch (the legacy vacation entity), one program switch per
+The integration creates one global suspension switch, one program switch per
 program, and one profile `select` per program. Inspect the actual entity registry;
 do not assume a generated English entity ID on another installation.
 
 | Entity | Integration behavior |
 |---|---|
 | Program `switch` | Enable/suspend the program. Attributes include `program_id`, active profile, current slots and next actions. |
-| Global pause `switch` | Suspend programs globally and apply the applicable defaults once. Existing vacation entity IDs remain stable. |
+| Global pause `switch` | Suspend programs globally and apply the applicable defaults once. |
 | Program profile `select` | Select the active mode by its exact visible name when manually controlled. |
 
 ```yaml
@@ -310,7 +308,7 @@ Programs and settings are integration data, not embedded card YAML. Persistence 
 HA `.storage/weekly_planner`, `.storage/weekly_planner.runtime` and
 `.storage/weekly_planner.journal`. Back up HA configuration, including `.storage`,
 before a Python upgrade or recovery. Do not hand-edit live storage files.
-Schema migrations keep backups of the previous files. Configuration corruption
+A backup of the previous files is kept. Configuration corruption
 must not silently replace existing programs with an empty configuration.
 
 The card uses `weekly_planner/subscribe` for live state. `card_version` identifies
@@ -382,9 +380,7 @@ restart only with the owner's approval. Deployment is independent of the weekday
 08:00–17:00 local commit prohibition; commit guards remain unchanged.
 
 Further references: [specification](docs/SPEC.md), [decisions](docs/DECISIONS.md),
-[screen inventory](docs/SCREEN_INVENTORY.md), [first usability review](docs/MAMY_REVIEW.md),
-[configuration review and fixes](docs/MAMY_REVIEW_0.16.0.md),
-[changelog](CHANGELOG.md).
+[screen inventory](docs/SCREEN_INVENTORY.md), [changelog](CHANGELOG.md).
 
 ## License
 

@@ -605,6 +605,7 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] README en / fr, captures, CHANGELOG, `docs/controle-visuel.md`
 - [x] `scripts/deploy_prod.sh`
 - [x] Releases `0.1.0` à `0.7.10` taguées (`v0.7.10` = dernière release GitHub, sur `main`)
+- [ ] Refaire toutes les captures d'écran avec l'interface finale avant la v1.0.0 (guide, atlas, wiki)
 - [ ] Tags / releases des versions 0.8.0 à 0.19.0 (non taguées, `main` derrière `develop`), puis `1.0.0` (§ 21)
 - [x] Dépôt public (GitHub `movrack/ha_weekly_planner`), `hacs.json`, `hacs/action` en CI
 - [ ] Installation propre via HACS vérifiée, demande d'inclusion dans la liste HACS par défaut (§ 21)

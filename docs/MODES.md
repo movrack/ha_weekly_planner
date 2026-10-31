@@ -1,13 +1,12 @@
 # Program modes
 
-Weekly Planner 0.21.0 calls former seasons **modes**. Each mode is an independent
+Weekly Planner organizes schedules in **modes**. Each mode is an independent
 weekly schedule: Home, Away, Vacation, Winter or any name chosen by the user.
 Vacation is an ordinary mode. Names do not assign dates or automatic behaviour.
 One mode is active per program.
 
-The file keeps its historical name so existing links work. Stored `profiles`,
-profile IDs and Home Assistant entity identities remain compatible with existing
-configurations; changing the display terminology does not rename entity IDs.
+Stored `profiles`, profile IDs and Home Assistant entity identities are stable;
+renaming a mode does not rename entity IDs.
 
 ## Shared settings and independent schedules
 
@@ -65,8 +64,7 @@ past one-shot actions are not replayed. Activation does not enable a disabled
 program or bypass its conditions. Device sharing retains the usual priority
 rules: a lower number wins among eligible programs; modes do not add priority.
 
-**All programs paused** is a separate global control, formerly labelled Vacation.
-Its stored identity is preserved. It suspends scheduling across programs and does
+**Suspension of all programs** is a separate global control. It suspends scheduling across programs and does
 not mean "activate the Vacation mode" or "turn every device off".
 
 Source references: `frontend/src/editors/program-editor.ts`,

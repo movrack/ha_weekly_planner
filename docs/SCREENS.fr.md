@@ -2,7 +2,7 @@
 
 [Lire le guide pas à pas](GUIDE.fr.md)
 
-Les captures S01 à S36 de Weekly Planner datent de la version **0.10.0**. Cinq ont été refaites avec la **0.21.0** le 31 octobre 2026 : S01, S15 (clair et sombre), S24 et S40, ainsi que S41. Les autres montrent d’anciens libellés ; le guide décrit les choix actuels ont été réalisées le 29 octobre 2026,
+Les captures de Weekly Planner ont été réalisées le 29 octobre 2026,
 avec des programmes et appareils de démonstration du salon. Les écrans utilisent
 les vrais composants de l’application ; leurs données sont préparées pour
 expliquer les fonctions. Les vues d’historique, de profil et d’options sont celles
@@ -19,7 +19,7 @@ Les captures principales sont prises sur un téléphone de **360 × 780 pixels C
 en thème clair, sauf la fenêtre agrandie sur ordinateur. Cliquer sur une miniature
 permet d’ouvrir l’image complète. Les écrans longs disposent de captures de suite.
 
-## Parcours — captures de la version 0.16.2
+## Création, pièce, filtres et graphique
 
 S37 à S45 ont été capturés le 29 octobre 2026 à 360 × 780 pixels CSS, sur
 l’instance locale, avec les vrais composants et des données préparées en mémoire.
@@ -55,7 +55,7 @@ Associer chaque état à un mode. Ici, Présence activée correspond à Maison e
 
 ### S40 — Zone du programme
 
-Capture 0.21.0. Définir la pièce dans Général (« Pièce du programme ») puis Appliquer au programme. Elle ne vient pas automatiquement des pièces des appareils.
+Définir la pièce dans Général (« Pièce du programme ») puis Appliquer au programme. Elle ne vient pas automatiquement des pièces des appareils.
 
 <a href="images/guide/s40-program-area.png"><img src="images/guide/s40-program-area.png" width="320" alt="Zone du programme" /></a>
 
@@ -63,7 +63,7 @@ Capture 0.21.0. Définir la pièce dans Général (« Pièce du programme ») pu
 
 ### S41 — Filtres et présentation
 
-Capture 0.21.0. Choisir la pièce, les programmes à afficher et la présentation de la journée. Les interrupteurs « Bouton Graphique sous chaque appareil » et « Graphique ouvert d’office » règlent le graphique.
+Choisir la pièce, les programmes à afficher et la présentation de la journée. Les interrupteurs « Bouton Graphique sous chaque appareil » et « Graphique ouvert d’office » règlent le graphique.
 
 <a href="images/guide/s41-card-filter.png"><img src="images/guide/s41-card-filter.png" width="320" alt="Filtres et présentation" /></a>
 
@@ -99,15 +99,13 @@ Fragment du graphique pour une journée future sans horaires. Les messages disti
 
 <a href="images/guide/s45-chart-empty.png"><img src="images/guide/s45-chart-empty.png" width="320" alt="Graphique sans données" /></a>
 
-## Archives illustrées — version 0.10.0
-
-Pour la création, les modes et les filtres, suivre les captures actuelles ci-dessus.
+## Autres écrans
 
 <a id="s01"></a>
 
 ## S01 — Vue d’ensemble
 
-Les programmes du salon montrent leur état, leur prochaine action, leur interrupteur et la barre du jour ; le bouton **Graphique du jour** est ouvert sous la lampe (0.21.0).
+Les programmes du salon montrent leur état, leur prochaine action, leur interrupteur et la barre du jour ; le bouton **Graphique du jour** est ouvert sous la lampe.
 
 <a href="images/guide/s01-overview.png"><img src="images/guide/s01-overview.png" width="320" alt="S01 — Vue d’ensemble" /></a>
 
@@ -223,7 +221,7 @@ Ce choix définit l’action par défaut de l’appareil. Ne rien changer signif
 
 ## S15 — Graphique du jour
 
-Capture 0.21.0 : le bouton **Graphique du jour** ouvre le graphique sous l’appareil, avec sa légende (Programme, Actif). Le graphique rapproche les actions prévues et l’historique disponible.
+Le bouton **Graphique du jour** ouvre le graphique sous l’appareil, avec sa légende (Programme, Actif). Le graphique rapproche les actions prévues et l’historique disponible.
 
 <a href="images/guide/s15-chart.png"><img src="images/guide/s15-chart.png" width="320" alt="S15 — Graphique du jour" /></a>
 
@@ -299,7 +297,7 @@ Suite de l’écran :
 
 ## S24 — Affichage : liste filtrée
 
-Capture 0.21.0 : choix de la pièce, présentation de la journée et réglages du graphique pour « Plusieurs appareils ».
+Choix de la pièce, présentation de la journée et réglages du graphique pour « Plusieurs appareils ».
 
 <a href="images/guide/s24-card-filter-settings.png"><img src="images/guide/s24-card-filter-settings.png" width="320" alt="S24 — Affichage : liste filtrée" /></a>
 
@@ -353,27 +351,27 @@ La liste limite les services proposés pour cet appareil. Toutes signifie que le
 
 <a id="s31"></a>
 
-## S31 — Gérer les saisons
+## S31 — Gérer les modes
 
-La saison active et la saison à gérer sont distinguées. Ajouter, renommer, copier et supprimer modifient le brouillon.
+Le mode actif et le mode à gérer sont distingués. Ajouter, renommer, copier et supprimer modifient le brouillon.
 
-<a href="images/guide/s31-season-management.png"><img src="images/guide/s31-season-management.png" width="320" alt="S31 — Gérer les saisons" /></a>
+<a href="images/guide/s31-season-management.png"><img src="images/guide/s31-season-management.png" width="320" alt="S31 — Gérer les modes" /></a>
 
 <a id="s32"></a>
 
-## S32 — Nom de saison en cours
+## S32 — Nom de mode en cours
 
-Le nom est enregistré avec Appliquer au programme. Le bouton de changement de saison active reste indisponible tant que les changements de saison ne sont pas appliqués.
+Le nom est enregistré avec Appliquer au programme. Le bouton de changement de mode actif reste indisponible tant que les changements de mode ne sont pas appliqués.
 
-<a href="images/guide/s32-season-name-draft.png"><img src="images/guide/s32-season-name-draft.png" width="320" alt="S32 — Nom de saison en cours" /></a>
+<a href="images/guide/s32-season-name-draft.png"><img src="images/guide/s32-season-name-draft.png" width="320" alt="S32 — Nom de mode en cours" /></a>
 
 <a id="s33"></a>
 
-## S33 — Changer la saison active
+## S33 — Changer le mode actif
 
 Le bouton ouvre le véritable sélecteur de profil Home Assistant du programme, trouvé dans le registre des entités.
 
-<a href="images/guide/s33-active-season-ha.png"><img src="images/guide/s33-active-season-ha.png" width="320" alt="S33 — Changer la saison active" /></a>
+<a href="images/guide/s33-active-season-ha.png"><img src="images/guide/s33-active-season-ha.png" width="320" alt="S33 — Changer le mode actif" /></a>
 
 <a id="s34"></a>
 
@@ -395,7 +393,7 @@ Ces options Home Assistant concernent l’intégration entière : droits d’éd
 
 ## S36 — Une seule intégration suffit
 
-Home Assistant refuse une seconde configuration de Weekly Planner. Pour ajouter un programme, utiliser Réglages des programmes dans la carte ; il n’est pas nécessaire d’ajouter une autre intégration. Cette capture est prise sur l’instance de test déjà configurée, sans retirer l’intégration pour simuler une première installation.
+Home Assistant refuse une seconde configuration de Weekly Planner. Pour ajouter un programme, utiliser Réglages des programmes dans la carte ; il n’est pas nécessaire d’ajouter une autre intégration. Cette capture est prise sur l’instance de test déjà configurée, sans supprimer l’intégration pour simuler une première installation.
 
 <a href="images/guide/s36-single-instance.png"><img src="images/guide/s36-single-instance.png" width="320" alt="S36 — Une seule intégration suffit" /></a>
 
@@ -417,9 +415,9 @@ Ces états complètent les mêmes écrans sans ajouter une nouvelle façon de pr
 
 <a href="images/guide/s08-dark.png"><img src="images/guide/s08-dark.png" width="320" alt="Formulaire d’horaire en thème sombre" /></a>
 
-### Graphique en thème sombre (0.21.0)
+### Graphique en thème sombre
 
-<a href="images/guide/s15-dark.png"><img src="images/guide/s15-dark.png" width="320" alt="Graphique en thème sombre (0.21.0)" /></a>
+<a href="images/guide/s15-dark.png"><img src="images/guide/s15-dark.png" width="320" alt="Graphique en thème sombre" /></a>
 
 ### Carte sans programme
 
@@ -445,8 +443,8 @@ Ces états complètent les mêmes écrans sans ajouter une nouvelle façon de pr
 
 <a href="images/guide/s27-validation.png"><img src="images/guide/s27-validation.png" width="320" alt="Validation d’un nouveau programme incomplet" /></a>
 
-### Validation d’un nom de saison
+### Validation d’un nom de mode
 
-<a href="images/guide/s32-validation.png"><img src="images/guide/s32-validation.png" width="320" alt="Validation d’un nom de saison" /></a>
+<a href="images/guide/s32-validation.png"><img src="images/guide/s32-validation.png" width="320" alt="Validation d’un nom de mode" /></a>
 
 [Retour au guide pas à pas](GUIDE.fr.md) · [Inventaire des captures](SCREEN_INVENTORY.md)

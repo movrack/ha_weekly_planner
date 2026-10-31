@@ -1,6 +1,6 @@
 # Native entity actions
 
-Weekly Planner 0.21.0 discovers services and fields from Home Assistant metadata
+Weekly Planner discovers services and fields from Home Assistant metadata
 and entity attributes. It has no catalogue of supported brands or device types.
 The UI calls scheduled entities “devices”; they remain HA entity IDs.
 
@@ -10,8 +10,7 @@ In program settings, **Devices → Offered actions** selects the services offere
 for each device. New devices start with `restrict_services: true` and
 `allowed_services: []`: no service action is selected. Creation invites users to
 choose commands, with descriptions from HA; they can choose them later in Devices.
-A nonempty `allowed_services` restricts the device to those services. Legacy
-empty/missing lists without `restrict_services` remain unrestricted. Scenes are
+A nonempty `allowed_services` restricts the device to those services. Empty or missing lists without `restrict_services` remain unrestricted. Scenes are
 separate from this service filter. A configured action is retained for editing
 when metadata disappears; that does not make an unavailable service executable.
 
@@ -82,4 +81,4 @@ rules. Vacation is an ordinary weekly mode, separate from the global pause switc
 Automated checks cover metadata discovery, unknown domains, service restrictions,
 explicit targets and dynamic sources. These examples do not claim a physical test
 of a particular thermostat or blind. Replace example entity IDs with actual IDs.
-See [the integrator README](../README.md) and [mode reference](SEASONS.md).
+See [the integrator README](../README.md) and [mode reference](MODES.md).

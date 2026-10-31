@@ -35,7 +35,7 @@ Si besoin tu peux utiliser la skill grill-me, mais avant de l'utiliser termine t
 ## Résultats du 2026-10-29
 
 - Commit initial `bd415eb`, issue #2 ; 0.8.0 sauvegardée, déployée et rechargée.
-- Guides : `docs/SEASONS.md`, `docs/GENERIC_ACTIONS.md`, `docs/MAMY_REVIEW.md`.
+- Guides : `docs/MODES.md`, `docs/GENERIC_ACTIONS.md`, `docs/MAMY_REVIEW.md`.
 - Références consultées dans `docs/captures/` (ignorées par Git).
 - Cadran en lecture avec ouverture de l’éditeur ; liste compacte utilisable dans le choix de vue.
 - Presets/favori/automatisations : découverte générique testée. Le favori nécessite une action réellement exposée par HA ; aucun test physique revendiqué.
