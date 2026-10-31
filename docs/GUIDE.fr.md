@@ -5,9 +5,9 @@ avec la version 0.10.0 : certains noms et boutons ont changé depuis. Le texte
 décrit les choix actuels. Les captures montrent une maison de démonstration,
 sans commande d’un appareil réel. Voir aussi les [captures actuelles S37 à S45](SCREENS.fr.md#s37).
 
-Un **programme** réunit les appareils et leurs horaires. Une **étiquette** donne
+Un **programme** réunit les appareils et leurs horaires. Un **réglage** donne
 un nom à ce qu’ils doivent faire : par exemple **Confort = 20 °C**.
-Un **horaire** dit quand utiliser cette étiquette.
+Un **horaire** dit quand utiliser ce réglage.
 
 ## Je veux regarder ce qui est prévu
 
@@ -87,14 +87,14 @@ Refaire les mêmes gestes avec **17:00**, **22:00** et **Confort**, puis
 Sous les horaires, toucher **Le reste du temps**, choisir **Éco**, puis
 **Enregistrer**. À 8 h 30 et à 22 h, le chauffage reçoit ainsi la demande de 16 °C.
 
-<a href="images/guide/s14-rest-of-time.png"><img src="images/guide/s14-rest-of-time.png" width="320" alt="Choisir l’étiquette à utiliser le reste du temps." /></a>
+<a href="images/guide/s14-rest-of-time.png"><img src="images/guide/s14-rest-of-time.png" width="320" alt="Choisir le réglage à utiliser le reste du temps." /></a>
 
 **Ne rien changer** signifie qu’aucune action n’est envoyée à la fin.
 Cela ne veut dire ni éteindre ni retrouver le réglage précédent.
 
 ## Je ne trouve pas Confort ou Éco
 
-Dans le formulaire d’horaire, toucher **Nouvelle étiquette** :
+Dans le formulaire d’horaire, toucher **Nouveau réglage** :
 
 1. Donner le nom **Confort**.
 2. Choisir une couleur.
@@ -103,23 +103,23 @@ Dans le formulaire d’horaire, toucher **Nouvelle étiquette** :
 4. Saisir **20** dans la température, puis enregistrer l’horaire.
 
 Pour créer **Éco**, ouvrir plutôt **Le reste du temps**, puis **Nouvelle
-étiquette**. Donner le nom Éco, choisir la température **16**, puis enregistrer.
+réglage**. Donner le nom Éco, choisir la température **16**, puis enregistrer.
 Si aucune action de température n’apparaît, demander à la personne qui a installé
 le chauffage de vérifier **Appareils → Actions proposées** dans les réglages
 du programme. Les commandes doivent d’abord y être cochées.
 
-Une étiquette peut servir à plusieurs programmes. **Changer Confort de 20 à
+Un réglage peut servir à plusieurs programmes. **Changer Confort de 20 à
 21 °C peut donc changer leurs horaires aussi.** Le crayon ouvre son réglage ; la
 mention **Partagé** signale une utilisation dans un autre programme.
 
 Pour une exception, **Valeur pour cet appareil** permet un autre réglage pour
 cet appareil seulement : [S13](SCREENS.fr.md#s13). **Revenir à la valeur commune**
-enlève cette exception. Une étiquette utilisée ne peut pas être supprimée.
+enlève cette exception. Un réglage utilisé ne peut pas être supprimé.
 
 ## Je veux utiliser une position favorite ou une valeur qui change
 
 Pour envoyer le volet vers sa position favorite, il faut une commande proposée
-par Home Assistant. Si elle existe sous la forme d’un bouton, dans l’étiquette :
+par Home Assistant. Si elle existe sous la forme d’un bouton, dans le réglage :
 
 1. Sous **Appliquer l’action à**, choisir **Une autre entité**.
 2. Sous **Entité à commander**, choisir le bouton de position favorite.
@@ -162,8 +162,8 @@ Pour un horaire commencé la veille, utiliser le formulaire plutôt que la barre
 ## Je veux fermer le volet au coucher du soleil
 
 Dans son horaire, sous Début, choisir **Coucher**. Les boutons − et + avancent ou
-retardent l’action. Choisir une fin à **07:30** et l’étiquette de fermeture ;
-dans **Le reste du temps**, choisir l’étiquette d’ouverture.
+retardent l’action. Choisir une fin à **07:30** et le réglage de fermeture ;
+dans **Le reste du temps**, choisir le réglage d’ouverture.
 
 L’heure du coucher suit le soleil du lieu enregistré dans Home Assistant.
 Voir [l’écran solaire S09](SCREENS.fr.md#s09).
@@ -229,7 +229,7 @@ Voir [la création S37](SCREENS.fr.md#s37), [la zone S40](SCREENS.fr.md#s40) et 
 
 Pour commencer, toucher **Nouveau programme**, donner un nom et ajouter un
 appareil. **Aucune commande n’est cochée au départ** : choisir celles que l’on veut
-retrouver dans les étiquettes. Lire leur description si le nom n’est pas clair.
+retrouver dans les réglages. Lire leur description si le nom n’est pas clair.
 Ajouter un deuxième appareil est facultatif. Toucher **Créer le programme**.
 
 Le nouveau programme est alors sélectionné automatiquement. Toucher **Définir

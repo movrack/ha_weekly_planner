@@ -28,20 +28,20 @@ entité, puis une **action par défaut** à la fin.
 ## 2. Glossaire
 
 - **Programme** : ensemble nommé d'entités + une semaine d'horaires + réglages. Un interrupteur par programme.
-- **Horaire** (slot) : début (heure ou soleil, avec décalage), fin facultative, jours, **une étiquette**.
-- **Étiquette** (label, comme chez Netatmo) : `{id, name, color, action}`, **globale** (partagée par tous les programmes),
-  stockée par l'intégration. Tout passe par une étiquette : un horaire en référence une (`slot.label`), le « reste du
+- **Horaire** (slot) : début (heure ou soleil, avec décalage), fin facultative, jours, **un réglage**.
+- **Réglage** (nom affiché ; clés internes `label` / `labels`, comme les étiquettes de Netatmo) : `{id, name, color, action}`, **global** (partagé par tous les programmes),
+  stockée par l'intégration. Tout passe par un réglage : un horaire en référence une (`slot.label`), le « reste du
   temps » aussi (`entity.default_label`). Exemple : « Confort » = 19 °C ; les horaires sont « Confort 10:00–12:00 ».
   Nom affiché : « Réglage » (décision 2026-10-31, à implémenter ; clés internes inchangées).
-- **Action** (celle d'une étiquette) : un service HA, `{"kind":"service","service":"climate.set_temperature","data":{"temperature":18}}`,
+- **Action** (celle d'un réglage) : un service HA, `{"kind":"service","service":"climate.set_temperature","data":{"temperature":18}}`,
   ou une scène, `{"kind":"scene","scene":"scene.x"}`. Les services proposés viennent du sélecteur générique de la carte
   (services dont la cible accepte l'entité).
 - **Valeur propre à un appareil** (`entity.label_overrides: {label_id: action}`) : « Confort » = 19 °C partout, 22 °C dans
   la salle de bain.
-- **Étiquette compatible** : proposée pour une entité quand la cible de son service accepte l'entité, ou si c'est une
-  scène qui la contient. Une entité incompatible avec l'étiquette d'un horaire est **ignorée** pour cet horaire
+- **Réglage compatible** : proposée pour une entité quand la cible de son service accepte l'entité, ou si c'est une
+  scène qui la contient. Une entité incompatible avec le réglage d'un horaire est **ignorée** pour cet horaire
   (avertissement dans les contrôles).
-- **Action par défaut** (« Le reste du temps » / « Otherwise ») : étiquette facultative de chaque entité d'un programme
+- **Action par défaut** (« Le reste du temps » / « Otherwise ») : réglage facultative de chaque entité d'un programme
   (`default_label`, `null` = rien), appliquée quand un horaire **avec fin** se termine.
 - **Action ponctuelle** : un horaire **sans fin** ; l'action est lancée une fois, à son début, et n'est jamais refaite.
 - **Segment** : occurrence d'un horaire gagnant pour une entité (ou intervalle « le reste du temps »), identifiée par
@@ -97,7 +97,7 @@ Résolution pour une entité *E* :
 1. Programmes **actifs** (switch `on`, Vacances off) qui contiennent *E*.
 2. Garder ceux dont les conditions de programme sont vraies et qui ont un horaire **avec fin** en cours dont les conditions sont vraies.
 3. Gagnant = **priorité** la plus haute (plus petit numéro ; égalité → `created_at` le plus ancien).
-4. Action voulue = action de l'étiquette de l'horaire gagnant pour *E* (valeur propre à *E* sinon valeur de l'étiquette ; `resolve_action`) ; sinon **action par défaut** du programme actif de plus haute priorité qui contient *E* (peut être vide : rien à envoyer).
+4. Action voulue = action de le réglage de l'horaire gagnant pour *E* (valeur propre à *E* sinon valeur de le réglage ; `resolve_action`) ; sinon **action par défaut** du programme actif de plus haute priorité qui contient *E* (peut être vide : rien à envoyer).
 5. Prochaine transition = plus proche début/fin d'horaire ; heures solaires recalculées à minuit local et à chaque modification.
 
 **Identité d'un segment** = (programme gagnant, horaire, date d'occurrence) — ou (« défaut », programme) hors horaire.
@@ -232,8 +232,8 @@ Thermostat / Evohome (`force_permanent`, garde « permanent », sous-jacents).*
 - **Cibles protégées** : `data` ne peut pas contenir `entity_id`, `device_id`, `area_id`, `floor_id`, `label_id`
   (`TARGET_KEYS`), ni `data_sources` ces clés ou `target` (erreur `service_data_target`) ; jamais de redirection de cible
   par les données.
-- Toute action vit dans une **étiquette**. `resolve_action(programme, entité, étiquette)` est **l'unique endroit** qui la
-  résout : valeur propre à l'entité si elle existe, sinon action de l'étiquette ; `None` si l'étiquette est absente ou
+- Toute action vit dans un **réglage**. `resolve_action(programme, entité, réglage)` est **l'unique endroit** qui la
+  résout : valeur propre à l'entité si elle existe, sinon action de le réglage ; `None` si le réglage est absente ou
   incompatible avec l'entité.
 - Le **sélecteur d'action** de la carte (`frontend/src/services.ts`) propose les services dont la cible accepte
   l'entité (domaine, fonctionnalités prises en charge), avec leur libellé traduit et un champ `ha-selector` par
@@ -243,16 +243,16 @@ Thermostat / Evohome (`force_permanent`, garde « permanent », sous-jacents).*
   choisir pour un appareil (réglages, onglet Appareils) ; les scènes restent permises. Avec `restrict_services: true`
   (défaut des nouveaux appareils depuis la 0.15), une liste vide signifie **aucune** commande ; sans ce drapeau
   (configurations historiques), une liste vide ou absente garde **toutes** les commandes. Une
-  étiquette dont le service n'est pas autorisé pour un appareil est incompatible pour lui (ignorée, avertissement).
-- Cadre de l'étiquette choisie : lecture seule ; un crayon ouvre un seul formulaire (nom, couleur, action, valeur pour
+  réglage dont le service n'est pas autorisé pour un appareil est incompatible pour lui (ignorée, avertissement).
+- Cadre du réglage choisi : lecture seule ; un crayon ouvre un seul formulaire (nom, couleur, action, valeur pour
   cet appareil). Jamais plus d'une paire Enregistrer / Annuler visible.
 - Exemples : chauffage `climate.set_temperature {temperature: 18}` ; volet `cover.set_cover_position {position: 30}` ;
   lampe `light.turn_on {brightness_pct: 60}` ; prise `switch.turn_off` ; aspirateur `vacuum.start`.
-- Validation : étiquette = service existant (la compatibilité avec l'entité est vérifiée pour les valeurs propres et
-  signalée pour les autres) ; un horaire ne peut référencer qu'une étiquette qui existe ; une étiquette utilisée ne peut
+- Validation : réglage = service existant (la compatibilité avec l'entité est vérifiée pour les valeurs propres et
+  signalée pour les autres) ; un horaire ne peut référencer qu'un réglage qui existe ; un réglage utilisé ne peut
   pas être supprimée (la liste des programmes qui l'utilisent est renvoyée).
-- **Couleurs** : chaque étiquette a une couleur choisie (palette de 12 couleurs distinctes, choix automatique pour une
-  nouvelle étiquette) ; barre du jour, barres de la semaine et repères du graphique l'utilisent et affichent le nom si la place le permet.
+- **Couleurs** : chaque réglage a une couleur choisie (palette de 12 couleurs distinctes, choix automatique pour une
+  nouvelle réglage) ; barre du jour, barres de la semaine et repères du graphique l'utilisent et affichent le nom si la place le permet.
 - Versatile Thermostat est traité comme n'importe quelle entité `climate`.
 
 ## 7. Modes — *retiré en 0.6.0*
@@ -272,19 +272,19 @@ racine
 ├─ vacation        : bool
 ├─ labels[]        : id, name (1–30 car.), color, action
 └─ programs[]      : id, revision, created_at, name (1–60 car.), icon?, area?, priority (1–100, défaut 10), enabled, reapply,
-                     entities[] (1–100) : entity_id, default_label? (id d'étiquette), label_overrides{ label_id: action },
+                     entities[] (1–100) : entity_id, default_label? (id de réglage), label_overrides{ label_id: action },
                                           allowed_services[], restrict_services
                      conditions[] : entity_id, attribute?, op (eq|ne|lt|gt), value
                      mode_source? : entity_id, mappings{ état_brut: id_du_mode }
                      active_profile, profiles[] (1–20) : id, name (1–40 car., unique),
-                       days[0..6] : slots[] (≤ 50 par jour) : id, start, end?, conditions[] (≤ 10), color?, label (id d'étiquette)
+                       days[0..6] : slots[] (≤ 50 par jour) : id, start, end?, conditions[] (≤ 10), color?, label (id de réglage)
 runtime (`weekly_planner.runtime`) : par entité → segment courant, action en attente, reprises ; par programme → profil actif,
                      skip_at ; `conditions` → dernières valeurs connues des conditions (persistées pour le démarrage, § 5.5)
 journal (`weekly_planner.journal`) : 14 jours glissants, deux sortes d'entrées : segment décidé
                      (`at, entity_id, segment, program_id, slot_id, action`) et action réellement envoyée (`at, entity_id, sent: true, action, reason`)
 ```
 - `start`/`end` : `{"time": "HH:MM"}` (fin jusqu'à `24:00`) ou `{"sun": "sunset", "offset": 15, "earliest": "18:00", "latest": "21:00"}`.
-- `action` (d'une étiquette ou d'une valeur propre) : `{"kind": "service", "service": "…", "data": {…}}` ou `{"kind": "scene", "scene": "…"}`.
+- `action` (d'un réglage ou d'une valeur propre) : `{"kind": "service", "service": "…", "data": {…}}` ou `{"kind": "scene", "scene": "…"}`.
 - **Concurrence** : chaque écriture fournit la `revision` lue ; si elle a changé → refus « modifié ailleurs, recharger ».
 - **Robustesse** : si le fichier existait mais se charge vide/corrompu (ou version non prise en charge) → **l'entrée ne
   se charge pas** (`ConfigStoreError`, `async_setup_entry` renvoie faux) : aucun programme ne tourne, le fichier n'est
@@ -299,11 +299,11 @@ journal (`weekly_planner.journal`) : 14 jours glissants, deux sortes d'entrées 
   l'enregistrement d'un programme, § 21).
 
 ### 8.1 Migration 1 → 2 (automatique, testée)
-Conversion des anciennes consignes en actions, puis **regroupement en étiquettes : des actions identiques donnent UNE
-seule étiquette**, nommée d'après l'action (`18 °C`, `Ouvrir`, `Fermer`, `Position 30 %`, `Allumer` / `Éteindre`
+Conversion des anciennes consignes en actions, puis **regroupement en réglages : des actions identiques donnent UNE
+seule réglage**, nommée d'après l'action (`18 °C`, `Ouvrir`, `Fermer`, `Position 30 %`, `Allumer` / `Éteindre`
 (+ `30 %`), nom de la scène, sinon l'identifiant du service). Couleurs : chaudes pour les températures élevées et
 allumer / ouvrir, froides ou grises pour les basses et éteindre / fermer, sinon la palette dans l'ordre.
-Quand deux entités d'un même horaire avaient des actions différentes, la première donne l'étiquette et l'autre garde sa
+Quand deux entités d'un même horaire avaient des actions différentes, la première donne le réglage et l'autre garde sa
 valeur dans `label_overrides`. Conversion des actions :
 
 | Avant | Après |
@@ -319,13 +319,13 @@ valeur dans `label_overrides`. Conversion des actions :
 | scène | inchangée |
 | mode référencé par un horaire (`by_type`, ex. `cover_closed`, `climate_eco`) | résolu par les modes stockés (exception de l'entité, sinon valeur), puis converti comme ci-dessus |
 
-Défauts : genre `setpoint` ou `mode` → étiquette de l'action convertie ; `none` → pas de défaut ; `previous` → pas de
+Défauts : genre `setpoint` ou `mode` → réglage de l'action convertie ; `none` → pas de défaut ; `previous` → pas de
 défaut, **un avertissement dans le journal** de HA. Les modes, `force_permanent`, `grace_s`, `main_type` sont supprimés. Les
 dérogations persistées dans le runtime sont effacées.
 
 Données réelles de production vérifiées par un test : programme « Bureau » sur `climate.thermostat_bureau` (horaires
-de 18 °C, défaut 15 °C → étiquettes « 18 °C » et « 15 °C ») et programme « Volet du bureau » sur
-`cover.bureau_volet_low_speed` (horaires ponctuels `by_type` `cover_closed` / `cover_open` → étiquettes « Fermer » / « Ouvrir »).
+de 18 °C, défaut 15 °C → réglages « 18 °C » et « 15 °C ») et programme « Volet du bureau » sur
+`cover.bureau_volet_low_speed` (horaires ponctuels `by_type` `cover_closed` / `cover_open` → réglages « Fermer » / « Ouvrir »).
 
 ## 9. Entités, services, API, droits
 
@@ -365,14 +365,14 @@ Planner » (`integration_type: service`) ; un `select` par programme nommé « M
 - *Retirés : `mode/save`, `mode/delete`.*
 
 **Droits**
-- `admin_only` (option globale, désactivée par défaut) : si actif, seule l'édition des programmes et étiquettes est réservée
+- `admin_only` (option globale, désactivée par défaut) : si actif, seule l'édition des programmes et réglages est réservée
   aux admins.
 - **Toujours réservé aux admins** : toute action visant un domaine sensible (`homeassistant`, `hassio`,
   `alarm_control_panel`, `lock`, `alarmo`, `shell_command`, `python_script`, `pyscript`, `rest_command`).
 
 **Avertissements** affichés dans la carte (jamais bloquants), `{entity_id, code, detail}` : `other_program` (autre programme
 actif sur la même entité), `automation` (automatisation active qui la vise), `scheduler` (`switch.schedule_*` actif),
-`incompatible_label` (étiquettes ignorées pour cette entité), `missing` (entité absente).
+`incompatible_label` (réglages ignorées pour cette entité), `missing` (entité absente).
 
 **Options** : `admin_only` ; délai d'alerte `notify_delay_min` (1–1440 min, 30 par défaut) ; `reapply_default` (proposé,
 mais **non utilisé** : § 21) ; anti-rebond `debounce_min` (0–60 min, 2 par défaut). Une modification des options recharge
@@ -402,7 +402,7 @@ administrateurs) ; filtres de types dynamiques (§ 14.12), zone, programmes à a
   aucune commande immédiate (c'est un planificateur).
 - La ligne elle-même **n'est pas cliquable** : un appui court au doigt sur une barre ouvre l'écran d'horaires ; un appui
   long (doigt) ou un clic (souris) entre dans l'édition sur place (§ 10.8).
-- En-tête : titre, pastille « Tous les programmes suspendus » quand l'interrupteur global est actif, bouton « Étiquettes »
+- En-tête : titre, pastille « Tous les programmes suspendus » quand l'interrupteur global est actif, bouton « Réglages »
   (`mdi:label-multiple-outline`) pour un administrateur qui peut éditer, si la carte n'est pas fixée sur un programme.
 - Bandeau « Lecture seule » si le stockage est en lecture seule ; état vide « Aucun programme pour l'instant » ou « Aucun
   programme ne correspond aux filtres » ; bandeau « Modifié · Annuler » 6 s après une édition sur barre.
@@ -419,20 +419,20 @@ supprimer (confirmé). L'écran d'horaires garde : schéma des 7 jours (reflète
 éditer, lignes d'horaires, formulaire d'horaire (pastilles Lever / Coucher, décalage, « Pas avant » / « Pas après »,
 délai aléatoire, pas ±15 min, « Appliquer à d'autres jours »), dupliquer, supprimer (§ 18), fermeture par glissement
 vers le bas sur téléphone. Le texte ci-dessous décrit la 0.6–0.7 ; l'engrenage qui y figure n'existe plus.
-- **Écran d'horaires** : lignes d'horaires (pastille de la couleur de l'étiquette + nom) ; formulaire d'horaire (début,
-  fin facultative, jours) dont la section « Action » liste les étiquettes compatibles en pastilles colorées ;
-  « + Nouvelle étiquette » ouvre un mini-formulaire en ligne (nom, couleur, action par le sélecteur générique ou une
-  scène) qui crée l'étiquette et la sélectionne ; pour l'étiquette choisie, un lien « Valeur pour cet appareil »
+- **Écran d'horaires** : lignes d'horaires (pastille de la couleur de le réglage + nom) ; formulaire d'horaire (début,
+  fin facultative, jours) dont la section « Action » liste les réglages compatibles en pastilles colorées ;
+  « + Nouvelle réglage » ouvre un mini-formulaire en ligne (nom, couleur, action par le sélecteur générique ou une
+  scène) qui crée le réglage et la sélectionne ; pour le réglage choisi, un lien « Valeur pour cet appareil »
   modifie la valeur propre de l'appareil (même sélecteur) avec « Revenir à la valeur commune » ; ligne « Le reste du temps » :
-  une étiquette ou « Rien » ; interrupteur de pause, dupliquer, supprimer (confirmé, bouton rouge isolé).
-- **Écran « Étiquettes »** (administrateurs) : ligne « Étiquettes » au-dessus de la liste des programmes ; liste des
-  étiquettes (pastille, nom, résumé de l'action, nombre d'usages) ; renommer, recolorer, changer l'action, supprimer
+  un réglage ou « Rien » ; interrupteur de pause, dupliquer, supprimer (confirmé, bouton rouge isolé).
+- **Écran « Réglages »** (administrateurs) : ligne « Réglages » au-dessus de la liste des programmes ; liste des
+  réglages (pastille, nom, résumé de l'action, nombre d'usages) ; renommer, recolorer, changer l'action, supprimer
   (refusé tant qu'elle est utilisée, avec la liste des programmes).
 - ~~**Réglages (engrenage, administrateurs)** : nom, icône, priorité, conditions, « refaire l'action en cours au
   redémarrage », appareils, saisons (profils).~~ *Remplacé en 0.8.0 par l'éditeur visuel Lovelace (voir l'encadré
   ci-dessus) ; les « saisons » sont devenues les **modes** en 0.16.0 (§ 5.10).*
-- **Étiquettes** : bouton d'en-tête de la carte (§ 10.2) et non plus ligne au-dessus des programmes ; sélecteur
-  d'étiquette avec palette de 12 couleurs, valeur propre par appareil et « Revenir à la valeur commune ».
+- **Réglages** : bouton d'en-tête de la carte (§ 10.2) et non plus ligne au-dessus des programmes ; sélecteur
+  de réglage avec palette de 12 couleurs, valeur propre par appareil et « Revenir à la valeur commune ».
 - Sélecteurs HA publics (`ha-selector`, icône) si disponibles ; modales maison ; fr + en.
 
 ### 10.4 Graphique (tous les appareils)
@@ -455,8 +455,8 @@ SVG maison, un jour (précédent / suivant).
   les attributs (consigne d'un thermostat resté en « chauffe », luminosité d'une lampe déjà allumée) n'y figure pas :
   ils sont repérés seulement par l'écart avec les actions de Weekly Planner (± 1 min), sans pouvoir dire qui les a faits.
   **Le moteur n'est pas concerné.**
-- **Valeur prévue en escalier (0.7.0)** : pour toute action numérique, ligne horizontale par palier dans la couleur de son étiquette, raccords verticaux fins, retour à la valeur par défaut (aussi avant le premier horaire et jusqu'à la fin du jour) ; point plein + valeur au début de chaque horaire ; cercle creux seulement là où la valeur revient vraiment au défaut (fin d'une suite d'horaires contigus). Actions non numériques : repères seuls.
-- **Activité réelle (0.7.0)** : sous l'escalier prévu, zone translucide (~25 %) dans la couleur de l'étiquette en vigueur, seulement pendant les périodes où l'appareil était actif d'après l'historique déjà chargé, et jusqu'à « maintenant ». Actif : climat = `hvac_action` (chauffe, refroidit, déshumidifie…) sinon consigne − mesure > 0,3 °C (< −0,3 °C en mode froid) ; lumière, prise, ventilateur, interrupteur = `on` ; volet = `opening` / `closing` ; aspirateur = `cleaning` / `returning` ; lecteur = `playing` ; le reste = ni `off`, `idle`, `unavailable`, `unknown`, `docked`. Appareils à bandes : même règle, bande translucide. Légende « Actif » seulement si une zone est visible.
+- **Valeur prévue en escalier (0.7.0)** : pour toute action numérique, ligne horizontale par palier dans la couleur de son réglage, raccords verticaux fins, retour à la valeur par défaut (aussi avant le premier horaire et jusqu'à la fin du jour) ; point plein + valeur au début de chaque horaire ; cercle creux seulement là où la valeur revient vraiment au défaut (fin d'une suite d'horaires contigus). Actions non numériques : repères seuls.
+- **Activité réelle (0.7.0)** : sous l'escalier prévu, zone translucide (~25 %) dans la couleur de le réglage en vigueur, seulement pendant les périodes où l'appareil était actif d'après l'historique déjà chargé, et jusqu'à « maintenant ». Actif : climat = `hvac_action` (chauffe, refroidit, déshumidifie…) sinon consigne − mesure > 0,3 °C (< −0,3 °C en mode froid) ; lumière, prise, ventilateur, interrupteur = `on` ; volet = `opening` / `closing` ; aspirateur = `cleaning` / `returning` ; lecteur = `playing` ; le reste = ni `off`, `idle`, `unavailable`, `unknown`, `docked`. Appareils à bandes : même règle, bande translucide. Légende « Actif » seulement si une zone est visible.
 - **Légende minimale** : « Mesuré », « Réglé » (courbes), « Prévu », et « Manuel » en rouge ; aucune couleur inexpliquée.
 
 ### 10.5 Exigences transverses
@@ -484,8 +484,8 @@ Barre « Auj. » et sept barres de la semaine, doigt et souris (événements poi
   un repère ponctuel (sans fin) est une poignée unique. Clavier : flèches ±15 min sur la poignée sélectionnée.
 - **Enregistrer** au relâcher, **pour ce jour seulement** (jour de la semaine de la date dans le profil actif) ; changement refait sur les
   données COURANTES, un conflit de révision est retenté une fois, jamais de « rechargez ». Bandeau « Modifié · Annuler » ~6 s ;
-  « Annuler » remet les horaires précédents de ces jours. Deux horaires voisins de même étiquette (fin == début) sont fusionnés.
-- **Sélection** (toucher un horaire ou un trou) : bande sous la barre avec les étiquettes compatibles, « Rien », ciseaux
+  « Annuler » remet les horaires précédents de ces jours. Deux horaires voisins de même réglage (fin == début) sont fusionnés.
+- **Sélection** (toucher un horaire ou un trou) : bande sous la barre avec les réglages compatibles, « Rien », ciseaux
   (`mdi:content-cut`, coupe au milieu, pas de 15 min) et « Copier vers… » (`mdi:content-copy`) : pastilles Lun…Dim sans le jour courant ;
   sans chevauchement la copie est directe ; sinon petite fenêtre listant les jours en conflit, chacun « Remplacer » (défaut) ou
   « Ne pas copier ce jour ». « Remplacer » rogne ou coupe les horaires existants autour de la plage (mer. 8 h 45–17 h 18 °C + copie de
@@ -493,7 +493,7 @@ Barre « Auj. » et sept barres de la semaine, doigt et souris (événements poi
 - **Logique pure** (`edits.ts`, tests vitest) : `moveBoundary`, `splitAt`, `setLabel`, `removeSlot`, `copyConflicts` / `copyToDays`, `mergeAdjacent`.
 - **Icônes solaires** : `mdi:weather-sunset-up` / `-down` à la position de toute frontière ou repère dépendant du soleil.
 - **Trait « maintenant »** : icône `mdi:clock-outline` (12–14 px) centrée au-dessus, hors de la barre, `aria-label` « Maintenant » ; aussi sur le graphique.
-- **Renommer une étiquette sur place** (écran d'horaires) : crayon `mdi:pencil`, nom + couleur + action, `weekly_planner/label/save`, « Partagé » si utilisée ailleurs.
+- **Renommer un réglage sur place** (écran d'horaires) : crayon `mdi:pencil`, nom + couleur + action, `weekly_planner/label/save`, « Partagé » si utilisée ailleurs.
 - **Mise à jour automatique de la carte** : `card_version` dans `get` / `subscribe` ; différent de celui du bundle chargé et page au repos → rechargement
   unique (mémorisé dans `sessionStorage`) ; `get` interrogé aussi toutes les 5 min et au retour de la page visible.
 - Les éditions sur barre, les reprises de conflit et « Annuler » restent attachées au mode d'origine (§ 17) ; la
@@ -671,17 +671,17 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 
 ### 14.10 Version 0.6.0 — un seul modèle pour tous les appareils
 - [x] Spec réécrite (§ 1 à 12) et cette liste de tâches
-- [x] Moteur : un horaire = début, fin facultative, jours, une **étiquette** ; action résolue en **un seul endroit** (`resolve_action`)
-- [x] Étiquettes globales (`labels`), valeurs propres par appareil (`label_overrides`), compatibilité (entité incompatible ignorée + avertissement), suppression refusée tant qu'utilisée (`label/save`, `label/delete`)
+- [x] Moteur : un horaire = début, fin facultative, jours, un **réglage** ; action résolue en **un seul endroit** (`resolve_action`)
+- [x] Réglages globaux (`labels`), valeurs propres par appareil (`label_overrides`), compatibilité (entité incompatible ignorée + avertissement), suppression refusée tant qu'utilisée (`label/save`, `label/delete`)
 - [x] Action par défaut par entité (`default_label`), envoyée à la fin d'un horaire avec fin ; horaire sans fin = ponctuel, jamais refait
 - [x] Option `reapply` : renvoyer l'action du segment en cours au démarrage et après modification (jamais les ponctuels)
 - [x] Retrait de toute détection de réglage manuel (dérogations, service `override` et `resume`, comparaison d'état, essais sur l'état) ; reprises sur erreur d'appel (1/2/5/10/15 min, pas pour `ServiceValidationError`) et notification conservées
 - [x] Retrait des consignes par type, des modes communs (et de leur options flow), d'Adaptive Lighting, d'Evohome / « permanent » / sous-jacents VT, avec tests et traductions
-- [x] Migration automatique du stockage (version 1 → 2) avec sauvegarde : actions converties puis regroupées en étiquettes (doublons fusionnés), testée sur les formes de production (« Bureau » : « 18 °C » / « 15 °C » ; « Volet du bureau » : « Fermer » / « Ouvrir »)
+- [x] Migration automatique du stockage (version 1 → 2) avec sauvegarde : actions converties puis regroupées en réglages (doublons fusionnés), testée sur les formes de production (« Bureau » : « 18 °C » / « 15 °C » ; « Volet du bureau » : « Fermer » / « Ouvrir »)
 - [x] Carte : ligne icône + nom du programme + état traduit + « → prochaine action + heure » (« demain »), barre du jour, semaine, calendrier, sans ligne de dérogation
-- [x] Carte : écran d'horaires (lignes colorées, formulaire d'horaire avec pastilles d'étiquettes compatibles, « + Nouvelle étiquette » en ligne, « Valeur pour cet appareil », « Le reste du temps » = étiquette ou « Rien », pause, dupliquer, supprimer)
-- [x] Carte : écran « Étiquettes » (admins) : liste, renommer, recolorer, changer l'action, supprimer (refusé si utilisée)
-- [x] Couleurs des étiquettes (palette de 12, choix automatique) sur la barre du jour, les barres de la semaine et les repères du graphique
+- [x] Carte : écran d'horaires (lignes colorées, formulaire d'horaire avec pastilles de réglages compatibles, « + Nouvelle réglage » en ligne, « Valeur pour cet appareil », « Le reste du temps » = réglage ou « Rien », pause, dupliquer, supprimer)
+- [x] Carte : écran « Réglages » (admins) : liste, renommer, recolorer, changer l'action, supprimer (refusé si utilisée)
+- [x] Couleurs des réglages (palette de 12, choix automatique) sur la barre du jour, les barres de la semaine et les repères du graphique
 - [x] Carte : réglages (engrenage) sans modes ni « permanent »
 - [x] Graphique pour tous les appareils : historique HA (courbe ou bande d'états), repères des actions prévues avec valeur, trait « maintenant », toucher → historique HA du jour, légende minimale
 - [x] Graphique : changements **manuels** en rouge (`var(--error-color)`) d'après le journal de bord HA et le journal Weekly Planner, légende « Manuel » / « Manual » ; affichage seulement, le moteur ne change pas
@@ -693,24 +693,24 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 *(Numéro « 14.10 » en double dans l'historique ; renommé « 14.10 bis » pour le distinguer de la 0.6.0.)*
 - [x] Logique pure d'édition de journée dans `edits.ts` + tests (`moveBoundary`, `splitAt`, `setLabel`, `removeSlot`, `copyConflicts`, `copyToDays`, `mergeAdjacent`)
 - [x] Composant d'édition des barres (appui long / clic, poignées, bulle, enregistrement au relâcher, clavier)
-- [x] Bande de sélection (étiquettes, « Rien », ciseaux), « Copier vers… » et fenêtre de conflits
+- [x] Bande de sélection (réglages, « Rien », ciseaux), « Copier vers… » et fenêtre de conflits
 - [x] Bandeau « Modifié · Annuler » (enregistrement sur les données courantes, une reprise)
 - [x] Icônes solaires sur les barres (dont le volet bureau)
 - [x] Icône « maintenant » au-dessus du trait (barres et graphique)
-- [x] Renommer une étiquette sur place (crayon, « Partagé »)
+- [x] Renommer un réglage sur place (crayon, « Partagé »)
 - [x] `card_version` (serveur + test pytest) et rechargement automatique de la carte
-- [x] Graphique : valeur PRÉVUE en escalier (couleur de l'étiquette par palier), cercle creux seulement au vrai retour au défaut, légende « Prévu » en trait + tests du constructeur d'escalier
+- [x] Graphique : valeur PRÉVUE en escalier (couleur de le réglage par palier), cercle creux seulement au vrai retour au défaut, légende « Prévu » en trait + tests du constructeur d'escalier
 - [x] Graphique : zone ombrée sous l'escalier prévu, seulement quand l'appareil était réellement ACTIF (jusqu'à maintenant), légende « Actif », constructeur testé
 - [x] Version 0.7.0, CHANGELOG, vérification dans le navigateur (360 px tactile, ≥ 1400 px souris), captures
 
 ### 14.11 Version 0.7.3
-- [x] Spec § 6 : « Actions proposées » par appareil (`entities[].allowed_services`), cadre de l'étiquette en lecture seule + un crayon / un formulaire, un seul Enregistrer / Annuler visible
+- [x] Spec § 6 : « Actions proposées » par appareil (`entities[].allowed_services`), cadre de le réglage en lecture seule + un crayon / un formulaire, un seul Enregistrer / Annuler visible
 - [x] Réglages (engrenage, onglet Appareils) : liste à cocher « Actions proposées » par appareil, noms traduits ; vide ou absent = toutes ; nouveaux appareils : toutes
 - [x] Carte : sélecteur de services (`servicesFor`) et `labelsFor` restreints aux services autorisés (les scènes restent permises)
-- [x] Serveur : validation de `allowed_services` (liste de chaînes) ; étiquette dont le service n'est pas autorisé = incompatible pour cet appareil (ignorée, avertissement) ; tests pytest
+- [x] Serveur : validation de `allowed_services` (liste de chaînes) ; réglage dont le service n'est pas autorisé = incompatible pour cet appareil (ignorée, avertissement) ; tests pytest
 - [x] Bug : la liste « Mode CVC » (`hvac_mode`) est vide : contexte (`filter_entity`, `filter_attribute`, `entity_id`) transmis à chaque `ha-selector`, options construites depuis l'attribut de l'appareil en repli (`hvac_modes`, `preset_modes`, `fan_modes`, `swing_modes`)
-- [x] Cadre de l'étiquette : lecture seule (pastille, nom, « Partagé », résumé de l'action avec valeurs, « Valeur pour cet appareil » seulement si elle existe) ; un crayon ouvre UN formulaire (nom, couleur, action, valeur pour cet appareil + « Revenir à la valeur commune ») ; idem dans l'écran d'horaires et sous une barre
-- [x] Jamais plus d'une paire Enregistrer / Annuler : dans une ligne d'horaire dépliée, le formulaire d'étiquette n'a pas de boutons (modifs = brouillon de l'horaire ; Enregistrer enregistre l'étiquette puis l'horaire, Annuler jette les deux ; Dupliquer et Supprimer masqués pendant l'édition) ; sous une barre et dans « Étiquettes », une seule paire
+- [x] Cadre de le réglage : lecture seule (pastille, nom, « Partagé », résumé de l'action avec valeurs, « Valeur pour cet appareil » seulement si elle existe) ; un crayon ouvre UN formulaire (nom, couleur, action, valeur pour cet appareil + « Revenir à la valeur commune ») ; idem dans l'écran d'horaires et sous une barre
+- [x] Jamais plus d'une paire Enregistrer / Annuler : dans une ligne d'horaire dépliée, le formulaire de réglage n'a pas de boutons (modifs = brouillon de l'horaire ; Enregistrer enregistre le réglage puis l'horaire, Annuler jette les deux ; Dupliquer et Supprimer masqués pendant l'édition) ; sous une barre et dans « Réglages », une seule paire
 - [x] Info-bulles : icônes soleil (« Coucher du soleil + 30 min · 17 h 55 ») et « maintenant » (« Maintenant · 14 h 05 ») des barres (`day-bar`, `bar-editor`) et du graphique ; survol et focus clavier, toucher = 2 s sans entrer en édition ni sélectionner ; même texte en `aria-label` ; zone tactile ≥ 32 px
 - [x] Tests vitest et pytest, vérification navigateur (360 px et ≥ 1400 px), captures
 - [x] Version 0.7.3 (manifest, pyproject, package.json, lock), CHANGELOG
@@ -731,7 +731,7 @@ une autre intégration se programme comme n'importe quelle autre ; les **pilotes
 - [x] 0.9.0 : appareils avant l’icône, icône issue des métadonnées HA, programmes concurrents signalés.
 - [x] Nouveau programme en tête avec séparateurs ; titre de modale agrandissable.
 - [x] Cadran 24 h facultatif (lecture + ouverture des horaires), liste compacte et bascule sur la carte.
-- [x] Masquer les étiquettes globales dans la vue un programme ; guides saisons/actions et revue Mamy.
+- [x] Masquer les réglages globales dans la vue un programme ; guides saisons/actions et revue Mamy.
 
 - [x] Filtres de types entièrement dynamiques : domaines de toutes les entités des programmes, sans dépendre de leur disponibilité ; conserver les filtres déjà sélectionnés même sans programme correspondant. Noms traduits par HA, repli sur le domaine brut, tri par libellé. Aucune liste de types supportés ni filtre implicite thermostat pour une nouvelle carte.
 - [x] 0.8.0 : déplacer Général / Appareils / Saisons dans l’éditeur visuel Lovelace ; création, duplication et suppression depuis cet écran, retrait de l’engrenage des horaires.
@@ -789,11 +789,11 @@ le § 14.12 (laissées en place pour garder l'historique).*
 
 - [x] Cadrans 24 h et double 12 h utilisables en liste filtrée, sans choix grisés ni obligation de choisir un seul programme.
 
-- [x] Valeurs des actions de service issues d’une entité/helper : `data_sources[field] = {entity_id, attribute?, type}` (nombre, booléen, texte ou valeur native). Priorité sur `data[field]`, lecture uniquement à l’exécution ; aucune réaction automatique au changement de la source. Source inconnue/indisponible ou conversion invalide : action refusée sans ancien défaut. Sélection générique de la source et de son attribut dans les étiquettes, résumés identifiant la source.
+- [x] Valeurs des actions de service issues d’une entité/helper : `data_sources[field] = {entity_id, attribute?, type}` (nombre, booléen, texte ou valeur native). Priorité sur `data[field]`, lecture uniquement à l’exécution ; aucune réaction automatique au changement de la source. Source inconnue/indisponible ou conversion invalide : action refusée sans ancien défaut. Sélection générique de la source et de son attribut dans les réglages, résumés identifiant la source.
 
 - [x] Programme désactivé : badge rouge Désactivé en haut à droite sous les contrôles, commun aux barres, cadrans et liste compacte ; remplace l’icône pause.
 
-- [x] Une étiquette peut appeler une action sur une autre entité : `target_entity_id` explicite, bouton My position via `button.press` ou autre service découvert dans HA. Sélection de cible et action génériques, résumés identifiant la cible, valeurs propres par appareil conservées, protections des cibles dans data/data_sources maintenues.
+- [x] Un réglage peut appeler une action sur une autre entité : `target_entity_id` explicite, bouton My position via `button.press` ou autre service découvert dans HA. Sélection de cible et action génériques, résumés identifiant la cible, valeurs propres par appareil conservées, protections des cibles dans data/data_sources maintenues.
 
 - [x] Nouvel appareil : aucune commande cochée, liste ouverte et invitation à choisir dès la création du programme. restrict_services=true rend une sélection vide réellement restrictive ; configurations historiques conservées, dernière case décochable et choix disparus conservés.
 
@@ -889,7 +889,7 @@ Les cases encore ouvertes du § 17 restent ouvertes et ne sont pas répétées i
 - [x] **Priorité par défaut** : une seule constante `DEFAULT_PRIORITY = 10` (`const.py`) partout ; les priorités
       enregistrées sont inchangées, seule une clé absente passe de 100 à 10.
 - [x] **Réparations des entités supprimées** : `missing_entities` recalculée à l'enregistrement, la duplication et la
-      suppression d'un programme, à l'enregistrement et la suppression d'une étiquette, au renommage, à la création et au
+      suppression d'un programme, à l'enregistrement et la suppression d'un réglage, au renommage, à la création et au
       retrait dans le registre, au démarrage et à `weekly_planner.reload` (sans scrutation).
 - [x] **Test S33** : `tests/test_frontend_resource.py` (création / mise à jour de version / retrait).
 - [x] `PlannerStore.async_backup` retiré (la sauvegarde avant migration passe par `_VersionedStore`).

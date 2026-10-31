@@ -6,7 +6,7 @@
 [![Licence : MIT](https://img.shields.io/badge/Licence-MIT-yellow.svg)](LICENSE)
 
 Une intégration Home Assistant avec sa carte Lovelace pour planifier les appels de
-service et les scènes. Les horaires utilisent des étiquettes partagées, une fin
+service et les scènes. Les horaires utilisent des réglages partagés, une fin
 facultative et une action par défaut par entité. La découverte repose sur les
 métadonnées Home Assistant, sans catalogue de marques ou d’appareils.
 
@@ -106,8 +106,8 @@ des appareils. Un programme peut en contenir plusieurs.
 | Objet | Sens |
 |---|---|
 | Programme | Entités, priorité, conditions, réapplication et semaines types. |
-| Étiquette | Nom, couleur et action partagés globalement. |
-| Horaire | Début, fin facultative, jours et référence d’étiquette. |
+| Réglage | Nom, couleur et action partagés globalement. |
+| Horaire | Début, fin facultative, jours et référence de réglage. |
 | Défaut d’entité | `default_label`, appliqué hors des plages bornées selon les règles de priorité. |
 | Valeur propre | `label_overrides[label_id]`, action propre à cette entité dans ce programme. |
 | Mode (`profile` en interne) | Semaine type indépendante. Un mode actif par programme ; Vacances est un mode ordinaire. Appareils, défauts, conditions et priorité restent communs. |
@@ -124,7 +124,7 @@ Leur affichage dans le graphique ne modifie pas cette règle.
 - **Temps** : construction en heure locale HA, comparaisons en UTC. Une plage passe au lendemain si sa fin est antérieure au début **et avant midi**. `24:00` est accepté en fin.
 - **Soleil** : le modèle accepte aube, lever, coucher, crépuscule, décalages et bornes. Le formulaire actuel expose lever et coucher avec décalages.
 
-## Actions des étiquettes
+## Actions des réglages
 
 Un appel de service :
 
@@ -133,7 +133,7 @@ Un appel de service :
 ```
 
 Une scène : `{"kind":"scene","scene":"scene.example"}`. L’entité doit être
-compatible avec la cible du service ou appartenir à la scène. Une étiquette peut
+compatible avec la cible du service ou appartenir à la scène. Un réglage peut
 ne concerner qu’une partie des entités d’un programme mixte : les autres sont ignorées.
 
 Les services, descriptions et champs viennent de HA. Un nouvel appareil commence
@@ -248,20 +248,20 @@ Les interrupteurs utilisent `switch.turn_on` et `switch.turn_off`. Planifier
 
 | Option | Défaut | Comportement actuel |
 |---|---|---|
-| `admin_only` | `false` | Limite les modifications des programmes et étiquettes. Interrupteurs et sélection de profil restent des commandes séparées. |
+| `admin_only` | `false` | Limite les modifications des programmes et réglages. Interrupteurs et sélection de profil restent des commandes séparées. |
 | `reapply_default` | `true` | Présent dans les options, mais la création initialise actuellement `reapply: true` sans le consommer. Régler ce choix dans chaque programme. |
 | `notify_delay_min` | `30` | Notification d’entité indisponible, 1 à 1440 minutes. |
 | `debounce_min` | `2` | Délai de stabilité des conditions, 0 à 60 minutes. |
 
 Les actions sensibles sont protégées côté serveur indépendamment de `admin_only`
 (voir [actions.py](custom_components/weekly_planner/actions.py)). Les réglages
-partagés sont affichés aux administrateurs. Horaires et étiquettes dépendent aussi
+partagés sont affichés aux administrateurs. Horaires et réglages dépendent aussi
 de `can_edit` et de l’état du stockage. Le rechargement demandé par un utilisateur
 nécessite les droits administrateur.
 
 ## Stockage, API et concurrence
 
-Programmes et étiquettes sont des données de l’intégration, pas du YAML de carte.
+Programmes et réglages sont des données de l’intégration, pas du YAML de carte.
 Fichiers HA : `.storage/weekly_planner`, `.storage/weekly_planner.runtime` et
 `.storage/weekly_planner.journal`. Sauvegarder la configuration HA, y compris
 `.storage`, avant une mise à jour Python ou une récupération. Ne pas modifier ces
@@ -276,7 +276,7 @@ client tiers, [websocket.py](custom_components/weekly_planner/websocket.py) fait
 |---|---|
 | `weekly_planner/get`, `weekly_planner/subscribe` | État initial et mises à jour. |
 | `weekly_planner/program/save`, `program/delete`, `program/set_enabled` | Mutations de programme ; tous les suffixes sont sous `weekly_planner/`. |
-| `weekly_planner/label/save`, `label/delete` | Étiquettes globales. |
+| `weekly_planner/label/save`, `label/delete` | Réglages globaux. |
 | `weekly_planner/preview` | Résoudre les occurrences d’un programme/mode pour une date. |
 | `weekly_planner/journal` | Décisions enregistrées, jusqu’à 14 jours. |
 

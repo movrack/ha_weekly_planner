@@ -7,7 +7,7 @@ English | [Français](README.fr.md)
 
 A Home Assistant integration with a bundled Lovelace card for weekly scheduling.
 It schedules compatible Home Assistant service calls or scenes through shared
-labels, with optional end times and a per-entity default action. Discovery uses
+settings, with optional end times and a per-entity default action. Discovery uses
 Home Assistant metadata, without a device-brand catalogue.
 
 This README describes version **0.16.2** for Home Assistant integrators. For household users, use the
@@ -113,13 +113,13 @@ registry IDs. A program may contain several of them.
 | Object | Meaning |
 |---|---|
 | Program | Name, entity list, priority, conditions, reapply policy and weekly profiles. |
-| Label | Global `{id, name, color, action}` shared across programs. |
-| Slot | Start, optional end, days and a label reference. |
+| Setting | Global `{id, name, color, action}` shared across programs. |
+| Slot | Start, optional end, days and a setting reference. |
 | Entity default | Optional `default_label` applied outside bounded slots under the ownership rules. |
-| Entity override | `label_overrides[label_id]` changes that label's action for this entity in this program. |
+| Entity override | `label_overrides[label_id]` changes that setting's action for this entity in this program. |
 | Mode (`profile` internally) | A named weekly slot set. One is active per program. Vacation is an ordinary mode. Entities, defaults, program conditions and priority are shared. |
 
-A service label action has this shape:
+A service setting action has this shape:
 
 ```json
 {"kind":"service","service":"climate.set_temperature","data":{"temperature":20}}
@@ -132,7 +132,7 @@ that moves a cover to its own stored favourite position:
 {"kind":"service","service":"button.press","target_entity_id":"button.example_favourite"}
 ```
 
-Choose **Another entity** in the label action editor. Services and fields are
+Choose **Another entity** in the setting action editor. Services and fields are
 discovered from that target; `target_entity_id` is the only target override.
 The relevant service must also be selected in the program device’s offered actions.
 
@@ -149,14 +149,14 @@ an action error; it is not silently replaced by a fixed value. Source changes do
 not themselves trigger a scheduled action.
 
 A scene action uses `{"kind":"scene","scene":"scene.example"}`. The service
-target or scene membership must accept the entity. A slot's label does not need
+target or scene membership must accept the entity. A slot's setting does not need
 to apply to every entity in a mixed program; incompatible entities are skipped.
 
 The engine recalculates desired segments and acts on transitions. It does not
 continuously enforce observed device state or detect manual overrides. Manual
 changes may be shown in the chart; that display does not change engine behavior.
 
-- **Bounded slot:** apply its label at the start. At its end, apply the eligible
+- **Bounded slot:** apply its setting at the start. At its end, apply the eligible
   default or the action of another program taking ownership.
 - **One-shot slot:** no end, no end/default event, and no replay after its time has
   passed. A higher-priority running bounded slot can suppress a one-shot.
@@ -262,7 +262,7 @@ action enables its triggers; it is not the same as `automation.trigger`.
 
 | Option | Default | Current behavior |
 |---|---|---|
-| `admin_only` | `false` | Restricts program/label mutations. Program/vacation switches and profile selection remain separate controls. |
+| `admin_only` | `false` | Restricts program/setting mutations. Program/vacation switches and profile selection remain separate controls. |
 | `reapply_default` | `true` | Exposed in options, but currently not consumed by new-program creation; the card initializes `reapply: true`. Set it explicitly per program. |
 | `notify_delay_min` | `30` | Unavailable-entity notification delay, 1–1440 minutes. |
 | `debounce_min` | `2` | Condition stability delay, 0–60 minutes. |
@@ -270,12 +270,12 @@ action enables its triggers; it is not the same as `automation.trigger`.
 Sensitive-action authorization is enforced server-side independently of
 `admin_only`; see [actions.py](custom_components/weekly_planner/actions.py).
 Shared program settings are only shown to HA administrators. Schedule editing and
-contextual label editing also depend on `can_edit` and storage state. The reload
+contextual setting editing also depend on `can_edit` and storage state. The reload
 action requires administrator permission for user-originated calls.
 
 ## Data, API and concurrent editors
 
-Programs and labels are integration data, not embedded card YAML. Persistence uses
+Programs and settings are integration data, not embedded card YAML. Persistence uses
 HA `.storage/weekly_planner`, `.storage/weekly_planner.runtime` and
 `.storage/weekly_planner.journal`. Back up HA configuration, including `.storage`,
 before a Python upgrade or recovery. Do not hand-edit live storage files.
@@ -291,7 +291,7 @@ is the source of truth:
 |---|---|
 | `weekly_planner/get`, `weekly_planner/subscribe` | Snapshot and live updates. |
 | `weekly_planner/program/save`, `program/delete`, `program/set_enabled` | Program mutations. All suffixes shown are under `weekly_planner/`. |
-| `weekly_planner/label/save`, `label/delete` | Global label mutations. |
+| `weekly_planner/label/save`, `label/delete` | Global setting mutations. |
 | `weekly_planner/preview` | Resolve a program/profile's occurrences for a date. |
 | `weekly_planner/journal` | Recorded decisions, up to 14 days. |
 

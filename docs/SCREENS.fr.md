@@ -115,7 +115,7 @@ Les trois programmes du salon montrent leur état, leur prochaine action, leur i
 
 ## S02 — Un seul programme
 
-Une carte fixée sur le chauffage du salon donne accès à ses horaires sans ouvrir la bibliothèque globale des étiquettes.
+Une carte fixée sur le chauffage du salon donne accès à ses horaires sans ouvrir la bibliothèque globale des réglages.
 
 <a href="images/guide/s02-one-program.png"><img src="images/guide/s02-one-program.png" width="320" alt="S02 — Un seul programme" /></a>
 
@@ -163,7 +163,7 @@ Le jour sélectionné limite la liste affichée. Le retour à la semaine permet 
 
 ## S08 — Modifier une plage
 
-Le formulaire contient le début, la fin facultative, les jours et l’étiquette. La suite de la capture montre les contrôles placés plus bas.
+Le formulaire contient le début, la fin facultative, les jours et le réglage. La suite de la capture montre les contrôles placés plus bas.
 
 <a href="images/guide/s08-slot-form.png"><img src="images/guide/s08-slot-form.png" width="320" alt="S08 — Modifier une plage" /></a>
 
@@ -189,19 +189,19 @@ Sans fin crée une action ponctuelle : elle est lancée au début, sans retour a
 
 <a id="s11"></a>
 
-## S11 — Créer une étiquette
+## S11 — Créer un réglage
 
 Le formulaire intégré définit le nom, la couleur et l’action. L’enregistrement se fait avec celui de l’horaire.
 
-<a href="images/guide/s11-new-label.png"><img src="images/guide/s11-new-label.png" width="320" alt="S11 — Créer une étiquette" /></a>
+<a href="images/guide/s11-new-label.png"><img src="images/guide/s11-new-label.png" width="320" alt="S11 — Créer un réglage" /></a>
 
 <a id="s12"></a>
 
-## S12 — Modifier une étiquette partagée
+## S12 — Modifier un réglage partagé
 
-Le crayon ouvre les réglages de l’étiquette sélectionnée. La mention Partagé indique qu’une modification peut concerner d’autres programmes.
+Le crayon ouvre le réglage sélectionné. La mention Partagé indique qu’une modification peut concerner d’autres programmes.
 
-<a href="images/guide/s12-edit-shared-label.png"><img src="images/guide/s12-edit-shared-label.png" width="320" alt="S12 — Modifier une étiquette partagée" /></a>
+<a href="images/guide/s12-edit-shared-label.png"><img src="images/guide/s12-edit-shared-label.png" width="320" alt="S12 — Modifier un réglage partagé" /></a>
 
 <a id="s13"></a>
 
@@ -277,11 +277,11 @@ Après l’enregistrement au relâcher, le bandeau Modifié · Annuler permet de
 
 <a id="s22"></a>
 
-## S22 — Bibliothèque des étiquettes
+## S22 — Bibliothèque des réglages
 
-L’écran global liste les étiquettes, leurs actions et leur utilisation. Il s’ouvre depuis une carte avec plusieurs programmes.
+L’écran global liste les réglages, leurs actions et leur utilisation. Il s’ouvre depuis une carte avec plusieurs programmes.
 
-<a href="images/guide/s22-label-library.png"><img src="images/guide/s22-label-library.png" width="320" alt="S22 — Bibliothèque des étiquettes" /></a>
+<a href="images/guide/s22-label-library.png"><img src="images/guide/s22-label-library.png" width="320" alt="S22 — Bibliothèque des réglages" /></a>
 
 <a id="s23"></a>
 
@@ -437,9 +437,9 @@ Ces états complètent les mêmes écrans sans ajouter une nouvelle façon de pr
 
 <a href="images/guide/s06-read-only.png"><img src="images/guide/s06-read-only.png" width="320" alt="Horaires en lecture seule" /></a>
 
-### Suppression refusée d’une étiquette utilisée
+### Suppression refusée d’un réglage utilisé
 
-<a href="images/guide/s23-label-in-use.png"><img src="images/guide/s23-label-in-use.png" width="320" alt="Suppression refusée d’une étiquette utilisée" /></a>
+<a href="images/guide/s23-label-in-use.png"><img src="images/guide/s23-label-in-use.png" width="320" alt="Suppression refusée d’un réglage utilisé" /></a>
 
 ### Validation d’un nouveau programme incomplet
 

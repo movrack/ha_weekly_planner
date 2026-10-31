@@ -11,14 +11,14 @@ configurations; changing the display terminology does not rename entity IDs.
 
 ## Shared settings and independent schedules
 
-Each mode owns its seven lists of slots, including times, days and label
+Each mode owns its seven lists of slots, including times, days and setting
 references. A new mode starts empty; copying creates independent slots. Editing
 the copied times does not change the source mode.
 
-Devices, default labels ("The rest of the time"), per-device label overrides,
+Devices, default settings ("The rest of the time"), per-device setting overrides,
 allowed services, program conditions, priority and enabled/reapply settings are
-shared by the program. Labels are global: copying a mode does not copy its labels.
-Changing a shared label affects every schedule using it.
+shared by the program. Settings are global: copying a mode does not copy its settings.
+Changing a shared setting affects every schedule using it.
 
 An empty mode does not mean that a device is off: the shared default can still
 apply. Configure the intended action explicitly rather than relying on a name.
