@@ -1,90 +1,117 @@
-# Contrôle visuel de la carte
+# Contrôle visuel de la carte (0.18.x)
 
-Liste à dérouler avant chaque version. À faire sur une instance de développement (`scripts/dev_ha.sh`, puis
-`scripts/dev_onboard.py`) avec au moins un programme de chaque type (thermostat, volet, lumière, prise), un
-programme à heures solaires, deux programmes en conflit et un programme avec plusieurs profils.
+Liste à dérouler avant chaque version. À faire sur l'instance de développement (`scripts/dev_ha.sh`, port 8124,
+puis `scripts/dev_onboard.py` ; le script d'intégration échoue en 404 quand l'instance est déjà configurée, c'est
+normal). Après un `npm run build`, appeler le service `weekly_planner.reload`. **Après un changement Python,
+redémarrer l'instance** (sinon l'ancien code valide encore les enregistrements).
 
-Combinaisons à contrôler : **420 px** et **≥ 1400 px**, thème **clair** et **sombre**. Cocher ✔ pour chacune
-des quatre quand la ligne est marquée « ×4 ».
+Jeu de données minimal : un programme par type (thermostat, volet, lumière à heure solaire, prise, aspirateur),
+un programme à plusieurs modes, et 20 programmes pour la mesure de temps (§ 9).
+
+Combinaisons : **360 × 780 px** (téléphone courant) et **≥ 1400 px**, thèmes **clair** et **sombre**, français et
+anglais. Les lignes marquées « ×4 » se cochent pour les quatre combinaisons taille × thème.
+Cocher uniquement ce qui a été vu ; sinon laisser vide et le noter dans le compte rendu.
+Résultats datés : `docs/CONTROLE_VISUEL_RESULTATS.md`.
 
 ## 1. Mise en place
 
-- [ ] Console du navigateur ouverte et vidée ; compteur d'erreurs noté au départ.
-- [ ] Carte rechargée sans cache (`Ctrl/Cmd+Maj+R`) après `npm run build`.
-- [ ] Pas de défilement horizontal de la page à 420 px.
+- [x] Console vidée au départ ; compteur d'erreurs noté (attendu : 0).
+- [x] Bundle à jour (`weekly-planner-card.js` contient « Restez appuyé ») et instance redémarrée.
+- [x] Pas de défilement horizontal de la page à 360 px (carte, vues, modales).
 
-## 2. Consultation (×4)
+## 2. Consultation de la carte (×4)
 
-- [ ] En-tête : titre, pastille Vacances si active, alertes.
-- [ ] Une ligne par programme : nom, interrupteur, profil actif, mode actuel, « jusqu'à HH:MM → mode suivant ».
-- [ ] Barre du jour : trait « maintenant », couleurs des modes, légende lisible.
-- [ ] Semaine repliable (`show_week`) : 7 barres fines alignées.
-- [ ] Plage à heure solaire affichée à l'heure calculée avec le symbole soleil ; plage ignorée barrée avec la raison.
-- [ ] Dérogation : badge visible, « Reprendre » utilisable, échéance affichée.
-- [ ] Conflit entre programmes et avertissements signalés, sans bloquer.
-- [ ] Textes en français et en anglais (changer la langue du profil).
-- [ ] Contrastes suffisants, aucun texte coupé ni chevauchement.
+- [x] Barres (vue par défaut) : icône, nom du programme, état traduit, « → action suivante + heure ».
+- [x] Barre « Auj. » : trait « maintenant » avec icône horloge, couleurs des étiquettes, icône soleil sur une
+      frontière solaire, légende des heures 0 / 6 / 12 / 18 / 24 h.
+- [x] Interrupteur du programme et bouton calendrier : cibles ≥ 44 px.
+- [x] Semaine repliable : sept barres, jour courant en gras, trait « maintenant » sur le jour courant seulement.
+- [x] Cadran 24 h (`radial`), double cadran 12 h (`radial_12h`), liste compacte (`list`) : lisibles, sans
+      défilement horizontal.
+- [ ] Liste compacte : chevron dépliant un programme à la fois (non déroulé).
+- [x] Bouton « Étiquettes » dans l'en-tête ; ouvre la liste des étiquettes.
+- [x] Français et anglais (jours, état, « Today / Week », heures « 5:20 pm »).
+- [x] Contrastes corrects en clair et en sombre.
+- [ ] Bandeau « Lecture seule », état vide, filtres sans résultat (non déroulé).
 
-## 3. Modales (×4 pour chacune)
+## 3. Écran d'horaires et formulaire d'horaire
 
-- [ ] **Jour (lecture)** : toucher une barre ouvre graphique + liste, bouton « Modifier ».
-- [ ] **Programme** : nom, icône, entités, priorité, conditions, défauts par type/entité, « réappliquer »,
-      type principal, dupliquer, supprimer (avec confirmation), avertissements.
-- [ ] **Jour (édition)** : barre 24 h, liste des plages, « Copier vers… ».
-- [ ] **Plage** : début/fin (heure ou soleil + décalage + bornes), plage ponctuelle, mode par type ou consignes
-      par entité, conditions.
-- [ ] **Modes** : un onglet par type, nom, couleur, icône, valeur, exceptions, « utilisé par… ».
-- [ ] **Déroger…** : entité, consigne ou mode, durée (fin de plage, pendant X, jusqu'à HH:MM).
-- [ ] **Éditeur visuel de la carte** (`program`, `filter`, `title`, `show_week`, `show_chart`).
-- [ ] À 420 px : modales en plein écran, boutons Annuler/Enregistrer toujours atteignables.
-- [ ] Fermeture par Échap, croix et clic extérieur ; le focus revient sur le bouton d'origine.
-- [ ] Validation en direct : message clair pour un chevauchement, une plage < 5 min, `00:00 → 00:00`.
-- [ ] Conflit de révision (modification dans un autre onglet) : message « modifié ailleurs, recharger ».
+- [x] Ouvrir par le bouton calendrier : sélecteur de mode, 7 barres, lignes d'horaires, « Ajouter un horaire »,
+      « Le reste du temps », graphique du jour avec ◀ ▶, interrupteur « Horaires actifs », Supprimer isolé.
+- [x] Ouvrir une ligne : un seul « Enregistrer / Annuler », « Dupliquer » et « Supprimer » sous le formulaire.
+- [x] Début : pas ±15 min, pastilles Lever / Coucher, décalage affiché (« Coucher +30 min »).
+- [x] « Pas avant » / « Pas après » : saisie libre ; si l'ordre est inversé, message
+      « « Pas avant » doit précéder « Pas après » » et l'enregistrement est refusé.
+- [x] Délai aléatoire (début et fin) : case + « Délai maximum (minutes) » ; l'horaire est enregistré avec
+      `random_minutes` et réaffiché (« Dans les 20 prochaines minutes »).
+- [x] **Dupliquer** un horaire avec délai aléatoire : le brouillon garde le délai ; une fois enregistré et rouvert, il
+      est conservé.
+- [x] Supprimer : confirmation plein écran « Oui / Non », puis la ligne disparaît.
+- [x] Modifier la fin, enregistrer, rétablir ; la barre se met à jour.
+- [ ] Dupliquer un horaire solaire de plus de 4 h : l'enregistrement échoue (voir résultats, bug n° 1).
+- [ ] Ajouter un horaire avec « Ajouter un horaire » (non déroulé en entier).
+- [ ] « Appliquer à d'autres jours », copie vers Lun→Ven, Sam+Dim (non déroulé).
+- [ ] Chevauchement : message précis (aujourd'hui : message générique, voir résultats).
+- [ ] Conflit de révision (modification dans un autre onglet).
+- [ ] Jour de 23 h / 25 h (changement d'heure) ; horaire passant minuit ; fin `24:00`.
 
-## 4. Glisser les bords d'une plage
+## 4. Barres : édition directe
 
-- [ ] **Doigt** (téléphone ou émulation tactile 420 px) : poignées ≥ 44 px, loupe/zoom pendant le glisser,
-      la page ne défile pas pendant le geste.
-- [ ] **Souris** (≥ 1400 px) : glisser début et fin, curseur adapté.
-- [ ] Aimantation au pas de 5 min ; aucune valeur hors pas.
-- [ ] Impossible de rendre une plage < 5 min ni de chevaucher la voisine (ou réaction claire).
-- [ ] Boutons **±5 min** sur chaque bord : fonctionnent et mettent la barre à jour.
-- [ ] Clavier : Tab atteint chaque poignée, les flèches déplacent de 5 min, le focus est visible.
-- [ ] Plage passant minuit (22:00 → 06:00) et fin `24:00` correctement dessinées.
+- [x] **Souris (≥ 1400 px)** : un clic entre dans l'édition ; deux poignées 44 × 44 px ; Échap sort.
+- [x] **Doigt (émulation tactile 360 px)** : appui long ~0,5 s entre dans l'édition (barre 64 px, poignées
+      44 × 44 px) ; glisser 8 h → 8 h 45 par pas de 15 min avec bulle d'heure ; la page ne défile pas ;
+      relâcher enregistre ; « Modifié · Annuler » remet 8 h.
+- [x] **Clavier** sur une poignée : flèches ±15 min, enregistrement, « Annuler » du bandeau.
+- [x] **Astuce « Restez appuyé pour modifier »** : un appui court au doigt sur une barre l'affiche ~2 s, puis ouvre
+      l'écran d'horaires ; trois fois seulement par appareil (compteur `weekly_planner.hold_hint`), ensuite l'écran
+      s'ouvre sans astuce.
+- [ ] Entrer dans l'édition **au clavier** : la barre n'est pas atteignable par Tab (voir résultats, bug n° 6).
+- [ ] Sélection d'un horaire ou d'un trou, ciseaux, « Copier vers… », fenêtre de conflit.
 
-## 5. Copie, modes, dérogation
+## 5. Éditeur visuel Lovelace (×4)
 
-- [ ] Copie d'un jour vers un autre, vers « Lun→Ven », « Sam+Dim » ; résultat vérifié dans la semaine.
-- [ ] Copie d'un jour vers un autre profil.
-- [ ] Modification d'un mode (couleur, valeur) : toutes les barres concernées changent ; suppression d'un mode
-      utilisé refusée avec explication.
-- [ ] Dérogation depuis « Déroger… » : badge, échéance, « Reprendre » l'annule.
-- [ ] Changement de profil depuis l'en-tête du programme : barres mises à jour.
+- [x] Ouvrir par le mode édition du tableau de bord : onglets « Affichage de la carte » / « Réglages des
+      programmes ».
+- [x] Affichage : titre, un programme ou liste filtrée, types dynamiques (noms traduits par HA), zone, programmes
+      à afficher, vue des horaires, graphique ; aucun défilement horizontal, cibles ≥ 44 px.
+- [x] Réglages : choisir un programme ; onglets Général, Appareils, Modes ; Annuler / Rétablir ; Dupliquer,
+      Supprimer.
+- [x] « Nouveau programme » : formulaire court (nom + appareils) ; valeurs par défaut du serveur : priorité 10,
+      « Réappliquer » coché.
+- [x] Dans le sélecteur, l'entrée devient « Continuer la création » dès qu'un brouillon existe (voir résultats,
+      bug n° 8 : elle apparaît aussi juste après avoir choisi « Nouveau programme »).
+- [ ] Reprise du brouillon après changement de programme, création réelle d'un programme.
 
-## 6. Graphique 24 h (×4)
+## 6. Étiquettes
 
-- [ ] Consigne prévue, consigne appliquée et mesure distinctes (couleur et forme, pas la couleur seule).
-- [ ] Zones dérogation / fenêtre ouverte / chauffe visibles quand les données existent.
-- [ ] Toucher ou survoler affiche les valeurs ; ◀ ▶ parcourt les jours précédents (jusqu'à 14).
-- [ ] Volets et lumières : position ou luminosité prévue vs réelle.
-- [ ] Jour de 23 h ou 25 h (changement d'heure) dessiné à l'échelle réelle.
-- [ ] Axes et légendes lisibles dans les deux thèmes.
+- [x] Liste : pastille, nom, résumé de l'action, nombre d'usages ; cibles ≥ 44 px (360 px clair, 1440 px sombre,
+      360 px sombre anglais).
+- [ ] Renommer, recolorer, changer l'action, suppression refusée si utilisée.
 
-## 7. Clavier et accessibilité
+## 7. Graphique du jour
 
-- [ ] Parcours complet au clavier (Tab, Maj+Tab, Entrée, Espace, Échap, flèches).
-- [ ] Éléments interactifs nommés (étiquettes lues par un lecteur d'écran ou vérifiées dans l'arbre
-      d'accessibilité).
-- [ ] Focus toujours visible et jamais piégé hors d'une modale.
+- [x] Graphique visible dans l'écran d'horaires (repères prévus, « maintenant »), lisible en clair.
+- [ ] Courbes mesuré / réglé, activité, manuel en rouge, ◀ ▶ vers les jours précédents, jour de 23 h / 25 h.
 
-## 8. Performance et erreurs
+## 8. Clavier et accessibilité
 
-- [ ] **Zéro erreur** dans la console sur tout le parcours (compteur final = compteur de départ).
-- [ ] **Premier rendu < 300 ms pour 20 programmes** : créer 20 programmes (script), mesurer (Performance du
-      navigateur ou script Playwright), noter la valeur : ______ ms.
-- [ ] Pas de scintillement ni de rendu répété inutile quand une entité change d'état.
+- [x] Tab dans la carte : étiquettes, interrupteur, horaires, icône « maintenant » / soleil (infobulle), Semaine,
+      programme suivant.
+- [x] Interrupteurs, boutons et poignées nommés (`aria-label`, `role="switch"`, `role="slider"`).
+- [x] Échap ferme l'écran d'horaires quand le focus est dans la fenêtre, et le clic extérieur aussi.
+- [ ] Échap après avoir ouvert une ligne d'horaire (le focus tombe sur `body`, voir résultats, bug n° 4).
+- [ ] Le focus revient sur le bouton d'origine à la fermeture (aujourd'hui : sur `body`, bug n° 5).
+- [ ] Cibles tactiles ≥ 44 px partout : jours du formulaire (40 px) et noms de jours de la semaine (36 px) en
+      dessous (bugs n° 3 et 7).
 
-## 9. Compte rendu
+## 9. Performance et erreurs
 
-Date : ______  Version : ______  Navigateur : ______
-Anomalies (capture, étapes, combinaison taille/thème) : ________________________________
+- [x] **Zéro erreur** dans la console sur tout le parcours (hors 404 de sourcemaps de Lit servis par HA).
+- [x] **Premier rendu avec 20 programmes** et **rendu après mise à jour** : mesurés (voir
+      `docs/CONTROLE_VISUEL_RESULTATS.md`).
+- [ ] Pas de rendu répété inutile quand une entité change d'état (non profilé).
+
+## 10. Compte rendu
+
+Reporter dans `docs/CONTROLE_VISUEL_RESULTATS.md` : date, version, navigateur, mesures, anomalies (étapes, capture,
+combinaison taille / thème).
