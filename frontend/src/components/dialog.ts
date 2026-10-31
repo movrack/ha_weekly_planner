@@ -19,6 +19,8 @@ export class WpDialog extends LitElement {
   @property() heading = "";
   @property({ type: Boolean, reflect: true }) open = false;
   @property({ type: Boolean }) wide = false;
+  /** Two-column content from 768 px (the schedule screen): a wider panel on tablets and desktops only. */
+  @property({ type: Boolean }) columns = false;
 
   @state() private _expanded = false;
 
@@ -139,7 +141,7 @@ export class WpDialog extends LitElement {
     if (!this.open) return html``;
     return html`
       <div class="backdrop" @click=${() => this.close()}></div>
-      <div class="panel ${this._expanded ? "expanded" : this.wide ? "wide" : ""}" role="dialog" aria-modal="true"
+      <div class="panel ${this._expanded ? "expanded" : this.wide ? "wide" : this.columns ? "columns" : ""}" role="dialog" aria-modal="true"
         aria-label=${this.heading} tabindex="-1">
         <header @pointerdown=${this._hdown} @pointermove=${this._hmove} @pointerup=${this._hup}
           @pointercancel=${this._hcancel}>
@@ -168,6 +170,7 @@ export class WpDialog extends LitElement {
       border-radius: var(--ha-card-border-radius, 16px); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
     }
     .panel.wide { width: min(880px, calc(100vw - 32px)); }
+    @media (min-width: 768px) { .panel.columns { width: min(960px, calc(100vw - 32px)); } }
     .panel.expanded { width: min(1400px, calc(100vw - 32px)); }
     .heading { display: block; width: 100%; min-height: 44px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
     header { display: flex; align-items: center; gap: 12px; padding: 16px 16px 8px 20px; }
