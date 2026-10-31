@@ -25,8 +25,18 @@ def _random_minutes(value: Any) -> int:
     return value
 
 
-TIME_SPEC = vol.Any(
-    vol.Schema({vol.Required("time"): _clock, vol.Optional("random_minutes"): _random_minutes}),
+def _sun_bounds(spec: dict) -> dict:
+    """A solar time may not be required to come before its own earliest limit."""
+    if spec.get("earliest") and spec.get("latest"):
+        earliest = parse_clock(spec["earliest"])
+        latest = parse_clock(spec["latest"])
+        if earliest > latest:
+            raise vol.Invalid("earliest_after_latest")
+    return spec
+
+
+_FIXED_TIME = vol.Schema({vol.Required("time"): _clock, vol.Optional("random_minutes"): _random_minutes})
+_SUN_TIME = vol.All(
     vol.Schema({
         vol.Required("sun"): vol.In(SUN_EVENTS),
         vol.Optional("random_minutes"): _random_minutes,
@@ -34,7 +44,16 @@ TIME_SPEC = vol.Any(
         vol.Optional("earliest"): _clock,
         vol.Optional("latest"): _clock,
     }),
+    _sun_bounds,
 )
+
+
+def TIME_SPEC(value: Any) -> dict:  # noqa: N802 - used like a schema
+    """Fixed or solar time; the error names the actual problem of a solar time."""
+    if isinstance(value, dict) and "sun" in value:
+        return _SUN_TIME(value)
+    return _FIXED_TIME(value)
+
 
 # Targets are explicit action properties; service data may not redirect them.
 TARGET_KEYS = ("entity_id", "device_id", "area_id", "floor_id", "label_id")

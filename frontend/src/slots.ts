@@ -17,6 +17,11 @@ export function specMinutes(hass: HomeAssistant, spec: TimeSpec): number {
   return Math.max(0, Math.min(DAY, m));
 }
 
+/** True when a solar time asks to be no earlier than its own latest limit (the server rejects it too). */
+export function sunBoundsInvalid(spec: TimeSpec | null | undefined): boolean {
+  return Boolean(spec && "sun" in spec && spec.earliest && spec.latest && clockToMinutes(spec.earliest) > clockToMinutes(spec.latest));
+}
+
 /** Interval occupied by a slot made of fixed times only (null otherwise). */
 export function fixedInterval(slot: Slot): [number, number] | null {
   const s = nominal(slot.start);

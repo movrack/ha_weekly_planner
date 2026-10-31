@@ -3,6 +3,7 @@ import { randomDelayRangeText, WpSlotForm } from "../components/slot-form";
 import { groupSlots, shiftSpec, slotKey, specText } from "../actions";
 import { mergeAdjacent, moveBoundary } from "../edits";
 import { clockToMinutes } from "../time";
+import { specMinutes, sunBoundsInvalid } from "../slots";
 import type { Slot, TimeSpec } from "../types";
 const at = (spec: TimeSpec) => "time" in spec ? clockToMinutes(spec.time) : 420 + (spec.offset ?? 0);
 function form() {
@@ -115,4 +116,63 @@ it("caches Intl date formatters per locale and options", async () => {
   expect(dateFormat("en-GB", { timeZone: "UTC" })).toBe(dateFormat("en-GB", { timeZone: "UTC" }));
   expect(dateFormat("en-GB", { timeZone: "UTC" })).not.toBe(dateFormat("en-GB", { timeZone: "Europe/Paris" }));
   expect(localDateIso(new Date("2026-01-01T23:30:00Z"), "Europe/Paris")).toBe("2026-01-02");
+});
+
+describe("solar not-before / not-after limits", () => {
+  const sunForm = () => {
+    const view = form();
+    view.group = { ...view.group, slot: { ...view.group.slot, start: { sun: "sunset", offset: 15 } } };
+    return view;
+  };
+  it("sets, clears and ignores malformed limits", () => {
+    const view = sunForm();
+    view._limit("start", "earliest", "18:07");
+    view._limit("start", "latest", "21:00");
+    expect(view.group.slot.start).toEqual({ sun: "sunset", offset: 15, earliest: "18:07", latest: "21:00" });
+    view._limit("start", "earliest", "bad");
+    expect(view.group.slot.start.earliest).toBe("18:07");
+    view._limit("start", "earliest", "");
+    expect(view.group.slot.start).toEqual({ sun: "sunset", offset: 15, latest: "21:00" });
+    expect("earliest" in view.group.slot.start).toBe(false);
+  });
+  it("ignores fixed times", () => {
+    const view = form();
+    view._limit("start", "latest", "21:00");
+    expect(view.group.slot.start).toEqual({ time: "08:00" });
+  });
+  it("keeps limits through offset, delay, sun switch, grouping and duplication", () => {
+    const view = sunForm();
+    view._limit("start", "earliest", "18:00");
+    view._limit("start", "latest", "21:00");
+    view._update("start", shiftSpec(view.group.slot.start, 15));
+    view._random("start", 30);
+    view._toggleSun("start", "sunrise");
+    expect(view.group.slot.start).toEqual({ sun: "sunrise", offset: 30, earliest: "18:00", latest: "21:00", random_minutes: 30 });
+    view._random("start", 0);
+    expect(view.group.slot.start).toEqual({ sun: "sunrise", offset: 30, earliest: "18:00", latest: "21:00" });
+    const a: Slot = { id: "a", label: "x", start: { sun: "sunset", earliest: "18:00" }, end: null };
+    expect(slotKey(a)).not.toBe(slotKey({ ...a, start: { sun: "sunset", earliest: "19:00" } }));
+    expect(slotKey(a)).toBe(slotKey(structuredClone(a)));
+    expect(structuredClone(a).start).toEqual({ sun: "sunset", earliest: "18:00" });
+  });
+  it("replaces the spec when a bar is dragged to an exact time", () => {
+    const a: Slot = { id: "a", label: "x", start: { sun: "sunset", earliest: "18:00", latest: "21:00" }, end: { time: "23:00" } };
+    const moved = moveBoundary([a], { id: "a", edge: "start" }, 1140, { at });
+    expect(moved?.slots[0].start).toEqual({ time: "19:00" });
+  });
+  it("applies limits to the displayed minutes and flags reversed limits", () => {
+    const hass = { states: {}, config: { time_zone: "UTC" } } as any;
+    expect(specMinutes(hass, { sun: "sunset", earliest: "20:00" })).toBe(1200);
+    expect(specMinutes(hass, { sun: "sunset", latest: "18:00" })).toBe(1080);
+    expect(sunBoundsInvalid({ sun: "sunset", earliest: "21:00", latest: "18:00" })).toBe(true);
+    expect(sunBoundsInvalid({ sun: "sunset", earliest: "18:00", latest: "18:00" })).toBe(false);
+    expect(sunBoundsInvalid({ time: "08:00" })).toBe(false);
+  });
+  it("shows reversed limits in the form", async () => {
+    const view = sunForm();
+    view.hass = { language: "en", states: {}, config: { time_zone: "UTC" } };
+    const text = (spec: TimeSpec) => { const r: any = view._limits("start", spec, "Start"); return JSON.stringify(r.strings) + JSON.stringify(r.values.map((v: any) => v?.strings ?? v)); };
+    expect(text({ sun: "sunset", earliest: "21:00", latest: "18:00" })).toContain("alert");
+    expect(text({ sun: "sunset", earliest: "18:00", latest: "21:00" })).not.toContain("alert");
+  });
 });

@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-31
+
 ### Changed
 - Repository hardening: security policy, Dependabot updates, read-only CI token and actions pinned to commit SHAs.
 - Internal backend cleanup (shared websocket edit guard, fewer repeated computations, dead code removed); no behaviour change.
@@ -13,6 +15,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Put New program immediately after the settings selector placeholder, between native separators, while preserving creation drafts.
 
 ### Added
+- Not before / Not after limits on sunrise and sunset start or end times (for example "sunset, but not before 18:00 and not after 21:00"), set with two optional time fields under the solar choice. Limits survive offset, delay, sunrise/sunset switching, grouping and duplication; dragging a bar to an exact time still replaces the solar time.
+- Reject a "Not before" later than "Not after" in the form and on the server.
 - Choose the programs displayed by each filtered card in a collapsible checklist; combine the selection with type and area filters without changing program execution.
 - French illustrated guide for 0.16.2 with nine current mobile captures, 49 explicitly historical screenshots, local demo provenance and links from both integrator READMEs.
 - Track the guide's screenshots under a narrow image-ignore exception and document the screen coverage inventory.

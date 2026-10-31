@@ -6,6 +6,7 @@ import "./label-picker";
 import { ALL_DAYS, WEEKDAYS, WEEKEND, shiftSpec, specText } from "../actions";
 import type { SlotGroup } from "../actions";
 import { strings, t } from "../i18n";
+import { sunBoundsInvalid } from "../slots";
 import { DAY, clockToMinutes, minutesToClock } from "../time";
 import { editorStyles, langOf } from "../editors/shared";
 import type { HomeAssistant, PlannerData, Program, TimeSpec } from "../types";
@@ -83,7 +84,9 @@ export class WpSlotForm extends LitElement {
     if ("sun" in spec && spec.sun === sun) this._update(which, { time: this._last[which], random_minutes: spec.random_minutes });
     else {
       if ("time" in spec) this._last = { ...this._last, [which]: spec.time };
-      this._update(which, { sun, offset: "sun" in spec ? spec.offset ?? 0 : 0, random_minutes: spec.random_minutes });
+      // Switching between sunrise and sunset keeps the offset and the not-before / not-after limits.
+      const kept = "sun" in spec ? { offset: spec.offset ?? 0, earliest: spec.earliest, latest: spec.latest } : { offset: 0 };
+      this._update(which, this._clean({ sun, ...kept, random_minutes: spec.random_minutes }));
     }
   }
 
@@ -92,6 +95,20 @@ export class WpSlotForm extends LitElement {
     let m = clockToMinutes(value);
     if (which === "end" && m === 0) m = DAY;
     this._update(which, { time: m >= DAY ? "24:00" : value, random_minutes: this.group.slot[which]?.random_minutes });
+  }
+
+  /** Drops absent optional keys so saved specs stay minimal. */
+  private _clean(spec: TimeSpec): TimeSpec {
+    return Object.fromEntries(Object.entries(spec).filter(([, value]) => value !== undefined)) as TimeSpec;
+  }
+
+  /** Sets or clears (empty value) the "not before" / "not after" limit of a solar time. */
+  private _limit(which: Which, key: "earliest" | "latest", value: string): void {
+    const spec = this.group.slot[which];
+    if (!spec || !("sun" in spec)) return;
+    if (value && !/^\d{2}:\d{2}$/.test(value)) return;
+    const { [key]: _old, ...rest } = spec;
+    this._update(which, value ? { ...rest, [key]: value } : rest);
   }
 
   private _random(which: Which, value: number): void {
@@ -123,6 +140,7 @@ export class WpSlotForm extends LitElement {
             @click=${() => this._toggleSun(which, sun)}><ha-icon icon=${sun === "sunrise" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down"}></ha-icon>${s[`sun_${sun}_short` as "sun_dawn"] ?? sun}</button>`;
         })}
       </div>
+      ${"sun" in spec ? this._limits(which, spec, title) : nothing}
       <div class="random">
         <label><input type="checkbox" aria-describedby=${`random-${which}`} .checked=${Boolean(spec.random_minutes)} ?disabled=${dis}
           @change=${(e: Event) => this._random(which, (e.target as HTMLInputElement).checked ? 15 : 0)} />${t(lang, "random_time")}</label>
@@ -133,6 +151,20 @@ export class WpSlotForm extends LitElement {
           }} /></label><small id=${`random-${which}`}>${randomDelayRangeText(lang, spec)}</small>` : nothing}
       </div>
       `;
+  }
+
+  private _limits(which: Which, spec: Extract<TimeSpec, { sun: string }>, title: string) {
+    const lang = this._lang;
+    const field = (key: "earliest" | "latest") => html`<div class="limit">
+      <label>${t(lang, key === "earliest" ? "sun_earliest" : "sun_latest")}
+        <input type="time" step="60" .value=${spec[key] === "24:00" ? "00:00" : spec[key] ?? ""} ?disabled=${this.disabled}
+          aria-label=${`${title}: ${t(lang, key === "earliest" ? "sun_earliest" : "sun_latest")}`}
+          @change=${(e: Event) => this._limit(which, key, (e.target as HTMLInputElement).value)} /></label>
+      ${spec[key] ? html`<button class="clear" ?disabled=${this.disabled} aria-label=${t(lang, "sun_limit_clear")} title=${t(lang, "sun_limit_clear")}
+        @click=${() => this._limit(which, key, "")}><ha-icon icon="mdi:close"></ha-icon></button>` : nothing}
+    </div>`;
+    return html`<div class="limits" role="group">${field("earliest")}${field("latest")}</div>
+      ${sunBoundsInvalid(spec) ? html`<small class="bad" role="alert">${t(lang, "err_sun_bounds")}</small>` : nothing}`;
   }
 
   private _toggleEnd(withEnd: boolean): void {
@@ -219,6 +251,20 @@ export class WpSlotForm extends LitElement {
     }
     .time output.sun { flex: 1; min-width: 0; align-self: center; text-align: center; font-size: 20px; font-weight: 600; }
     .ibtn.round { border: 1px solid var(--divider-color); min-width: 64px; font-weight: 600; }
+    .limits { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+    .limit { display: flex; align-items: flex-end; gap: 4px; min-width: 0; }
+    .limit label { flex: 1; min-width: 0; display: grid; gap: 2px; font-size: 13px; color: var(--secondary-text-color); }
+    .limit input[type="time"] {
+      width: 100%; min-width: 0; box-sizing: border-box; min-height: 44px; font: inherit; font-size: 16px;
+      color: var(--primary-text-color); background: var(--card-background-color);
+      border: 1px solid var(--divider-color); border-radius: 12px; padding: 0 8px;
+    }
+    .limit .clear {
+      flex: none; width: 44px; height: 44px; border: none; background: none; color: var(--secondary-text-color);
+      cursor: pointer; display: inline-flex; align-items: center; justify-content: center; --mdc-icon-size: 20px;
+    }
+    .limit .clear:disabled { opacity: 0.4; cursor: default; }
+    small.bad { color: var(--error-color, #db4437); display: block; margin-bottom: 8px; }
     .random { display: grid; gap: 6px; margin: 8px 0; }
     .random label { display: flex; align-items: center; gap: 8px; min-height: 44px; }
     .random input[type="checkbox"] { width: 20px; height: 20px; }
