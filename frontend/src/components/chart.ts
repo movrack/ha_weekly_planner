@@ -141,6 +141,9 @@ const CLOCK = "M12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12
 
 const isBad = (s: string) => s === "unavailable" || s === "unknown" || s === "";
 const num = (x: unknown): number | null => (typeof x === "number" && Number.isFinite(x) ? x : null);
+/** Narrowest drawn active band (px) and height of its strip along the time axis (px). */
+export const SHADE_MIN = 3;
+export const SHADE_EDGE = 3;
 const ON_STATES = new Set(["on", "open", "heat", "home", "playing", "cleaning", "unlocked", "armed_home", "armed_away"]);
 
 @customElement("wp-chart")
@@ -338,9 +341,10 @@ export class WpChart extends LitElement {
       span,
     );
     for (const m of planned.returns) add(m, defaultLabel, true);
-    // real activity of the device (display only): shaded under the planned line, past only
+    // real activity of the device (display only): one full-height band per active period, past only, whatever
+    // setting was in force (a period outside every planned setting is shown too)
     const shade = shadeActive(
-      activePeriods(loaded.hist.map((p) => ({ m: toM(p.t), state: p.s, attrs: p.a })), domain, pastEnd), planned.zones, pastEnd);
+      activePeriods(loaded.hist.map((p) => ({ m: toM(p.t), state: p.s, attrs: p.a })), domain, pastEnd), pastEnd);
     markers.sort((a, b) => a.m - b.m);
 
     // history
@@ -540,6 +544,13 @@ export class WpChart extends LitElement {
     const top = PAD.t - 12;
     const bandY = PAD.t;
     const bandH = H - PAD.t - PAD.b;
+    // Active periods: a translucent band over the whole plot height with a solid strip along the time axis, at
+    // least SHADE_MIN px wide so a short period (a cover moving, a switch on for a minute) stays visible.
+    const shades = model.shade.map((sh) => {
+      const w = Math.max(SHADE_MIN, x(sh.to) - x(sh.from));
+      return svg`<rect class="shade" x=${x(sh.from)} y=${bandY} width=${w} height=${bandH}></rect>
+        <rect class="shade-edge" x=${x(sh.from)} y=${bandY + bandH - SHADE_EDGE} width=${w} height=${SHADE_EDGE}></rect>`;
+    });
     const cyOf = (mk: Marker) => (curve && mk.value !== null ? y(mk.value) : top);
     // Value texts of two markers close together (the start of a step and the return to the default, or the last
     // markers of the day squeezed against the right edge) would print over each other ("15 15"): keep the first.
@@ -569,16 +580,18 @@ export class WpChart extends LitElement {
         aria-label=${t(lang, "chart_open", { name: this._shownName })}
         @click=${() => this._open()}
         @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this._open(); } }}>
+        ${curve ? shades : nothing}
         ${ticksY.map((v) => svg`<line class="grid" x1=${PAD.l} x2=${W - PAD.r} y1=${y(v)} y2=${y(v)}></line>
           <text class="ylab" x=${PAD.l - 4} y=${y(v) + 3} text-anchor="end">${Number(v.toFixed(1))}</text>`)}
         ${curve && model.unit ? svg`<text class="unit" x="2" y="10">${model.unit}</text>` : nothing}
         ${ticksX.map((m) => svg`<text class="xlab" x=${x(m)} y=${H - 6} text-anchor=${m === 0 ? "start" : "middle"}>${Number(hourOf(m))}h</text>`)}
         ${curve ? nothing : svg`
           <rect class="track" x=${PAD.l} y=${bandY} width=${W - PAD.l - PAD.r} height=${bandH} rx="6"></rect>
+          ${model.bands.map((b) => svg`<rect class="band ${b.on ? "on" : ""}" x=${x(b.s)} y=${bandY} width=${Math.max(1, x(b.e) - x(b.s))} height=${bandH}></rect>`)}
+          ${shades}
           ${model.bands.map((b) => {
             const w = x(b.e) - x(b.s);
-            return svg`<rect class="band ${b.on ? "on" : ""}" x=${x(b.s)} y=${bandY} width=${Math.max(1, w)} height=${bandH}></rect>
-              ${fitText(b.text, w) ? svg`<text class="btxt" x=${x(b.s) + w / 2} y=${bandY + bandH / 2 + 4} text-anchor="middle">${fitText(b.text, w)}</text>` : nothing}`;
+            return fitText(b.text, w) ? svg`<text class="btxt" x=${x(b.s) + w / 2} y=${bandY + bandH / 2 + 4} text-anchor="middle">${fitText(b.text, w)}</text>` : nothing;
           })}
           ${model.manual.map(([a, b]) => svg`<rect class="red-band" x=${x(a)} y=${bandY} width=${Math.max(3, x(b) - x(a))} height=${bandH}></rect>`)}`}
         ${curve ? model.lines.map((l) => svg`<path class="line ${l.key}" d=${this._path(l.pts, model, x, y, l.key === "set")}></path>`) : nothing}
@@ -588,9 +601,6 @@ export class WpChart extends LitElement {
           return svg`${base ? svg`<path class="line red" d=${this._path(base.pts, model, x, y, base.key === "set", span)}></path>` : nothing}
             ${dot !== null ? svg`<circle class="reddot" cx=${x(span[0])} cy=${y(dot)} r="3.5"></circle>` : nothing}`;
         }) : nothing}
-        ${model.shade.map((sh) => curve
-          ? (sh.value === null ? nothing : svg`<rect class="shade" x=${x(sh.from)} y=${y(sh.value)} width=${Math.max(1, x(sh.to) - x(sh.from))} height=${Math.max(0, H - PAD.b - y(sh.value))} style="--c:${sh.color}"></rect>`)
-          : svg`<rect class="shade" x=${x(sh.from)} y=${bandY} width=${Math.max(1, x(sh.to) - x(sh.from))} height=${bandH} style="--c:${sh.color}"></rect>`)}
         ${curve ? model.planned.steps.map((st) => svg`<path class="plan" d="M${x(st.from).toFixed(1)},${y(st.value).toFixed(1)}H${x(st.to).toFixed(1)}" style="--c:${st.color}"></path>`) : nothing}
         ${curve ? model.planned.risers.map((r) => svg`<line class="riser" x1=${x(r.m)} x2=${x(r.m)} y1=${y(r.from)} y2=${y(r.to)} style="--c:${r.color}"></line>`) : nothing}
         ${[...model.markers].sort((a, b) => a.m - b.m).map(mark)}
@@ -636,8 +646,9 @@ export class WpChart extends LitElement {
     .band { fill: var(--secondary-text-color); opacity: 0.35; stroke: var(--card-background-color); stroke-width: 1; }
     .band.on { fill: var(--primary-color); opacity: 0.4; }
     .red-band { fill: var(--error-color, #db4437); opacity: 0.55; }
-    .shade { fill: var(--c); opacity: 0.25; }
-    .key i.active { width: 14px; height: 10px; border-radius: 2px; background: var(--secondary-text-color); opacity: 0.35; }
+    /* active periods: same colour in light and dark themes, translucent so the curve stays readable on top */
+    .shade { fill: var(--wp-active-color, var(--primary-color)); opacity: 0.28; }
+    .shade-edge { fill: var(--wp-active-color, var(--primary-color)); }
     .plan { fill: none; stroke: var(--c); stroke-width: 3; stroke-linecap: butt; }
     .riser { stroke: var(--c); stroke-width: 1.2; opacity: 0.8; }
     .drop { stroke: var(--secondary-text-color); stroke-width: 1; stroke-dasharray: 1 3; opacity: 0.6; }
@@ -659,6 +670,12 @@ export class WpChart extends LitElement {
       background: var(--secondary-text-color); border: 1.5px solid var(--card-background-color);
     }
 
+    /* the band of the chart in small: translucent block with the solid strip at its foot */
+    .key i.active { position: relative; width: 16px; height: 12px; box-sizing: border-box; border-top: 0;
+      border-bottom: 3px solid var(--wp-active-color, var(--primary-color)); }
+    .key i.active::before {
+      content: ""; position: absolute; inset: 0; background: var(--wp-active-color, var(--primary-color)); opacity: 0.28;
+    }
     .key i.manual { border-top: 3px solid var(--error-color, #db4437); }
   `;
 }

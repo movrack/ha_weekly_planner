@@ -91,7 +91,8 @@ export function isActive(domain: string, state: string, attrs: Record<string, un
       return state === "cool" ? cur - set > 0.3 : set - cur > 0.3;
     }
     case "light": case "switch": case "fan": case "input_boolean": return state === "on";
-    case "cover": return state === "opening" || state === "closing";
+    // a cover "does something" while it lets light in or moves: open, opening, closing (not only the seconds of travel)
+    case "cover": return state === "open" || state === "opening" || state === "closing";
     case "vacuum": return state === "cleaning" || state === "returning";
     case "media_player": return state === "playing";
     default: return !IDLE.has(state);
@@ -113,17 +114,16 @@ export function activePeriods(hist: HistState[], domain: string, until: number):
   return out;
 }
 
-export interface Shade { from: number; to: number; color: string; value: number | null }
+/** A stretch of the day where the device was active: drawn as one full-height band, the same for every device. */
+export interface Shade { from: number; to: number }
 
-/** The active periods cut along the label in force: what to shade, in which colour, under which value. */
-export function shadeActive(periods: [number, number][], zones: Zone[], until: number): Shade[] {
+/** The active periods kept inside the day and up to `until` (now), whatever setting was in force. */
+export function shadeActive(periods: [number, number][], until: number): Shade[] {
   const out: Shade[] = [];
   for (const [a, b] of periods) {
-    for (const z of zones) {
-      const from = Math.max(a, z.from);
-      const to = Math.min(b, z.to, until);
-      if (to - from > 0.01) out.push({ from, to, color: z.color, value: z.value });
-    }
+    const from = Math.max(0, a);
+    const to = Math.min(b, until);
+    if (to - from > 0.01) out.push({ from, to });
   }
   return out.sort((x, y) => x.from - y.from);
 }

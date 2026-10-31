@@ -74,7 +74,7 @@ describe("planned staircase", () => {
   });
 });
 
-import { activePeriods, buildPlanned as bp, isActive, shadeActive } from "../planned";
+import { activePeriods, isActive, shadeActive } from "../planned";
 
 describe("is the device active", () => {
   it("climate: hvac_action first", () => {
@@ -96,7 +96,12 @@ describe("is the device active", () => {
     expect(isActive("switch", "on", {})).toBe(true);
     expect(isActive("light", "off", {})).toBe(false);
     expect(isActive("cover", "closing", {})).toBe(true);
-    expect(isActive("cover", "open", {})).toBe(false);
+    expect(isActive("cover", "opening", {})).toBe(true);
+    expect(isActive("cover", "open", { current_position: 40 })).toBe(true);
+    expect(isActive("cover", "closed", { current_position: 0 })).toBe(false);
+    for (const s of ["unavailable", "unknown"]) for (const d of ["cover", "light", "switch", "climate", "vacuum"]) {
+      expect(isActive(d, s, { hvac_action: "heating" })).toBe(false);
+    }
     expect(isActive("vacuum", "cleaning", {})).toBe(true);
     expect(isActive("vacuum", "returning", {})).toBe(true);
     expect(isActive("vacuum", "docked", {})).toBe(false);
@@ -107,37 +112,57 @@ describe("is the device active", () => {
   });
 });
 
-describe("shading under the planned line", () => {
-  const plan = bp([{ start: 720, end: 1080, color: Y, value: 18 }], dflt, 1440);
+describe("active periods and their shading", () => {
   const h = (m: number, temperature: number, current: number) => ({ m, state: "heat", attrs: { temperature, current_temperature: current } });
+  const st = (m: number, state: string, attrs: Record<string, unknown> = {}) => ({ m, state, attrs });
 
-  it("owner's example: active only 13:00-13:30, yellow, up to now (14:00)", () => {
-    const hist = [h(0, 15, 15), h(780, 18, 17), h(810, 18, 19)];
-    const periods = activePeriods(hist, "climate", 840);
+  it("owner's example: climate active only 13:00-13:30, up to now (14:00)", () => {
+    const periods = activePeriods([h(0, 15, 15), h(780, 18, 17), h(810, 18, 19)], "climate", 840);
     expect(periods).toEqual([[780, 810]]);
-    expect(shadeActive(periods, plan.zones, 840)).toEqual([{ from: 780, to: 810, color: Y, value: 18 }]);
+    expect(shadeActive(periods, 840)).toEqual([{ from: 780, to: 810 }]);
   });
-  it("never goes past now", () => {
-    const periods = activePeriods([{ m: 0, state: "on", attrs: {} }], "switch", 600);
-    expect(periods).toEqual([[0, 600]]);
-    expect(shadeActive(periods, plan.zones, 600).slice(-1)[0].to).toBe(600);
+  it("climate with hvac_action heating all day is shaded even without any planned setting", () => {
+    const periods = activePeriods([st(0, "heat", { hvac_action: "heating" })], "climate", 600);
+    expect(shadeActive(periods, 600)).toEqual([{ from: 0, to: 600 }]);
   });
-  it("cuts a period along the label in force", () => {
-    const shade = shadeActive([[660, 780]], plan.zones, 900);
-    expect(shade).toEqual([
-      { from: 660, to: 720, color: B, value: 15 },
-      { from: 720, to: 780, color: Y, value: 18 },
-    ]);
+  it("still active now: the period stops at now, never later", () => {
+    const periods = activePeriods([st(0, "off"), st(500, "on")], "switch", 600);
+    expect(periods).toEqual([[500, 600]]);
+    expect(shadeActive([[500, 900]], 600)).toEqual([{ from: 500, to: 600 }]);
+  });
+  it("a period started the day before (history point before midnight) starts at 0", () => {
+    const periods = activePeriods([st(-90, "on"), st(60, "off")], "light", 600);
+    expect(periods).toEqual([[0, 60]]);
+    expect(shadeActive([[-30, 60]], 600)).toEqual([{ from: 0, to: 60 }]);
+  });
+  it("cover: open and moving count, closed does not", () => {
+    const hist = [st(0, "closed"), st(480, "opening"), st(481, "open", { current_position: 100 }),
+      st(1200, "closing"), st(1201, "closed", { current_position: 0 })];
+    expect(activePeriods(hist, "cover", 1300)).toEqual([[480, 1201]]);
+  });
+  it("cover moving for seconds only is still one (short) period", () => {
+    const hist = [st(0, "open"), st(600, "closing"), st(600.3, "closed")];
+    expect(activePeriods(hist, "cover", 700)).toEqual([[0, 600.3]]);
+    expect(activePeriods([st(0, "closed"), st(600, "opening"), st(600.3, "closed")], "cover", 700)).toEqual([[600, 600.3]]);
+  });
+  it("unavailable or unknown in the middle cuts the period", () => {
+    const hist = [st(0, "on"), st(100, "unavailable"), st(130, "on"), st(200, "unknown"), st(260, "off")];
+    expect(activePeriods(hist, "switch", 600)).toEqual([[0, 100], [130, 200]]);
+  });
+  it("light: on periods merged across attribute-only changes", () => {
+    const hist = [st(0, "off"), st(300, "on", { brightness: 50 }), st(320, "on", { brightness: 200 }), st(400, "off")];
+    expect(activePeriods(hist, "light", 600)).toEqual([[300, 400]]);
   });
   it("vacuum: cleaning then returning is one period", () => {
-    const hist = [
-      { m: 0, state: "docked", attrs: {} }, { m: 540, state: "cleaning", attrs: {} },
-      { m: 600, state: "returning", attrs: {} }, { m: 615, state: "docked", attrs: {} },
-    ];
+    const hist = [st(0, "docked"), st(540, "cleaning"), st(600, "returning"), st(615, "docked")];
     expect(activePeriods(hist, "vacuum", 700)).toEqual([[540, 615]]);
   });
-  it("no history, nothing active", () => {
+  it("unsorted history is sorted first", () => {
+    expect(activePeriods([st(200, "off"), st(100, "on")], "switch", 600)).toEqual([[100, 200]]);
+  });
+  it("future day or no history: nothing active", () => {
+    expect(activePeriods([st(0, "on")], "switch", 0)).toEqual([]);
     expect(activePeriods([], "climate", 600)).toEqual([]);
-    expect(shadeActive([], plan.zones, 600)).toEqual([]);
+    expect(shadeActive([], 600)).toEqual([]);
   });
 });
