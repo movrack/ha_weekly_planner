@@ -74,3 +74,40 @@ describe("two-column schedule modal (CSS only)", () => {
     expect(html).not.toContain("danger-line alone");
   });
 });
+
+describe("slot editor open in two columns", () => {
+  it("never scrolls the editor to the top by scrollIntoView when it is already in view", () => {
+    const view = screen() as any;
+    const scroll = vi.fn();
+    const editor = { scrollIntoView: scroll, getBoundingClientRect: () => ({ top: 300 }) };
+    const content: any = { scrollTop: 0, getBoundingClientRect: () => ({ top: 100, bottom: 700 }) };
+    view.renderRoot = { querySelector: (q: string) => (q === ".editor" ? editor : { shadowRoot: { querySelector: () => content } }) };
+    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+    view._revealEditor();
+    expect(scroll).not.toHaveBeenCalled();
+    expect(content.scrollTop).toBe(0);
+    editor.getBoundingClientRect = () => ({ top: 900 });
+    view._revealEditor();
+    expect(content.scrollTop).toBe(800);
+    expect(scroll).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+  it("keeps the phone behaviour: scroll the editor to the top", () => {
+    const view = screen() as any;
+    const scroll = vi.fn();
+    view.renderRoot = { querySelector: () => ({ scrollIntoView: scroll }) };
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    view._revealEditor();
+    expect(scroll).toHaveBeenCalledWith({ block: "start" });
+    vi.unstubAllGlobals();
+  });
+  it("renders no empty grid cell for the hidden chart and Delete", () => {
+    expect(css(WpSchedule)).toMatch(/\.area-chart:empty, \.area-delete:empty \{ display: none/);
+    const view = screen() as any;
+    view._open = "new";
+    const html = flat(view.render());
+    expect(html).not.toContain("[CHART]");
+    expect(html).not.toContain("danger-line alone");
+    expect(html).toContain('class="area-week"');
+  });
+});
