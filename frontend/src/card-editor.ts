@@ -15,6 +15,13 @@ import type { CardConfig, HomeAssistant, PlannerData, Program } from "./types";
 import { editorStyles, langOf } from "./editors/shared";
 import type { K } from "./editors/shared";
 
+/** How long a config we sent may be contradicted by Home Assistant's stale copy (one dialog re-render, a few ms). */
+const ECHO_GUARD_MS = 1500;
+
+/** Order-independent identity of a card config (normalised), to compare what HA hands back with what we sent. */
+const configKey = (c: CardConfig): string => JSON.stringify(c, (_k, v: unknown) =>
+  v && typeof v === "object" && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b))) : v);
+
 @customElement("weekly-planner-card-editor")
 export class WeeklyPlannerCardEditor extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
@@ -39,9 +46,27 @@ export class WeeklyPlannerCardEditor extends LitElement {
   private _domainLoadKey = "";
   private _domainLocalize?: DomainLocalize;
 
+  /** Last config sent to Home Assistant, and the one it replaced, for a short while (see setConfig). */
+  private _sent?: { config: string; previous: string; until: number; resent: number };
+
   setConfig(config: CardConfig): void {
-    if (this._config.program !== config.program) { this._editing = null; this._createdName = ""; this._createdProgramId = null; }
-    this._config = { ...normalizeConfig(config) };
+    const next = normalizeConfig(config);
+    // Home Assistant's edit dialog re-renders with the config it stored *before* our config-changed when a hass
+    // update lands in the same WebSocket frame (e.g. right after creating a program): hui-card-element-editor then
+    // hands us that stale config. Keep our choice and send it again, so HA stores the new one.
+    const sent = this._sent;
+    if (sent && Date.now() < sent.until) {
+      const key = configKey(next);
+      if (key === sent.config) return;
+      if (key === sent.previous && sent.resent < 5) {
+        sent.resent += 1;
+        this._dispatch(this._config);
+        return;
+      }
+    }
+    this._sent = undefined;
+    if (this._config.program !== next.program) { this._editing = null; this._createdName = ""; this._createdProgramId = null; }
+    this._config = { ...next };
   }
 
   private get _lang() { return langOf(this.hass); }
@@ -200,7 +225,12 @@ export class WeeklyPlannerCardEditor extends LitElement {
   private _emit(input: CardConfig): void {
     // First user change writes the full effective configuration, so the YAML matches what the editor shows.
     const config = withDefaults(input);
+    this._sent = { config: configKey(config), previous: configKey(this._config), until: Date.now() + ECHO_GUARD_MS, resent: 0 };
     this._config = config;
+    this._dispatch(config);
+  }
+
+  private _dispatch(config: CardConfig): void {
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
   }
 

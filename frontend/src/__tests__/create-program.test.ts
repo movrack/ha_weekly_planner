@@ -57,6 +57,36 @@ describe("after creating a program", () => {
     expect(c.filter?.types).toContain("light");
     expect(c.filter?.programs).toContain("new1");
   });
+  // Home Assistant's edit dialog re-renders with the card config it stored before our config-changed (a hass update
+  // arriving in the same WebSocket frame as the save result): hui-card-element-editor then calls setConfig with
+  // that stale config. The editor must keep its own choice and tell HA again.
+  const staleEcho = (start: CardConfig, expectEmitted: (c: CardConfig) => void) => {
+    const { ed, emitted, save } = cardEditor(start);
+    const before = { ...ed._config };
+    save();
+    const sent = emitted().length;
+    ed.setConfig(before); // stale re-render of the dialog
+    ed.setConfig(before); // a second one (HA fires config-changed twice)
+    expect(emitted().length).toBeGreaterThan(sent);
+    expectEmitted(emitted().at(-1));
+    expectEmitted(ed._config);
+    ed.setConfig(emitted().at(-1)); // HA now echoes the new config
+    expectEmitted(ed._config);
+    expect(ed._editing).toBe("new1");
+    expect(ed._createdName).toBe("Created");
+    return ed;
+  };
+  it("single-program mode survives Home Assistant echoing the previous config", () => {
+    staleEcho({ type: "x", program: "old" }, (c) => expect(c.program).toBe("new1"));
+  });
+  it("list mode survives Home Assistant echoing the previous config", () => {
+    staleEcho({ type: "x", filter: { programs: ["old"] } }, (c) => expect(c.filter?.programs).toEqual(["old", "new1"]));
+  });
+  it("a different config set from outside (YAML) still wins", () => {
+    const ed = staleEcho({ type: "x", program: "old" }, (c) => expect(c.program).toBe("new1"));
+    ed.setConfig({ type: "x", program: "other" });
+    expect(ed._config.program).toBe("other");
+  });
   it("list mode showing everything stays as is", () => {
     const { emitted, save } = cardEditor({ type: "x", filter: {} });
     save();

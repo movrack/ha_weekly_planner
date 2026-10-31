@@ -6,12 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-31
+
 ### Added
 - Schedule screen: a bin button next to the pencil deletes the chosen setting after a plain confirmation (it disappears for every device). A setting still used by a program is refused with the names of those programs.
 
 ### Fixed
 - Create program: "The name is required." now appears under the Name field (focused and highlighted), the missing-device message under the device picker, and a server error just above the Create button; errors are 16 px, higher contrast, and clear when the field is edited.
-- Create program: after creating, the card editor selects the created program in the mode in use (Single program: `program` set to it; Filtered list: added to the list so it is shown) and "Program to edit" points to it, even if a data update arrives late.
+- Create program: after creating, the card editor selects the created program in the mode in use (Single program: `program` set to it; Filtered list: added to the list so it is shown) and "Program to edit" points to it, even if a data update arrives late. In Home Assistant the choice was undone at once (the YAML kept the old `program` or id list, the selector went back to the old program): the edit dialog handed the editor its previous card config again; the editor now keeps its choice and sends it again.
 - Day chart: the shading of the periods when the device was on was missing under a setting without a number ("Turn off", "Close") while the legend still named it, was only a few pixels high when the planned value sat at the bottom of the axis, and was missing outside any planned setting. It is now a full-height translucent band with a solid strip along the time axis, in one colour that stays visible in light and dark themes, drawn under the curves and at least 3 px wide.
 - Day chart: a cover counts as active while it is open or moving (not only during the seconds it moves).
 - Day chart legend: "On or open" with a swatch identical to the band (was a grey square named "Active").
