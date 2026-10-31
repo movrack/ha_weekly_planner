@@ -4968,10 +4968,20 @@ let O = class extends j {
   }
   _expand(t, e, i, s = {}) {
     var r;
-    this._editProfileId = ((r = this._modeProfile(e)) == null ? void 0 : r.id) ?? null, this._open = t, this._programId = e.id, this._group = i ? structuredClone(i) : null, this._restLabel = s.restLabel ?? null, this._rest = s.rest ?? null, this._dayOnly = s.dayOnly ?? null, this._openId = s.openId ?? null, this._base = null, this._origin = s.origin ? structuredClone(s.origin) : null, this._overrides = [], this._labelDraft = null, this._dropBusy = !1, this._draft = structuredClone(e), this._error = "", this._note = "", this.updateComplete.then(() => requestAnimationFrame(() => {
-      var n;
-      return (n = this.renderRoot.querySelector(".editor")) == null ? void 0 : n.scrollIntoView({ block: "start" });
-    }));
+    this._editProfileId = ((r = this._modeProfile(e)) == null ? void 0 : r.id) ?? null, this._open = t, this._programId = e.id, this._group = i ? structuredClone(i) : null, this._restLabel = s.restLabel ?? null, this._rest = s.rest ?? null, this._dayOnly = s.dayOnly ?? null, this._openId = s.openId ?? null, this._base = null, this._origin = s.origin ? structuredClone(s.origin) : null, this._overrides = [], this._labelDraft = null, this._dropBusy = !1, this._draft = structuredClone(e), this._error = "", this._note = "", this.updateComplete.then(() => requestAnimationFrame(() => this._revealEditor()));
+  }
+  /** Brings the opened editor into view. In two columns the schematic sits beside it: scroll only if the editor's top is out of view. */
+  _revealEditor() {
+    var n, o;
+    const t = this.renderRoot.querySelector(".editor");
+    if (!t) return;
+    const e = typeof matchMedia == "function" && matchMedia("(min-width: 768px)").matches, i = (o = (n = this.renderRoot.querySelector("wp-dialog")) == null ? void 0 : n.shadowRoot) == null ? void 0 : o.querySelector(".content");
+    if (!e || !i) {
+      t.scrollIntoView({ block: "start" });
+      return;
+    }
+    const s = t.getBoundingClientRect(), r = i.getBoundingClientRect();
+    s.top >= r.top && s.top < r.bottom || (i.scrollTop += s.top - r.top);
   }
   /** Opens a slot row: the whole group, or only the focused day of it. */
   _openRow(t, e, i) {
@@ -5433,6 +5443,8 @@ O.styles = [pt, q`
       .area-chart { grid-area: chart; min-width: 0; }
       .area-delete { grid-area: delete; min-width: 0; }
       .area-delete .btn.alone { margin-top: 0; }
+      /* Hidden while a slot editor is open (nothing rendered): no empty grid cell. */
+      .area-chart:empty, .area-delete:empty { display: none; }
     }
     .mode-select { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
     .mode-select select { flex: 1; min-width: 0; min-height: 44px; }
