@@ -34,6 +34,8 @@ from .perf_data import ENTITIES_PER_PROGRAM, PROGRAMS, big_program, big_programs
 
 pytestmark = pytest.mark.performance
 
+CONDITIONED = 20  # programs of ``big`` with a slot condition on an unknown sensor
+
 # Wall-clock ceilings in seconds for the BEST of N runs. "measured" = median on the reference machine
 # (0.19.0 value before the per-pass cache and yielding, in brackets).
 BUDGETS = {
@@ -49,7 +51,11 @@ BUDGETS = {
 OPS = {
     "program_status_occurrences": 60,      # occurrence() calls for one 4-entity program_status = 9 days x 6 slots; measured 54 [222]
     "check_program_day_calls": 100,        # day_occurrences() calls to validate one big program (3 modes x 8 days x 4 fixed slots = 96)
-    "recompute_resolve_per_entity": 3,     # resolve_entity() per managed entity in a recompute; measured 3.0
+    "recompute_resolve_per_entity": 3,     # resolve_entity() per managed entity in a recompute (day time); measured 3.0
+    # next_action resolves once more at every upcoming edge that changes nothing (start and end of a slot
+    # whose condition is false): between 23:00 and 00:30 the 20 conditioned programs (80 entities) cross
+    # both edges of their 00:30-02:00 slot first; measured 760 = 600 + 80 x 2.
+    "recompute_resolve_extra_per_silent_edge": 1,
     "recompute_occurrences": 3000,         # occurrence() calls for a whole recompute (+ timer + publication) = 50 x 9 days x 6; measured 2700 [~16 800]
 }
 BUDGET_CALLBACK_S = 0.05  # no single loop callback of ours may hold Home Assistant longer than this
@@ -108,9 +114,15 @@ async def big(hass, hass_storage):
     frozen = freeze_time(engine_start())
     factory = frozen.start()
     try:
-        eng = await setup(hass, hass_storage, factory, big_programs(conditioned=20), None)
+        eng = await setup(hass, hass_storage, factory, big_programs(conditioned=CONDITIONED), None)
     finally:
         frozen.stop()
+    # The engine's timer was armed on the simulated clock; once released it could fire in the middle of a
+    # measured section (it does when the monotonic clock is past it) and add a whole recompute to the
+    # counts. Each test triggers its own work.
+    if eng._timer:  # noqa: SLF001
+        eng._timer()  # noqa: SLF001
+        eng._timer = None  # noqa: SLF001
     return eng
 
 
@@ -118,6 +130,18 @@ def engine_start():
     from .helpers import local
 
     return local(26, 9, 0)
+
+
+# Operation counts depend on the time of day (which slot edges come next), so they are taken at fixed
+# simulated moments, never on the real clock (a recompute at 23:05 counted 760 instead of 600 on CI).
+DAY = (26, 9, 1)
+NIGHT = (26, 23, 30)
+
+
+def frozen_at(moment: tuple[int, int, int]):
+    from .helpers import local
+
+    return freeze_time(local(*moment))
 
 
 # ------------------------------------------------------------------ (a) timeline / resolver
@@ -160,7 +184,8 @@ async def test_program_status_all(big):
 async def test_status_occurrence_work_is_bounded(big, monkeypatch):
     """One program_status = one next_action sweep per entity; occurrences are shared per program."""
     counter = Counter(monkeypatch, timeline, "occurrence")
-    big.program_status("p0")
+    with frozen_at(DAY):
+        big.program_status("p0")
     # 9 days x 6 slots, each placed once per status (see OPS); 0.19.0 placed 222.
     print("[ops] program_status occurrences", counter.count)
     assert counter.count <= OPS["program_status_occurrences"], counter.count
@@ -227,17 +252,28 @@ async def test_recompute_after_state_change(big):
 async def test_recompute_occurrence_work_is_bounded(big, monkeypatch):
     """A recompute places each day of each program once (one cache per pass), whatever the lookups."""
     counter = Counter(monkeypatch, timeline, "occurrence")
-    await big.async_recompute("tick")
+    with frozen_at(DAY):
+        await big.async_recompute("tick")
     print("[ops] recompute occurrences", counter.count)
     assert counter.count <= OPS["recompute_occurrences"], counter.count
 
 
-async def test_recompute_resolutions_per_entity_are_bounded(big, monkeypatch):
-    """A recompute resolves each managed entity a bounded number of times (segment + 2 next_action sweeps)."""
+@pytest.mark.parametrize(("moment", "silent_edges"), [(DAY, 0), (NIGHT, CONDITIONED * ENTITIES_PER_PROGRAM * 2)],
+                         ids=["day", "night"])
+async def test_recompute_resolutions_per_entity_are_bounded(big, monkeypatch, moment, silent_edges):
+    """A recompute resolves each managed entity a bounded number of times: segment, then next_action's
+    current segment and first changing edge, plus one per upcoming edge that changes nothing.
+
+    At night the next edges of the conditioned programs are the start and end of a slot whose condition
+    is false (``binary_sensor.late<i>`` is unknown): two silent edges for each of their entities.
+    """
     counter = Counter(monkeypatch, engine_module, "resolve_entity")
-    await big.async_recompute("tick")
-    print("[ops] recompute resolve_entity", counter.count)
-    assert counter.count <= OPS["recompute_resolve_per_entity"] * PROGRAMS * ENTITIES_PER_PROGRAM, counter.count
+    with frozen_at(moment):
+        await big.async_recompute("tick")
+    print("[ops] recompute resolve_entity", moment, counter.count)
+    bound = (OPS["recompute_resolve_per_entity"] * PROGRAMS * ENTITIES_PER_PROGRAM
+             + OPS["recompute_resolve_extra_per_silent_edge"] * silent_edges)
+    assert counter.count <= bound, counter.count
 
 
 # ------------------------------------------------------------------ (f) event loop stays responsive

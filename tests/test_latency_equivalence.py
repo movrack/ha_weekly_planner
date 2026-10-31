@@ -14,7 +14,7 @@ from datetime import timedelta
 from typing import Any
 
 import pytest
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import Event, HomeAssistant, ServiceCall, callback
 from homeassistant.util import dt as dt_util
 
 import custom_components.weekly_planner as integration
@@ -219,7 +219,14 @@ async def _scenario(hass, hass_storage, freezer, monkeypatch, log: CallLog, engi
     log.failures = 0
     _states(hass)
     events: list[tuple] = []
-    unlisten = hass.bus.async_listen(f"{DOMAIN}_event", lambda e: events.append(repr(sorted(e.data.items()))))
+
+    # A @callback runs on the event loop, in firing order. A plain function (or lambda) would be an
+    # executor job: the worker threads append in any order, and the trace flakes ("step N, events").
+    @callback
+    def record(event: Event) -> None:
+        events.append(repr(sorted(event.data.items())))
+
+    unlisten = hass.bus.async_listen(f"{DOMAIN}_event", record)
     # No debounce: every condition change takes effect at once and starts its own recompute.
     engine = await setup(hass, hass_storage, freezer, varied_programs(), local(26, 5, 50), debounce_min=0)
     assert type(engine) is engine_cls
