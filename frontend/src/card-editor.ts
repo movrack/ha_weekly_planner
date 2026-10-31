@@ -9,7 +9,7 @@ import { syncSelectValues } from "./select-value";
 import { programAreas } from "./program-areas";
 import { domainIcon, programDomains, type DomainLocalize } from "./domains";
 import { normalizeConfig, withDefaults } from "./config";
-import { allPrograms, isOn, toggleAllOff, toggleProgram, toggleType, typeGroups, typeState, type FilterConfig, type FilterPatch } from "./filter-editor";
+import { allPrograms, isOn, selectCreated, toggleAllOff, toggleProgram, toggleType, typeGroups, typeState, type FilterConfig, type FilterPatch } from "./filter-editor";
 import { t } from "./i18n";
 import type { CardConfig, HomeAssistant, PlannerData, Program } from "./types";
 import { editorStyles, langOf } from "./editors/shared";
@@ -56,11 +56,22 @@ export class WeeklyPlannerCardEditor extends LitElement {
     syncSelectValues(this.renderRoot);
     this._loadDomainNames();
     if (this.isConnected && this.hass && !this._unsub) {
-      this._unsub = subscribePlanner(this.hass, (data) => {
-        this._data = data;
-        this._programs = data.programs.map((p) => ({ id: p.id, name: p.name }));
-      });
+      this._unsub = subscribePlanner(this.hass, (data) => this._setData(data));
     }
+  }
+
+  /** The program just created, until a pushed snapshot includes it (a snapshot sent before the save would drop it
+   *  and the card would fall back to another program). */
+  private _justCreated?: Program;
+
+  private _setData(data: PlannerData): void {
+    const created = this._justCreated;
+    if (created) {
+      if (data.programs.some((p) => p.id === created.id)) this._justCreated = undefined;
+      else data = { ...data, programs: [...data.programs, created] };
+    }
+    this._data = data;
+    this._programs = data.programs.map((p) => ({ id: p.id, name: p.name }));
   }
 
   /** HA owns domain names and their translations, including domains unknown to this card. */
@@ -108,9 +119,13 @@ export class WeeklyPlannerCardEditor extends LitElement {
       this._editors.delete(previous);
       this._editors.set(program.id, editor);
     }
-    if (this._data) this._data = { ...this._data, programs: [...this._data.programs.filter((p) => p.id !== program.id), program] };
-    this._programs = this._data?.programs.map((p) => ({ id: p.id, name: p.name })) ?? [];
-    if (wasSelected && (selected === "new" || selected !== program.id)) {
+    const creating = wasSelected && selected === "new";
+    if (this._data) this._setData({ ...this._data, programs: [...this._data.programs.filter((p) => p.id !== program.id), program] });
+    if (creating) this._justCreated = program;
+    if (creating) {
+      // The new program is known locally before the next push: select it now, in the mode the card is in.
+      this._emit(selectCreated(this._config, this._data?.programs ?? [program], program));
+    } else if (wasSelected && selected !== program.id) {
       const config = { ...this._config, program: program.id };
       delete config.filter;
       this._emit(config);
@@ -133,6 +148,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
         e.stopPropagation();
         const id = (e as CustomEvent<string>).detail;
         this._editors.delete(id);
+        if (this._justCreated?.id === id) this._justCreated = undefined;
         this._editing = "";
         if (this._config.program === id) this._setMode(false);
       });

@@ -78,3 +78,17 @@ export const allPrograms = (): { types: undefined; programs: undefined } => ({ t
 export function toggleAllOff(programs: Program[], filter?: FilterConfig): FilterPatch {
   return build(programs, filter, new Set(), []);
 }
+
+/** Card config after creating `created`: it must be what the card shows. Single-program mode points to it; list
+ *  mode keeps its mode and only widens the filter (id list, types, area) when it would otherwise hide the new program. */
+export function selectCreated<T extends { program?: string; filter?: FilterConfig }>(config: T, programs: Program[], created: Program): T {
+  if (config.program !== undefined) {
+    const { filter: _drop, ...rest } = config;
+    return { ...rest, program: created.id } as T;
+  }
+  const all = programs.some((p) => p.id === created.id) ? programs : [...programs, created];
+  let filter: FilterConfig = { ...(config.filter ?? {}) };
+  if (filter.area && created.area !== filter.area) delete filter.area;
+  if (!isOn(created, filter, all)) filter = { ...filter, ...toggleProgram(all, filter, created.id, true) };
+  return { ...config, filter } as T;
+}

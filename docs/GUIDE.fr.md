@@ -228,9 +228,13 @@ Voir [la création S37](SCREENS.fr.md#s37), [la pièce S40](SCREENS.fr.md#s40) e
 Pour commencer, toucher **Nouveau programme**, donner un nom et ajouter un
 appareil. **Aucune commande n’est cochée au départ** : choisir celles que l’on veut
 retrouver dans les réglages. Lire leur description si le nom n’est pas clair.
-Ajouter un deuxième appareil est facultatif. Toucher **Créer le programme**.
+Ajouter un deuxième appareil est facultatif. Toucher **Créer le programme**. Si le nom
+ou l’appareil manque, le message s’affiche juste sous le champ concerné et le champ
+est mis en évidence ; il disparaît dès qu’on le corrige.
 
-Le nouveau programme est alors sélectionné automatiquement. Toucher **Définir
+Le nouveau programme est alors sélectionné automatiquement : en mode **Un seul
+programme**, la carte le montre ; en **liste filtrée**, il est ajouté à la liste
+affichée. **Programme à modifier** le désigne. Toucher **Définir
 les horaires** pour continuer directement. Si aucune commande n’a encore été
 choisie, les régler plus tard dans **Réglages des programmes → Appareils →
 Actions proposées**. Enregistrer aussi la carte pour garder sa présentation.

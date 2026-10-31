@@ -47,7 +47,10 @@ export const editorStyles = css`
   :is(button, input, select, textarea, [tabindex]):focus-visible {
     outline: 2px solid var(--primary-color); outline-offset: 2px;
   }
-  .error { color: var(--error-color, #db4437); margin: 8px 0; }
+  .error { color: var(--error-color, #db4437); color: color-mix(in srgb, var(--error-color, #db4437) 65%, var(--primary-text-color, #000));
+    font-size: 16px; font-weight: 500; margin: 8px 0; }
+  .field-error { margin: 2px 0 4px; }
+  input[aria-invalid="true"] { border-color: var(--error-color, #db4437); border-width: 2px; }
   .hint { display: flex; align-items: center; gap: 4px; --mdc-icon-size: 16px; color: var(--secondary-text-color); font-size: 12px; margin: 4px 0; }
   .card {
     border: 1px solid var(--divider-color); border-radius: 12px; padding: 8px 12px; margin: 8px 0;
