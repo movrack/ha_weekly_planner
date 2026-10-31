@@ -36,6 +36,8 @@ export class WpLabelPicker extends LitElement {
   @property({ type: Boolean }) disabled = false;
   /** The strip under a bar: no label creation. */
   @property({ type: Boolean }) compact = false;
+  /** Settings can be chosen but not configured: no pencil, no "new setting", no form (the strip under a bar). */
+  @property({ type: Boolean, attribute: "readonly-settings" }) readonlySettings = false;
   /** Inside a form that has its own Save / Cancel: the label form has no buttons and reports `label-draft`. */
   @property({ type: Boolean }) embedded = false;
 
@@ -238,11 +240,11 @@ export class WpLabelPicker extends LitElement {
         <div class="dhead">
           <i class="dot" style="background:${chosen.color}"></i><b>${chosen.name}</b>
           ${labelUsers(this.data, chosen.id).some((n) => n !== this.program.name) ? html`<span class="shared">${t(lang, "shared")}</span>` : nothing}
-          <button class="pen ${this._form ? "on" : ""}" aria-label=${t(lang, "rename_label")} title=${t(lang, "rename_label")}
+          ${this.readonlySettings ? nothing : html`<button class="pen ${this._form ? "on" : ""}" aria-label=${t(lang, "rename_label")} title=${t(lang, "rename_label")}
             aria-pressed=${this._form} ?disabled=${this.disabled}
-            @click=${() => (this._form && this._editId ? this._close() : this._open(true))}><ha-icon icon="mdi:pencil"></ha-icon></button>
+            @click=${() => (this._form && this._editId ? this._close() : this._open(true))}><ha-icon icon="mdi:pencil"></ha-icon></button>`}
         </div>
-        ${this._form ? nothing : html`
+        ${this._form && !this.readonlySettings ? nothing : html`
           <div class="sum"><span class="what">${actionSummary(this.hass, lang, chosen.action, this.entityIds[0])}</span></div>
           ${this.entityIds.map((eid) => {
             const own = hasOverride(this.program, eid, chosen.id) ? entityAction(this.program, eid, chosen) : undefined;
@@ -250,7 +252,7 @@ export class WpLabelPicker extends LitElement {
               <span class="what">${actionText(this.hass, lang, own)}</span>
               ${this.entityIds.length > 1 ? html`<span class="who">${friendlyName(this.hass, eid)}</span>` : nothing}</div>` : nothing;
           })}`}
-        ${this._form && this._editId ? this._renderForm() : nothing}
+        ${this._form && this._editId && !this.readonlySettings ? this._renderForm() : nothing}
       </div>`;
   }
 
@@ -267,12 +269,12 @@ export class WpLabelPicker extends LitElement {
         ${this.allowNone ? chip(t(lang, "rest_none"), this.value === null, () => this._choose(null)) : nothing}
         ${labels.map((l) => chip(l.name, l.id === this.value, () => this._choose(l.id), l.color))}
         ${this.value && !chosen ? chip("?", true, () => undefined) : nothing}
-        ${this.compact ? nothing : html`<button class="chip add ${this._form && !this._editId ? "on" : ""}" ?disabled=${this.disabled}
+        ${this.compact || this.readonlySettings ? nothing : html`<button class="chip add ${this._form && !this._editId ? "on" : ""}" ?disabled=${this.disabled}
           @click=${() => (this._form && !this._editId ? this._close() : this._open(false))}>
           <ha-icon icon="mdi:plus"></ha-icon><span>${t(lang, "lb_new")}</span></button>`}
       </div>
-      ${this._form && !this._editId ? this._renderForm() : nothing}
-      ${chosen && !(this._form && !this._editId) ? this._renderDetails(chosen) : nothing}`;
+      ${this._form && !this._editId && !this.readonlySettings ? this._renderForm() : nothing}
+      ${chosen && !(this._form && !this._editId && !this.readonlySettings) ? this._renderDetails(chosen) : nothing}`;
   }
 
   static styles = [editorStyles, css`

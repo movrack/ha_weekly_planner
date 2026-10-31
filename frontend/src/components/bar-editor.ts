@@ -534,14 +534,13 @@ export class WpBarEditor extends LitElement {
     const ctx = this._ctx(() => id);
     const res = splitAt(this._day, target, ctx);
     if (!res) return;
-    this._keep.add(id);
-    if (target.kind === "slot") this._keep.add(target.id);
+    if (target.kind === "gap") this._keep.add(id);
     this._hsel = res.handle;
     void this._commit((days) => {
       const r = splitAt(days[this.weekday], target, this._ctx(() => id));
       return r ? this._with(days, this.weekday, r.slots) : null;
     }, [this.weekday]).then(() => {
-      void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(`[data-h="${id}:start"]`)?.focus());
+      void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(`[data-h="${res.handle.id}:${res.handle.edge}"]`)?.focus());
     });
     if (target.kind === "gap") this._selected = { kind: "slot", id };
   }
@@ -644,8 +643,6 @@ export class WpBarEditor extends LitElement {
     const canCut = sel.end !== null && (sel.slot ? Boolean(sel.slot.end) : Boolean(ctx.defaultLabel)) && middle(sel.start, sel.end) !== null;
     const days = strings(lang).days_short;
     return html`<div class="strip" role="group">
-      <wp-label-picker compact .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${[this.entityId]}
-        .value=${sel.slot?.label ?? null} @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._pickLabel(e.detail); }}></wp-label-picker>
       <div class="acts">
         ${sel.slot ? html`<button class="act" @click=${() => void this._nothing()}><ha-icon icon="mdi:close-circle-outline"></ha-icon>${t(lang, "rest_none_short")}</button>` : nothing}
         <button class="act" ?disabled=${!canCut} aria-label=${t(lang, "cut")} title=${t(lang, "cut")} @click=${() => this._cut()}>
@@ -659,6 +656,10 @@ export class WpBarEditor extends LitElement {
         <button class="act go" ?disabled=${!this._copyDays.length} aria-label=${t(lang, "copy_go")} title=${t(lang, "copy_go")}
           @click=${() => this._copyGo()}><ha-icon icon="mdi:check"></ha-icon>${t(lang, "copy_go")}</button>
       </div>` : nothing}
+      <div class="pick">
+        <wp-label-picker compact readonly-settings .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${[this.entityId]}
+          .value=${sel.slot?.label ?? null} @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._pickLabel(e.detail); }}></wp-label-picker>
+      </div>
     </div>`;
   }
 
@@ -748,7 +749,8 @@ export class WpBarEditor extends LitElement {
     }
     .strip { margin: 4px 0 8px; padding: 8px; border: 1px solid var(--divider-color); border-radius: 12px; }
     .strip wp-label-picker { --mdc-icon-size: 18px; }
-    .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .acts { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pick { margin-top: 8px; }
     .act {
       display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; min-width: 48px; padding: 0 14px;
       border-radius: 24px; border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color);
