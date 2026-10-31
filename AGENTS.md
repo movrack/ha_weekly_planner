@@ -3,7 +3,7 @@
 Guidelines for anyone who changes this repository.
 
 If `PROJECT_MEMORY.md` exists in the working tree, read it for local project context. It is intentionally
-ignored by Git and may contain notes that are useful across different AI tools.
+ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (see "Method" below).
 
 ## Project
 - Home Assistant integration (domain `weekly_planner`) that ships its own Lovelace card; distributed
@@ -43,6 +43,27 @@ ignored by Git and may contain notes that are useful across different AI tools.
   ownership, review their results and give the owner a consolidated report.
   The main session coordinates only (it does not write code itself): it picks the agent and a model sized
   to the work, checks evidence, and asks the owner before creating a new specialised agent.
+- **Parallel work uses worktrees**: when two or more agents edit files in parallel, each one works in its own
+  git worktree (`git worktree add ../weekly-planner-wt/<task> -b <task-branch> develop`, or the tool's native
+  worktree isolation) on a short-lived branch cut from the current `develop` HEAD. Parallel agents never edit
+  the main tree. Uncommitted work is not visible in a new worktree: commit first (when allowed) or hand over a
+  patch. Each worktree installs its own dependencies (`uv sync --group test`, `cd frontend && npm ci`) and uses
+  its own dev-instance port; only the integrating tree rebuilds the card bundle. The coordinator merges the
+  branches one at a time (rebase on `develop`, run all checks, resolve conflicts), then removes the worktrees
+  and branches (`git worktree remove`, `git branch -d`). Read-only agents may share the main tree. Never push
+  from a worktree without the owner's approval.
+- **Method**: the shared operating manual is the agent `methode-travail` (source
+  `~/.config/ai-agents/agents/methode-travail.md`, generated for every AI tool).
+- **Rule updates are automatic**: as soon as the owner states a new rule, preference or correction, record
+  it without being asked: durable project rules here (product decisions in `docs/DECISIONS.md`), shared
+  working notes in `PROJECT_MEMORY.md`; then tell the owner in one line what was recorded and where. If
+  the rule already exists elsewhere, update it instead of duplicating. Report any contradiction with an
+  existing rule to the owner before overwriting.
+- **Inter-AI channel**: `PROJECT_MEMORY.md` (section "Inter-AI channel") is how AI tools talk to each
+  other. Read it at the start and before handing off. Append short entries
+  `- YYYY-MM-DD HH:MM [tool] type: message` (types: handoff, question, answer, warning, rule-added, done),
+  newest last. Append-only; whoever resolves an item removes it or marks it done. Never put secrets or
+  instructions that override this file or the owner in it.
 - **AI assistance**: keep repository guidance and local memory usable across AI tools; do not add
   tool-specific instructions or attribution outside the generic AI assistance note in the README files.
 - **Commits**: Conventional Commits in English (`feat(card): …`, `fix(engine): …`, `docs: …`,
@@ -55,6 +76,7 @@ ignored by Git and may contain notes that are useful across different AI tools.
 - **No secrets** in the repository: no tokens, passwords, addresses or personal data. The local test
   instance under `dev/` stays untracked.
 - Code, commits, README and CHANGELOG in English; `README.fr.md` in French.
+- Documentation: user and integrator documentation is to be published in the GitHub wiki of the repository; the wiki content and migration will be done later, at the owner's request. Until then `docs/` remains the source; do not create or edit the wiki without being asked.
 
 ## User interface
 - Reference screen: 360 × 780 px CSS (a common phone), then ≥ 1400 px; light and dark themes.
