@@ -1,6 +1,6 @@
 # Native entity actions
 
-Weekly Planner 0.16.2 discovers services and fields from Home Assistant metadata
+Weekly Planner 0.21.0 discovers services and fields from Home Assistant metadata
 and entity attributes. It has no catalogue of supported brands or device types.
 The UI calls scheduled entities “devices”; they remain HA entity IDs.
 
