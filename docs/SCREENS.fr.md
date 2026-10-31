@@ -173,7 +173,7 @@ Suite de l’écran :
 
 ## S09 — Utiliser le soleil
 
-Les choix Lever et Coucher remplacent l’heure fixe par un événement solaire. Les boutons − et + changent son décalage.
+Les choix Lever et Coucher remplacent l’heure fixe par un événement solaire. Les boutons − et + changent son décalage. Les champs facultatifs **Au plus tôt à** et **Au plus tard à** empêchent l’heure de sortir d’une plage ; une phrase dessous donne l’heure réelle (« coucher du soleil + 30 min, mais pas avant 18:00 ni après 19:00 ») et le résultat d’aujourd’hui.
 
 <a href="images/guide/s09-solar-slot.png"><img src="images/guide/s09-solar-slot.png" width="320" alt="S09 — Utiliser le soleil" /></a>
 
