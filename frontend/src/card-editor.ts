@@ -7,7 +7,9 @@ import type { WpProgramEditor } from "./editors/program-editor";
 import { subscribePlanner } from "./planner";
 import { syncSelectValues } from "./select-value";
 import { programAreas } from "./program-areas";
-import { domainChoices, programDomains, type DomainLocalize } from "./domains";
+import { programDomains, type DomainLocalize } from "./domains";
+import { normalizeConfig, withDefaults } from "./config";
+import { allPrograms, isOn, toggleAllOff, toggleProgram, toggleType, typeGroups, typeState, type FilterConfig } from "./filter-editor";
 import { t } from "./i18n";
 import type { CardConfig, HomeAssistant, PlannerData, Program } from "./types";
 import { editorStyles, langOf } from "./editors/shared";
@@ -21,6 +23,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
   @state() private _data?: PlannerData;
   @state() private _section: "display" | "programs" = "display";
   @state() private _editing: string | null = null;
+  @state() private _openTypes = new Set<string>();
   @state() private _createdName = "";
   @state() private _createdProgramId: string | null = null;
   @state() private _scheduleProgramId: string | null = null;
@@ -33,7 +36,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
 
   setConfig(config: CardConfig): void {
     if (this._config.program !== config.program) { this._editing = null; this._createdName = ""; this._createdProgramId = null; }
-    this._config = { ...config };
+    this._config = { ...normalizeConfig(config) };
   }
 
   private get _lang() { return langOf(this.hass); }
@@ -163,7 +166,9 @@ export class WeeklyPlannerCardEditor extends LitElement {
     void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>("#ce-settings-program")?.focus());
   }
 
-  private _emit(config: CardConfig): void {
+  private _emit(input: CardConfig): void {
+    // First user change writes the full effective configuration, so the YAML matches what the editor shows.
+    const config = withDefaults(input);
     this._config = config;
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
   }
@@ -195,29 +200,64 @@ export class WeeklyPlannerCardEditor extends LitElement {
 
   private _setFilter(patch: { types?: string[]; area?: string; programs?: string[] }): void {
     const filter = { ...(this._config.filter ?? {}), ...patch };
+    for (const k of ["types", "programs"] as const) if (filter[k] === undefined) delete filter[k];
     if (!filter.types?.length) delete filter.types;
     if (!filter.area) delete filter.area;
     const next = { ...this._config, filter } as CardConfig;
     this._emit(next);
   }
 
+  private _typeLabel(type: string): string {
+    return this.hass?.localize?.(`component.${type}.title`) || this._domainLocalize?.(`component.${type}.title`) || type;
+  }
+
+  private _switch(checked: boolean, label: string, onChange: (on: boolean) => void, partial = false) {
+    return html`<ha-switch class=${partial ? "partial" : ""} .checked=${checked} aria-label=${label}
+      @change=${(e: Event) => onChange((e.target as HTMLInputElement).checked)}></ha-switch>`;
+  }
+
+  private _toggleType(type: string): void {
+    const open = new Set(this._openTypes);
+    if (!open.delete(type)) open.add(type);
+    this._openTypes = open;
+  }
+
   private _displayPrograms() {
-    const selected = this._config.filter?.programs;
-    const choices = [...this._programs];
-    for (const id of selected ?? []) {
-      if (!choices.some((p) => p.id === id)) choices.push({ id, name: id });
-    }
+    const filter = this._config.filter;
+    const programs = this._data?.programs ?? [];
+    const all = filter?.programs === undefined && !filter?.types?.length;
+    const { groups, orphans } = typeGroups(programs, filter, (ty) => this._typeLabel(ty), this._lang);
+    const byId = new Map(programs.map((p) => [p.id, p]));
+    const count = all ? this._tr("ce_all_programs") : String(programs.filter((p) => isOn(p, filter, programs)).length + orphans.length);
     return html`<details class="display-programs">
-      <summary>${this._tr("ce_display_programs")} · ${selected === undefined ? this._tr("ce_all_programs") : selected.length}</summary>
+      <summary>${this._tr("ce_display_programs")} · ${count}</summary>
       <p class="hint">${this._tr("ce_display_programs_hint")}</p>
-      <label class="check"><input type="checkbox" .checked=${selected === undefined}
-        @change=${(e: Event) => this._setFilter({ programs: (e.target as HTMLInputElement).checked ? undefined : choices.map((p) => p.id) })} />${this._tr("ce_all_programs")}</label>
+      <div class="switch-row"><span class="grow">${this._tr("ce_all_programs")}</span>
+        ${this._switch(all, this._tr("ce_all_programs"), (on) => this._setFilter(on ? allPrograms() : toggleAllOff(programs, filter)))}</div>
+      ${!groups.length && !orphans.length ? html`<p class="hint">${this._tr("ce_no_types")}</p>` : nothing}
       <div role="group" aria-label=${this._tr("ce_display_programs")}>
-        ${choices.map((p) => html`<label class="check"><input type="checkbox" .checked=${selected === undefined || selected.includes(p.id)}
-          @change=${(e: Event) => {
-            const ids = selected ?? choices.map((choice) => choice.id);
-            this._setFilter({ programs: (e.target as HTMLInputElement).checked ? [...new Set([...ids, p.id])] : ids.filter((id) => id !== p.id) });
-          }} />${p.name}</label>`)}
+        ${groups.map((g) => {
+          const state = typeState(g, programs, filter);
+          const open = this._openTypes.has(g.type);
+          const on = g.programs.filter((x) => isOn(byId.get(x.id)!, filter, programs)).length;
+          return html`<div class="type-group" data-type=${g.type}>
+            <div class="switch-row">
+              <button class="type-head" aria-expanded=${open} aria-controls=${`ce-type-${g.type}`} @click=${() => this._toggleType(g.type)}>
+                <ha-icon icon=${open ? "mdi:chevron-down" : "mdi:chevron-right"}></ha-icon>
+                <span class="grow">${g.label}</span>
+                <span class="muted">${this._tr("ce_type_count", { on: String(on), total: String(g.programs.length) })}</span>
+              </button>
+              ${this._switch(state !== "off", this._tr("ce_type_switch", { type: g.label }), (v) => this._setFilter(toggleType(programs, filter, g.type, v)), state === "partial")}
+            </div>
+            <div id=${`ce-type-${g.type}`} class="type-body" ?hidden=${!open}>
+              ${g.programs.length ? g.programs.map((p) => html`<div class="switch-row sub"><span class="grow">${p.name}</span>
+                ${this._switch(isOn(byId.get(p.id)!, filter, programs), p.name, (v) => this._setFilter(toggleProgram(programs, filter, p.id, v)))}</div>`)
+                : html`<p class="hint">${this._tr("ce_type_empty")}</p>`}
+            </div>
+          </div>`;
+        })}
+        ${orphans.length ? html`<div class="label">${this._tr("ce_other_programs")}</div>${orphans.map((id) => html`<div class="switch-row sub"><span class="grow">${id}</span>
+          ${this._switch(true, id, () => this._setFilter({ programs: (filter?.programs ?? []).filter((x) => x !== id) }))}</div>`)}` : nothing}
       </div>
     </details>`;
   }
@@ -231,10 +271,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
 
   render() {
     const c = this._config;
-    const types = c.filter?.types ?? [];
     const areas = programAreas(this._data?.programs ?? [], c.filter?.area);
-    const choices = domainChoices(programDomains(this._data?.programs ?? [], types), this._lang,
-      (key) => this.hass?.localize?.(key) || this._domainLocalize?.(key) || "");
     const display = html`
       ${this._createdName ? html`<div class="created-next-step"><p class="hint" role="status">${this._tr("ce_created", { name: this._createdName })}</p>
         <button class="btn primary" @click=${() => { this._scheduleProgramId = this._createdProgramId; }}><ha-icon icon="mdi:calendar-edit"></ha-icon>${this._tr("ce_define_schedule")}</button></div>` : nothing}
@@ -259,14 +296,6 @@ export class WeeklyPlannerCardEditor extends LitElement {
               ${c.program ? html`<button class="btn" @click=${() => { this._editing = c.program!; this._section = "programs"; }}><ha-icon icon="mdi:pencil"></ha-icon>${this._tr("ce_edit_selected")}</button>` : nothing}
             </div>` : nothing}</div>`
         : html`
-            <div class="label">${this._tr("ce_types")}</div>
-            <div class="row" role="group" aria-label=${this._tr("ce_types")}>
-              ${choices.map(({ id: ty, label }) => html`<label class="check" style="flex:1 1 150px"><input type="checkbox" .checked=${types.includes(ty)}
-                @change=${(e: Event) => this._setFilter({ types: (e.target as HTMLInputElement).checked ? [...types, ty] : types.filter((x) => x !== ty) })} />
-                ${label}</label>`)}
-            </div>
-            ${!choices.length ? html`<p class="hint">${this._tr("ce_no_types")}</p>` : nothing}
-            <p class="hint">${this._tr("ce_types_hint")}</p>
             <div class="field"><label for="ce-area">${this._tr("ce_area")}</label>
               <select id="ce-area" data-value=${c.filter?.area ?? ""} aria-describedby="ce-area-help"
                 @change=${(e: Event) => this._setFilter({ area: (e.target as HTMLSelectElement).value })}>
@@ -297,7 +326,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
         @closed=${(e: Event) => { e.stopPropagation(); this._scheduleProgramId = null; }}></wp-schedule>` : nothing}`;
   }
 
-  static styles = [editorStyles, css`:host { display: block; padding: 4px 0; } h3 { margin: 12px 0; font-size: 16px; } .program-settings { padding-top: 4px; } nav { display: flex; border-bottom: 1px solid var(--divider-color); margin-bottom: 12px; } nav button { flex: 1; min-height: 48px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--secondary-text-color); cursor: pointer; } nav button[aria-selected="true"] { color: var(--primary-color); border-bottom-color: var(--primary-color); font-weight: 600; } .hint { line-height: 1.5; } .display-programs { margin: 12px 0; border: 1px solid var(--divider-color); border-radius: 8px; padding: 8px 12px; } summary { min-height: 44px; align-content: center; cursor: pointer; } .display-programs .check { min-height: 44px; overflow-wrap: anywhere; } .program-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }`];
+  static styles = [editorStyles, css`:host { display: block; padding: 4px 0; } h3 { margin: 12px 0; font-size: 16px; } .program-settings { padding-top: 4px; } nav { display: flex; border-bottom: 1px solid var(--divider-color); margin-bottom: 12px; } nav button { flex: 1; min-height: 48px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--secondary-text-color); cursor: pointer; } nav button[aria-selected="true"] { color: var(--primary-color); border-bottom-color: var(--primary-color); font-weight: 600; } .hint { line-height: 1.5; } .display-programs { margin: 12px 0; border: 1px solid var(--divider-color); border-radius: 8px; padding: 8px 12px; } summary { min-height: 44px; align-content: center; cursor: pointer; } .display-programs .check { min-height: 44px; overflow-wrap: anywhere; } .switch-row { display: flex; align-items: center; gap: 8px; min-height: 48px; overflow-wrap: anywhere; } .switch-row.sub { padding-left: 28px; } .type-head { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; min-height: 48px; border: 0; background: none; color: inherit; text-align: start; cursor: pointer; } .type-body[hidden] { display: none; } ha-switch.partial { opacity: 0.6; --mdc-theme-secondary: var(--warning-color, #ffa600); } .program-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }`];
 }
 
 declare global {

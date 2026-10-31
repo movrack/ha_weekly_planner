@@ -144,6 +144,8 @@ export interface CardConfig {
   /** Deprecated: accepted and ignored (the week list is always collapsible); kept so existing YAML never breaks. */
   show_week?: boolean;
   show_chart?: boolean;
+  /** Optional: start with the day chart collapsed. */
+  chart_collapsed?: boolean;
   /** Deprecated: accepted and ignored; kept so existing YAML never breaks. */
   show_advanced?: boolean;
 }

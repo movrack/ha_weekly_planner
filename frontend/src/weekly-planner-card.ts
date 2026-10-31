@@ -16,11 +16,13 @@ import type { BarSpan } from "./components/day-bar";
 import { scopeKey } from "./components/schedule-dialog";
 import type { Scope } from "./components/schedule-dialog";
 import { nb } from "./actions";
+import { isChartOpen, loadChartChoices, openHistory, saveChartChoices } from "./chart-state";
 import { actionText, entityAction, labelOf } from "./labels";
 import { strings, t } from "./i18n";
 import { loadServiceNames } from "./services";
 import { reloadIfOutdated } from "./update";
 import { fetchPreview } from "./preview-cache";
+import { configDefaults, normalizeConfig } from "./config";
 import { activeProfile, filterPrograms, friendlyName, subscribePlanner } from "./planner";
 import { dayBounds, addDaysIso } from "./components/chart";
 import { formatWhen, localDateIso, localMinutes, localWeekday, nominal, spillover, DAY } from "./time";
@@ -43,6 +45,8 @@ export class WeeklyPlannerCard extends LitElement {
   @state() private _now = new Date();
   @state() private _week = new Set<string>();
   @state() private _expandedProgram: string | null = null;
+  /** Day charts shown on the card (key: scope|entity). Initial state from `chart_collapsed` (default collapsed); the choice is remembered per device. */
+  @state() private _charts = loadChartChoices();
   /** Bar being edited in place (null: none), and the "Changed · Undo" bar. */
   @state() private _edit: string | null = null;
   @state() private _snack: { undo: () => Promise<boolean> } | null = null;
@@ -58,11 +62,11 @@ export class WeeklyPlannerCard extends LitElement {
   }
 
   static getStubConfig() {
-    return { filter: {} };
+    return { filter: {}, ...configDefaults() };
   }
 
   setConfig(config: CardConfig): void {
-    this._config = { show_chart: true, ...config };
+    this._config = { show_chart: true, ...normalizeConfig(config) };
     if (this._data) void this._loadPreviews();
   }
 
@@ -359,6 +363,7 @@ export class WeeklyPlannerCard extends LitElement {
           ${this._bar(entityId, programs[0], 0, "today", open)}
         </div>`}
         ${this._weekRows(`${scopeKey(opts.open)}|${entityId}`, entityId, programs, opts.open)}
+        ${this._chartRow(`${scopeKey(opts.open)}|${entityId}`, entityId, programs[0])}
       </div>`;
   }
 
@@ -387,6 +392,28 @@ export class WeeklyPlannerCard extends LitElement {
             ${this._bar(entityId, programs[0], o, "week", openDay)}</div>`;
         })}
       </div>` : nothing}`;
+  }
+
+  /** Collapsible chart of today under the week bars (same component as the schedule screen; no history is fetched while collapsed). */
+  private _chartRow(key: string, entityId: string, program: Program) {
+    if (this._config.show_chart === false || !this._data) return nothing;
+    const lang = this._lang;
+    const open = isChartOpen(this._charts, key, this._config.chart_collapsed !== false);
+    const toggle = () => {
+      const next = new Map(this._charts);
+      next.set(key, !open);
+      this._charts = next;
+      saveChartChoices(next);
+    };
+    const date = localDateIso(this._now, this._tz);
+    const slots = this._preview[date]?.[program.id];
+    const previous = this._preview[addDaysIso(date, -1)]?.[program.id];
+    return html`
+      <button class="weekbtn chartbtn" aria-expanded=${open} @click=${toggle}>
+        <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>${t(lang, "chart")}</button>
+      ${open ? html`<div class="chartbox"><wp-chart .hass=${this.hass} .data=${this._data} .program=${program}
+        entity-id=${entityId} date=${date} .slots=${slots ? [...(previous ?? []), ...slots] : null}
+        @open-history=${(e: CustomEvent<string>) => openHistory(e.detail)}></wp-chart></div>` : nothing}`;
   }
 
   private _bySchedule(programs: Program[]) {
@@ -433,6 +460,7 @@ export class WeeklyPlannerCard extends LitElement {
             <div class="today"><span class="wname">${t(this._lang, "today_short")}</span>
               ${this._bar(e.entity_id, p, 0, "today", () => this._open(scope))}</div>
             ${this._weekRows(`${scopeKey(scope)}|${e.entity_id}`, e.entity_id, [p], scope)}
+            ${this._chartRow(`${scopeKey(scope)}|${e.entity_id}`, e.entity_id, p)}
           `)}
         </div>` : nothing}</section>`;
     });
@@ -527,6 +555,8 @@ export class WeeklyPlannerCard extends LitElement {
       display: inline-flex; align-items: center; gap: 4px; min-height: 48px; padding: 0 8px 0 0; border: none;
       background: none; color: var(--primary-color); font: inherit; font-size: 14px; cursor: pointer; --mdc-icon-size: 20px;
     }
+    .chartbtn { margin-top: 0; }
+    .chartbox { padding: 4px 0 8px; }
     .week { display: flex; flex-direction: column; gap: 0; padding-bottom: 4px; }
     .wday { display: flex; align-items: flex-start; gap: 8px; min-height: 48px; width: 100%; }
     .wnamebtn {
