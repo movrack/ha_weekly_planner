@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-10-31
+
+### Changed
+- Schedule screen on tablets and computers (from 768 px wide): two columns. Left: on/off switch, mode, the rest of the time, slots with Add, Delete. Right: the 7-day overview, then the day chart. The reading and keyboard order is unchanged; phones keep the single column.
+
+### Fixed
+- Day chart legend: the "Planned" symbol now shows the same filled dot as the start of each planned step, followed by the line.
+
 ## [0.20.0] - 2026-10-31
 
 ### Changed
