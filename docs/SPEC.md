@@ -785,6 +785,8 @@ le § 14.12 (laissées en place pour garder l'historique).*
 
 - [x] Création sur un écran nom + appareils + Créer le programme, puis retour à l’affichage avec sélection du programme créé. Reprise explicite du brouillon après navigation ; appareils des programmes existants uniquement dans leur onglet. Parcours créé/repris/enregistré testé sur instance locale.
 
+- [x] Création, erreurs et sélection : chaque erreur est à côté de ce qu'elle concerne — « Le nom est obligatoire. » sous le champ Nom (`aria-invalid`, `aria-describedby`, focus et défilement vers le champ), « Ajoutez au moins un appareil. » sous le sélecteur d'appareil, erreur du serveur ou autre erreur générale juste au-dessus du bouton Créer ; texte rouge de 16 px à contraste renforcé ; l'erreur disparaît dès que le champ est modifié. Après création, retour à l'affichage avec le programme créé : mode Un seul programme → `program: <id créé>` ; mode liste filtrée → le mode est conservé, l'id est ajouté à la liste `filter.programs` (types élargis, pièce retirée si le filtre le cacherait), « Programme à modifier » le désigne ; `config-changed` est émis. Le programme renvoyé par le serveur est gardé localement jusqu'à ce qu'une mise à jour poussée le contienne (une mise à jour antérieure ne le fait pas disparaître). Tests : `create-program.test.ts` ; non testé en navigateur.
+
 - [x] Liste compacte : clic sur un programme déplie ses barres sur place, second clic replie, autre programme referme le précédent. Bascule indépendante ; calendrier explicite pour ouvrir les horaires.
 
 - [x] Cadrans 24 h et double 12 h utilisables en liste filtrée, sans choix grisés ni obligation de choisir un seul programme.

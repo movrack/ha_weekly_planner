@@ -54,6 +54,9 @@ export class WpProgramEditor extends LitElement {
   @state() private _tab: Tab = "general";
   @state() private _profileId = "";
   @state() private _error = "";
+  /** Field errors sit beside the field they are about; `_error` is the global one, above the action buttons. */
+  @state() private _nameError = "";
+  @state() private _entitiesError = "";
   @state() private _saving = false;
   @state() private _changingMode = false;
   @state() private _associationsOpen = false;
@@ -99,7 +102,7 @@ export class WpProgramEditor extends LitElement {
     this._iconCustomized = snapshot.iconCustomized;
     this._profileId = snapshot.profileId;
     this._profileForm = snapshot.profileForm;
-    this._error = "";
+    this._error = ""; this._nameError = ""; this._entitiesError = "";
     this._applied = false;
     this._refreshIcon();
   }
@@ -200,6 +203,8 @@ export class WpProgramEditor extends LitElement {
       if (patch.entities && !this._iconCustomized) patch = { ...patch, icon: this._deviceIcon(patch.entities[0]?.entity_id) };
       this._p = { ...this._p, ...patch };
       this._error = "";
+      if ("name" in patch) this._nameError = "";
+      if (patch.entities) this._entitiesError = "";
       this._applied = false;
     }, group);
     if (patch.entities) this._refreshIcon();
@@ -269,9 +274,20 @@ export class WpProgramEditor extends LitElement {
   /* ---- save / delete ---- */
 
   private _validate(): string {
+    return this._problem()?.message ?? "";
+  }
+
+  /** First problem with the draft, and the field it belongs to (`form` = no single field). */
+  private _problem(): { field: "name" | "entities" | "form"; message: string } | undefined {
     const p = this._p;
-    if (!p.name.trim()) return this._tr("err_name");
-    if (!p.entities.length) return this._tr("err_no_entity");
+    if (!p.name.trim()) return { field: "name", message: this._tr("err_name") };
+    if (!p.entities.length) return { field: "entities", message: this._tr("err_no_entity") };
+    const rest = this._validateRest();
+    return rest ? { field: "form", message: rest } : undefined;
+  }
+
+  private _validateRest(): string {
+    const p = this._p;
     if (p.mode_source && (!p.mode_source.entity_id || !Object.keys(p.mode_source.mappings).length || Object.entries(p.mode_source.mappings).some(([state, id]) => !state.trim() || !p.profiles.some((mode) => mode.id === id)))) return this._tr("mode_incomplete");
     if (p.conditions.some((c) => !c.entity_id)) return this._tr("err_incomplete");
     const names = p.profiles.map((x) => x.name.trim());
@@ -302,15 +318,40 @@ export class WpProgramEditor extends LitElement {
     return this._tr("error", { message });
   }
 
+  /** Brings the field a refused save is about into view and focuses it. */
+  private _showField(field: "name" | "entities"): void {
+    if (!this._isNew) this._tab = field === "name" ? "general" : "entities";
+    void this.updateComplete.then(() => {
+      const target = this.renderRoot?.querySelector<HTMLElement>(field === "name" ? "#f-name" : "#pe-entity-add");
+      if (!target) return;
+      target.scrollIntoView?.({ block: "center", behavior: "smooth" });
+      target.focus?.();
+    });
+  }
+
+  private _nameField() {
+    const bad = Boolean(this._nameError);
+    return html`<div class="field"><label for="f-name">${this._tr("pe_name")}</label>
+      <input id="f-name" type="text" maxlength="60" .value=${this._p.name} aria-invalid=${bad ? "true" : "false"}
+        aria-describedby=${bad ? "f-name-error" : nothing}
+        @input=${(e: Event) => this._patch({ name: (e.target as HTMLInputElement).value }, "name")} />
+      ${bad ? html`<p id="f-name-error" class="error field-error" role="alert">${this._nameError}</p>` : nothing}</div>`;
+  }
+
   private async _save(): Promise<void> {
     if (!this._canEdit() || this._saving) return;
     if (!this._submitProfileForm()) return;
-    const problem = this._validate();
+    const problem = this._problem();
     if (problem) {
       if (this._p.mode_source) this._associationsOpen = true;
-      this._error = problem;
+      this._error = ""; this._nameError = ""; this._entitiesError = "";
+      if (problem.field === "name") this._nameError = problem.message;
+      else if (problem.field === "entities") this._entitiesError = problem.message;
+      else this._error = problem.message;
+      if (problem.field !== "form") this._showField(problem.field);
       return;
     }
+    this._error = "";
     this._saving = true;
     try {
       const draft = this._payload();
@@ -410,9 +451,7 @@ export class WpProgramEditor extends LitElement {
   private _renderGeneral() {
     const p = this._p;
     return html`
-      <div class="field"><label for="f-name">${this._tr("pe_name")}</label>
-        <input id="f-name" type="text" maxlength="60" .value=${p.name}
-          @input=${(e: Event) => this._patch({ name: (e.target as HTMLInputElement).value }, "name")} /></div>
+      ${this._nameField()}
       <div class="field"><label for="f-area">${this._tr("pe_area")}</label>
         <input id="f-area" type="text" list="program-areas" .value=${p.area ?? ""} aria-describedby="program-area-help"
           @change=${(e: Event) => this._patch({ area: (e.target as HTMLInputElement).value.trim() || null })} />
@@ -457,12 +496,13 @@ export class WpProgramEditor extends LitElement {
       ${p.entities.length === 0 ? html`<p class="muted">${this._tr("pe_no_entity")}</p>` : nothing}
       ${p.entities.map((e, i) => this._renderEntity(e, i, compact))}
       ${keyed(this._pickerKey, this._picker
-        ? html`<ha-selector .hass=${this.hass} .selector=${{ entity: { exclude_entities: p.entities.map((x) => x.entity_id) } }}
+        ? html`<ha-selector id="pe-entity-add" aria-invalid=${this._entitiesError ? "true" : "false"} aria-describedby=${this._entitiesError ? "pe-entities-error" : nothing} .hass=${this.hass} .selector=${{ entity: { exclude_entities: p.entities.map((x) => x.entity_id) } }}
             .label=${this._tr(p.entities.length ? "pe_add_another_entity" : "pe_add_entity")} .value=${""} .required=${!p.entities.length}
             @value-changed=${(ev: CustomEvent<{ value?: string }>) => { ev.stopPropagation(); this._addEntity(ev.detail.value ?? ""); }}></ha-selector>`
-        : html`<wp-entity-picker .hass=${this.hass} .value=${""} .label=${this._tr(p.entities.length ? "pe_add_another_entity" : "pe_add_entity")} .required=${!p.entities.length}
+        : html`<wp-entity-picker id="pe-entity-add" aria-describedby=${this._entitiesError ? "pe-entities-error" : nothing} .hass=${this.hass} .value=${""} .label=${this._tr(p.entities.length ? "pe_add_another_entity" : "pe_add_entity")} .required=${!p.entities.length}
         .exclude=${p.entities.map((x) => x.entity_id)}
         @wp-change=${(ev: CustomEvent) => { ev.stopPropagation(); this._addEntity(ev.detail); }}></wp-entity-picker>`)}
+      ${this._entitiesError ? html`<p id="pe-entities-error" class="error field-error" role="alert">${this._entitiesError}</p>` : nothing}
     `;
   }
 
@@ -681,9 +721,7 @@ export class WpProgramEditor extends LitElement {
             <ha-icon icon="mdi:redo"></ha-icon>${this._isNew ? nothing : this._tr("pe_redo")}</button>
         </div>
         ${this._isNew ? html`<p class="hint">${this._tr("pe_create_hint")}</p>
-          <div class="field"><label for="f-name">${this._tr("pe_name")}</label>
-            <input id="f-name" type="text" maxlength="60" .value=${this._p.name}
-              @input=${(e: Event) => this._patch({ name: (e.target as HTMLInputElement).value }, "name")} /></div>
+          ${this._nameField()}
           <h3>${this._tr("tab_entities")}</h3>${this._renderEntities(true)}` : html`
         <div class="tabs" role="tablist" aria-label=${this._tr("tab_scroll")}>
           ${tabs.map(([id, label]) => html`<button id=${`pe-tab-${id}`} role="tab" aria-controls="pe-panel" tabindex=${this._tab === id ? 0 : -1} aria-selected=${this._tab === id} class="tab ${this._tab === id ? "on" : ""}"
@@ -692,8 +730,8 @@ export class WpProgramEditor extends LitElement {
         <div id="pe-panel" role="tabpanel" aria-labelledby=${`pe-tab-${this._tab}`}>
           ${this._tab === "general" ? this._renderGeneral() : this._tab === "entities" ? this._renderEntities() : this._renderSeasons()}
         </div>`}
-      </fieldset>
-      ${this._error ? html`<p class="error" role="alert">${this._error}</p>` : nothing}`;
+      </fieldset>`;
+    const globalError = this._error ? html`<p class="error" role="alert">${this._error}</p>` : nothing;
     const primaryActions = html`
       <button class="btn primary" ?disabled=${!editable || this._saving} @click=${() => void this._save()}>
         ${this._tr(this._isNew ? "pe_create" : this.embedded ? "ce_apply_program" : "save")}</button>
@@ -708,6 +746,7 @@ export class WpProgramEditor extends LitElement {
     if (this.embedded) return html`<section class="embedded">${content}
       ${unapplied && !this._isNew ? html`<p role="status" class="hint">${this._tr("pe_unapplied")}</p>` : nothing}
       <p class="hint">${this._tr(this._isNew ? "pe_create_save_hint" : "pe_shared_save_hint")}</p>
+      ${globalError}
       <div class="actions apply-bar">${primaryActions}</div><div class="actions secondary-actions">${secondaryActions}</div>
       ${this._applied ? html`<p role="status" class="hint">${this._tr("ce_program_applied")}</p>` : nothing}
       ${this._scheduleProfileId ? html`<wp-schedule .hass=${this.hass} .data=${this.data}
@@ -716,7 +755,7 @@ export class WpProgramEditor extends LitElement {
         @closed=${(e: Event) => { e.stopPropagation(); this._closeModeSchedule(); }}></wp-schedule>` : nothing}
     </section>`;
     return html`<wp-dialog id="main" open wide heading=${this._isNew ? this._tr("new_program") : this._p.name || this._tr("title")}>
-      ${content}<div slot="footer" class="actions">${primaryActions}${secondaryActions}</div>
+      ${content}${globalError}<div slot="footer" class="actions">${primaryActions}${secondaryActions}</div>
     </wp-dialog>`;
   }
 
