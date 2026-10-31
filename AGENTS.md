@@ -113,6 +113,18 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
 - Raise the floors when coverage rises; never lower them to make a change pass. The weekly CI job
   `mutation.yml` is informational and never required for a pull request.
 
+### Performance tests
+- Python budgets: `uv run --group test pytest tests/test_performance.py -q` (marker `performance`, also part of the
+  normal suite, about 15 s). Synthetic install: 50 programs x 4 entities x 3 modes x 7 days x 6 slots (`tests/perf_data.py`).
+- Card budgets: `cd frontend && npx vitest run src/__tests__/performance.test.ts`.
+- Two checks per scenario: deterministic operation counts (occurrences computed, snapshots built, spans rebuilt)
+  and a wall-clock ceiling on the BEST of several runs, set to 5-10x the median measured on a laptop. The `BUDGETS` /
+  `OPS` dicts at the top of each file carry the measured values in comments. A failure means a real regression (or a
+  much slower machine: re-measure with `uv run --group test python scripts/bench.py`, never just raise a budget).
+- No single callback of ours may hold the Home Assistant loop for more than 50 ms. The condition-triggered full
+  recompute still breaks this (`xfail(strict=True)` in `test_performance.py`): remove the marker when it is fixed.
+- `scripts/bench.py` prints best/median per scenario (not run in CI).
+
 ## Deploying to a real instance
 - The weekday 08:00–17:00 restriction applies to commits, cherry-picks, merges and reverts only.
   It does not prohibit deployments. When the owner requests deployment, deploy the tested working
