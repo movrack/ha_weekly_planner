@@ -32,7 +32,7 @@ describe("domain icons", () => {
 describe("vocabulary", () => {
   it("uses the plain words of the review", () => {
     const fr = strings("fr"), en = strings("en");
-    expect(fr.ce_filtered).toBe("Plusieurs appareils");
+    expect(fr.ce_filtered).toBe("Plusieurs programmes");
     expect(fr.ce_one_program).toBe("Un seul programme");
     expect(fr.ce_area).toBe("Pièce (facultatif)");
     expect(fr.ce_schedule_view).toBe("Présentation de la journée");
@@ -51,8 +51,9 @@ describe("card editor layout guards (360 px)", () => {
   it("notice button wraps inside its box", () => {
     expect(src).toMatch(/\.notice \.btn \{[^}]*max-width: 100%[^}]*white-space: normal/);
   });
-  it("type name never breaks mid-word and the counter sits in the titles column", () => {
+  it("program name never breaks mid-word; type chips wrap and are 44 px tall", () => {
     expect(src).toMatch(/\.type-title \{[^}]*overflow-wrap: normal/);
-    expect(src).toMatch(/class="type-title">\$\{g\.label\}<\/span>\s*\$\{many \? html`<span class="count">/);
+    expect(src).toMatch(/\.chips \{[^}]*flex-wrap: wrap/);
+    expect(src).toMatch(/\.chip \{[^}]*min-height: 44px/);
   });
 });

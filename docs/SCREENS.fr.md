@@ -277,7 +277,7 @@ Après l’enregistrement au relâcher, le bandeau Modifié · Annuler permet de
 
 ## S24 — Affichage : liste filtrée
 
-Choix de la pièce, présentation de la journée et réglages du graphique pour « Plusieurs appareils ».
+Choix de la pièce, présentation de la journée et réglages du graphique pour « Plusieurs programmes ».
 
 <a href="images/guide/s24-card-filter-settings.png"><img src="images/guide/s24-card-filter-settings.png" width="320" alt="S24 — Affichage : liste filtrée" /></a>
 
