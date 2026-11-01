@@ -28,7 +28,7 @@ import { formatWhen, localDateIso, localMinutes, localWeekday, nominal, spillove
 import type { CardConfig, HomeAssistant, PlannerData, PreviewSlot, Program, Slot } from "./types";
 
 type Dialog =
-  | { kind: "schedule"; scope: Scope; day?: { weekday: number; offset: number } }
+  | { kind: "schedule"; scope: Scope; day?: { weekday: number; offset: number }; create?: boolean }
   | null;
 
 @customElement("weekly-planner-card")
@@ -270,8 +270,25 @@ export class WeeklyPlannerCard extends LitElement {
 
   /* ---- actions ---- */
 
-  private _open(scope: Scope, day?: { weekday: number; offset: number }): void {
-    this._dialog = { kind: "schedule", scope, day };
+  private _open(scope: Scope, day?: { weekday: number; offset: number }, create = false): void {
+    this._dialog = { kind: "schedule", scope, day, create };
+  }
+
+  /** The program has no slot at all in its active mode: nothing to show or tap on its bars. */
+  private _noSlots(program: Program): boolean {
+    const mode = this._data ? activeProfile(program, this._data) : undefined;
+    return Boolean(mode) && mode!.days.every((d) => d.length === 0);
+  }
+
+  /** Empty program, and the user may edit: the bars give way to one "Create a setting" button. */
+  private _needsCreate(program: Program): boolean {
+    return Boolean(this._data?.can_edit) && !this._data?.read_only && this._noSlots(program);
+  }
+
+  /** Opens the schedule screen straight on a new slot. */
+  private _createButton(scope: Scope) {
+    return html`<button class="create" @click=${() => this._open(scope, undefined, true)}>
+      <ha-icon icon="mdi:plus"></ha-icon>${t(this._lang, "create_setting")}</button>`;
   }
 
   private async _toggleProgram(program: Program): Promise<void> {
@@ -334,6 +351,7 @@ export class WeeklyPlannerCard extends LitElement {
     const stateObj = this.hass.states[entityId];
     const icon = opts.icon ?? stateObj?.attributes.icon ?? "mdi:calendar-clock";
     const open = () => this._open(opts.open);
+    const create = this._needsCreate(programs[0]);
     return html`
       <div class="block">
         <div class="line">
@@ -352,7 +370,7 @@ export class WeeklyPlannerCard extends LitElement {
             <button class="hours" aria-label=${t(lang, "hours")} title=${t(lang, "hours")} @click=${open}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
           </div>${this._disabledBadge(paused)}</div>` : nothing}
         </div>
-        ${(this._config.schedule_view === "radial" || this._config.schedule_view === "radial_12h") ? html`<wp-radial-day
+        ${create ? (opts.button ? this._createButton(opts.open) : nothing) : (this._config.schedule_view === "radial" || this._config.schedule_view === "radial_12h") ? html`<wp-radial-day
           .spans=${this._spans(entityId, programs)} .now=${localMinutes(this._now, this._tz)} lang=${lang}
           .rest=${(() => { const l = labelOf(data, programs[0].entities.find((e) => e.entity_id === entityId)?.default_label); return l ? labelName(this.hass, l) : t(lang, "rest_none"); })()}
           .double=${this._config.schedule_view === "radial_12h"}
@@ -360,7 +378,7 @@ export class WeeklyPlannerCard extends LitElement {
           <span class="wname">${t(lang, "today_short")}</span>
           ${this._bar(entityId, programs[0], 0, "today", open)}
         </div>`}
-        ${this._extras(opts.open, entityId, programs)}
+        ${create ? nothing : this._extras(opts.open, entityId, programs)}
       </div>`;
   }
 
@@ -433,6 +451,7 @@ export class WeeklyPlannerCard extends LitElement {
             <button class="hours" aria-label=${t(lang, "hours")} title=${t(lang, "hours")} @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
           </div>${this._disabledBadge(!p.enabled)}</div>
         </div>
+        ${this._needsCreate(p) ? html`<div class="block">${this._createButton(scope)}</div>` : nothing}
         ${p.entities.map((e) => this._line(e.entity_id, [p], { name: friendlyName(this.hass, e.entity_id), button: null, open: scope }))}
       </section>`;
     });
@@ -455,7 +474,7 @@ export class WeeklyPlannerCard extends LitElement {
           @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>` : nothing}</div>
           ${this._disabledBadge(!p.enabled)}</div></div>
         ${expanded ? html`<div id=${`compact-${p.id}`} class="compact-details" role="region" aria-label=${p.name}>
-          ${p.entities.map((e) => html`
+          ${this._needsCreate(p) ? this._createButton(scope) : p.entities.map((e) => html`
             ${p.entities.length > 1 ? html`<strong class="compact-device">${friendlyName(this.hass, e.entity_id)}</strong>` : nothing}
             <div class="today"><span class="wname">${t(this._lang, "today_short")}</span>
               ${this._bar(e.entity_id, p, 0, "today", () => this._open(scope))}</div>
@@ -496,7 +515,7 @@ export class WeeklyPlannerCard extends LitElement {
     const close = () => (this._dialog = null);
     switch (d.kind) {
       case "schedule":
-        return keyed(scopeKey(d.scope), html`<wp-schedule .hass=${this.hass} .data=${this._data} .scope=${d.scope} .day=${d.day ?? null}
+        return keyed(scopeKey(d.scope), html`<wp-schedule .hass=${this.hass} .data=${this._data} .scope=${d.scope} .day=${d.day ?? null} ?create=${Boolean(d.create)}
           .chart=${this._config.show_chart !== false} @closed=${close}></wp-schedule>`);
     }
   }
@@ -537,6 +556,12 @@ export class WeeklyPlannerCard extends LitElement {
       background: none; color: var(--primary-text-color); cursor: pointer; --mdc-icon-size: 24px;
       display: inline-flex; align-items: center; justify-content: center;
     }
+    button.create {
+      display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 48px; margin-top: 8px;
+      padding: 0 16px; border: none; border-radius: 24px; font: inherit; font-size: 16px; font-weight: 500; cursor: pointer;
+      background: var(--primary-color); color: var(--text-primary-color, #fff); --mdc-icon-size: 22px;
+    }
+    button.create:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
     button.hours:hover { background: var(--secondary-background-color); }
     wp-bar-editor { margin-top: 2px; }
     .toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }
