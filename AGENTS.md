@@ -147,3 +147,4 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
   Other scripts: `scripts/dev_ha.sh` (local test HA, port 8124), `scripts/dev_onboard.py`, `scripts/bench.py`.
 - Card-only change: `weekly_planner.reload`. Python change: back up Home Assistant, then restart it.
   The owner explicitly authorizes any necessary restart when requesting deployment; do not ask again.
+- Release: once the maintainer has merged the release PR into `main`, run `scripts/release.sh` (dry run; `--apply` to create the tag and GitHub release from the CHANGELOG section of the version on `main`). Releases are never created from `develop`.
