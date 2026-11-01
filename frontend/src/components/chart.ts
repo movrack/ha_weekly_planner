@@ -714,6 +714,8 @@ export class WpChart extends LitElement {
     const step = tickStep(win.to - win.from);
     const tickFmt = dateFormat("en-GB", { timeZone: this._tz, hour: "2-digit", ...(step < 60 ? { minute: "2-digit" } : {}), hourCycle: "h23" });
     const tickText = (m: number) => {
+      // the end of the day reads "24h", never a second "0h"
+      if (m >= model.span - 1e-6) return step < 60 ? "24:00" : "24h";
       const s = tickFmt.format(new Date(startMs + m * 60_000));
       return step < 60 ? s : `${Number(s)}h`;
     };

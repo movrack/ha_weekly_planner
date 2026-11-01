@@ -127,6 +127,7 @@ describe("wp-day-bar", () => {
     expect(html).toContain("tick"); expect(html).toContain("nowline"); expect(html).toContain("mdi:weather-sunset-up");
     expect(html).toContain("mdi:weather-sunset-down"); expect(html).toContain("mktip"); expect(html).toContain("class=\"hours\"");
     expect(html).toContain("ignored");
+    expect(html).toContain(">24 h<"); // the right end reads 24 h, never a second midnight
   });
   it("only draws labels that fit, avoiding the now line, and none when thin", () => {
     const el = bar({ now: 590 }); el._width = 1440;

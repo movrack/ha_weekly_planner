@@ -137,6 +137,6 @@ describe("setting picker behaviour in the modal", () => {
   });
   it("marks a setting shared with another program", () => {
     const shared = { ...data, programs: [program, { id: "q", name: "Hall", profiles: [{ id: "x", name: "x", days: [[{ id: "s", label: "t21" }], [], [], [], [], [], []] }], entities: [{ entity_id: "climate.a", default_label: null }] }] } as unknown as PlannerData;
-    expect(flat(make({ data: shared }).render())).toContain("Shared");
+    expect(flat(make({ data: shared }).render())).toContain("Also used by: Hall"); // names the other programs, no technical word
   });
 });

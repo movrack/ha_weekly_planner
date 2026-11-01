@@ -299,7 +299,12 @@ export class WeeklyPlannerCard extends LitElement {
   /** The device has no slot at all in the active mode of its program: nothing to show or tap on its bars. */
   private _noSlots(program: Program, entityId: string): boolean {
     const mode = this._data ? activeProfile(program, this._data) : undefined;
-    return Boolean(mode) && mode!.days.every((d) => !d.some((s) => applies(s, entityId)));
+    // a slot whose setting does nothing to this device (e.g. a temperature on a cover) does not count
+    const acts = (s: Slot): boolean => {
+      const label = labelOf(this._data!, s.label);
+      return !label || Boolean(appliedAction(this.hass, program, entityId, label, s)); // an unknown setting still shows
+    };
+    return Boolean(mode) && mode!.days.every((d) => !d.some((s) => applies(s, entityId) && acts(s)));
   }
 
   /** Device without any slot, and the user may edit: its bars give way to its own "Create a setting" button (D4). */
@@ -400,7 +405,7 @@ export class WeeklyPlannerCard extends LitElement {
           .rest=${(() => { const l = labelOf(data, programs[0].entities.find((e) => e.entity_id === entityId)?.default_label); return l ? labelName(this.hass, l) : t(lang, "rest_none"); })()}
           .double=${this._config.schedule_view === "radial_12h"}
           @open-day=${open}></wp-radial-day>` : html`<div class="today">
-          <span class="wname">${t(lang, "today_short")}</span>
+          <span class="wname" title=${t(lang, "today")}>${t(lang, "today_short")}</span>
           ${this._bar(entityId, programs[0], 0, "today", open)}
         </div>`}
         ${create ? nothing : this._extras(opts.open, entityId, programs)}
@@ -501,7 +506,7 @@ export class WeeklyPlannerCard extends LitElement {
             const own: Scope = p.entities.length > 1 ? { ...scope, entityId: e.entity_id } : scope;
             return html`
             ${p.entities.length > 1 ? html`<strong class="compact-device">${friendlyName(this.hass, e.entity_id)}</strong>` : nothing}
-            ${this._needsCreate(p, e.entity_id) ? this._createButton(own) : html`<div class="today"><span class="wname">${t(this._lang, "today_short")}</span>
+            ${this._needsCreate(p, e.entity_id) ? this._createButton(own) : html`<div class="today"><span class="wname" title=${t(this._lang, "today")}>${t(this._lang, "today_short")}</span>
               ${this._bar(e.entity_id, p, 0, "today", () => this._open(own))}</div>
             ${this._extras(own, e.entity_id, [p])}`}`;
           })}

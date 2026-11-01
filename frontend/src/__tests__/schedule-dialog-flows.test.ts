@@ -151,7 +151,7 @@ describe("schedule screen editing", () => {
     await view._saveRow(); expect(view._error).not.toBe("");
     view._group = { ...view._group, slot: { ...view._group.slot, end: { time: "11:00" } } };
     await view._saveRow();
-    expect(view._error).toBe("Choose: this device or all."); // shared by both devices: D1 asks first
+    expect(view._error).toBe("Choose which devices this change is for."); // shared by both devices: D1 asks first
     view._pickWho("all");
     await view._saveRow();
     expect(view._open).toBeNull();
@@ -268,7 +268,7 @@ describe("schedule screen editing", () => {
     const a = make();
     const row = a.view._rows()[0]; a.view._openRow(row.key, row.program, row.group);
     await a.view._deleteRow();
-    expect(a.view._error).toBe("Choose: this device or all.");
+    expect(a.view._error).toBe("Choose which devices this change is for.");
     a.view._pickWho("all");
     await a.view._deleteRow();
     expect(a.view.hass.callWS.mock.calls.slice(-1)[0][0].program.profiles[0].days[0]).toEqual([]);

@@ -69,6 +69,12 @@ describe("slots.ts helpers", () => {
 });
 
 describe("slotKey, groupSlots, compareOrigin", () => {
+  it("copies split for one device on each day (each with its own seed) read as one row, unless a random delay", () => {
+    const days: Slot[][] = Array.from({ length: 7 }, (_, d) => [slot(`c${d}`, "09:30", null, "open", [B], { seed: `orig${d}` })]);
+    expect(groupSlots({ id: "p", name: "p", days }, () => true, at).map((g) => g.days)).toEqual([[0, 1, 2, 3, 4, 5, 6]]);
+    const rnd = days.map((d) => d.map((s) => ({ ...s, start: { ...s.start, random_minutes: 10 } })));
+    expect(groupSlots({ id: "p", name: "p", days: rnd }, () => true, at)).toHaveLength(7); // each keeps its own draw
+  });
   it("sorted devices are part of the key", () => {
     expect(slotKey(slot("1", "07:00", "08:00", "a", [A, B]))).toBe(slotKey(slot("2", "07:00", "08:00", "a", [B, A])));
     expect(slotKey(slot("1", "07:00", "08:00", "a", [A]))).not.toBe(slotKey(slot("2", "07:00", "08:00", "a")));

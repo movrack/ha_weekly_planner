@@ -13,7 +13,7 @@ import "./slot-form";
 import { daysText, groupSlots, slotKey, specText, ALL_DAYS } from "../actions";
 import type { SlotGroup } from "../actions";
 import { applyEdit, compareOrigin, dayView, findGroup, freshGroup, groupId, nextTimes, overlapPair, splitBusyDays } from "../edits";
-import { devicesOf, dropDeviceSlots, editForDevice, isShared } from "../device-edits";
+import { devicesOf, dropDeviceSlots, editForDevice, isShared, remergeIdentical } from "../device-edits";
 import type { SlotPatch } from "../device-edits";
 import type { RowEdit } from "../edits";
 import { appliedAction, labelName, labelOf, labelsFor } from "../labels";
@@ -656,7 +656,9 @@ export class WpSchedule extends LitElement {
         group = { ...draft, days: free };
         dropped = busy;
       }
-      const next = applyEdit(current, include, this._minutes, { openId: this._openId, rest: this._rest, draft: group });
+      const edited = applyEdit(current, include, this._minutes, { openId: this._openId, rest: this._rest, draft: group });
+      // copies that became identical again (other devices) are merged back into one slot (D1)
+      const next = { ...edited, days: edited.days.map((d) => remergeIdentical(d, devicesOf(live)).day) };
       if (overlapPair(next)) return { error: this._overlapText(next) };
       return { program: { ...live, entities: this._withOverrides(live), profiles: live.profiles.map((p) => (p.id === profile.id ? next : p)) } };
     });
@@ -801,6 +803,13 @@ export class WpSchedule extends LitElement {
       <ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
   }
 
+  /** "All devices (N)", or "With <the other devices>" when the slot runs for some of them only. */
+  private _whoAll(count: number, devices: string[]): string {
+    if (count >= devices.length) return t(this._lang, "who_all", { n: String(count) });
+    const others = this._origin ? applicable(this._origin.slot, devices).filter((d) => d !== this._eid) : [];
+    return t(this._lang, "who_some", { me: friendlyName(this.hass, this._eid), names: others.map((d) => friendlyName(this.hass, d)).join(", ") });
+  }
+
   private _renderEditor(program: Program, key: string) {
     const lang = this._lang;
     const isNew = key === "new";
@@ -808,7 +817,7 @@ export class WpSchedule extends LitElement {
     const count = this._origin ? applicable(this._origin.slot, devices).length : devices.length;
     return html`<div class="editor">
       ${keyed(this._pickerKey, html`<wp-slot-form .hass=${this.hass} .data=${this.data} .program=${this._draft ?? program} .group=${this._group!} .entityIds=${[this._eid]}
-        .device=${this._eid} .also=${!(this._shared && this._who === "one")}
+        .device=${this._eid} .also=${!this._shared}
         .dayOnly=${this._dayOnly} ?disabled=${!this._canEdit}
         @label-draft=${(e: CustomEvent<LabelDraft | null>) => { e.stopPropagation(); this._labelDraft = e.detail; this._error = ""; }}
         @group-change=${(e: CustomEvent<SlotGroup>) => { e.stopPropagation(); this._group = e.detail; this._error = ""; }}></wp-slot-form>`)}
@@ -816,9 +825,9 @@ export class WpSchedule extends LitElement {
         <span>${t(lang, "who_title")}</span>
         <div class="seg">
           <button role="radio" aria-checked=${this._who === "one"} class=${this._who === "one" ? "on" : ""} ?disabled=${!this._canEdit}
-            @click=${() => this._pickWho("one")}><ha-icon icon="mdi:numeric-1-circle-outline"></ha-icon>${t(lang, "who_one")}</button>
+            @click=${() => this._pickWho("one")}><ha-icon icon="mdi:numeric-1-circle-outline"></ha-icon>${t(lang, "who_one", { name: friendlyName(this.hass, this._eid) })}</button>
           <button role="radio" aria-checked=${this._who === "all"} class=${this._who === "all" ? "on" : ""} ?disabled=${!this._canEdit}
-            @click=${() => this._pickWho("all")}><ha-icon icon="mdi:select-all"></ha-icon>${t(lang, "who_all", { n: String(count) })}</button>
+            @click=${() => this._pickWho("all")}><ha-icon icon="mdi:select-all"></ha-icon>${this._whoAll(count, devices)}</button>
         </div></div>` : nothing}
       ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
       <div class="btns">
@@ -855,7 +864,7 @@ export class WpSchedule extends LitElement {
       const label = labelOf(this.data, entity.default_label);
       return html`<button class="row rest" aria-expanded="false" @click=${() => this._expand(key, program, null, { restLabel: entity.default_label ?? null })}>
         ${label ? html`<span class="dot" style="background:${label.color}"></span>` : html`<ha-icon icon="mdi:update"></ha-icon>`}
-        <span class="txt">${title} · <b>${label ? labelName(this.hass, label) : t(lang, "rest_none_short")}</b></span><ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
+        <span class="txt">${title}${t(lang, "colon")}<b>${label ? labelName(this.hass, label) : t(lang, "rest_untouched")}</b></span><ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
     });
   }
 
@@ -1021,7 +1030,8 @@ export class WpSchedule extends LitElement {
     .who > span { display: block; font-size: 14px; font-weight: 600; color: var(--secondary-text-color); margin-bottom: 6px; }
     .who .seg { display: flex; flex-wrap: wrap; gap: 8px; }
     .who button {
-      flex: 1 1 120px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; padding: 0 12px;
+      flex: 1 1 200px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; padding: 4px 12px;
+      text-align: left;
       border-radius: 24px; border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); font: inherit;
       font-size: 15px; cursor: pointer; --mdc-icon-size: 20px;
     }

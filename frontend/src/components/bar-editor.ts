@@ -23,7 +23,7 @@ import { dismissHoldHint, HOLD_HINT_MS, takeHoldHint } from "../hold-hint";
 import { slotDeviceError, strings, t } from "../i18n";
 import { appliedAction, labelName, labelOf, labelsFor } from "../labels";
 import { activeProfile, newId } from "../planner";
-import { applicable, normaliseEntities, shiftTimeSpec, specMinutes } from "../slots";
+import { applicable, applies, normaliseEntities, shiftTimeSpec, specMinutes } from "../slots";
 import { DAY, clockToMinutes, fmtClock, localMinutes } from "../time";
 import type { HomeAssistant, PlannerData, PreviewSlot, Program, Slot } from "../types";
 
@@ -74,7 +74,7 @@ export class WpBarEditor extends LitElement {
   @state() private _conflict: { to: number[]; days: number[]; skip: number[]; id: string } | null = null;
   @state() private _error = "";
   /** An edit touches a slot shared with other devices: "This device" / "All (N)" is asked before saving (D1). */
-  @state() private _ask: { op: DevOp; touched: number[]; ids: string[]; profileId: string; count: number } | null = null;
+  @state() private _ask: { op: DevOp; touched: number[]; ids: string[]; profileId: string; count: number; others: string[] } | null = null;
   @state() private _hover = false;
   /** A slot is being dragged: the strip is hidden so that the other day bars come back within reach. */
   @state() private _moving = false;
@@ -603,7 +603,8 @@ export class WpBarEditor extends LitElement {
     }
     const preview = op(days, same);
     if (preview) this._draft = preview[this.weekday] ?? null;
-    this._ask = { op, touched, ids, profileId, count: applicable(shared[0], devices).length };
+    const runs = applicable(shared[0], devices);
+    this._ask = { op, touched, ids, profileId, count: runs.length, others: runs.filter((d) => d !== this.entityId) };
   }
 
   /** The answer to "This device" / "All (N)": the pending edit is rebuilt on the current program and saved. */
@@ -618,11 +619,15 @@ export class WpBarEditor extends LitElement {
     const eid = this.entityId;
     const day = this.weekday;
     const touched = [...new Set([...a.touched, day])];
+    const sel0 = this._selected;
     void this._commit((all) => {
       // copy-on-write on the fresh day: the shared slots are split for this device, the edit works on its copies,
       // then copies that are identical again are merged back (D1, D7)
       const devices = devicesOf(this._live);
       const iso = isolateForDevice(all[day], eid, devices, a.ids);
+      // the selection follows this device's copy (the kept part now belongs to the other devices only)
+      const moved = sel0?.kind === "slot" ? iso.map.get(sel0.id) : undefined;
+      if (moved) this._selected = { kind: "slot", id: moved };
       const out = a.op(this._with(all, day, iso.day), (x) => iso.map.get(x) ?? x);
       return out ? out.map((d, i) => (touched.includes(i) ? remergeIdentical(d, devices).day : d)) : null;
     }, touched, false, a.profileId);
@@ -660,7 +665,17 @@ export class WpBarEditor extends LitElement {
         this._dropDraft();
         return false;
       }
-      const merged = after.map((day, i) => (touched.includes(i) && day !== before[i] ? mergeAdjacent(day, this._ctx(), this._keep) : day));
+      // copies that became identical again (other devices) are merged back into one slot (D1)
+      const devices = devicesOf(live);
+      const absorbed = new Map<string, string>();
+      const merged = after.map((day, i) => {
+        if (!touched.includes(i) || day === before[i]) return day;
+        const re = remergeIdentical(mergeAdjacent(day, this._ctx(), this._keep), devices);
+        for (const [k, v] of re.absorbed) absorbed.set(k, v);
+        return re.day;
+      });
+      const sel = this._selected;
+      if (sel?.kind === "slot" && absorbed.has(sel.id)) this._selected = { kind: "slot", id: absorbed.get(sel.id)! };
       const changed = merged.map((day, i) => i).filter((i) => JSON.stringify(merged[i]) !== JSON.stringify(before[i]));
       if (!changed.length) {
         this._dropDraft();
@@ -725,7 +740,8 @@ export class WpBarEditor extends LitElement {
     if (!t0) return null;
     const day = this._day;
     if (t0.kind === "slot") {
-      const slot = day.find((s) => s.id === t0.id);
+      // only a slot that runs for this device: never act on another device's slot from this row
+      const slot = day.find((s) => s.id === t0.id && (!this.entityId || applies(s, this.entityId)));
       if (!slot) return null;
       const e = eff(slot, this._at);
       return { target: t0, slot, start: e.start, end: e.end };
@@ -902,9 +918,10 @@ export class WpBarEditor extends LitElement {
     return html`<div class="ask" role="group" aria-label=${t(lang, "who_title")}>
       <span>${t(lang, "who_title")}</span>
       <div class="acts">
-        <button class="act" @click=${() => this._answer("one")}><ha-icon icon="mdi:numeric-1-circle-outline"></ha-icon>${t(lang, "who_one")}</button>
-        <button class="act" @click=${() => this._answer("all")}><ha-icon icon="mdi:select-all"></ha-icon>${t(lang, "who_all", { n: String(a.count) })}</button>
-        <button class="act" aria-label=${t(lang, "cancel")} title=${t(lang, "cancel")} @click=${() => this._askCancel()}><ha-icon icon="mdi:close"></ha-icon></button>
+        <button class="act" @click=${() => this._answer("one")}><ha-icon icon="mdi:numeric-1-circle-outline"></ha-icon>${t(lang, "who_one", { name: String(this.hass.states[this.entityId]?.attributes.friendly_name ?? this.entityId) })}</button>
+        <button class="act" @click=${() => this._answer("all")}><ha-icon icon="mdi:select-all"></ha-icon>${a.count >= devicesOf(this._live).length ? t(lang, "who_all", { n: String(a.count) })
+          : t(lang, "who_some", { me: String(this.hass.states[this.entityId]?.attributes.friendly_name ?? this.entityId), names: a.others.map((d) => String(this.hass.states[d]?.attributes.friendly_name ?? d)).join(", ") })}</button>
+        <button class="act" @click=${() => this._askCancel()}><ha-icon icon="mdi:undo-variant"></ha-icon>${t(lang, "who_keep")}</button>
       </div>
     </div>`;
   }
