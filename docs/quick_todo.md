@@ -82,3 +82,7 @@ Si besoin tu peux utiliser la skill grill-me, mais avant de l'utiliser termine t
 - [x] Actualiser guide Mamy et README intégrateurs.
 - [x] Ajouter neuf captures actuelles S37–S45 et distinguer les archives 0.10.0.
 - [x] Documenter modes externes, choix des actions, boutons cibles, valeurs dynamiques, zones et graphique vide.
+
+## À faire plus tard (demande du propriétaire, 2026-11-01)
+
+- [ ] Formulaire d'horaire : « Au plus tôt à / Au plus tard à » (heures solaires) deviennent une option à cocher, comme « Délai aléatoire » (#39). Brouillon testé sur la branche locale `feat/sun-limit-option` (db9b242) ; reste : tests dédiés, contrôle navigateur 360 px, guide, CHANGELOG.
