@@ -119,7 +119,9 @@ def occurrence(
     for that day.
     """
     slot_id = slot["id"]
-    identity = (*identity, slot_id)
+    # D7: the random draw follows the slot's seed (default: its id), so a copy-on-write split
+    # (new id, same seed) keeps the delay of the slot it came from.
+    identity = (*identity, slot.get("seed") or slot_id)
     start, start_existed = resolve(slot["start"], day, tz, sun)
     if start is None:
         return Occurrence(slot_id, _utc(_midnight(day, tz)), None, "sun_event_missing")
