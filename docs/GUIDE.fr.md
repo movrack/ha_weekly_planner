@@ -185,6 +185,7 @@ retardent l’action. Choisir une fin à **07:30** et le réglage de fermeture ;
 dans **Le reste du temps**, choisir le réglage d’ouverture.
 
 L’heure du coucher suit le soleil du lieu enregistré dans Home Assistant.
+L’action part à la minute exacte calculée (par exemple 17 h 17), décalage compris.
 **Au plus tôt à** et **Au plus tard à** (facultatifs) l’empêchent de sortir d’une plage.
 Voir [l’écran solaire S09](SCREENS.fr.md#s09).
 

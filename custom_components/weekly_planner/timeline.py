@@ -77,9 +77,8 @@ def resolve(
             limit, _ = local_datetime(day, *parse_clock(bound), tz)
             if too_far(moment, limit):
                 moment = limit
-    # keep 5-minute steps so bars and comparisons stay aligned
-    moment = moment.replace(second=0, microsecond=0)
-    return moment - timedelta(minutes=moment.minute % 5), True
+    # whole minute, never rounded to a step: the card shows HH:MM and fixed times have minute precision
+    return moment.replace(second=0, microsecond=0), True
 
 
 def _delay(moment: datetime, spec: dict, identity: tuple[str, ...], day: date, edge: str, *, boundary_day: date | None = None) -> datetime:

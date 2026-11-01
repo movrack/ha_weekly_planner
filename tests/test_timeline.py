@@ -75,9 +75,9 @@ def test_sun_with_offset_and_bounds():  # S3
     assert winter.start == at(WINTER, 18, 0)  # 16:55 raised to 18:00
 
 
-def test_sun_rounded_to_five_minutes():
+def test_sun_keeps_its_exact_minute():
     occ = occurrence(slot({"sun": "sunset"}, {"time": "23:00"}), SUMMER, TZ, fake_sun)
-    assert occ.start == at(SUMMER, 21, 55)
+    assert occ.start == at(SUMMER, 21, 58)  # never rounded to a 5-minute step
 
 
 def test_sun_slot_empty_that_day():  # S26
@@ -92,8 +92,9 @@ def test_sun_to_next_morning():
 
 
 def test_five_minutes_is_enough():
-    occ = occurrence(slot({"sun": "sunset"}, {"time": "22:00"}), SUMMER, TZ, fake_sun)
+    occ = occurrence(slot({"sun": "sunset"}, {"time": "22:03"}), SUMMER, TZ, fake_sun)
     assert occ.runs and occ.end - occ.start == timedelta(minutes=5)
+    assert occurrence(slot({"sun": "sunset"}, {"time": "22:02"}), SUMMER, TZ, fake_sun).ignored == "too_short"
 
 
 def test_one_shot_slot():

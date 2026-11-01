@@ -59,7 +59,7 @@ Inclus : tout ce qui suit. **Hors v1 (v2)** : import des programmes `scheduler-c
 | D3 | Programmes créés/modifiés uniquement depuis la carte, stockés par l'intégration ; un `switch` par programme. |
 | D6 | Action par défaut facultative par entité (« le reste du temps »), envoyée à la fin d'un horaire avec fin. |
 | D7 | Pas de chevauchement dans un programme ; entre programmes, **priorité numérotée**, l'autre reprend la main ; conflits signalés. |
-| D8 | 7 jours indépendants + copie (raccourcis Lun→Ven, Sam+Dim) ; pas de 5 min ; plages passant minuit ; heures solaires (lever, coucher ± décalage ; aube et crépuscule acceptés par le serveur, non proposés) avec bornes « au plus tôt / au plus tard ». |
+| D8 | 7 jours indépendants + copie (raccourcis Lun→Ven, Sam+Dim) ; toute minute ; plages passant minuit ; heures solaires (lever, coucher ± décalage ; aube et crépuscule acceptés par le serveur, non proposés) avec bornes « au plus tôt / au plus tard ». |
 | D9 | Conditions simples par programme **et par plage** ; interrupteur global « Vacances / Absence ». Condition devenue fausse = fin de plage. |
 | D10 | Réglage par programme « réappliquer en cours de plage » (oui par défaut) : redémarrage, activation, modification. |
 | D11 | Dépôt séparé ; dev et tests sur une instance HA locale (Docker) ; prod seulement pour des versions finies, copiées par script tant que le dépôt est privé. |
@@ -157,7 +157,8 @@ service `override` ni `resume`. Seul l'**affichage** du graphique montre les cha
 - Heure solaire : `aube | lever | coucher | crépuscule` (`dawn | sunrise | sunset | dusk`) ± décalage (−240 à +240 min),
   bornes `au plus tôt` / `au plus tard` facultatives (`earliest` > `latest` refusé : `earliest_after_latest`, § 20) ;
   calcul pour la date locale avec le **fuseau de HA** ; recalcul chaque jour à minuit. Ordre : événement, décalage,
-  bornes, puis **arrondi au pas de 5 min inférieur**, puis délai aléatoire (§ 19). Le formulaire ne propose que
+  bornes, puis **minute exacte** (secondes tronquées : 16:17:12 → 16:17, jamais d'arrondi à un pas), puis délai
+  aléatoire (§ 19). Le formulaire ne propose que
   Lever / Coucher (§ 20).
 - Délai aléatoire facultatif par frontière : `random_minutes` 0 à 240 (§ 19).
 - Si, un jour donné, un horaire ne peut pas être placé, il est **ignoré ce jour-là** avec une raison :
@@ -787,7 +788,7 @@ comme n'importe quelle autre ; les **pilotes concurrents** sont signalés (§ 9)
 
 Each start or end TimeSpec may include optional `random_minutes`, an integer from 0 to 240. Absent/zero preserves the existing time exactly. The form offers a per-boundary checkbox and defaults to 15 minutes when enabled; the user can set 1–240 minutes or disable it explicitly. This is a delay after the configured time, never an advance.
 
-Resolve the configured local fixed time or solar event/offset/bounds first, using the existing DST and solar-rounding rules. Add an integer elapsed-minute delay in UTC. A solar `latest` remains a true cap after the delay. Overnight selection is based on the original boundaries, before jitter; the occurrence retains its original local date even if its delayed action falls on the next day.
+Resolve the configured local fixed time or solar event/offset/bounds first, using the existing DST rules; a solar time keeps its exact minute (seconds truncated, no step rounding). Add an integer elapsed-minute delay in UTC. A solar `latest` remains a true cap after the delay. Overnight selection is based on the original boundaries, before jitter; the occurrence retains its original local date even if its delayed action falls on the next day.
 
 The daily draw is derived from stable program, profile, slot, original local occurrence date and boundary identity. Recalculation, preview, restart and all entities of the same slot share the same draw. Different days have independent deterministic draws, which may coincidentally be equal. No additional polling, timer per slot, persistent random state or device-specific rule is introduced.
 

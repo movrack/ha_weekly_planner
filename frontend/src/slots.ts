@@ -1,6 +1,6 @@
 // Pure helpers on the times of slots: sun times, overlaps, ordering.
 
-import { DAY, clockToMinutes, localMinutes, minutesToClock, nominal } from "./time";
+import { DAY, clockToMinutes, exactClock, localMinutes, nominal } from "./time";
 import type { HomeAssistant, Slot, TimeSpec } from "./types";
 
 const SUN_ATTR = { dawn: "next_dawn", sunrise: "next_rising", sunset: "next_setting", dusk: "next_dusk" } as const;
@@ -26,10 +26,11 @@ export const SUN_OFFSET_MAX = 240;
  */
 export function shiftTimeSpec(hass: HomeAssistant, spec: TimeSpec, delta: number): TimeSpec {
   const random = spec.random_minutes ? { random_minutes: spec.random_minutes } : {};
-  if ("time" in spec) return { ...spec, time: minutesToClock(Math.max(0, Math.min(DAY, clockToMinutes(spec.time) + delta))) };
+  // exact minutes: a typed 15:32 or a sunset at 17:17 is never rounded to a 5-minute step
+  if ("time" in spec) return { ...spec, time: exactClock(clockToMinutes(spec.time) + delta) };
   const offset = (spec.offset ?? 0) + delta;
   if (Math.abs(offset) <= SUN_OFFSET_MAX) return { ...spec, offset };
-  return { time: minutesToClock(Math.max(0, Math.min(DAY, specMinutes(hass, spec) + delta))), ...random };
+  return { time: exactClock(specMinutes(hass, spec) + delta), ...random };
 }
 
 /** True when a solar time asks to be no earlier than its own latest limit (the server rejects it too). */
