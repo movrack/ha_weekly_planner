@@ -842,7 +842,7 @@ Les cases encore ouvertes du § 17 restent ouvertes et ne sont pas répétées i
 - [ ] Test réel ≥ 3 jours sur le banc d'essai (§ 13, point 2).
       *en cours — le propriétaire indique que les tests réels sont OK à ce jour (2026-10-31) ; durée ≥ 3 jours et version testée non consignées*
 - [ ] Stratégie de tags / releases : dernier tag et dernière release GitHub `v0.7.10` ; `main` est derrière `develop` ; pas de `1.0.0`.
-- [ ] Tests de mutation : des survivants subsistent dans `validation.py` (informatif, non traités).
+- [x] Tests de mutation : `validation.py` traité (`tests/test_validation.py`) ; 123 survivants sur 479 ramenés à 13, tous équivalents (date de référence arbitraire des contrôles de chevauchement, fuseau UTC et résolveur solaire inutilisés pour des heures fixes, `split(".", n)` sur un identifiant à un seul point).
 - [ ] Refonte des modules / de l'architecture (`engine.py` ~36 ko, `weekly-planner-card.ts` ~29 ko) : hors du périmètre
       des corrections actuelles (§ 17), à planifier séparément.
 
