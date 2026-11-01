@@ -55,7 +55,7 @@ Prenons cet exemple pour le chauffage du salon :
 
 Toucher le **calendrier avec un crayon**, à droite de Chauffage du salon.
 Les horaires déjà créés apparaissent sous les sept barres de la semaine.
-Si rien n'est encore réglé, la carte affiche un bouton **Créer un réglage** à la place des barres : il ouvre directement le formulaire d'un premier horaire.
+Si rien n'est encore réglé pour un appareil, la carte affiche sur sa ligne un bouton **Créer un réglage** à la place des barres : il ouvre directement le formulaire d'un premier horaire pour cet appareil.
 
 <a href="images/guide/s06-schedules.png"><img src="images/guide/s06-schedules.png" width="320" alt="Les horaires du chauffage : Confort le matin et le soir, Éco le reste du temps." /></a>
 
@@ -177,6 +177,27 @@ endroit, l’écran montre l’avant et l’après :
 
 Voir les [jours de copie](SCREENS.fr.md#s19) et les [choix de remplacement](SCREENS.fr.md#s20).
 Pour un horaire commencé la veille, utiliser le formulaire plutôt que la barre.
+
+## J’ai plusieurs appareils dans un programme
+
+Chaque appareil a ses propres horaires. Exemple : dans le programme du salon, le
+thermostat est à 15 °C de 7 h à 22 h et le volet se ferme à 7 h. Sur la carte, la
+ligne du volet ne montre que « Fermer », celle du thermostat que « 15 °C ».
+
+- Toucher la barre ou le calendrier d’un appareil ouvre **ses** horaires. En haut
+  de l’écran, une pastille par appareil permet de passer à un autre.
+- Un nouvel horaire est créé pour cet appareil. Sous **Aussi pour :**, toucher un
+  autre appareil pour qu’il suive le même horaire. Tous cochés : l’horaire vaut
+  pour tout le programme, y compris un appareil ajouté plus tard.
+- Si un horaire sert à plusieurs appareils, l’écran demande toujours **Modifier
+  pour :** **Cet appareil** ou **Tous (N)**. **Cet appareil** ne change que cet
+  appareil ; les autres gardent l’horaire tel quel. Même question sur la barre,
+  après un glissement ou un choix de réglage ; la croix abandonne la modification.
+- **Supprimer**, en bas de l’écran, n’enlève que les horaires de cet appareil.
+- Dans **Réglages des programmes > Appareils**, retirer un appareil supprime aussi
+  ses horaires propres (un message dit combien). Un appareil ajouté suit les
+  horaires communs à tous les appareils. Retirer une commande d’un appareil
+  propose de lui retirer les horaires qui l’utilisent.
 
 ## Je veux fermer le volet au coucher du soleil
 

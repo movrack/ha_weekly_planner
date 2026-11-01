@@ -1040,7 +1040,7 @@ Demande de changement : https://github.com/movrack/ha_weekly_planner/issues/34. 
   fusion, segments, bornes, déplacements, copies, chevauchements, `slotKey` sensibles aux appareils ; `editForDevice`
   (copie à l'écriture + refusion), `applyToAll`, `alsoFor` (normalisation D5), `removeDeviceFromSlots` ;
   `appliedAction(hass, program, eid, label, slot)` ; reprise sur conflit par INTENTION réévaluée sur données fraîches.
-- [ ] Lot 5 — interface de la carte : barres, fenêtre d'horaires, graphique, repli sans aperçu, barre éditable
+- [x] Lot 5 — interface de la carte : barres, fenêtre d'horaires, graphique, repli sans aperçu, barre éditable
   (annulation limitée aux horaires de l'appareil), dialogue à deux boutons (D1), « Aussi pour : … », « Créer un
   réglage » par appareil (D4), confirmations de l'éditeur de programme, texte de `skip_next` nommant l'appareil,
   messages des nouveaux codes (fr/en), mode simple (D3), mise en page 360 px ; tests de modification concurrente

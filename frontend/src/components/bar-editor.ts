@@ -18,11 +18,12 @@ import {
 } from "../edits";
 import type { At, DayCtx, Handle, Target } from "../edits";
 import { editorStyles } from "../editors/shared";
+import { devicesOf, isShared, isolateForDevice, remergeIdentical, undoSlots } from "../device-edits";
 import { dismissHoldHint, HOLD_HINT_MS, takeHoldHint } from "../hold-hint";
-import { strings, t } from "../i18n";
+import { slotDeviceError, strings, t } from "../i18n";
 import { appliedAction, labelName, labelOf, labelsFor } from "../labels";
 import { activeProfile, newId } from "../planner";
-import { shiftTimeSpec, specMinutes } from "../slots";
+import { applicable, normaliseEntities, shiftTimeSpec, specMinutes } from "../slots";
 import { DAY, clockToMinutes, fmtClock, localMinutes } from "../time";
 import type { HomeAssistant, PlannerData, PreviewSlot, Program, Slot } from "../types";
 
@@ -37,6 +38,9 @@ const lastSaved = new Map<string, Program>();
 const newest = (a: Program | undefined, b: Program): Program => (a && a.revision > b.revision ? a : b);
 
 type Op = (days: Slot[][]) => Slot[][] | null;
+/** An edit of the bar written for any device choice: `id` gives the slot to work on (the device's copy for "This device"). */
+type DevOp = (days: Slot[][], id: (slotId: string) => string) => Slot[][] | null;
+const same = (x: string): string => x;
 
 @customElement("wp-bar-editor")
 export class WpBarEditor extends LitElement {
@@ -69,6 +73,8 @@ export class WpBarEditor extends LitElement {
   @state() private _copyDays: number[] = [];
   @state() private _conflict: { to: number[]; days: number[]; skip: number[]; id: string } | null = null;
   @state() private _error = "";
+  /** An edit touches a slot shared with other devices: "This device" / "All (N)" is asked before saving (D1). */
+  @state() private _ask: { op: DevOp; touched: number[]; ids: string[]; profileId: string; count: number } | null = null;
   @state() private _hover = false;
   /** A slot is being dragged: the strip is hidden so that the other day bars come back within reach. */
   @state() private _moving = false;
@@ -118,12 +124,17 @@ export class WpBarEditor extends LitElement {
 
   private _ctx(newIds?: () => string): DayCtx {
     const entity = this.program.entities.find((e) => e.entity_id === this.entityId);
-    const fallback = labelsFor(this.hass, this.data, [this.entityId])[0]?.id;
+    const fallback = labelsFor(this.hass, this.data, [this.entityId], this.program)[0]?.id;
     const sun = new Map(this._sun);
+    const devices = devicesOf(this.program);
     return {
       at: (spec) => "time" in spec ? clockToMinutes(spec.time) : sun.get(JSON.stringify(spec)) ?? specMinutes(this.hass, spec),
+      // `lead` comes from this device's own spans (its previous-day spill only)
       lead: this._lead, newId: newIds ?? newId,
       defaultLabel: entity?.default_label ?? fallback,
+      entity: this.entityId || undefined, devices,
+      // a slot created on this row belongs to this device (absent for a single-device program, D5)
+      newEntities: this.entityId ? normaliseEntities([this.entityId], devices) : undefined,
     };
   }
 
@@ -159,6 +170,7 @@ export class WpBarEditor extends LitElement {
         this._conflict = null;
         this._keep.clear();
         this._bubble = null;
+        if (this._ask) { this._ask = null; this._dropDraft(); }
       }
     }
   }
@@ -444,15 +456,15 @@ export class WpBarEditor extends LitElement {
         return true;
       }
       const id = newId();
-      void this._commit((all) => {
-        const r = moveToDay(all, { day: weekday, id: slotId }, dest, delta, { ...ctx, newId: () => id }, this._shift);
+      this._edit((all, of) => {
+        const r = moveToDay(all, { day: weekday, id: of(slotId) }, dest, delta, { ...ctx, newId: () => id }, this._shift);
         return "days" in r ? r.days : null;
-      }, [weekday, dest], false, profileId);
+      }, [weekday, dest], [slotId], profileId);
     } else {
-      void this._commit((all) => {
-        const r = moveSlotBy(all[weekday], slotId, delta, ctx, this._shift);
+      this._edit((all, of) => {
+        const r = moveSlotBy(all[weekday], of(slotId), delta, ctx, this._shift);
         return r ? this._with(all, weekday, r.slots) : null;
-      }, [weekday], false, profileId);
+      }, [weekday], [slotId], profileId);
     }
     return true;
   }
@@ -501,10 +513,10 @@ export class WpBarEditor extends LitElement {
       this._bubble = null;
       if (d.moved) {
         const { ref, last } = d;
-        void this._commit((days) => {
-          const r = moveBoundary(days[d.weekday], ref, last, d.ctx);
+        this._edit((days, of) => {
+          const r = moveBoundary(days[d.weekday], { ...ref, id: of(ref.id) }, last, d.ctx);
           return r ? this._with(days, d.weekday, r.slots) : null;
-        }, [d.weekday], false, d.profileId);
+        }, [d.weekday], this._boundaryIds(ref, d.ctx), d.profileId);
       } else {
         // a tap on a one-shot marker selects it
         const slot = this._baseDay.find((s) => s.id === d.ref.id);
@@ -563,10 +575,62 @@ export class WpBarEditor extends LitElement {
     window.clearTimeout(n.timer);
     this._nudge = undefined;
     this._bubble = null;
-    void this._commit((days) => {
-      const r = moveBoundary(days[n.weekday], n.ref, n.m, n.ctx);
+    this._edit((days, of) => {
+      const r = moveBoundary(days[n.weekday], { ...n.ref, id: of(n.ref.id) }, n.m, n.ctx);
       return r ? this._with(days, n.weekday, r.slots) : null;
-    }, [n.weekday], false, n.profileId);
+    }, [n.weekday], this._boundaryIds(n.ref, n.ctx), n.profileId);
+  }
+
+  /* ---- per-device edits (#34, D1) ---- */
+
+  /** Slots moved together with a handle (the slots of its boundary on this device row). */
+  private _boundaryIds(ref: Handle, ctx: DayCtx): string[] {
+    const b = boundaries(this._baseDay, ctx).find((x) => x.refs.some((r) => r.id === ref.id && r.edge === ref.edge));
+    return b ? [...new Set(b.refs.map((r) => r.id))] : [ref.id];
+  }
+
+  /**
+   * Runs an edit of this bar. When it touches a slot shared with other devices, nothing is saved yet: the draft
+   * stays on the bar and "This device" / "All (N)" is asked (D1, never a silent split). Otherwise it is saved.
+   */
+  private _edit(op: DevOp, touched: number[], ids: string[], profileId = activeProfile(this._live, this.data).id): void {
+    const devices = devicesOf(this._live);
+    const days = this._live.profiles.find((p) => p.id === profileId)?.days ?? [];
+    const shared = days[this.weekday]?.filter((s) => ids.includes(s.id) && isShared(s, devices)) ?? [];
+    if (!this.entityId || !shared.length) {
+      void this._commit((all) => op(all, same), touched, false, profileId);
+      return;
+    }
+    const preview = op(days, same);
+    if (preview) this._draft = preview[this.weekday] ?? null;
+    this._ask = { op, touched, ids, profileId, count: applicable(shared[0], devices).length };
+  }
+
+  /** The answer to "This device" / "All (N)": the pending edit is rebuilt on the current program and saved. */
+  private _answer(who: "one" | "all"): void {
+    const a = this._ask;
+    if (!a) return;
+    this._ask = null;
+    if (who === "all") {
+      void this._commit((all) => a.op(all, same), a.touched, false, a.profileId);
+      return;
+    }
+    const eid = this.entityId;
+    const day = this.weekday;
+    const touched = [...new Set([...a.touched, day])];
+    void this._commit((all) => {
+      // copy-on-write on the fresh day: the shared slots are split for this device, the edit works on its copies,
+      // then copies that are identical again are merged back (D1, D7)
+      const devices = devicesOf(this._live);
+      const iso = isolateForDevice(all[day], eid, devices, a.ids);
+      const out = a.op(this._with(all, day, iso.day), (x) => iso.map.get(x) ?? x);
+      return out ? out.map((d, i) => (touched.includes(i) ? remergeIdentical(d, devices).day : d)) : null;
+    }, touched, false, a.profileId);
+  }
+
+  private _askCancel(): void {
+    this._ask = null;
+    this._dropDraft();
   }
 
   /* ---- saving ---- */
@@ -614,12 +678,17 @@ export class WpBarEditor extends LitElement {
           if (this.program.revision >= res.program.revision) this._dropDraft();
         } else this._dropDraft();
         if (!silent) {
-          const restore = changed.map((i) => [i, before[i]] as const);
+          const at = this._ctx().at;
           this._emit("edited", {
             undo: () => this._commit((days) => {
-              // Never overwrite another editor's subsequent change to a restored day.
-              if (changed.some((i) => JSON.stringify(days[i]) !== JSON.stringify(merged[i]))) return null;
-              return days.map((d, i) => restore.find((r) => r[0] === i)?.[1] ?? d);
+              // only the slots this edit wrote come back: another device's change made meanwhile is kept; a slot of
+              // this edit changed since cannot be undone and the user is told (never a silent refusal)
+              const out = days.map((d, i) => (changed.includes(i) ? undoSlots(d, before[i], merged[i]) : d));
+              if (out.some((d) => d === null)) {
+                this._fail(t(this.lang, "undo_changed"));
+                return null;
+              }
+              return (out as Slot[][]).map((d, i) => (changed.includes(i) ? [...d].sort((x, y) => at(x.start) - at(y.start)) : d));
             }, changed, true, profileId),
           });
         }
@@ -640,8 +709,9 @@ export class WpBarEditor extends LitElement {
           }
         }
         this._dropDraft();
-        this._fail(e?.message?.includes("overlapping_slots") ? t(this.lang, "w_err_overlap")
-          : e?.code === "unauthorized" ? t(this.lang, "err_unauthorized") : t(this.lang, "ss_err_save"));
+        this._fail(slotDeviceError(this.lang, e?.message, (eid) => String(this.hass.states[eid]?.attributes.friendly_name ?? eid))
+          ?? (e?.message?.includes("overlapping_slots") ? t(this.lang, "w_err_overlap")
+          : e?.code === "unauthorized" ? t(this.lang, "err_unauthorized") : t(this.lang, "ss_err_save")));
         return false;
       }
     }
@@ -669,7 +739,8 @@ export class WpBarEditor extends LitElement {
     if (!sel || label === null) return;
     const id = newId();
     const target = sel.target;
-    void this._commit((days) => this._with(days, this.weekday, setLabel(days[this.weekday], target, label, this._ctx(() => id))), [this.weekday]);
+    this._edit((days, of) => this._with(days, this.weekday, setLabel(days[this.weekday], target.kind === "slot" ? { ...target, id: of(target.id) } : target, label, this._ctx(() => id))),
+      [this.weekday], target.kind === "slot" ? [target.id] : []);
     if (target.kind === "gap") this._selected = { kind: "slot", id };
   }
 
@@ -679,7 +750,7 @@ export class WpBarEditor extends LitElement {
     const id = sel.slot.id;
     if (!(await confirmAction(this, t(this.lang, "w_confirm_slot"), t(this.lang, "yes"), t(this.lang, "no")))) return;
     this._selected = null;
-    void this._commit((days) => this._with(days, this.weekday, removeSlot(days[this.weekday], id)), [this.weekday]);
+    this._edit((days, of) => this._with(days, this.weekday, removeSlot(days[this.weekday], of(id))), [this.weekday], [id]);
   }
 
   private _cut(): void {
@@ -692,12 +763,11 @@ export class WpBarEditor extends LitElement {
     if (!res) return;
     if (target.kind === "gap") this._keep.add(id);
     this._hsel = res.handle;
-    void this._commit((days) => {
-      const r = splitAt(days[this.weekday], target, this._ctx(() => id));
+    this._edit((days, of) => {
+      const r = splitAt(days[this.weekday], target.kind === "slot" ? { ...target, id: of(target.id) } : target, this._ctx(() => id));
       return r ? this._with(days, this.weekday, r.slots) : null;
-    }, [this.weekday]).then(() => {
-      void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(`[data-h="${res.handle.id}:${res.handle.edge}"]`)?.focus());
-    });
+    }, [this.weekday], target.kind === "slot" ? [target.id] : []);
+    void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(`[data-h="${res.handle.id}:${res.handle.edge}"]`)?.focus());
     if (target.kind === "gap") this._selected = { kind: "slot", id };
   }
 
@@ -725,10 +795,10 @@ export class WpBarEditor extends LitElement {
     this._copyDays = [];
     const touched = to.filter((d) => !skip.includes(d));
     if (!touched.length) return;
-    await this._commit((days) => {
-      const out = copyToDays(days, { day: this.weekday, id }, to, this._ctx(), skip);
+    this._edit((days, of) => {
+      const out = copyToDays(days, { day: this.weekday, id: of(id) }, to, this._ctx(), skip);
       return out === days ? null : out;
-    }, touched);
+    }, touched, [id]);
   }
 
   /* ---- render ---- */
@@ -743,7 +813,7 @@ export class WpBarEditor extends LitElement {
     const out: BarSpan[] = [];
     for (const slot of slots) {
       const label = labelOf(this.data, slot.label);
-      if (!label || !appliedAction(this.hass, this.program, this.entityId, label)) continue;
+      if (!label || !appliedAction(this.hass, this.program, this.entityId, label, slot)) continue;
       const e = eff(slot, this._at);
       out.push({
         start: e.start, end: e.end ?? e.start + 10, color: label.color, label: labelName(this.hass, label), slotId: slot.id,
@@ -824,6 +894,21 @@ export class WpBarEditor extends LitElement {
     </div>`;
   }
 
+  /** "Change for: This device / All (N)" under the bar, with a way back (the edit is then dropped). */
+  private _askBox() {
+    const a = this._ask;
+    if (!a) return nothing;
+    const lang = this.lang;
+    return html`<div class="ask" role="group" aria-label=${t(lang, "who_title")}>
+      <span>${t(lang, "who_title")}</span>
+      <div class="acts">
+        <button class="act" @click=${() => this._answer("one")}><ha-icon icon="mdi:numeric-1-circle-outline"></ha-icon>${t(lang, "who_one")}</button>
+        <button class="act" @click=${() => this._answer("all")}><ha-icon icon="mdi:select-all"></ha-icon>${t(lang, "who_all", { n: String(a.count) })}</button>
+        <button class="act" aria-label=${t(lang, "cancel")} title=${t(lang, "cancel")} @click=${() => this._askCancel()}><ha-icon icon="mdi:close"></ha-icon></button>
+      </div>
+    </div>`;
+  }
+
   private _conflictDialog() {
     const c = this._conflict;
     if (!c) return nothing;
@@ -865,7 +950,8 @@ export class WpBarEditor extends LitElement {
           aria-label=${t(this.lang, "edit_bar")}>${this.editing ? this._overlay_() : nothing}</wp-day-bar>
         <div class="hint" role="status">${this._hint ? t(this.lang, "hold_hint") : nothing}</div>
       </div>
-      ${this.editing && !this._moving ? this._strip() : nothing}
+      ${this.editing && !this._moving && !this._ask ? this._strip() : nothing}
+      ${this._askBox()}
       ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
       ${this._conflictDialog()}`;
   }
@@ -908,6 +994,8 @@ export class WpBarEditor extends LitElement {
       background: var(--primary-text-color); color: var(--card-background-color, #fff); font-size: 14px; font-weight: 600;
       white-space: nowrap; pointer-events: none; z-index: 5; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
     }
+    .ask { margin: 4px 0 8px; padding: 8px; border: 2px solid var(--primary-color); border-radius: 12px; }
+    .ask > span { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; }
     .strip { margin: 4px 0 8px; padding: 8px; border: 1px solid var(--divider-color); border-radius: 12px; }
     .strip wp-label-picker { --mdc-icon-size: 18px; }
     .acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }

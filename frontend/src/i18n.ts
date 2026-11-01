@@ -318,6 +318,24 @@ const en = {
   running: "On",
   stopped: "Off",
   rest_none_short: "None",
+  who_title: "Change for:",
+  who_one: "This device",
+  who_all: "All ({n})",
+  who_pick: "Choose: this device or all.",
+  also_for: "Also for:",
+  also_short: "Also: {names}",
+  device_label: "Device",
+  confirm_delete_device: "Delete the schedules of “{name}”? The other devices keep theirs.",
+  confirm_remove_device_own: "Delete “{name}”? Its {n} own schedules will be deleted too.",
+  pe_inherits: "Follows the {n} schedules shared by all devices.",
+  pe_incompatible: "{n} schedules of this device use a command that is no longer chosen.",
+  pe_incompatible_remove: "Remove them from this device",
+  err_slot_entities: "A schedule has no device left. Pick at least one.",
+  err_slot_duplicate: "A device is listed twice in a schedule.",
+  err_slot_unknown: "A schedule targets a device that is not in this program.",
+  err_overlap_device: "Two schedules overlap for {name}.",
+  skip_named: "Skipped: {what} · {when}",
+  undo_changed: "Cannot undo: this schedule was changed meanwhile.",
 };
 
 const fr: typeof en = {
@@ -638,6 +656,24 @@ const fr: typeof en = {
   running: "En marche",
   stopped: "À l'arrêt",
   rest_none_short: "Rien",
+  who_title: "Modifier pour :",
+  who_one: "Cet appareil",
+  who_all: "Tous ({n})",
+  who_pick: "Choisissez : cet appareil ou tous.",
+  also_for: "Aussi pour :",
+  also_short: "Aussi : {names}",
+  device_label: "Appareil",
+  confirm_delete_device: "Supprimer les horaires de « {name} » ? Les autres appareils gardent les leurs.",
+  confirm_remove_device_own: "Supprimer « {name} » ? Ses {n} horaires propres seront supprimés aussi.",
+  pe_inherits: "Suit les {n} horaires communs à tous les appareils.",
+  pe_incompatible: "{n} horaires de cet appareil utilisent une commande qui n’est plus choisie.",
+  pe_incompatible_remove: "Les retirer de cet appareil",
+  err_slot_entities: "Un horaire n’a plus d’appareil. Choisissez-en au moins un.",
+  err_slot_duplicate: "Un appareil est en double dans un horaire.",
+  err_slot_unknown: "Un horaire vise un appareil absent de ce programme.",
+  err_overlap_device: "Deux horaires se chevauchent pour {name}.",
+  skip_named: "Sauté : {what} · {when}",
+  undo_changed: "Annulation impossible : cet horaire a changé entre-temps.",
 };
 
 export type Strings = typeof en;
@@ -651,4 +687,17 @@ export function t(lang: string, key: Key, vars: Record<string, string> = {}): st
   let text = strings(lang)[key] as string;
   for (const [name, value] of Object.entries(vars)) text = text.replace(`{${name}}`, value);
   return text;
+}
+
+/**
+ * Text of a refused save about slot devices (#34 codes), or null when the message is about something else.
+ * `overlapping_slots:<entity_id>` names the device; a bare `overlapping_slots` stays generic.
+ */
+export function slotDeviceError(lang: string, message: string | undefined, name: (entityId: string) => string): string | null {
+  if (!message) return null;
+  if (message.includes("empty_slot_entities")) return t(lang, "err_slot_entities");
+  if (message.includes("duplicate_slot_entity")) return t(lang, "err_slot_duplicate");
+  if (message.includes("unknown_slot_entity")) return t(lang, "err_slot_unknown");
+  const eid = /overlapping_slots:([a-z0-9_]+\.[a-z0-9_]+)/.exec(message)?.[1];
+  return eid ? t(lang, "err_overlap_device", { name: name(eid) }) : null;
 }

@@ -20,12 +20,13 @@ import { actionText, appliedAction, labelName, labelOf } from "./labels";
 import { strings, t } from "./i18n";
 import { loadServiceNames } from "./services";
 import { reloadIfOutdated } from "./update";
-import { fetchPreview } from "./preview-cache";
+import { deviceDays, fetchPreviewResponse } from "./preview-cache";
+import { applies } from "./slots";
 import { configDefaults, normalizeConfig } from "./config";
 import { activeProfile, filterPrograms, friendlyName, subscribePlanner } from "./planner";
 import { dayBounds, addDaysIso } from "./components/chart";
 import { formatWhen, localDateIso, localMinutes, localWeekday, nominal, spillover, DAY } from "./time";
-import type { CardConfig, HomeAssistant, PlannerData, PreviewSlot, Program, Slot } from "./types";
+import type { CardConfig, HomeAssistant, PlannerData, PreviewResponse, Program, Slot } from "./types";
 
 type Dialog =
   | { kind: "schedule"; scope: Scope; day?: { weekday: number; offset: number }; create?: boolean }
@@ -38,8 +39,8 @@ export class WeeklyPlannerCard extends LitElement {
   @state() private _data?: PlannerData;
   @state() private _error?: string;
   @state() private _dialog: Dialog = null;
-  // Resolved slots (sun times) per local date, then per program: today and the next 6 days.
-  @state() private _preview: Record<string, Record<string, PreviewSlot[]>> = {};
+  // Resolved slots (sun times) per local date, then per program: today and the next 6 days (`by_entity` per device).
+  @state() private _preview: Record<string, Record<string, PreviewResponse>> = {};
   @state() private _now = new Date();
   @state() private _week = new Set<string>();
   @state() private _expandedProgram: string | null = null;
@@ -178,10 +179,10 @@ export class WeeklyPlannerCard extends LitElement {
     if (key === this._previewKey || (key === this._failedPreviewKey && Date.now() < this._previewRetryAt)) return;
     this._previewKey = key;
     let failed = false;
-    const previews: Record<string, Record<string, PreviewSlot[]>> = {};
+    const previews: Record<string, Record<string, PreviewResponse>> = {};
     await Promise.all(dates.flatMap((date) => programs.map((p) =>
-      fetchPreview(this.hass, p.id, p.revision, date, activeProfile(p, this._data!).id, false)
-        .then((slots) => { (previews[date] ??= {})[p.id] = slots; })
+      fetchPreviewResponse(this.hass, p.id, p.revision, date, activeProfile(p, this._data!).id, false)
+        .then((res) => { (previews[date] ??= {})[p.id] = res; })
         .catch(() => { failed = true; }))));
     // a newer edit started its own loading meanwhile: these previews are stale
     if (key === this._previewKey) {
@@ -216,24 +217,26 @@ export class WeeklyPlannerCard extends LitElement {
     const data = this._data!;
     const at = this._dateAt(offset);
     const today = localWeekday(at, this._tz);
-    const preview = this._preview[localDateIso(at, this._tz)] ?? {};
     const spans: BarSpan[] = [];
     for (const program of [...programs].reverse()) {
       if (!program.enabled) continue;
       const profile = activeProfile(program, data);
-      const of = (slot: Slot) => appliedAction(this.hass, program, entityId, labelOf(data, slot.label));
+      // only the slots of this device with an action it can take (`applies` + compatibility, never a domain test)
+      const of = (slot: Slot) => appliedAction(this.hass, program, entityId, labelOf(data, slot.label), slot);
       const mk = (slot: Slot, start: number, end: number, extra: Partial<BarSpan> = {}): BarSpan => {
         const label = labelOf(data, slot.label)!;
         return { start, end, color: label.color, label: labelName(this.hass, label), slotId: slot.id, startSun: sunDir(slot.start),
           endSun: slot.end ? sunDir(slot.end) : null, startSpec: slot.start, endSpec: slot.end ?? null, marker: !slot.end, ...extra };
       };
       const date = localDateIso(at, this._tz);
-      const previous = this._preview[addDaysIso(date, -1)]?.[program.id];
-      const resolved = preview[program.id];
+      const { today: resolved, previous } = this._deviceDays(program.id, date, entityId);
       const byId = new Map(profile.days.flat().map((slot) => [slot.id, slot]));
       const bounds = dayBounds(date, this._tz);
+      const seen = new Set<string>();
       for (const r of [...(previous ?? []), ...(resolved ?? [])]) {
         const slot = byId.get(r.slot_id);
+        if (seen.has(`${r.slot_id}|${r.start}`)) continue;
+        seen.add(`${r.slot_id}|${r.start}`);
         if (!slot || !of(slot)) continue;
         const startMs = Date.parse(r.start), endMs = r.end ? Date.parse(r.end) : null;
         if (startMs >= bounds.endMs || (endMs === null ? startMs < bounds.startMs : endMs <= bounds.startMs)) continue;
@@ -258,6 +261,25 @@ export class WeeklyPlannerCard extends LitElement {
     return spans;
   }
 
+  /** Resolved occurrences of one device for a date and the day before (see `deviceDays`). */
+  private _deviceDays(programId: string, date: string, entityId: string) {
+    return deviceDays(this._preview[date]?.[programId], this._preview[addDaysIso(date, -1)]?.[programId], entityId);
+  }
+
+  /** "Skipped: Close · 07:00" when the next change of this device is skipped (`skip_next_targets` names it). */
+  private _skipped(entityId: string, programs: Program[]) {
+    const data = this._data!;
+    for (const p of programs) {
+      const status = data.status[p.id];
+      const target = status?.skip_next ? status.skip_next_targets?.find((x) => x.entity_id === entityId) : undefined;
+      if (!target || !status?.skip_next) continue;
+      const label = labelOf(data, target.label);
+      const what = label ? labelName(this.hass, label) : target.action ? actionText(this.hass, this._lang, target.action) : t(this._lang, "rest_none_short");
+      return html`<span class="skip"><ha-icon icon="mdi:skip-next"></ha-icon>${t(this._lang, "skip_named", { what, when: nb(formatWhen(status.skip_next, this._tz, this._lang, this._now)) })}</span>`;
+    }
+    return nothing;
+  }
+
   private _next(entityId: string, programs: Program[]) {
     const data = this._data!;
     for (const p of programs) {
@@ -274,15 +296,15 @@ export class WeeklyPlannerCard extends LitElement {
     this._dialog = { kind: "schedule", scope, day, create };
   }
 
-  /** The program has no slot at all in its active mode: nothing to show or tap on its bars. */
-  private _noSlots(program: Program): boolean {
+  /** The device has no slot at all in the active mode of its program: nothing to show or tap on its bars. */
+  private _noSlots(program: Program, entityId: string): boolean {
     const mode = this._data ? activeProfile(program, this._data) : undefined;
-    return Boolean(mode) && mode!.days.every((d) => d.length === 0);
+    return Boolean(mode) && mode!.days.every((d) => !d.some((s) => applies(s, entityId)));
   }
 
-  /** Empty program, and the user may edit: the bars give way to one "Create a setting" button. */
-  private _needsCreate(program: Program): boolean {
-    return Boolean(this._data?.can_edit) && !this._data?.read_only && this._noSlots(program);
+  /** Device without any slot, and the user may edit: its bars give way to its own "Create a setting" button (D4). */
+  private _needsCreate(program: Program, entityId: string): boolean {
+    return Boolean(this._data?.can_edit) && !this._data?.read_only && this._noSlots(program, entityId);
   }
 
   /** Opens the schedule screen straight on a new slot. */
@@ -334,7 +356,7 @@ export class WeeklyPlannerCard extends LitElement {
     const key = `${program.id}|${entityId}|${kind}|${weekday}`;
     const programs = [program];
     return html`<wp-bar-editor .hass=${this.hass} .data=${this._data} .program=${program} entity-id=${entityId}
-      weekday=${weekday} .spans=${this._spans(entityId, programs, offset)} .preview=${this._preview[date]?.[program.id]}
+      weekday=${weekday} .spans=${this._spans(entityId, programs, offset)} .preview=${this._deviceDays(program.id, date, entityId).today}
       .now=${offset === 0 ? localMinutes(this._now, this._tz) : null} ?hours=${kind === "today"}
       ?editing=${this._edit === key} ?editable=${Boolean(this._data?.can_edit) && !this._data?.read_only}
       lang=${this._lang} tz=${this._tz}
@@ -351,11 +373,13 @@ export class WeeklyPlannerCard extends LitElement {
     const stateObj = this.hass.states[entityId];
     const icon = opts.icon ?? stateObj?.attributes.icon ?? "mdi:calendar-clock";
     const open = () => this._open(opts.open);
-    const create = this._needsCreate(programs[0]);
+    const create = this._needsCreate(programs[0], entityId);
     return html`
       <div class="block">
         <div class="line">
-          <ha-icon class="dev" icon=${icon}></ha-icon>
+          ${!opts.icon && !stateObj?.attributes.icon && stateObj
+            ? html`<ha-state-icon class="dev" .hass=${this.hass} .stateObj=${stateObj}></ha-state-icon>`
+            : html`<ha-icon class="dev" icon=${icon}></ha-icon>`}
           <div class="info">
             ${opts.name ? html`<span class="name">${opts.name}</span>` : nothing}
             ${opts.button && programs.length === 1 ? this._modeName(programs[0]) : nothing}
@@ -364,13 +388,14 @@ export class WeeklyPlannerCard extends LitElement {
               ${next ? html`<span class="next">→ ${nextLabel ? labelName(this.hass, nextLabel) : actionText(this.hass, lang, next.action)}
                 <span class="when nw">${nb(formatWhen(next.at, this._tz, lang, this._now))}</span></span>` : nothing}
             </span>
+            ${this._skipped(entityId, programs)}
           </div>
           ${opts.button ? html`<div class="header-actions"><div class="header-icons">
             ${programs.length === 1 ? this._programToggle(programs[0]) : nothing}
             <button class="hours" aria-label=${t(lang, "hours")} title=${t(lang, "hours")} @click=${open}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
           </div>${this._disabledBadge(paused)}</div>` : nothing}
         </div>
-        ${create ? (opts.button ? this._createButton(opts.open) : nothing) : (this._config.schedule_view === "radial" || this._config.schedule_view === "radial_12h") ? html`<wp-radial-day
+        ${create ? this._createButton(opts.open) : (this._config.schedule_view === "radial" || this._config.schedule_view === "radial_12h") ? html`<wp-radial-day
           .spans=${this._spans(entityId, programs)} .now=${localMinutes(this._now, this._tz)} lang=${lang}
           .rest=${(() => { const l = labelOf(data, programs[0].entities.find((e) => e.entity_id === entityId)?.default_label); return l ? labelName(this.hass, l) : t(lang, "rest_none"); })()}
           .double=${this._config.schedule_view === "radial_12h"}
@@ -409,8 +434,7 @@ export class WeeklyPlannerCard extends LitElement {
     };
     const program = programs[0];
     const date = localDateIso(this._now, this._tz);
-    const slots = this._preview[date]?.[program.id];
-    const previous = this._preview[addDaysIso(date, -1)]?.[program.id];
+    const { today: slots, previous } = this._deviceDays(program.id, date, entityId);
     return html`
       <div class="toggles">
         <button class="weekbtn" aria-expanded=${weekOpen} @click=${toggleWeek}>
@@ -451,8 +475,7 @@ export class WeeklyPlannerCard extends LitElement {
             <button class="hours" aria-label=${t(lang, "hours")} title=${t(lang, "hours")} @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
           </div>${this._disabledBadge(!p.enabled)}</div>
         </div>
-        ${this._needsCreate(p) ? html`<div class="block">${this._createButton(scope)}</div>` : nothing}
-        ${p.entities.map((e) => this._line(e.entity_id, [p], { name: friendlyName(this.hass, e.entity_id), button: null, open: scope }))}
+        ${p.entities.map((e) => this._line(e.entity_id, [p], { name: friendlyName(this.hass, e.entity_id), button: null, open: { ...scope, entityId: e.entity_id } }))}
       </section>`;
     });
   }
@@ -474,12 +497,14 @@ export class WeeklyPlannerCard extends LitElement {
           @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>` : nothing}</div>
           ${this._disabledBadge(!p.enabled)}</div></div>
         ${expanded ? html`<div id=${`compact-${p.id}`} class="compact-details" role="region" aria-label=${p.name}>
-          ${this._needsCreate(p) ? this._createButton(scope) : p.entities.map((e) => html`
+          ${p.entities.map((e) => {
+            const own: Scope = p.entities.length > 1 ? { ...scope, entityId: e.entity_id } : scope;
+            return html`
             ${p.entities.length > 1 ? html`<strong class="compact-device">${friendlyName(this.hass, e.entity_id)}</strong>` : nothing}
-            <div class="today"><span class="wname">${t(this._lang, "today_short")}</span>
-              ${this._bar(e.entity_id, p, 0, "today", () => this._open(scope))}</div>
-            ${this._extras(scope, e.entity_id, [p])}
-          `)}
+            ${this._needsCreate(p, e.entity_id) ? this._createButton(own) : html`<div class="today"><span class="wname">${t(this._lang, "today_short")}</span>
+              ${this._bar(e.entity_id, p, 0, "today", () => this._open(own))}</div>
+            ${this._extras(own, e.entity_id, [p])}`}`;
+          })}
         </div>` : nothing}</section>`;
     });
   }
@@ -515,7 +540,7 @@ export class WeeklyPlannerCard extends LitElement {
     const close = () => (this._dialog = null);
     switch (d.kind) {
       case "schedule":
-        return keyed(scopeKey(d.scope), html`<wp-schedule .hass=${this.hass} .data=${this._data} .scope=${d.scope} .day=${d.day ?? null} ?create=${Boolean(d.create)}
+        return keyed(`${scopeKey(d.scope)}|${d.scope.kind === "program" ? d.scope.entityId ?? "" : ""}`, html`<wp-schedule .hass=${this.hass} .data=${this._data} .scope=${d.scope} .day=${d.day ?? null} ?create=${Boolean(d.create)}
           .chart=${this._config.show_chart !== false} @closed=${close}></wp-schedule>`);
     }
   }
@@ -542,6 +567,7 @@ export class WeeklyPlannerCard extends LitElement {
     .info { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 0; }
     .mode-name { display: block; flex-basis: 100%; font-size: 13px; font-weight: 400; color: var(--secondary-text-color); line-height: 20px; }
     .name { font-size: 17px; font-weight: 600; }
+    .skip { flex-basis: 100%; display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--secondary-text-color); --mdc-icon-size: 16px; }
     .now { font-size: 15px; display: flex; flex-wrap: wrap; column-gap: 6px; color: var(--primary-text-color); }
     .nw { white-space: nowrap; }
     .next { min-width: 0; overflow-wrap: anywhere; }

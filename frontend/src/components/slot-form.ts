@@ -6,7 +6,9 @@ import "./label-picker";
 import { ALL_DAYS, WEEKDAYS, WEEKEND, shiftSpec, specText } from "../actions";
 import type { SlotGroup } from "../actions";
 import { strings, t } from "../i18n";
-import { sunBoundsInvalid } from "../slots";
+import { applicable, sunBoundsInvalid } from "../slots";
+import { devicesOf, forDevices } from "../device-edits";
+import { friendlyName } from "../planner";
 import { DAY, clockToMinutes, localDateIso, localMinutes, minutesToClock } from "../time";
 import { editorStyles, langOf } from "../editors/shared";
 import type { HomeAssistant, PlannerData, Program, TimeSpec } from "../types";
@@ -94,6 +96,10 @@ export class WpSlotForm extends LitElement {
   @property({ attribute: false }) group!: SlotGroup;
   @property({ attribute: false }) entityIds: string[] = [];
   @property({ type: Boolean }) disabled = false;
+  /** Device the slot is edited from (always kept in the slot's devices). */
+  @property({ attribute: false }) device = "";
+  /** Show "Also for: …" (the other devices of the program); off while editing for this device only (D1). */
+  @property({ attribute: false }) also = true;
   /** Opened from one day of the week: edit that day only, other days on request. */
   @property({ type: Number }) dayOnly: number | null = null;
   @state() private _more = false;
@@ -213,6 +219,31 @@ export class WpSlotForm extends LitElement {
     this._update("end", { time: minutesToClock(Math.min(DAY - 5, m + 60)) });
   }
 
+  /* ---- devices ---- */
+
+  /** "Also for: …": the slot runs for this device and the ticked ones; all ticked = no list (D5). */
+  private _toggleDevice(entityId: string): void {
+    const devices = devicesOf(this.program);
+    const now = applicable(this.group.slot, devices);
+    const list = now.includes(entityId) ? now.filter((d) => d !== entityId) : [...now, entityId];
+    const next = forDevices(this.group.slot, [...list, this.device], this.program);
+    if (!next) return;
+    this.dispatchEvent(new CustomEvent("group-change", { detail: { ...this.group, slot: next }, bubbles: true, composed: true }));
+  }
+
+  private _alsoFor() {
+    const others = devicesOf(this.program).filter((d) => d !== this.device);
+    if (!this.also || !this.device || !others.length) return nothing;
+    const on = applicable(this.group.slot, devicesOf(this.program));
+    return html`<section>
+      <h4>${t(this._lang, "also_for")}</h4>
+      <div class="chips" role="group" aria-label=${t(this._lang, "also_for")}>
+        ${others.map((d) => html`<button class="chip ${on.includes(d) ? "on" : ""}" aria-pressed=${on.includes(d)} ?disabled=${this.disabled}
+          @click=${() => this._toggleDevice(d)}>${on.includes(d) ? html`<ha-icon icon="mdi:check"></ha-icon>` : html`<ha-state-icon .hass=${this.hass} .stateObj=${this.hass.states[d]}></ha-state-icon>`}${friendlyName(this.hass, d)}</button>`)}
+      </div>
+    </section>`;
+  }
+
   /* ---- days ---- */
 
   private _toggleDay(day: number): void {
@@ -263,7 +294,8 @@ export class WpSlotForm extends LitElement {
         <wp-label-picker embedded .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${this.entityIds}
           .value=${slot.label || null} ?disabled=${this.disabled}
           @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._set({ label: e.detail ?? "" }); }}></wp-label-picker>
-      </section>`;
+      </section>
+      ${this._alsoFor()}`;
   }
 
   static styles = [editorStyles, css`
