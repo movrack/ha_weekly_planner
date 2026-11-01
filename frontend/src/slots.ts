@@ -47,12 +47,27 @@ export function fixedInterval(slot: Slot): [number, number] | null {
   return e > s ? [s, e] : [s, DAY];
 }
 
-/** First pair of overlapping fixed-time slots, as the server checks them. */
+/**
+ * First pair of overlapping fixed-time slots, as the server checks them: two slots collide only when they
+ * overlap in time AND target at least one common device (`sharesDevice`).
+ */
 export function findOverlap(slots: Slot[]): [Slot, Slot] | null {
   const timed = slots
     .map((slot) => ({ slot, iv: fixedInterval(slot) }))
     .filter((x): x is { slot: Slot; iv: [number, number] } => x.iv !== null)
     .sort((a, b) => a.iv[0] - b.iv[0]);
+  if (timed.some((x) => x.slot.entities !== undefined)) {
+    // per-device lists: compare pairs (at most 50 slots a day); keep the earlier slot that reaches furthest
+    for (let j = 1; j < timed.length; j++) {
+      let owner: { slot: Slot; iv: [number, number] } | null = null;
+      for (let i = 0; i < j; i++) {
+        const c = timed[i];
+        if (c.iv[1] > timed[j].iv[0] && sharesDevice(c.slot, timed[j].slot) && (!owner || c.iv[1] > owner.iv[1])) owner = c;
+      }
+      if (owner) return [owner.slot, timed[j].slot];
+    }
+    return null;
+  }
   // compare with the slot that ends last so far (a long slot may swallow several short ones)
   let reach = timed[0]?.iv[1] ?? 0;
   let owner = timed[0]?.slot;
@@ -70,4 +85,39 @@ export function findOverlap(slots: Slot[]): [Slot, Slot] | null {
 /** True when the slot targets this device: no `entities` list (every device), or the list contains it. */
 export function applies(slot: Pick<Slot, "entities">, entityId: string): boolean {
   return slot.entities === undefined || slot.entities.includes(entityId);
+}
+
+/** True when two slots target at least one common device (a slot without list targets every device). */
+export function sharesDevice(a: Pick<Slot, "entities">, b: Pick<Slot, "entities">): boolean {
+  if (a.entities === undefined || b.entities === undefined) return true;
+  return a.entities.some((e) => b.entities!.includes(e));
+}
+
+/** Devices a slot targets, given the program devices in program order. */
+export function applicable(slot: Pick<Slot, "entities">, devices: readonly string[]): string[] {
+  return slot.entities === undefined ? [...devices] : devices.filter((d) => slot.entities!.includes(d));
+}
+
+/**
+ * D5 "what you see = what is stored": a device list in program order, without duplicates or unknown devices.
+ * Every device of the program (so always for a single-device program) gives `undefined` (field absent); an
+ * empty selection gives `[]`, which the caller must treat as "delete the slot".
+ */
+export function normaliseEntities(eids: readonly string[], devices: readonly string[]): string[] | undefined {
+  const list = devices.filter((d) => eids.includes(d));
+  if (devices.length > 0 && list.length === devices.length) return undefined;
+  return list;
+}
+
+/** Same device list (order ignored; absent only equals absent). */
+export function sameEntities(a: Pick<Slot, "entities">, b: Pick<Slot, "entities">): boolean {
+  if (a.entities === undefined || b.entities === undefined) return a.entities === b.entities;
+  const x = [...a.entities].sort();
+  const y = [...b.entities].sort();
+  return x.length === y.length && x.every((e, i) => e === y[i]);
+}
+
+/** The slots of a day that run for this device. */
+export function daySlotsFor(day: readonly Slot[], entityId: string): Slot[] {
+  return day.filter((s) => applies(s, entityId));
 }
