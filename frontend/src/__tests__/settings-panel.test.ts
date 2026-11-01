@@ -58,7 +58,7 @@ describe("bar panel", () => {
   };
   it("puts None, cut and Copy to above the settings", () => {
     const html = strip(true);
-    const none = html.indexOf("mdi:close-circle-outline"), cut = html.indexOf("mdi:content-cut");
+    const none = html.indexOf("mdi:close-circle-outline"), cut = html.indexOf("mdi:arrow-split-vertical");
     const copy = html.indexOf("mdi:content-copy"), picker = html.indexOf("<wp-label-picker");
     expect(none).toBeGreaterThan(-1);
     expect(none).toBeLessThan(cut);

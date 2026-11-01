@@ -391,3 +391,71 @@ export function copyToDays(
     return mergeAdjacent([...trim(day, e.start, e.end, ctx), copy], ctx);
   });
 }
+
+/* ------------------------------------------------------------------ moving a whole slot (long press, then drag) */
+
+/** Moves a time spec by `delta` minutes (a sun time keeps its event and changes its offset). */
+export type Shift = (spec: TimeSpec, delta: number) => TimeSpec;
+export type MoveRefusal = "oneshot" | "wrap" | "sunbound";
+
+/** Why a slot cannot be dragged as a whole (null: it can). */
+export function moveRefusal(slot: Slot, ctx: DayCtx): MoveRefusal | null {
+  if (!slot.end) return "oneshot"; // a one-shot has its own handle
+  if (eff(slot, ctx.at).wrap) return "wrap"; // crosses midnight: the other day owns its end
+  const bounded = (s: TimeSpec) => "sun" in s && Boolean(s.earliest || s.latest);
+  return bounded(slot.start) || bounded(slot.end) ? "sunbound" : null; // limits would silently undo the shift
+}
+
+const shifted = (slot: Slot, d: number, shift: Shift): Slot =>
+  d === 0 ? slot : { ...slot, start: shift(slot.start, d), end: slot.end ? shift(slot.end, d) : slot.end };
+
+/**
+ * Moves a slot by `delta` minutes inside its day: same duration, 15-minute steps, clamped to the day and to its
+ * neighbours (it can touch them, never cross them). `delta` is the minutes actually applied.
+ */
+export function moveSlotBy(slots: Slot[], id: string, delta: number, ctx: DayCtx, shift: Shift): { slots: Slot[]; start: number; end: number; delta: number } | null {
+  const slot = slots.find((s) => s.id === id);
+  if (!slot || moveRefusal(slot, ctx)) return null;
+  const e = eff(slot, ctx.at);
+  const end = e.end as number;
+  const span = end - e.start;
+  let lo = e.start >= (ctx.lead ?? 0) ? ctx.lead ?? 0 : 0;
+  let hi = DAY;
+  for (const s of slots) {
+    if (s.id === id) continue;
+    const o = eff(s, ctx.at);
+    if (o.end === null) continue;
+    if (o.end <= e.start) lo = Math.max(lo, o.end);
+    else if (o.start >= end) hi = Math.min(hi, o.start);
+  }
+  if (hi - lo < span) return null;
+  const start = clamp(snap(e.start + delta), lo, hi - span);
+  const d = start - e.start;
+  return { slots: slots.map((s) => (s.id === id ? shifted(s, d, shift) : s)), start, end: start + span, delta: d };
+}
+
+/**
+ * Moves a slot to another day (same duration, shifted by `delta` minutes on the 15-minute step, clamped to the
+ * day): it leaves its own day only and refuses to land on a slot of the new day (no silent replacement).
+ */
+export function moveToDay(
+  days: Slot[][], src: { day: number; id: string }, to: number, delta: number, ctx: DayCtx, shift: Shift,
+): { days: Slot[][]; start: number } | { error: "gone" | "overlap" | MoveRefusal } {
+  const slot = days[src.day]?.find((s) => s.id === src.id);
+  if (!slot || to === src.day || !days[to]) return { error: "gone" };
+  const refusal = moveRefusal(slot, ctx);
+  if (refusal) return { error: refusal };
+  const e = eff(slot, ctx.at);
+  const span = (e.end as number) - e.start;
+  const start = clamp(snap(e.start + delta), 0, DAY - span);
+  const busy = days[to].some((s) => {
+    const o = eff(s, ctx.at);
+    return o.end !== null && o.start < start + span && o.end > start;
+  });
+  if (busy) return { error: "overlap" };
+  const copy: Slot = { ...shifted(structuredClone(slot), start - e.start, shift), id: (ctx.newId ?? defaultNewId)() };
+  return {
+    start,
+    days: days.map((day, d) => (d === src.day ? day.filter((s) => s.id !== src.id) : d === to ? sortByStart([...day, copy], ctx) : day)),
+  };
+}

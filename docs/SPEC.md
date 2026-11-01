@@ -460,11 +460,18 @@ Barre « Auj. » et sept barres de la semaine, doigt et souris (événements poi
 - **Enregistrer** au relâcher, **pour ce jour seulement** (jour de la semaine de la date dans le profil actif) ; changement refait sur les
   données COURANTES, un conflit de révision est retenté une fois, jamais de « rechargez ». Bandeau « Modifié · Annuler » ~6 s ;
   « Annuler » remet les horaires précédents de ces jours. Deux horaires voisins de même réglage (fin == début) sont fusionnés.
-- **Sélection** (toucher un horaire ou un trou) : bande sous la barre : « Rien », ciseaux
-  (`mdi:content-cut`, coupe au milieu, pas de 15 min : la partie gauche garde le réglage, la partie droite devient « Rien ») et « Copier vers… » (`mdi:content-copy`), puis les réglages compatibles (choix seulement, sans crayon). Copie : pastilles Lun…Dim sans le jour courant ;
+- **Sélection** (toucher un horaire ou un trou) : bande sous la barre : « Rien », « Couper en deux »
+  (`mdi:arrow-split-vertical`, libellé visible, groupe « dans le temps » ; coupe au milieu, pas de 15 min : la partie gauche garde le réglage, la partie droite devient « Rien ») et « Copier vers… » (`mdi:content-copy`, groupe « sur d'autres jours »), chacun avec `title` / `aria-label` explicites, puis les réglages compatibles (choix seulement, sans crayon). Copie : pastilles Lun…Dim sans le jour courant ;
   sans chevauchement la copie est directe ; sinon petite fenêtre listant les jours en conflit, chacun « Remplacer » (défaut) ou
   « Ne pas copier ce jour ». « Remplacer » rogne ou coupe les horaires existants autour de la plage (mer. 8 h 45–17 h 18 °C + copie de
   12–14 h 19 °C = 8 h 45–12 h 18 °C, 12–14 h 19 °C, 14–17 h 18 °C).
+- **Déplacer une plage entière** (mode édition) : glisser le corps d'une plage (ou appui long de 450 ms sans bouger, y compris sur la zone des poignées,
+  puis glisser ; ou appui long qui ouvre l'édition puis glisser sans lever le doigt). Même durée, pas de 15 min, bornée au jour et aux plages voisines
+  (touche, ne traverse pas), enregistrée au relâcher avec « Annuler ». Sur une autre barre de jour du **même programme et du même appareil** (vue Semaine :
+  la bande de sélection est masquée pendant le glisser pour que les autres jours restent visibles ; la barre visée est cernée en pointillé, la bulle
+  indique « Jour hh:mm ») : la plage quitte son jour seulement et arrive à la même heure ; chevauchement sur le jour visé = refus avec message, jamais de
+  remplacement silencieux. Heure solaire : décalage (`shiftTimeSpec`, devient fixe au-delà de ±240 min) ; refus avec message pour un ponctuel (poignée
+  ronde), une plage qui passe minuit, une heure solaire avec limites (`earliest`/`latest`). Hors périmètre : déplacement d'un appareil à l'autre. `moveSlotBy`, `moveToDay`, `moveRefusal`.
 - **Logique pure** (`edits.ts`, tests vitest) : `moveBoundary`, `splitAt`, `setLabel`, `removeSlot`, `copyConflicts` / `copyToDays`, `mergeAdjacent`.
 - **Icônes solaires** : `mdi:weather-sunset-up` / `-down` à la position de toute frontière ou repère dépendant du soleil.
 - **Trait « maintenant »** : icône `mdi:clock-outline` (12–14 px) centrée au-dessus, hors de la barre, `aria-label` « Maintenant » ; aussi sur le graphique.

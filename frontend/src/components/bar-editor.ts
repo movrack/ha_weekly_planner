@@ -13,8 +13,8 @@ import { confirmAction } from "./confirm";
 import { sunDir, sunTip } from "./day-bar";
 import type { BarSpan } from "./day-bar";
 import {
-  boundaries, copyConflicts, copyToDays, eff, handleMinute, mergeAdjacent, middle, moveBoundary, removeSlot, segments,
-  setLabel, splitAt,
+  boundaries, copyConflicts, copyToDays, eff, handleMinute, mergeAdjacent, middle, moveBoundary, moveRefusal, moveSlotBy, moveToDay,
+  removeSlot, segments, setLabel, splitAt,
 } from "../edits";
 import type { At, DayCtx, Handle, Target } from "../edits";
 import { editorStyles } from "../editors/shared";
@@ -22,7 +22,7 @@ import { dismissHoldHint, HOLD_HINT_MS, takeHoldHint } from "../hold-hint";
 import { strings, t } from "../i18n";
 import { entityAction, labelName, labelOf, labelsFor } from "../labels";
 import { activeProfile, newId } from "../planner";
-import { specMinutes } from "../slots";
+import { shiftTimeSpec, specMinutes } from "../slots";
 import { DAY, clockToMinutes, fmtClock, localMinutes } from "../time";
 import type { HomeAssistant, PlannerData, PreviewSlot, Program, Slot } from "../types";
 
@@ -58,16 +58,20 @@ export class WpBarEditor extends LitElement {
   @property({ type: Boolean }) hours = false;
   @property() lang = "en";
   @property() tz = "UTC";
+  /** A slot dragged from another day bar is above this one (drop target). */
+  @property({ type: Boolean, reflect: true }) drop = false;
 
   @state() private _draft: Slot[] | null = null;
   @state() private _selected: Target | null = null;
   @state() private _hsel: Handle | null = null;
-  @state() private _bubble: { m: number } | null = null;
+  @state() private _bubble: { m: number; text?: string } | null = null;
   @state() private _copyOpen = false;
   @state() private _copyDays: number[] = [];
   @state() private _conflict: { to: number[]; days: number[]; skip: number[]; id: string } | null = null;
   @state() private _error = "";
   @state() private _hover = false;
+  /** A slot is being dragged: the strip is hidden so that the other day bars come back within reach. */
+  @state() private _moving = false;
   /** "Press and hold to edit" shown after a plain tap (first times only). */
   @state() private _hint = false;
   private _hintTimer?: number;
@@ -81,6 +85,9 @@ export class WpBarEditor extends LitElement {
   private _errTimer?: number;
   private _press?: { id: number; x: number; y: number; timer?: number; fired: boolean; mouse: boolean };
   private _drag?: { ref: Handle; m0: number; x0: number; id: number; moved: boolean; last: number; profileId: string; weekday: number; ctx: DayCtx };
+  /** Whole-slot move: long press (edit mode), then drag along the bar (same day) or onto another day bar. */
+  private _mv?: { id: number; x0: number; y0: number; slotId: string; moved: boolean; delta: number; to: WpBarEditor | null; profileId: string; weekday: number; ctx: DayCtx; refused: boolean };
+  private _mvTimer?: number;
   private _tap?: { id: number; x: number; y: number; target: Target | null };
   private _nudge?: { ref: Handle; m: number; timer: number; profileId: string; weekday: number; ctx: DayCtx };
   private _listening = false;
@@ -163,6 +170,7 @@ export class WpBarEditor extends LitElement {
     window.clearTimeout(this._errTimer);
     window.clearTimeout(this._hintTimer);
     window.clearTimeout(this._press?.timer);
+    window.clearTimeout(this._mvTimer);
   }
 
   private _dropDraft(): void {
@@ -216,6 +224,17 @@ export class WpBarEditor extends LitElement {
   private _zoneMove(e: PointerEvent): void {
     const p = this._press;
     if (!p || p.id !== e.pointerId) return;
+    if (p.fired) {
+      // the long press opened the edit mode and the finger is still down: dragging moves the slot under it
+      if (!this._mv && this.editing) {
+        const target = this._segAt(this._minuteAt(p.x).m);
+        if (target?.kind === "slot") {
+          this._mvBegin(e, target.id, p);
+        }
+      }
+      this._mvMove(e);
+      return;
+    }
     if (Math.hypot(e.clientX - p.x, e.clientY - p.y) > MOVE_PX) {
       window.clearTimeout(p.timer);
       this._press = undefined; // a scroll or a drag, not a press
@@ -227,7 +246,10 @@ export class WpBarEditor extends LitElement {
     if (!p || p.id !== e.pointerId) return;
     window.clearTimeout(p.timer);
     this._press = undefined;
-    if (p.fired) return; // the long press already did its job
+    if (p.fired) { // the long press already did its job
+      this._mvUp(e);
+      return;
+    }
     if (p.mouse && this.editable) this._emit("edit-request");
     else if (this.editable && !p.mouse) this._tapHint();
     else this._emit("open-day");
@@ -271,6 +293,7 @@ export class WpBarEditor extends LitElement {
   }
 
   private _zoneCancel(): void {
+    if (this._press?.fired) this._mvCancel();
     window.clearTimeout(this._press?.timer);
     this._press = undefined;
   }
@@ -313,12 +336,137 @@ export class WpBarEditor extends LitElement {
         profileId: activeProfile(this._live, this.data).id, weekday: this.weekday, ctx: this._ctx() };
       this._hsel = near.refs[0];
       e.preventDefault();
+      // a long press without moving turns the grab into a move of the whole slot under the finger (slots are
+      // often narrower than the two 44 px handle zones, so the body cannot always be reached otherwise)
+      const at = { x: e.clientX, y: e.clientY };
+      window.clearTimeout(this._mvTimer);
+      this._mvTimer = window.setTimeout(() => {
+        const d = this._drag;
+        const target = this._segAt(this._minuteAt(at.x).m);
+        if (!d || d.moved || d.id !== e.pointerId || target?.kind !== "slot") return;
+        navigator.vibrate?.(12);
+        this._drag = undefined;
+        this._hsel = null;
+        this._mvBegin(e, target.id, at);
+      }, LONG_PRESS_MS);
       return;
     }
-    this._tap = { id: e.pointerId, x: e.clientX, y: e.clientY, target: this._segAt(m) };
+    const target = this._segAt(m);
+    this._tap = { id: e.pointerId, x: e.clientX, y: e.clientY, target };
+    if (target?.kind === "slot") {
+      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+      this._mvBegin(e, target.id);
+    }
+  }
+
+  /* ---- moving a whole slot ---- */
+
+  private _mvBegin(e: PointerEvent, slotId: string, from: { x: number; y: number } = { x: e.clientX, y: e.clientY }): void {
+    const ctx = this._ctx();
+    const slot = this._baseDay.find((s) => s.id === slotId);
+    if (!slot) return;
+    this._mv = { id: e.pointerId, x0: from.x, y0: from.y, slotId, moved: false, delta: 0, to: null,
+      profileId: activeProfile(this._live, this.data).id, weekday: this.weekday, ctx, refused: moveRefusal(slot, ctx) !== null };
+  }
+
+  /** The other bar of the same program and device under the pointer (another day), if any. */
+  private _barAt(x: number, y: number): WpBarEditor | null {
+    const root = this.getRootNode() as Document | ShadowRoot;
+    const hit = root.elementsFromPoint?.(x, y).find((n) => n instanceof WpBarEditor) as WpBarEditor | undefined;
+    if (!hit || hit === this || hit.weekday === this.weekday || hit.program?.id !== this.program.id || hit.entityId !== this.entityId) return null;
+    return hit;
+  }
+
+  private _setDrop(bar: WpBarEditor | null): void {
+    if (this._mv?.to && this._mv.to !== bar) this._mv.to.drop = false;
+    if (this._mv) this._mv.to = bar;
+    if (bar) bar.drop = true;
+  }
+
+  private _shift = (spec: import("../types").TimeSpec, d: number) => shiftTimeSpec(this.hass, spec, d);
+
+  private _mvMove(e: PointerEvent): boolean {
+    const mv = this._mv;
+    if (!mv || mv.id !== e.pointerId) return false;
+    const dx = e.clientX - mv.x0;
+    if (!mv.moved) {
+      if (Math.hypot(dx, e.clientY - mv.y0) < MOVE_PX) return true;
+      mv.moved = true;
+      this._moving = true;
+      this._tap = undefined; // a drag, not a tap
+      this._selected = { kind: "slot", id: mv.slotId };
+      if (mv.refused) {
+        const slot = this._baseDay.find((s) => s.id === mv.slotId);
+        const why = slot ? moveRefusal(slot, mv.ctx) : null;
+        if (why) this._fail(t(this.lang, `move_err_${why}`));
+      }
+    }
+    if (mv.refused) return true;
+    const base = this._live.profiles.find((profile) => profile.id === mv.profileId)?.days[mv.weekday];
+    if (!base) { this._mvCancel(); return true; }
+    const delta = dx / this._minuteAt(0).ppm;
+    const bar = this._barAt(e.clientX, e.clientY);
+    this._setDrop(bar);
+    if (bar) {
+      // the slot keeps its place on this bar until released; the bubble tells where it will land
+      const probe = moveToDay(this._live.profiles.find((profile) => profile.id === mv.profileId)?.days ?? [], { day: mv.weekday, id: mv.slotId }, bar.weekday, delta, mv.ctx, this._shift);
+      this._draft = null;
+      this._bubble = "start" in probe ? { m: probe.start, text: t(this.lang, "move_to", { day: strings(this.lang).days_short[bar.weekday], time: this._clock(probe.start) }) } : null;
+      mv.delta = delta;
+      return true;
+    }
+    const res = moveSlotBy(base, mv.slotId, delta, mv.ctx, this._shift);
+    if (res) {
+      mv.delta = delta;
+      this._draft = res.slots;
+      this._bubble = { m: res.start };
+    }
+    return true;
+  }
+
+  private _mvUp(e: PointerEvent): boolean {
+    const mv = this._mv;
+    if (!mv || mv.id !== e.pointerId) return false;
+    this._mv = undefined;
+    this._moving = false;
+    this._bubble = null;
+    const to = mv.to;
+    if (to) to.drop = false;
+    if (!mv.moved || mv.refused) return true;
+    const { slotId, delta, weekday, profileId, ctx } = mv;
+    if (to) {
+      const dest = to.weekday;
+      const days = this._live.profiles.find((profile) => profile.id === profileId)?.days ?? [];
+      const probe = moveToDay(days, { day: weekday, id: slotId }, dest, delta, ctx, this._shift);
+      this._draft = null;
+      if ("error" in probe) {
+        this._fail(probe.error === "overlap" ? t(this.lang, "w_err_overlap") : probe.error === "gone" ? t(this.lang, "ss_err_save") : t(this.lang, `move_err_${probe.error}`));
+        return true;
+      }
+      const id = newId();
+      void this._commit((all) => {
+        const r = moveToDay(all, { day: weekday, id: slotId }, dest, delta, { ...ctx, newId: () => id }, this._shift);
+        return "days" in r ? r.days : null;
+      }, [weekday, dest], false, profileId);
+    } else {
+      void this._commit((all) => {
+        const r = moveSlotBy(all[weekday], slotId, delta, ctx, this._shift);
+        return r ? this._with(all, weekday, r.slots) : null;
+      }, [weekday], false, profileId);
+    }
+    return true;
+  }
+
+  private _mvCancel(): void {
+    if (this._mv?.to) this._mv.to.drop = false;
+    if (this._mv?.moved) this._draft = null;
+    this._mv = undefined;
+    this._moving = false;
+    this._bubble = null;
   }
 
   private _ovMove(e: PointerEvent): void {
+    if (this._mvMove(e)) return;
     const d = this._drag;
     if (d && d.id === e.pointerId) {
       const dx = e.clientX - d.x0;
@@ -341,6 +489,12 @@ export class WpBarEditor extends LitElement {
   }
 
   private _ovUp(e: PointerEvent): void {
+    window.clearTimeout(this._mvTimer);
+    if (this._mvUp(e)) {
+      if (this._tap?.id === e.pointerId && Math.hypot(e.clientX - this._tap.x, e.clientY - this._tap.y) <= MOVE_PX && this._tap.target) this._select(this._tap.target);
+      this._tap = undefined;
+      return;
+    }
     const d = this._drag;
     if (d && d.id === e.pointerId) {
       this._drag = undefined;
@@ -366,6 +520,8 @@ export class WpBarEditor extends LitElement {
   }
 
   private _ovCancel(): void {
+    window.clearTimeout(this._mvTimer);
+    this._mvCancel();
     if (this._drag?.moved) this._draft = null;
     this._drag = undefined;
     this._tap = undefined;
@@ -631,7 +787,7 @@ export class WpBarEditor extends LitElement {
           @keydown=${(e: KeyboardEvent) => this._key(e, ref)} @focus=${() => (this._hsel = ref)}
           ><i></i></button>`;
       })}
-      ${this._bubble ? html`<div class="bubble" style="left:clamp(28px, ${pct(this._bubble.m)}, calc(100% - 28px))">${this._clock(this._bubble.m)}</div>` : nothing}
+      ${this._bubble ? html`<div class="bubble" style="left:clamp(44px, ${pct(this._bubble.m)}, calc(100% - 44px))">${this._bubble.text ?? this._clock(this._bubble.m)}</div>` : nothing}
     </div>`;
   }
 
@@ -645,10 +801,15 @@ export class WpBarEditor extends LitElement {
     return html`<div class="strip" role="group">
       <div class="acts">
         ${sel.slot ? html`<button class="act" @click=${() => void this._nothing()}><ha-icon icon="mdi:close-circle-outline"></ha-icon>${t(lang, "rest_none_short")}</button>` : nothing}
-        <button class="act" ?disabled=${!canCut} aria-label=${t(lang, "cut")} title=${t(lang, "cut")} @click=${() => this._cut()}>
-          <ha-icon icon="mdi:content-cut"></ha-icon></button>
-        ${sel.slot ? html`<button class="act ${this._copyOpen ? "on" : ""}" aria-expanded=${this._copyOpen}
-          @click=${() => { this._copyOpen = !this._copyOpen; this._copyDays = []; }}><ha-icon icon="mdi:content-copy"></ha-icon>${t(lang, "copy_to")}</button>` : nothing}
+        <div class="grp" role="group" aria-label=${t(lang, "grp_time")}>
+          <button class="act" ?disabled=${!canCut} aria-label=${`${t(lang, "cut")}. ${t(lang, "cut_hint")}`} title=${t(lang, "cut_hint")} @click=${() => this._cut()}>
+            <ha-icon icon="mdi:arrow-split-vertical"></ha-icon>${t(lang, "cut")}</button>
+        </div>
+        ${sel.slot ? html`<div class="grp" role="group" aria-label=${t(lang, "grp_days")}>
+          <button class="act ${this._copyOpen ? "on" : ""}" aria-expanded=${this._copyOpen}
+            aria-label=${`${t(lang, "copy_to")} ${t(lang, "copy_hint")}`} title=${t(lang, "copy_hint")}
+            @click=${() => { this._copyOpen = !this._copyOpen; this._copyDays = []; }}><ha-icon icon="mdi:content-copy"></ha-icon>${t(lang, "copy_to")}</button>
+        </div>` : nothing}
       </div>
       ${this._copyOpen && sel.slot ? html`<div class="copy">
         ${days.map((name, d) => d === this.weekday ? nothing : html`<button class="dchip ${this._copyDays.includes(d) ? "on" : ""}"
@@ -704,7 +865,7 @@ export class WpBarEditor extends LitElement {
           aria-label=${t(this.lang, "edit_bar")}>${this.editing ? this._overlay_() : nothing}</wp-day-bar>
         <div class="hint" role="status">${this._hint ? t(this.lang, "hold_hint") : nothing}</div>
       </div>
-      ${this.editing ? this._strip() : nothing}
+      ${this.editing && !this._moving ? this._strip() : nothing}
       ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
       ${this._conflictDialog()}`;
   }
@@ -749,10 +910,12 @@ export class WpBarEditor extends LitElement {
     }
     .strip { margin: 4px 0 8px; padding: 8px; border: 1px solid var(--divider-color); border-radius: 12px; }
     .strip wp-label-picker { --mdc-icon-size: 18px; }
-    .acts { display: flex; flex-wrap: wrap; gap: 8px; }
+    .acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .grp { display: inline-flex; padding: 2px; border-radius: 28px; background: var(--secondary-background-color); }
+    :host([drop]) .zone { outline: 2px dashed var(--primary-color); outline-offset: 3px; border-radius: 14px; }
     .pick { margin-top: 8px; }
     .act {
-      display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; min-width: 48px; padding: 0 14px;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; min-width: 48px; padding: 0 12px;
       border-radius: 24px; border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color);
       font: inherit; font-size: 14px; cursor: pointer; --mdc-icon-size: 20px;
     }
