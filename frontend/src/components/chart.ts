@@ -810,7 +810,6 @@ export class WpChart extends LitElement {
         <span class="zwin">${t(lang, "chart_zoom_window", { from: this._clock(this._zoom.from, model.span), to: this._clock(this._zoom.to, model.span) })}</span>
         <button class="zreset return-day" type="button" @click=${() => this._reset()}>
           <ha-icon icon="mdi:magnify-minus-outline"></ha-icon><span>${t(lang, "chart_return")}</span></button>` : nothing}
-        <small class="panhelp">${t(lang, "chart_pan_help")}</small>
       </div>` : nothing}${model ? html`${this._legend(model)}
       <div class="availability" role="status">
         ${this._failed ? html`<p>${t(lang, "chart_history_failed")}</p>`
@@ -1057,7 +1056,6 @@ export class WpChart extends LitElement {
     svg { display: block; user-select: none; outline: none; max-width: 100%; cursor: pointer; touch-action: pan-y; }
     .rubber { fill: var(--primary-color); opacity: 0.2; stroke: var(--primary-color); stroke-width: 1; pointer-events: none; }
     .zoombar { display: flex; align-items: center; justify-content: space-between; gap: 4px 8px; margin-top: 2px; flex-wrap: wrap; }
-    .panhelp { flex-basis: 100%; color: var(--secondary-text-color); }
     .zdate { font-size: 13px; }
     .zwin { color: var(--secondary-text-color); font-size: 14px; white-space: nowrap; }
     .zreset {
