@@ -30,7 +30,15 @@ from custom_components.weekly_planner.resolver import occurrences_around
 from custom_components.weekly_planner.validation import check_program
 
 from .helpers import Recorder, labels, setup
-from .perf_data import ENTITIES_PER_PROGRAM, PROGRAMS, big_program, big_programs, entity_ids
+from .perf_data import (
+    ENTITIES_PER_PROGRAM,
+    PROGRAMS,
+    big_program,
+    big_programs,
+    entity_ids,
+    wide_entity_ids,
+    wide_program,
+)
 
 pytestmark = pytest.mark.performance
 
@@ -46,6 +54,8 @@ BUDGETS = {
     "check_program_big": 0.025,     # one 3-mode x 7-day x 6-slot program, week overlap included; measured 1.0 ms
     "engine_startup": 0.45,         # _async_startup (descriptions + recompute of 200 entities); measured 56 ms [221]
     "recompute": 0.25,              # async_recompute after a state change, 200 entities, with its yields; measured 30 ms [169]
+    "recompute_per_device": 0.30,   # same with lists on half of the slots (#34); measured 34 ms
+    "wide_program_status": 0.08,    # program_status of 1 program x 100 devices, all-different lists; measured 9.5 ms
 }
 # Operation counts are deterministic: the bound is the measured value (plus a small margin).
 OPS = {
@@ -57,6 +67,9 @@ OPS = {
     # both edges of their 00:30-02:00 slot first; measured 760 = 600 + 80 x 2.
     "recompute_resolve_extra_per_silent_edge": 1,
     "recompute_occurrences": 3000,         # occurrence() calls for a whole recompute (+ timer + publication) = 50 x 9 days x 6; measured 2700 [~16 800]
+    # per-device schedules (#34), 1 program x 100 devices x 9 slots a day, all-different lists:
+    "wide_recompute_occurrences": 90,      # placements are per (mode, program, day), never per device: 9 days x 9 slots; measured 81
+    "wide_recompute_trims": 950,           # one trim per (day, device set), shared by every lookup: 9 days x 100 sets; measured 900
 }
 BUDGET_CALLBACK_S = 0.05  # no single loop callback of ours may hold Home Assistant longer than this
 RUNS = 5
@@ -363,3 +376,106 @@ async def test_condition_burst_recompute_does_not_block_loop(big):
           f"margin x{margin:g}")
     assert longest <= BUDGET_CALLBACK_S * margin
     assert gap <= BUDGET_CALLBACK_S * margin
+
+
+# ------------------------------------------------------------------ (g) per-device schedules (#34)
+
+async def _started(hass, hass_storage, programs, eids):
+    """An install started on the simulated clock, then released (same rules as ``big``)."""
+    Recorder(hass)
+    for eid in eids:
+        hass.states.async_set(eid, "heat", {"temperature": 10})
+    await hass.config.async_update(latitude=50.85, longitude=4.35)
+    frozen = freeze_time(engine_start())
+    factory = frozen.start()
+    try:
+        eng = await setup(hass, hass_storage, factory, programs, None)
+    finally:
+        frozen.stop()
+    if eng._timer:  # noqa: SLF001
+        eng._timer()  # noqa: SLF001
+        eng._timer = None  # noqa: SLF001
+    return eng
+
+
+@pytest.fixture
+async def big_pd(hass, hass_storage):
+    """The large install with per-device lists on half of the slots."""
+    eids = [eid for index in range(PROGRAMS) for eid in entity_ids(index)]
+    return await _started(hass, hass_storage, big_programs(conditioned=CONDITIONED, per_device=True), eids)
+
+
+@pytest.fixture
+async def wide(hass, hass_storage):
+    """One program x 100 devices, all with different lists."""
+    return await _started(hass, hass_storage, [wide_program()], wide_entity_ids())
+
+
+async def test_per_device_recompute(big_pd):
+    big_pd.hass.states.async_set("climate.p0_e0", "heat", {"temperature": 22})
+    within("recompute_per_device", await best_of_async(lambda: big_pd.async_recompute("tick"), runs=3))
+
+
+async def test_per_device_recompute_work_is_bounded(big_pd, monkeypatch):
+    """Lists add trims (one per group of devices and day), never placements, nor resolutions."""
+    placed = Counter(monkeypatch, timeline, "occurrence")
+    resolved = Counter(monkeypatch, engine_module, "resolve_entity")
+    with frozen_at(DAY):
+        await big_pd.async_recompute("tick")
+    print("[ops] per-device recompute occurrences", placed.count, "resolve_entity", resolved.count)
+    assert placed.count <= OPS["recompute_occurrences"], placed.count
+    assert resolved.count <= OPS["recompute_resolve_per_entity"] * PROGRAMS * ENTITIES_PER_PROGRAM, resolved.count
+
+
+async def test_wide_program_work_is_bounded(wide, monkeypatch):
+    """1 program x 100 devices: one placement per day, one trim per (day, device set)."""
+    from custom_components.weekly_planner import resolver
+
+    placed = Counter(monkeypatch, timeline, "occurrence")
+    trims = Counter(monkeypatch, resolver, "trim")
+    with frozen_at(DAY):
+        await wide.async_recompute("tick")
+    print("[ops] wide recompute occurrences", placed.count, "trims", trims.count)
+    assert placed.count <= OPS["wide_recompute_occurrences"], placed.count
+    assert trims.count <= OPS["wide_recompute_trims"], trims.count
+
+
+async def test_wide_program_status(wide):
+    within("wide_program_status", best_of(lambda: wide.program_status("wide")))
+
+
+async def _probed_gap(wide, attempt: int) -> float:
+    """Longest gap between two turns of a probe task during one full recompute and its publication."""
+    gap = 0.0
+    running = True
+
+    async def probe():
+        nonlocal gap
+        last = time.perf_counter()
+        while running:
+            await asyncio.sleep(0)
+            now = time.perf_counter()
+            gap = max(gap, now - last)
+            last = now
+
+    task = asyncio.get_running_loop().create_task(probe())
+    await asyncio.sleep(0)  # let the probe take its first turn before the recompute starts
+    try:
+        wide.hass.states.async_set("climate.w0", "heat", {"temperature": 12 + attempt})
+        await wide.async_recompute("condition")
+        await wide.hass.async_block_till_done()
+    finally:
+        running = False
+        await task
+    return gap
+
+
+async def test_wide_recompute_does_not_block_loop(wide):
+    """A full recompute of 100 devices with all-different lists, then its publication: no callback of
+    ours holds the loop over the budget (best of a few attempts, like the bursts above)."""
+    gaps = []
+    for attempt in range(BURST_ATTEMPTS):
+        gaps.append(await _probed_gap(wide, attempt))
+    margin = coverage_margin()
+    print(f"[perf] wide recompute, loop gap {min(gaps) * 1000:.2f} ms, margin x{margin:g}")
+    assert min(gaps) <= BUDGET_CALLBACK_S * margin
