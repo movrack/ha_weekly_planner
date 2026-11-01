@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+- Tooling only: frontend dev dependencies bumped together (vite 8, vitest 5, @vitest/coverage-v8 5, TypeScript 7) and `npm audit fix` applied; coverage floors rebased to the vitest 5 measurement. Pillow stays at 12.3.0 (pinned by homeassistant 2026.10.3).
+
 ## [0.22.1] - 2026-10-31
 
 ### Changed
