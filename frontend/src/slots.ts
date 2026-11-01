@@ -66,3 +66,8 @@ export function findOverlap(slots: Slot[]): [Slot, Slot] | null {
   return null;
 }
 
+
+/** True when the slot targets this device: no `entities` list (every device), or the list contains it. */
+export function applies(slot: Pick<Slot, "entities">, entityId: string): boolean {
+  return slot.entities === undefined || slot.entities.includes(entityId);
+}

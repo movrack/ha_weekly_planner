@@ -64,6 +64,10 @@ export interface Slot {
   color?: string | null;
   /** Id of the label this slot applies. */
   label: string;
+  /** Devices this slot targets (absent: every device of the program, also added later; never empty). */
+  entities?: string[];
+  /** Random-delay seed (default: the slot id); kept when a slot is split so its delay is not redrawn. */
+  seed?: string;
 }
 
 export interface Profile {
@@ -133,6 +137,16 @@ export interface PreviewSlot {
   end: string | null;
   ignored: string | null;
   sun: boolean;
+  /** Devices the slot targets, when the program uses per-device schedules (absent: every device). */
+  entities?: string[];
+}
+
+/** Occurrences of a program as `weekly_planner/preview` returns them. */
+export interface PreviewResponse {
+  slots: PreviewSlot[];
+  /** Present as soon as one slot of the program has `entities`: the complete timeline of each device
+   * (previous-day overnight spill included); the top-level `slots` is then not trimmed per device. */
+  by_entity?: Record<string, PreviewSlot[]>;
 }
 
 export interface CardConfig {
