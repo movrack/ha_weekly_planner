@@ -41,6 +41,20 @@ mechanism. The served module is
 Do not add another integration entry to create another program. Use **Program
 settings → New program** in the card editor. See [S36](docs/SCREENS.fr.md#s36).
 
+## Additional chart sources
+
+In the schedule window, open **Chart options** below a device chart to add another Home Assistant entity. A numeric state is drawn as a curve;
+other states appear on a named band with checkboxes for the states to highlight. Multiple states can be selected.
+Unknown or unavailable observations leave gaps; future periods contain no recorded data. The sources follow chart panning and zoom.
+
+Choices save automatically in Home Assistant for this program and device, shared by its cards and schedule window,
+independently of the day or mode. Closing the options panel leaves the curves and bands visible. Removing a source only removes
+its display. These options never command an entity and cannot be changed in read-only mode.
+
+Curves with the same unit share one scale. Up to three different units are displayed: the main scale on the left and two on
+the right, each coloured to match its first curve. Remove a source with another unit before adding a fourth unit.
+Only the additional entity's state is read; its attributes are not selectable as numeric sources.
+
 ## Dashboard configuration
 
 The visual editor has two sections:
@@ -143,10 +157,14 @@ registry IDs. A program may contain several of them.
 |---|---|
 | Program | Name, entity list, priority, conditions, reapply policy and weekly profiles. |
 | Setting | Global `{id, name, color, action}` shared across programs. |
-| Slot | Start, optional end, days and a setting reference. |
+| Slot | Start, optional end, days, a setting reference and, optionally, the devices it targets (`entities`; absent = every device of the program, also those added later). |
 | Entity default | Optional `default_label` applied outside bounded slots under the ownership rules. |
 | Entity override | `label_overrides[label_id]` changes that setting's action for this entity in this program. |
 | Mode (`profile` internally) | A named weekly slot set. One is active per program. Vacation is an ordinary mode. Entities, defaults, program conditions and priority are shared. |
+
+Two slots of a program may overlap in time only when they target different
+devices. Each device runs only the slots that target it; saving a program
+re-sends an action only to the devices whose current setting or target changed.
 
 A service setting action has this shape:
 

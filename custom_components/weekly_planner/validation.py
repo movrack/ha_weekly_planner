@@ -12,6 +12,7 @@ from homeassistant.helpers import config_validation as cv
 
 from .actions import needs_admin
 from .const import DEFAULT_PRIORITY, DEFAULT_REAPPLY
+from .slots import applicable_ids
 from .timeline import SUN_EVENTS, day_occurrences, parse_clock
 
 
@@ -118,6 +119,8 @@ SLOT = vol.Schema({
     vol.Optional("conditions", default=list): vol.All([CONDITION], vol.Length(max=10)),
     vol.Optional("color"): vol.Any(None, str),
     vol.Required("label"): str,
+    vol.Optional("entities"): [cv.entity_id],
+    vol.Optional("seed"): vol.All(str, vol.Length(min=1, max=255)),
 })
 
 PROFILE = vol.Schema({
@@ -126,6 +129,21 @@ PROFILE = vol.Schema({
     vol.Required("days"): vol.All([vol.All([SLOT], vol.Length(max=50))], vol.Length(min=7, max=7)),
 })
 
+CHART_SOURCE = vol.Schema({
+    vol.Required("entity_id"): cv.entity_id,
+    vol.Required("kind"): vol.In(("numeric", "states")),
+    vol.Optional("states", default=list): vol.All([vol.All(str, vol.Length(min=1, max=255))], vol.Length(max=100)),
+})
+
+
+def _chart_sources(value: Any) -> list:
+    sources = vol.Schema([CHART_SOURCE])(value)
+    ids = [source["entity_id"] for source in sources]
+    if len(ids) != len(set(ids)):
+        raise vol.Invalid("duplicate_chart_source")
+    return sources
+
+
 ENTITY = vol.Schema({
     vol.Required("entity_id"): cv.entity_id,
     vol.Optional("default_label", default=None): vol.Any(None, str),
@@ -133,6 +151,7 @@ ENTITY = vol.Schema({
     # Legacy empty lists allow all services; explicit restriction also permits selecting none.
     vol.Optional("allowed_services", default=list): [vol.All(str, vol.Match(r"^[a-z0-9_]+\.[a-z0-9_]+$"))],
     vol.Optional("restrict_services", default=False): bool,
+    vol.Optional("chart_sources"): _chart_sources,
 })
 
 PROGRAM = vol.Schema({
@@ -245,17 +264,43 @@ def check_program(program: dict, labels: dict[str, dict], hass: Any = None, desc
                 raise ProgramError(f"unknown_label:{label_id}")
             if action["kind"] == "service":
                 _check_service(hass, descriptions, entity["entity_id"], action)
+    device_ids = {e["entity_id"]: None for e in program["entities"]}
+    has_lists = any("entities" in s for p in program["profiles"] for d in p["days"] for s in d)
     for profile in program["profiles"]:
         for day_slots in profile["days"]:
             for slot in day_slots:
                 if slot["label"] not in labels:
                     raise ProgramError(f"unknown_label:{slot['label']}")
-        _check_week_overlaps(profile["days"])
+                _check_slot_entities(slot, device_ids)
+        if has_lists:
+            _check_week_overlaps_scoped(profile["days"], list(device_ids))
+        else:
+            _check_week_overlaps(profile["days"])
     return program
 
 
-def _fixed_intervals(day_slots: list[dict], day: date) -> list[tuple]:
-    """Reserve each fixed interval's entire random window, before any runtime trim."""
+def _check_slot_entities(slot: dict, device_ids: dict) -> None:
+    """``slot.entities``: not empty, no duplicate, only devices of the program (no label compatibility check, D6)."""
+    targets = slot.get("entities")
+    if targets is None:
+        return
+    if not targets:
+        raise ProgramError(f"empty_slot_entities:{slot['id']}")
+    seen = set()
+    for eid in targets:
+        if eid in seen:
+            raise ProgramError(f"duplicate_slot_entity:{slot['id']}:{eid}")
+        seen.add(eid)
+    for eid in targets:
+        if eid not in device_ids:
+            raise ProgramError(f"unknown_slot_entity:{slot['id']}:{eid}")
+
+
+def _fixed_intervals(day_slots: list[dict], day: date, entity_ids: list[str] | None = None) -> list[tuple]:
+    """Reserve each fixed interval's entire random window, before any runtime trim.
+
+    With ``entity_ids`` (program devices), each interval carries a 4th item: the devices its slot applies to.
+    """
     intervals = []
     for slot in day_slots:
         if "time" not in slot["start"] or not (slot.get("end") or {}).get("time"):
@@ -269,7 +314,10 @@ def _fixed_intervals(day_slots: list[dict], day: date) -> list[tuple]:
         if randomized and (not occ.runs or occ.end - occ.start < timedelta(minutes=5 + start_random)):
             raise ProgramError("random_window_too_short")
         if occ.runs and occ.end is not None:
-            intervals.append((occ.start, occ.end + timedelta(minutes=end_random), randomized))
+            interval = (occ.start, occ.end + timedelta(minutes=end_random), randomized)
+            if entity_ids is not None:
+                interval += (frozenset(applicable_ids(slot, entity_ids)),)
+            intervals.append(interval)
     return intervals
 
 
@@ -300,6 +348,34 @@ def _check_week_overlaps(days: list[list[dict]]) -> None:
         for other_start, other_end, other_delayed in intervals[n + 1:]:
             if (delayed or other_delayed) and start < other_end and other_start < end:
                 raise ProgramError("overlapping_slots")
+
+
+def _shared_device(first: frozenset, second: frozenset, entity_ids: list[str]) -> str | None:
+    """First device (program order) both slots apply to, or None."""
+    common = first & second
+    return next((eid for eid in entity_ids if eid in common), None) if common else None
+
+
+def _check_week_overlaps_scoped(days: list[list[dict]], entity_ids: list[str]) -> None:
+    """Same rules as ``_check_week_overlaps``, but two slots only conflict when they share a device."""
+    monday = date(2026, 1, 5)
+    intervals = []
+    for index in range(8):
+        found = sorted(_fixed_intervals(days[index % 7], monday + timedelta(days=index), entity_ids),
+                       key=lambda item: item[:2])
+        for n, (start, end, _, ids) in enumerate(found):
+            for other_start, other_end, _, other_ids in found[n + 1:]:
+                if other_start < end:
+                    shared = _shared_device(ids, other_ids, entity_ids)
+                    if shared:
+                        raise ProgramError(f"overlapping_slots:{shared}")
+        intervals.extend(found)
+    for n, (start, end, delayed, ids) in enumerate(intervals):
+        for other_start, other_end, other_delayed, other_ids in intervals[n + 1:]:
+            if (delayed or other_delayed) and start < other_end and other_start < end:
+                shared = _shared_device(ids, other_ids, entity_ids)
+                if shared:
+                    raise ProgramError(f"overlapping_slots:{shared}")
 
 
 def admin_required(program: dict, labels: dict[str, dict]) -> bool:

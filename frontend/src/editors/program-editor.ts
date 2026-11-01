@@ -7,12 +7,15 @@ import { syncSelectValues } from "../select-value";
 import { DraftHistory } from "../draft-history";
 import { defaultEntityIcon } from "../icons";
 import { mergeProgramSettings } from "../program-settings";
+import { commonSlotCount, devicesOf, editForDevice, ownSlotCount, removeDeviceFromSlots } from "../device-edits";
+import { appliedAction, labelOf } from "../labels";
+import { applies } from "../slots";
 import { keyed } from "lit/directives/keyed.js";
 import "../components/dialog";
 import "../components/schedule-dialog";
 import { confirmAction } from "../components/confirm";
 import { displayName, scrollHintCss, trackScrollHints } from "../components/gestures";
-import { t } from "../i18n";
+import { slotDeviceError, t } from "../i18n";
 import { ensureHaSelector, newId } from "../planner";
 import { loadServiceNames, serviceDomains, serviceDescription, serviceLabel, servicesFor } from "../services";
 import type { Condition, HomeAssistant, PlannerData, Profile, Program, ProgramEntity, Slot } from "../types";
@@ -311,6 +314,8 @@ export class WpProgramEditor extends LitElement {
     if (e?.code === "conflict") return `${this._tr("conflict")} — ${this._tr("modified_elsewhere")}`;
     if (e?.code === "unauthorized") return this._tr("err_unauthorized");
     if (message.includes("random_window_too_short")) return this._tr("random_too_short");
+    const device = slotDeviceError(this._lang, message, (eid) => displayName(this.hass, eid));
+    if (device) return device;
     if (message.includes("overlapping_slots")) return this._tr("err_overlap_server");
     if (message.includes("circular_mode_source")) return this._tr("mode_source_loop");
     if (message.includes("controlled by an external")) return this._tr("mode_source_locked");
@@ -365,6 +370,10 @@ export class WpProgramEditor extends LitElement {
         if (this._origin && live) {
           try { payload = mergeProgramSettings(this._origin, draft, live); }
           catch { throw { code: "conflict" }; }
+          // a removed device leaves every slot list, also those added elsewhere meanwhile (D5)
+          for (const eid of devicesOf(this._origin)) {
+            if (!payload.entities.some((e) => e.entity_id === eid)) payload = removeDeviceFromSlots(payload, eid);
+          }
         }
         try {
           const result = await this.hass.callWS<{ program: Program }>({ type: "weekly_planner/program/save", program: payload });
@@ -403,10 +412,45 @@ export class WpProgramEditor extends LitElement {
   private async _askDeleteEntity(index: number): Promise<void> {
     const id = this._p.entities[index]?.entity_id;
     if (!id) return;
-    const text = this._tr("confirm_delete", { name: displayName(this.hass, id) });
+    // the slots of this device alone go with it (every mode); the shared ones simply stop listing it (D5)
+    const own = this._p.entities.length > 1 ? ownSlotCount(this._p, id) : 0;
+    const text = own
+      ? this._tr("confirm_remove_device_own", { name: displayName(this.hass, id), n: String(own) })
+      : this._tr("confirm_delete", { name: displayName(this.hass, id) });
     if (await confirmAction(this, text, this._tr("delete"))) {
-      this._patch({ entities: this._p.entities.filter((_, j) => j !== index) });
+      const cleaned = removeDeviceFromSlots(this._p, id);
+      this._patch({ entities: this._p.entities.filter((_, j) => j !== index), profiles: cleaned.profiles });
     }
+  }
+
+  /** Slots (every mode) of a device whose setting it can no longer take (its commands changed). */
+  private _incompatible(entityId: string): { profileId: string; slotId: string }[] {
+    const out: { profileId: string; slotId: string }[] = [];
+    for (const profile of this._p.profiles) {
+      for (const slot of profile.days.flat()) {
+        const label = labelOf(this.data, slot.label);
+        // only slots this change broke: a setting the device could never take (e.g. a temperature on a cover) is left alone
+        const before = this._origin?.entities.some((e) => e.entity_id === entityId) ? this._origin : null;
+        if (label && applies(slot, entityId) && !appliedAction(this.hass, this._p, entityId, label, slot)
+          && (!before || appliedAction(this.hass, before, entityId, label, slot))) {
+          out.push({ profileId: profile.id, slotId: slot.id });
+        }
+      }
+    }
+    return out;
+  }
+
+  /** Those slots stop running for this device (deleted when it was the only one), the other devices keep them. */
+  private _dropIncompatible(entityId: string): void {
+    const found = this._incompatible(entityId);
+    const devices = devicesOf(this._p);
+    this._patch({
+      profiles: this._p.profiles.map((profile) => {
+        let days = profile.days;
+        for (const x of found.filter((f) => f.profileId === profile.id)) days = editForDevice(days, x.slotId, entityId, null, { devices })?.days ?? days;
+        return { ...profile, days };
+      }),
+    });
   }
 
   private async _delete(): Promise<void> {
@@ -565,8 +609,29 @@ export class WpProgramEditor extends LitElement {
             @click=${() => void this._askDeleteEntity(index)}><ha-icon icon="mdi:delete"></ha-icon></button>
         </div>
         ${otherPrograms.length ? html`<p class="hint" role="status">${this._tr("pe_other_programs", { programs: otherPrograms.join(", ") })}</p>` : nothing}
+        ${this._renderInherit(e)}
         ${this._renderServices(e, index)}
+        ${this._renderIncompatible(e)}
       </div>`;
+  }
+
+  /** A device just added follows the slots shared by every device (those without list), never the others' own. */
+  private _renderInherit(e: ProgramEntity) {
+    const origin = this._origin;
+    if (!origin || origin.entities.some((x) => x.entity_id === e.entity_id) || this._p.entities.length < 2) return nothing;
+    const n = commonSlotCount(this._p);
+    return n ? html`<p class="hint" role="status">${this._tr("pe_inherits", { n: String(n) })}</p>` : nothing;
+  }
+
+  /** Commands of a device changed: its slots whose setting it can no longer take can be taken off it. */
+  private _renderIncompatible(e: ProgramEntity) {
+    const before = this._origin?.entities.find((x) => x.entity_id === e.entity_id);
+    if (!before || (JSON.stringify(before.allowed_services ?? []) === JSON.stringify(e.allowed_services ?? []) && Boolean(before.restrict_services) === Boolean(e.restrict_services))) return nothing;
+    const n = this._incompatible(e.entity_id).length;
+    if (!n) return nothing;
+    return html`<div class="notice" role="status"><p class="hint">${this._tr("pe_incompatible", { n: String(n) })}</p>
+      <button class="btn" ?disabled=${!this._canEdit()} @click=${() => this._dropIncompatible(e.entity_id)}>
+        <ha-icon icon="mdi:link-off"></ha-icon>${this._tr("pe_incompatible_remove")}</button></div>`;
   }
 
   private get _seasonsUnapplied(): boolean {

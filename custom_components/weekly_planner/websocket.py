@@ -17,7 +17,8 @@ from .const import CONF_ADMIN_ONLY, DEFAULT_PRIORITY, DOMAIN
 from .checks import program_warnings
 from .engine import PlannerEngine
 from .frontend import CARD_VERSION_KEY
-from .resolver import active_profile, occurrences_around
+from .resolver import OccurrenceCache, active_profile, occurrences_around
+from .slots import normalise_slot_entities, remove_device_from_slots
 from .store import new_id
 from .actions import needs_admin
 from .validation import PROGRAM, ProgramError, admin_required, check_label, check_program, label_users, with_defaults
@@ -137,6 +138,44 @@ def ws_subscribe(hass, connection, msg) -> None:
     forward()
 
 
+def _clean_slot_entities(existing: dict | None, program: dict) -> dict:
+    """D5 before validation: devices that left the program leave every slot list (all modes), then lists are normalised.
+
+    Removal runs first so ``unknown_slot_entity`` is never raised for a device the user just removed.
+    Malformed data is left untouched for ``check_program`` to refuse.
+    """
+    try:
+        if existing:
+            kept = {e["entity_id"] for e in program["entities"]}
+            for old in existing.get("entities", []):
+                if old["entity_id"] not in kept:
+                    program = remove_device_from_slots(program, old["entity_id"])
+        return normalise_slot_entities(program)
+    except (KeyError, TypeError, AttributeError):
+        return program
+
+
+def _chart_metadata_only(before: dict | None, after: dict, reapply_default: bool = True) -> bool:
+    """Only display sources changed: do not re-evaluate schedules or send device services."""
+    if before is None:
+        return False
+    try:
+        before = PROGRAM(with_defaults(before, reapply_default))
+    except vol.Invalid:
+        return False
+
+    def scheduling(program: dict) -> dict:
+        return {**program, "entities": [
+            {key: value for key, value in entity.items() if key != "chart_sources"}
+            for entity in program["entities"]
+        ]}
+
+    sources_changed = [entity.get("chart_sources") for entity in before["entities"]] != [
+        entity.get("chart_sources") for entity in after["entities"]
+    ]
+    return sources_changed and scheduling(before) == scheduling(after)
+
+
 @websocket_api.websocket_command({
     vol.Required("type"): f"{DOMAIN}/program/save",
     vol.Required("program"): dict,
@@ -157,6 +196,7 @@ async def ws_program_save(hass, connection, msg) -> None:
         return
     try:
         descriptions = await _descriptions(hass)
+        program = _clean_slot_entities(existing, program)
         program = check_program(program, engine.labels, hass, descriptions, engine.reapply_default)
     except vol.Invalid as err:
         connection.send_error(msg["id"], "invalid", str(err))
@@ -174,6 +214,7 @@ async def ws_program_save(hass, connection, msg) -> None:
     if existing and existing.get("revision", 0) != program.get("revision", 0):
         connection.send_error(msg["id"], "conflict", "Modified elsewhere, reload")
         return
+    chart_metadata_only = _chart_metadata_only(existing, program, engine.reapply_default)
     inactive_mode_edit = bool(existing) and _is_inactive_mode_edit(engine, existing, program)
     program["revision"] = program.get("revision", 0) + 1
     program.setdefault("created_at", existing.get("created_at") if existing else dt_util.utcnow().isoformat())
@@ -182,7 +223,7 @@ async def ws_program_save(hass, connection, msg) -> None:
     else:
         engine.store.programs.append(program)
     engine.store.save_config()
-    await engine.async_config_changed(reapply=not inactive_mode_edit)
+    await engine.async_config_changed(reapply=not inactive_mode_edit, metadata_only=chart_metadata_only)
     connection.send_result(msg["id"], {"program": program})
 
 
@@ -259,6 +300,34 @@ async def ws_label_delete(hass, connection, msg) -> None:
     connection.send_result(msg["id"])
 
 
+def _preview_slot(occ, slot: dict) -> dict[str, Any]:
+    item = {
+        "slot_id": slot["id"], "start": occ.start.isoformat(),
+        "end": occ.end.isoformat() if occ.end else None, "ignored": occ.ignored,
+        "sun": "sun" in slot["start"] or "sun" in (slot.get("end") or {}),
+    }
+    if slot.get("entities") is not None:
+        item["entities"] = list(slot["entities"])
+    return item
+
+
+def _per_device_preview(engine: PlannerEngine, program: dict, profile: dict, noon: datetime) -> dict[str, Any]:
+    """Programs with per-device lists: slots as placed (never trimmed together) and the full timeline of each device."""
+    cache = OccurrenceCache()
+    tz, sun, pid = engine.tz, engine.sun, program["id"]
+    midnight = datetime(noon.year, noon.month, noon.day, tzinfo=tz)
+    slots = [_preview_slot(occ, slot) for occ, slot in cache.entry(profile, noon.date(), tz, sun, pid).placed]
+    by_entity: dict[str, list] = {}
+    for entity in program["entities"]:
+        eid = entity["entity_id"]
+        by_entity[eid] = [
+            _preview_slot(occ, slot)
+            for occ, slot in occurrences_around(profile, noon, tz, sun, days=(-1, 0), program_id=pid, cache=cache, entity_id=eid)
+            if occ.start >= midnight or (occ.end is not None and occ.end > midnight)  # previous-day spill only
+        ]
+    return {"slots": slots, "by_entity": by_entity}
+
+
 @websocket_api.websocket_command({
     vol.Required("type"): f"{DOMAIN}/preview",
     vol.Required("program_id"): str,
@@ -279,13 +348,12 @@ def ws_preview(hass, connection, msg) -> None:
         profiles = {**profiles, program["id"]: msg["profile_id"]}
     profile = active_profile(program, profiles)
     noon = datetime(day.year, day.month, day.day, 12, tzinfo=engine.tz)
+    if any("entities" in slot for day_slots in profile["days"] for slot in day_slots):
+        connection.send_result(msg["id"], {"date": day.isoformat(), **_per_device_preview(engine, program, profile, noon)})
+        return
     result = []
     for occ, slot in occurrences_around(profile, noon, engine.tz, engine.sun, days=(0,), program_id=program["id"]):
-        result.append({
-            "slot_id": slot["id"], "start": occ.start.isoformat(),
-            "end": occ.end.isoformat() if occ.end else None, "ignored": occ.ignored,
-            "sun": "sun" in slot["start"] or "sun" in (slot.get("end") or {}),
-        })
+        result.append(_preview_slot(occ, slot))
     connection.send_result(msg["id"], {"date": day.isoformat(), "slots": result})
 
 

@@ -55,12 +55,13 @@ Prenons cet exemple pour le chauffage du salon :
 
 Toucher le **calendrier avec un crayon**, à droite de Chauffage du salon.
 Les horaires déjà créés apparaissent sous les sept barres de la semaine.
+Si rien n'est encore réglé pour un appareil, la carte affiche sur sa ligne un bouton **Créer un réglage** à la place des barres : il ouvre directement le formulaire d'un premier horaire pour cet appareil.
 
 <a href="images/guide/s06-schedules.png"><img src="images/guide/s06-schedules.png" width="320" alt="Les horaires du chauffage : Confort le matin et le soir, Éco le reste du temps." /></a>
 
 ### 2. Régler le matin
 
-1. Toucher **Ajouter un horaire**, ou la ligne du matin si elle existe déjà.
+1. Toucher **Ajouter un horaire** (**Créer un réglage** s'il n'y en a aucun), ou la ligne du matin si elle existe déjà.
 2. Sous **Début**, saisir **06:30**.
 3. Sous **Fin**, choisir **Jusqu’à…**, puis saisir **08:30**.
 4. Choisir **Tous les jours**.
@@ -108,7 +109,7 @@ du programme. Les commandes doivent d’abord y être cochées.
 
 Un réglage peut servir à plusieurs programmes. **Changer Confort de 20 à
 21 °C peut donc changer leurs horaires aussi.** Le crayon ouvre son réglage ; la
-mention **Partagé** signale une utilisation dans un autre programme.
+mention **Aussi utilisé par :** nomme les autres programmes qui s’en servent.
 
 Pour une exception, **Valeur pour cet appareil** permet un autre réglage pour
 cet appareil seulement : [S13](SCREENS.fr.md#s13). **Revenir à la valeur commune**
@@ -149,8 +150,24 @@ modification en cours. Pour enlever un horaire, ouvrir sa ligne, toucher
 Tu peux aussi modifier la barre directement : faire un **appui long au doigt**, ou
 un clic à la souris, puis sélectionner la plage. Déplacer ses poignées change
 les heures. **C’est enregistré dès que tu relâches**, pour ce jour seulement.
-Le bandeau **Modifié · Annuler** permet de revenir en arrière pendant quelques
+Le bandeau **Enregistré · Annuler** permet de revenir en arrière pendant quelques
 secondes : [S21](SCREENS.fr.md#s21).
+
+Sous la barre, quand une plage est sélectionnée, deux boutons à ne pas confondre :
+
+- **Couper en deux** (icône « fente au milieu ») coupe la plage en deux parties,
+  l’une après l’autre dans le temps ; la partie de droite devient « Rien ».
+- **Copier vers…** (icône « deux feuilles ») recopie la plage sur d’autres jours.
+
+**Déplacer toute la plage** : appui long sur la plage puis, sans lever le doigt,
+glisser de gauche à droite. Elle garde sa durée et avance par pas de 15 minutes ;
+elle s’arrête contre les plages voisines et aux bords du jour. En glissant sur la
+barre d’un autre jour (vue Semaine), elle quitte son jour et passe à celui-là, à la
+même heure ; si une plage s’y trouve déjà, rien n’est déplacé et un message
+l’explique. Une heure de lever ou de coucher du soleil reste liée au soleil et
+garde son décalage. Un horaire ponctuel (utiliser sa poignée ronde), une plage qui
+passe minuit ou une heure solaire avec limites ne se déplacent pas ainsi : un message
+le dit. C’est enregistré au relâchement, avec **Annuler**.
 
 **Copier vers…** permet de choisir d’autres jours. Si une plage existe déjà à cet
 endroit, l’écran montre l’avant et l’après :
@@ -161,13 +178,40 @@ endroit, l’écran montre l’avant et l’après :
 Voir les [jours de copie](SCREENS.fr.md#s19) et les [choix de remplacement](SCREENS.fr.md#s20).
 Pour un horaire commencé la veille, utiliser le formulaire plutôt que la barre.
 
+## J’ai plusieurs appareils dans un programme
+
+Chaque appareil a ses propres horaires. Exemple : dans le programme du salon, le
+thermostat est à 15 °C de 7 h à 22 h et le volet se ferme à 7 h. Sur la carte, la
+ligne du volet ne montre que « Fermer », celle du thermostat que « 15 °C ».
+
+- Toucher la barre ou le calendrier d’un appareil ouvre **ses** horaires. En haut
+  de l’écran, une pastille par appareil permet de passer à un autre.
+- Un nouvel horaire est créé pour cet appareil. Sous **Aussi pour :**, toucher un
+  autre appareil pour qu’il suive le même horaire. Seuls les appareils que le
+  réglage choisi sait piloter sont proposés (pas de volet pour « 15 °C ») ; s’il n’y
+  en a aucun, la ligne n’apparaît pas. Tous cochés : l’horaire vaut pour tout le
+  programme, y compris un appareil ajouté plus tard.
+- Un horaire qui sert à plusieurs appareils porte « Aussi : » suivi de leurs noms.
+  Pour le modifier, l’écran demande toujours **Modifier pour :**
+  **Seulement** (le nom de l’appareil) ou **Tous les appareils (N)**. **Seulement**
+  ne change que cet appareil ; les autres gardent l’horaire tel quel. Même question
+  sur la barre, après un glissement ou un choix de réglage ; **Ne rien changer**
+  abandonne la modification. Une modification enregistrée sur la barre affiche
+  **Enregistré · Annuler**.
+- **Supprimer**, en bas de l’écran, n’enlève que les horaires de cet appareil.
+- Dans **Réglages des programmes > Appareils**, retirer un appareil supprime aussi
+  ses horaires propres (un message dit combien). Un appareil ajouté suit les
+  horaires communs à tous les appareils. Retirer une commande d’un appareil
+  propose de lui retirer les horaires qui l’utilisent.
+
 ## Je veux fermer le volet au coucher du soleil
 
-Dans son horaire, sous Début, choisir **Coucher**. Les boutons − et + avancent ou
+Dans son horaire, sous Début, choisir **Coucher du soleil**. Les boutons − et + avancent ou
 retardent l’action. Choisir une fin à **07:30** et le réglage de fermeture ;
 dans **Le reste du temps**, choisir le réglage d’ouverture.
 
 L’heure du coucher suit le soleil du lieu enregistré dans Home Assistant.
+L’action part à la minute exacte calculée (par exemple 17 h 17), décalage compris.
 **Au plus tôt à** et **Au plus tard à** (facultatifs) l’empêchent de sortir d’une plage.
 Voir [l’écran solaire S09](SCREENS.fr.md#s09).
 
@@ -220,9 +264,10 @@ Si les boutons manquent, demander à cette personne de les ouvrir.
 
 Les intitulés de Home Assistant peuvent varier légèrement selon sa version.
 
-**Affichage de la carte** permet de choisir **Un seul programme** ou **Plusieurs appareils**.
-Dans **Programmes à afficher**, des interrupteurs par type d’appareil et par programme choisissent
-ce que la carte montre. Sous **Présentation de la journée**, choisir **Barres**, **Cadran 24 heures**, **Double
+**Affichage de la carte** permet de choisir **Un seul programme** ou **Plusieurs programmes**.
+Dans **Programmes à afficher**, un interrupteur par programme choisit ce que la carte montre ; sous chaque
+programme figurent ses appareils. Les boutons **Tout sélectionner par type** (Climatisation, Ouverture…) cochent
+d’un coup tous les programmes qui ont un appareil de ce type. Sous **Présentation de la journée**, choisir **Barres**, **Cadran 24 heures**, **Double
 cadran 12 heures** ou **Liste compacte**. Les cadrans sont aussi possibles en
 liste filtrée. Enregistrer la carte et terminer l’édition du tableau de bord.
 
@@ -246,7 +291,7 @@ Actions proposées**. Enregistrer aussi la carte pour garder sa présentation.
 Dans **Général**, **Pièce du programme** permet de le ranger, par exemple dans
 Salon. Choisir un nom existant ou en écrire un nouveau. Cette pièce est propre
 au programme : elle n’est pas reprise automatiquement de la pièce d’un appareil.
-Dans **Affichage de la carte → Plusieurs appareils**, choisir ensuite cette pièce ou
+Dans **Affichage de la carte → Plusieurs programmes**, choisir ensuite cette pièce ou
 **Toutes les pièces**. Si la carte est vide, vérifier ses filtres.
 
 **Attention aux deux enregistrements :**
@@ -269,6 +314,30 @@ Sur la carte, toucher **Graphique du jour** sous un appareil ouvre ou ferme son 
 est sous les horaires. Ses flèches changent le jour. Il compare ce
 qui était prévu avec les données disponibles de l’appareil. Toucher le graphique
 ouvre l’historique de Home Assistant : [S15 et S16](SCREENS.fr.md#s15).
+
+Pour parcourir le temps, glissez horizontalement : le graphique continue dans les jours précédents et suivants,
+et les dates s’affichent sous lui. Les flèches montrent la période précédente ou suivante, sans changer le zoom.
+
+- **Téléphone** : glissez un doigt pour parcourir ; pincez avec deux doigts pour zoomer ou dézoomer. La page défile toujours verticalement.
+- **Ordinateur** : glissez à la souris pour parcourir ; maintenez Maj en glissant pour entourer une plage à zoomer. Ctrl + molette zoome autour du pointeur.
+- **Clavier** : `+` et `-` zooment, les flèches déplacent, `0` ou le double clic revient au jour sélectionné.
+
+**Revenir au jour sélectionné** rétablit la journée entière. La fenêtre la plus étroite est de 30 minutes.
+
+### Comparer avec une autre entité
+
+Dans la fenêtre des horaires d’un appareil, ouvrez **Options du graphique** sous le graphique (elles n’existent pas sur la carte du tableau de bord ; les courbes choisies y restent affichées), puis **Ajouter une entité** et recherchez son nom. Le panneau est replié au départ.
+Une mesure numérique apparaît en courbe : par exemple, comparez température et humidité. Chaque unité a son échelle colorée,
+avec trois unités différentes au plus. Des courbes de même unité partagent la même échelle.
+
+Pour une entité à états, cochez les états qui vous intéressent : par exemple « Ouvert » pour une fenêtre.
+Vous pouvez en cocher plusieurs, chacun a sa couleur. Les autres états restent neutres ; les données manquantes
+ont un motif distinct. La bande porte le nom de l’entité et suit exactement la période du graphique.
+
+Les choix s’enregistrent automatiquement et sont partagés pour cet appareil dans ce programme, sur la carte et dans la
+fenêtre des horaires. Replier les options ne masque pas les tracés. La croix retire seulement une source du graphique,
+sans agir sur l’appareil. Une entité disparue et les états enregistrés restent dans les options pour pouvoir les retrouver ou les retirer.
+En lecture seule, les sources se consultent mais ne se modifient pas.
 
 [Graphique sans données S45](SCREENS.fr.md#s45).
 

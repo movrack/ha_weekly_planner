@@ -10,6 +10,8 @@ from custom_components.weekly_planner.timeline import (
     local_datetime,
     occurrence,
     parse_clock,
+    place_day,
+    trim,
 )
 
 TZ = ZoneInfo("Europe/Brussels")
@@ -75,9 +77,9 @@ def test_sun_with_offset_and_bounds():  # S3
     assert winter.start == at(WINTER, 18, 0)  # 16:55 raised to 18:00
 
 
-def test_sun_rounded_to_five_minutes():
+def test_sun_keeps_its_exact_minute():
     occ = occurrence(slot({"sun": "sunset"}, {"time": "23:00"}), SUMMER, TZ, fake_sun)
-    assert occ.start == at(SUMMER, 21, 55)
+    assert occ.start == at(SUMMER, 21, 58)  # never rounded to a 5-minute step
 
 
 def test_sun_slot_empty_that_day():  # S26
@@ -92,8 +94,9 @@ def test_sun_to_next_morning():
 
 
 def test_five_minutes_is_enough():
-    occ = occurrence(slot({"sun": "sunset"}, {"time": "22:00"}), SUMMER, TZ, fake_sun)
+    occ = occurrence(slot({"sun": "sunset"}, {"time": "22:03"}), SUMMER, TZ, fake_sun)
     assert occ.runs and occ.end - occ.start == timedelta(minutes=5)
+    assert occurrence(slot({"sun": "sunset"}, {"time": "22:02"}), SUMMER, TZ, fake_sun).ignored == "too_short"
 
 
 def test_one_shot_slot():
@@ -139,3 +142,26 @@ def test_overlap_trims_the_later_slot():
     assert a.runs and a.end == at(SUMMER, 12, 0)
     assert b.runs and b.start == at(SUMMER, 12, 0)
     assert c.ignored == "overlap"
+
+
+def test_day_occurrences_is_trim_of_place_day():
+    slots = [
+        slot({"time": "11:00"}, {"time": "14:00"}, "b"),
+        slot({"time": "08:00"}, {"time": "12:00"}, "a"),
+        slot({"time": "11:30"}, None, "c"),
+        slot({"sun": "sunset"}, {"time": "06:00"}, "d"),
+    ]
+    placed = place_day(slots, SUMMER, TZ, fake_sun)
+    assert [o.slot_id for o in placed] == ["a", "b", "c", "d"]
+    assert all(o.runs for o in placed)  # place_day never trims
+    assert trim(placed) == day_occurrences(slots, SUMMER, TZ, fake_sun)
+
+
+def test_trim_of_a_filtered_placement_ignores_removed_slots():
+    slots = [
+        slot({"time": "08:00"}, {"time": "12:00"}, "a"),
+        slot({"time": "11:00"}, {"time": "14:00"}, "b"),
+    ]
+    placed = place_day(slots, SUMMER, TZ, fake_sun)
+    (b,) = trim([o for o in placed if o.slot_id == "b"])
+    assert b.runs and b.start == at(SUMMER, 11, 0)

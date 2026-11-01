@@ -20,8 +20,10 @@ export class WpRadialDay extends LitElement {
   @property({ type: Boolean }) double = false;
   @property() lang = "en";
   @property() rest = "";
+  @property({ type: Boolean }) passive = false;
 
   private _open(): void {
+    if (this.passive) return;
     this.dispatchEvent(new CustomEvent("open-day", { bubbles: true, composed: true }));
   }
 
@@ -40,7 +42,7 @@ export class WpRadialDay extends LitElement {
     const now = this.now !== null && Number.isFinite(this.now) && this.now >= 0 && this.now < 1440 ? this.now : null;
     const nowRing = this.double && now !== null && now >= 720 ? 1 : 0;
     const nowTurn = now === null ? 0 : (now - nowRing * period) / period;
-    return html`<div class="dial"><button @click=${this._open} aria-label=${t(this.lang, "hours")}>
+    return html`<div class="dial"><button tabindex=${this.passive ? -1 : 0} @click=${this._open} aria-label=${t(this.lang, "hours")}>
       <svg viewBox="0 0 320 320" aria-hidden="true">
         ${(this.double ? [0, 1] : [0]).map((ring) => svg`<circle class="track" cx="160" cy="160" r=${radius(ring)} fill="none" stroke=${TRACK} stroke-width=${width} />`)}
         ${segments.map((s) => {

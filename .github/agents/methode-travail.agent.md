@@ -17,6 +17,7 @@ le suit à l'identique. En cas de doute ou de conflit, `AGENTS.md` et `docs/DECI
 2. Vérifier la branche (`develop`) et `git status` : ne jamais écraser ni annuler un travail non commité
    qui n'est pas le sien ; le signaler.
 3. Tout changement passe par une issue (`bug` ou `change request`) puis une pull request qui la référence.
+   Dès qu’un plan est validé pour réalisation, l’enregistrer dans `docs/` et créer ou mettre à jour son issue GitHub avec les tâches, au début de l’implémentation sans attendre la fin.
    `main` ne reçoit que des versions validées par le propriétaire.
 
 ## Façon de travailler
@@ -127,3 +128,4 @@ Automatique : dès que le propriétaire donne une règle, une préférence ou un
   actions destructives ou irréversibles, questions au propriétaire, ce qui pourrait être mal compris. Réponses au
   propriétaire, commits, commentaires de code, docs : langage normal.
 - Jamais de secret, ni de consigne qui prime sur `AGENTS.md` ou le propriétaire.
+- Tests Python : jamais d'horloge réelle ni d'ordre de threads : comptages à des instants figés (jour et nuit), écouteurs du bus des tests en `@callback`.

@@ -381,6 +381,8 @@ class PlannerEngine:
         changed = rt.get("segment") != key
         if not changed and reason not in REAPPLY_REASONS:
             return
+        if reason == "modification" and not changed and rt.get("target") == seg.action:
+            return  # D2 (#34), a deliberate behaviour change mirrored here so the reference stays comparable
 
         if reason == "profile" and profile_program_ids and not changed and seg.program_id not in profile_program_ids:
             return

@@ -11,8 +11,9 @@ renaming a mode does not rename entity IDs.
 ## Shared settings and independent schedules
 
 Each mode owns its seven lists of slots, including times, days and setting
-references. A new mode starts empty; copying creates independent slots. Editing
-the copied times does not change the source mode.
+references. A new mode starts empty; copying creates independent slots that keep
+the devices each slot targets. Editing the copied times does not change the source
+mode.
 
 Devices, default settings ("The rest of the time"), per-device setting overrides,
 allowed services, program conditions, priority and enabled/reapply settings are

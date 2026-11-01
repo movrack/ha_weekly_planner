@@ -46,3 +46,27 @@ export function radialSegments(spans: readonly BarSpan[], double = false): Radia
   }
   return out;
 }
+
+/** Real endpoints: noon ends on the inner ring and starts on the outer ring. */
+export function radialPosition(minute: number, double = false, end = false): { x: number; y: number } {
+  const period = double ? HALF_DAY : DAY;
+  const ring = double && (minute > HALF_DAY || (minute === HALF_DAY && !end)) ? 1 : 0;
+  const radius = double && ring === 0 ? 78 : 112;
+  const angle = (minute - ring * period) / period * 2 * Math.PI - Math.PI / 2;
+  return { x: 160 + radius * Math.cos(angle), y: 160 + radius * Math.sin(angle) };
+}
+
+type DialRect = { left: number; top: number; width: number; height: number };
+const turnAt = (x: number, y: number, r: DialRect): number =>
+  ((Math.atan2(y - r.top - r.height / 2, x - r.left - r.width / 2) + Math.PI / 2) / (2 * Math.PI) + 1) % 1;
+
+export function radialPointerMinute(x: number, y: number, r: DialRect, double = false): number {
+  const distance = Math.hypot((x - r.left - r.width / 2) * 320 / r.width, (y - r.top - r.height / 2) * 320 / r.height);
+  return turnAt(x, y, r) * (double ? HALF_DAY : DAY) + (double && distance >= 95 ? HALF_DAY : 0);
+}
+
+/** Signed displacement across midnight; changing rings never jumps twelve hours. */
+export function radialDelta(x0: number, y0: number, x: number, y: number, r: DialRect, double = false): number {
+  const turns = turnAt(x, y, r) - turnAt(x0, y0, r);
+  return (turns > .5 ? turns - 1 : turns < -.5 ? turns + 1 : turns) * (double ? HALF_DAY : DAY);
+}

@@ -15,8 +15,8 @@ export default defineConfig({
       exclude: ["src/__tests__/**", "src/**/*.test.ts"],
       reporter: ["text", "text-summary", "lcov", "html"],
       reportsDirectory: "coverage",
-      // Floors just below the measured 50.6 / 80.3 / 47.7 / 50.6 (no regression).
-      thresholds: { statements: 49, branches: 78, functions: 45, lines: 49 },
+      // Floors (measured with vitest 5: 80.7 / 73.0 / 75.6 / 82.7 statements/branches/functions/lines).
+      thresholds: { statements: 80, branches: 60, functions: 60, lines: 80 },
     },
   },
 });

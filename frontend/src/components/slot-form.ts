@@ -6,7 +6,10 @@ import "./label-picker";
 import { ALL_DAYS, WEEKDAYS, WEEKEND, shiftSpec, specText } from "../actions";
 import type { SlotGroup } from "../actions";
 import { strings, t } from "../i18n";
-import { sunBoundsInvalid } from "../slots";
+import { applicable, sunBoundsInvalid } from "../slots";
+import { devicesOf, forDevices } from "../device-edits";
+import { friendlyName } from "../planner";
+import { compatibleDevices, labelOf } from "../labels";
 import { DAY, clockToMinutes, localDateIso, localMinutes, minutesToClock } from "../time";
 import { editorStyles, langOf } from "../editors/shared";
 import type { HomeAssistant, PlannerData, Program, TimeSpec } from "../types";
@@ -94,6 +97,10 @@ export class WpSlotForm extends LitElement {
   @property({ attribute: false }) group!: SlotGroup;
   @property({ attribute: false }) entityIds: string[] = [];
   @property({ type: Boolean }) disabled = false;
+  /** Device the slot is edited from (always kept in the slot's devices). */
+  @property({ attribute: false }) device = "";
+  /** Show "Also for: …" (the other devices of the program); off while editing for this device only (D1). */
+  @property({ attribute: false }) also = true;
   /** Opened from one day of the week: edit that day only, other days on request. */
   @property({ type: Number }) dayOnly: number | null = null;
   @state() private _more = false;
@@ -103,7 +110,13 @@ export class WpSlotForm extends LitElement {
   private get _lang(): string { return langOf(this.hass); }
 
   private _set(patch: Partial<SlotGroup["slot"]>, days?: number[]): void {
-    const next: SlotGroup = { ...this.group, slot: { ...this.group.slot, ...patch }, days: days ?? this.group.days };
+    let slot = { ...this.group.slot, ...patch };
+    if (patch.label !== undefined && slot.entities && this.device) {
+      // a new setting: the devices it cannot act on leave the slot's list (they would do nothing with it)
+      const ok = compatibleDevices(this.hass, this.program, labelOf(this.data, slot.label), this.device);
+      slot = forDevices(slot, [this.device, ...slot.entities.filter((d) => ok.includes(d))], this.program) ?? slot;
+    }
+    const next: SlotGroup = { ...this.group, slot, days: days ?? this.group.days };
     this.dispatchEvent(new CustomEvent("group-change", { detail: next, bubbles: true, composed: true }));
   }
 
@@ -173,7 +186,7 @@ export class WpSlotForm extends LitElement {
         ${SUNS.map((sun) => {
           const on = "sun" in spec && spec.sun === sun;
           return html`<button class="chip ${on ? "on" : ""}" aria-pressed=${on} ?disabled=${dis}
-            @click=${() => this._toggleSun(which, sun)}><ha-icon icon=${sun === "sunrise" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down"}></ha-icon>${s[`sun_${sun}_short` as "sun_dawn"] ?? sun}</button>`;
+            @click=${() => this._toggleSun(which, sun)}><ha-icon icon=${sun === "sunrise" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down"}></ha-icon>${s[`sun_${sun}` as "sun_dawn"] ?? sun}</button>`;
         })}
       </div>
       ${"sun" in spec ? this._limits(which, spec, title) : nothing}
@@ -211,6 +224,32 @@ export class WpSlotForm extends LitElement {
     const start = this.group.slot.start;
     const m = "time" in start ? clockToMinutes(start.time) : 12 * 60;
     this._update("end", { time: minutesToClock(Math.min(DAY - 5, m + 60)) });
+  }
+
+  /* ---- devices ---- */
+
+  /** "Also for: …": the slot runs for this device and the ticked ones; all ticked = no list (D5). */
+  private _toggleDevice(entityId: string): void {
+    const devices = devicesOf(this.program);
+    const now = applicable(this.group.slot, devices);
+    const list = now.includes(entityId) ? now.filter((d) => d !== entityId) : [...now, entityId];
+    const next = forDevices(this.group.slot, [...list, this.device], this.program);
+    if (!next) return;
+    this.dispatchEvent(new CustomEvent("group-change", { detail: { ...this.group, slot: next }, bubbles: true, composed: true }));
+  }
+
+  private _alsoFor() {
+    // only the devices the chosen setting really acts on (`appliedAction`); none: no line at all
+    const others = compatibleDevices(this.hass, this.program, labelOf(this.data, this.group.slot.label), this.device);
+    if (!this.also || !this.device || !others.length) return nothing;
+    const on = applicable(this.group.slot, devicesOf(this.program));
+    return html`<section>
+      <h4>${t(this._lang, "also_for")}</h4>
+      <div class="chips" role="group" aria-label=${t(this._lang, "also_for")}>
+        ${others.map((d) => html`<button class="chip ${on.includes(d) ? "on" : ""}" aria-pressed=${on.includes(d)} ?disabled=${this.disabled}
+          @click=${() => this._toggleDevice(d)}>${on.includes(d) ? html`<ha-icon icon="mdi:check"></ha-icon>` : html`<ha-state-icon .hass=${this.hass} .stateObj=${this.hass.states[d]}></ha-state-icon>`}${friendlyName(this.hass, d)}</button>`)}
+      </div>
+    </section>`;
   }
 
   /* ---- days ---- */
@@ -263,7 +302,8 @@ export class WpSlotForm extends LitElement {
         <wp-label-picker embedded .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${this.entityIds}
           .value=${slot.label || null} ?disabled=${this.disabled}
           @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._set({ label: e.detail ?? "" }); }}></wp-label-picker>
-      </section>`;
+      </section>
+      ${this._alsoFor()}`;
   }
 
   static styles = [editorStyles, css`
