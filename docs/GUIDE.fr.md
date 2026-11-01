@@ -153,6 +153,22 @@ les heures. **C’est enregistré dès que tu relâches**, pour ce jour seulemen
 Le bandeau **Modifié · Annuler** permet de revenir en arrière pendant quelques
 secondes : [S21](SCREENS.fr.md#s21).
 
+Sous la barre, quand une plage est sélectionnée, deux boutons à ne pas confondre :
+
+- **Couper en deux** (icône « fente au milieu ») coupe la plage en deux parties,
+  l’une après l’autre dans le temps ; la partie de droite devient « Rien ».
+- **Copier vers…** (icône « deux feuilles ») recopie la plage sur d’autres jours.
+
+**Déplacer toute la plage** : appui long sur la plage puis, sans lever le doigt,
+glisser de gauche à droite. Elle garde sa durée et avance par pas de 15 minutes ;
+elle s’arrête contre les plages voisines et aux bords du jour. En glissant sur la
+barre d’un autre jour (vue Semaine), elle quitte son jour et passe à celui-là, à la
+même heure ; si une plage s’y trouve déjà, rien n’est déplacé et un message
+l’explique. Une heure de lever ou de coucher du soleil reste liée au soleil et
+garde son décalage. Un horaire ponctuel (utiliser sa poignée ronde), une plage qui
+passe minuit ou une heure solaire avec limites ne se déplacent pas ainsi : un message
+le dit. C’est enregistré au relâchement, avec **Annuler**.
+
 **Copier vers…** permet de choisir d’autres jours. Si une plage existe déjà à cet
 endroit, l’écran montre l’avant et l’après :
 

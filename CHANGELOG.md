@@ -7,9 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [Unreleased]
 
 ### Added
+- Card, day bar: a slot can be moved as a whole. In edit mode, drag its body (or press and hold, then drag, also from the handle zones or in the same gesture that opened the edit mode): it keeps its duration, moves in 15-minute steps, stops against its neighbours and the day edges, and is saved on release with Undo. Dragged onto another day bar of the same program and device (week view) it moves to that day at the same time; an overlap there is refused with a message. Sun-based times shift by their offset; one-shots, slots crossing midnight and sun times with limits are refused with a message. Not available between devices.
 - Card: a program with no setting at all in its active mode shows one primary "Create a setting" button (fr: "Créer un réglage") instead of its empty bars; it opens the schedule screen straight on the new-setting form. Hidden when the user cannot edit or the card is read-only. In the schedule screen, an empty program's add button reads "Create a setting" and is filled.
 
 ### Changed
+- Card, slot action bar: the scissors button now reads "Split in two" (fr: "Couper en deux") with the `mdi:arrow-split-vertical` icon and a hint, grouped apart from "Copy to…" (`mdi:content-copy`, grouped as "On other days"), so that splitting a slot in time is no longer mistaken for copying it to other days.
 - Card editor, programs to display: the list now shows each program once, with a single switch and its devices (names and type icons) underneath, instead of repeating a program under every device type. Quick selection by type is a separate "Select all by type" row of chips (with distinct-program counts). The mode "Several devices" is now "Several programs" (fr: "Plusieurs programmes"). Configuration keys and YAML are unchanged.
 - Tooling only: frontend dev dependencies bumped together (vite 8, vitest 5, @vitest/coverage-v8 5, TypeScript 7) and `npm audit fix` applied. Pillow stays at 12.3.0 (pinned by homeassistant 2026.10.3). New component and editor tests raise the frontend coverage floors to 80 % statements and lines, 60 % branches and functions.
 
