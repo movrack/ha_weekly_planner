@@ -5,194 +5,382 @@ English | [Français](README.fr.md)
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A weekly time-slot planner for Home Assistant. Program any entity (thermostats, covers, lights, plugs, vacuums...)
-with colored weekly schedules built from shared labels. One install gives you both the engine
-(integration) and the card.
+A Home Assistant integration with a bundled Lovelace card for weekly scheduling.
+It schedules compatible Home Assistant service calls or scenes through shared
+settings, with optional end times and a per-entity default action. Discovery uses
+Home Assistant metadata, without a device-brand catalogue.
 
-<!-- screenshot: docs/images/card-overview.png — the card in consultation mode (week bars + current mode) -->
+This README is for Home Assistant integrators. For household users, use the
+[illustrated French guide](docs/GUIDE.fr.md) and [screen atlas](docs/SCREENS.fr.md).
 
-## Why Weekly Planner?
+<a href="docs/SCREENS.fr.md#s01"><img src="docs/images/guide/s01-overview.png" width="300" alt="Weekly Planner overview" /></a>
+<a href="docs/SCREENS.fr.md#s03"><img src="docs/images/guide/s03-radial.png" width="300" alt="Single-program 24-hour dial" /></a>
 
-- **One way of working for every device.** A slot has a start, an optional end, days and a **label**. A label is
-  a name and a color for an action: any Home Assistant service accepting the device (`climate.set_temperature`,
-  `cover.close_cover`, `vacuum.start`...) or a scene. "Comfort" = 19 °C, defined once, used in every slot.
-- **Labels are shared.** Change what "Comfort" does and every slot using it follows. A device can have its own
-  value for a label (19 °C everywhere, 22 °C in the bathroom).
-- **"The rest of the time".** Each device can have a label applied when a slot with an end finishes. A slot without
-  an end is a one-shot action: it runs once, at its start, and is never run again.
-- **Profiles.** Several week layouts per program (Winter, Summer, Remote work) and a `select` to switch.
-- **Solar times with bounds.** Dawn, sunrise, sunset, dusk, plus an offset, "no earlier than" and "no later than".
-- **Priorities and conditions.** Several programs can target the same entity; the highest priority wins and
-  the other takes over when it ends. Conditions work per program and per slot.
-- **Vacation switch.** One switch suspends every program and applies the defaults.
-- **Survives restarts.** Optionally the action in progress is sent again after a restart or an edit
-  (never the one-shots); missed slot ends are caught up.
-- **History chart for every device.** The Home Assistant history of the day (a curve for a number, a band of
-  states otherwise), the planned actions, "now", and the changes made by hand in red. A tap opens the Home
-  Assistant history.
-- **One installation.** The integration ships its own card: no second HACS repository.
+This project was developed with the assistance of AI agents.
 
-> **0.6.0 is a breaking change.** Typed setpoints, common modes, manual-change detection ("overrides") and the
-> Evohome / Adaptive Lighting / Versatile Thermostat special cases are gone. Stored programs are converted
-> automatically (a backup of the old file is kept next to it). See the [changelog](CHANGELOG.md).
+## Requirements and installation
 
-## Installation
+- Home Assistant **2026.10.0 or later**, as declared in `hacs.json`.
+- One integration entry per Home Assistant instance. That entry owns every program.
+- Existing HA entities and compatible target services or scenes.
+- HA history provides the recorded-data layer of the chart; it is separate from scheduling.
 
-1. In HACS, open the menu > **Custom repositories**.
-2. Add `https://github.com/movrack/ha_weekly_planner` with category **Integration**.
-3. Install **Weekly Planner** and restart Home Assistant.
-4. Go to **Settings > Devices & services > Add integration**, and add **Weekly Planner**
-   (a single instance is allowed).
+### HACS
 
-The card is registered automatically as a Lovelace resource (storage mode). In YAML mode it is added as an
-extra JS module.
+1. Add `https://github.com/movrack/ha_weekly_planner` as a custom **Integration** repository.
+2. Install Weekly Planner and restart Home Assistant to load its Python code.
+3. Open **Settings → Devices & services → Add integration → Weekly Planner**.
+4. Add a **Weekly Planner** card to a dashboard. Create programs in its visual editor.
 
-<!-- screenshot: docs/images/install-config-flow.png — adding the integration -->
+There is no separate card repository. In Lovelace storage mode, the integration
+registers and updates its JavaScript module resource automatically. In YAML
+resource mode, it loads the module through Home Assistant's extra-JavaScript URL
+mechanism. The served module is
+`/weekly_planner_static/weekly-planner-card.js?v=<content-hash>`.
 
-## Adding the card
+Do not add another integration entry to create another program. Use **Program
+settings → New program** in the card editor. See [S36](docs/SCREENS.fr.md#s36).
 
-Edit a dashboard, add a card, pick **Weekly Planner**, or use YAML.
+## Dashboard configuration
 
-One fixed program:
+The visual editor has two sections:
+
+- **Card appearance** changes this card: title, fixed program or filters, schedule
+  view, and chart visibility. Save these changes with the Lovelace editor.
+- **Program settings** changes integration data shared by every card displaying
+  that program. **Apply to program** persists immediately. Cancelling the outer
+  Lovelace editor does not roll it back. This settings section is administrator-only.
+
+Program-setting drafts and their local undo/redo history survive navigation
+between tabs and programs within the editor. Closing the editor discards unapplied
+drafts. A successful Apply resets history; it cannot undo actions already sent to HA.
+
+### Single program with a radial overview
 
 ```yaml
 type: custom:weekly-planner-card
-program: office-heating
-title: Office
+program: YOUR_PROGRAM_ID
+title: Living room
+schedule_view: radial
 show_chart: true
 ```
 
-A filtered list of programs (with program creation from the card):
+### Several programs in a compact list
 
 ```yaml
 type: custom:weekly-planner-card
+title: Schedules
+schedule_view: list
 filter:
-  types: [climate]
-  area: office
-title: Heating
+  types:
+    - climate
+    - cover
 ```
 
-| Option | Description |
+| Option | Behavior |
 |---|---|
-| `program` | Id of a single program to show. |
-| `filter.types` | Entity types to list (`climate`, `cover`, `light`...). |
-| `filter.area` | Only programs that contain entities of this area. |
-| `title` | Card title. |
-| `show_chart` | Show the history chart in the schedule screen (default on). |
+| `type` | `custom:weekly-planner-card`. |
+| `program` | Existing internal program ID, or a program name (see below). A nonempty value selects one program instead of applying filters. |
+| `filter.types` | Entity domains found in programs. Missing or empty means all domains. Unknown domains remain usable. |
+| `filter.area` | Exact match against the program’s `area`, assigned in General settings. The editor offers existing program areas and retains missing selections. Device rooms are not inferred. |
+| `filter.programs` | Optional list of program IDs or names (see below), intersected with type/area filters. Missing means all programs, including future ones; `[]` means none. |
+| `title` | Optional card title. |
+| `schedule_view` | `bars` (default), `list`, `radial` (24-hour dial), or `radial_12h` (concentric 12-hour dials). All work with single-program and filtered cards. |
+| `show_chart` | Boolean, default `true`. On: a **Today’s chart** button under each device on the card, and the chart in the schedule window. Off: no button and no chart anywhere on this card. In the editor: “Chart button under each device”. |
+| `chart_collapsed` | Boolean, default `true`: the chart under each device starts closed (`false`: starts open). Only matters when `show_chart` is on. In the editor: the switch “Chart open by default” (the inverse). A choice made with the chart button is remembered per browser, per card and per device, and wins afterwards. |
 
-The card is a planner, not a remote control: one line per device (icon, program name, state, the next
-scheduled action and time) with its day bar, the week and a **Schedule** button. The schedule screen lists the
-slots one per row (tap to edit in place: start, optional end, days, label), "The rest of the time", the chart of
-the day, a pause switch and a confirmed delete. The gear (administrators only) opens the program settings
-(name, icon, priority, conditions, "send the current action again after a restart", devices, seasons); the
-list button of the card header opens the **Labels** screen.
+**YAML reference.** Every option of the visual editor can be set in the YAML code editor, with the same
+effect, and switching between both keeps all keys (including keys this card does not know). Types:
+`title`, `program`, `filter.area` are strings; `filter.types` and `filter.programs` are lists of strings
+(a single string is accepted as a one-item list); `schedule_view` is one of `bars`, `list`, `radial`,
+`radial_12h`; `show_chart` and `chart_collapsed` are booleans. A value of the wrong type is ignored and
+the default applies; a configuration that is not a YAML mapping shows a clear error card. In the visual
+editor, the type and program switches write `filter.programs` (and only ever widen or, for an empty type,
+remove an entry of `filter.types`), so a YAML `filter.types`-only configuration keeps working.
+`filter.programs` set by the editor lists the chosen programs: future programs are then not added
+automatically; use **All programs** (or omit `filter.programs`) for that.
 
-<!-- screenshot: docs/images/card-overview.png — the card -->
-<!-- screenshot: docs/images/card-chart.png — the history chart -->
-
-## Concepts
-
-- **Program**: a named set of entities plus a week of slots and settings. One switch per program.
-- **Slot**: an interval `[start, end)` of a day, or a one-shot (start only), with a label.
-- **Label**: shared by every program: a name, a color and an action. The action is a service call on the
-  device (`{"kind": "service", "service": "climate.set_temperature", "data": {"temperature": 19}}`) or a scene.
-  A label is offered for a device when its service accepts it (or the scene contains it); a device that does
-  not suit a slot's label is skipped for that slot and the card warns you.
-- **Value for a device**: a device's own action for a label.
-- **The rest of the time**: the label a device receives when a slot with an end finishes (or nothing).
-- **Profile**: one of several week layouts of a program. Entities, defaults, conditions and priority are shared.
-- **Priority**: when several active programs target the same entity, the lowest number wins.
-
-Rules in short: the engine does not replay events; it recalculates the wanted action and acts only at
-transitions (slot start or end, condition change, program on/off, vacation, edit). It does not watch what a
-device does afterwards: a change made by hand is neither detected nor corrected (the chart only shows it).
-
-## Entities created
-
-| Entity | Role |
-|---|---|
-| `switch.weekly_planner_<program>` | Turns a program on or off. Attributes: current slots, next change, next actions, skip, active profile. |
-| `switch.weekly_planner_vacation` | Suspends all programs and applies their defaults. Entity ids follow the instance language (French: `switch.weekly_planner_vacances`). |
-| `select.weekly_planner_profile_<program>` | Chooses the active profile (French: `select.weekly_planner_profil_<program>`). |
-
-Entity ids follow the entity names, so they depend on the language of your account when created.
-
-## Services
+`filter.programs` and `program` accept a program **name** as well as its ID, e.g.
+`filter: { programs: [Bureau, Lampe du salon] }`. An exact ID match wins; otherwise the name is compared
+ignoring case, accents and surrounding spaces, and every program with that name is shown (duplicate names
+all match). An entry matching nothing is ignored silently. Caveat: renaming a program breaks a name-based
+list; the visual editor rewrites the selection as IDs (stable) on the first change.
 
 ```yaml
-# Send now what the program wants for its entities
+type: custom:weekly-planner-card
+title: Schedules                # default: none
+schedule_view: bars             # bars | list | radial | radial_12h
+show_chart: true                # default true
+chart_collapsed: true           # default true (collapsed)
+filter:                         # ignored when `program` is set
+  types: [climate, cover]       # default: all
+  area: Living room             # default: all areas
+  programs: [ID1, Bureau]       # IDs or names; default: all (future ones included)
+```
+
+A program ID is generated by the integration; it is not the display name or a
+slug derived from that name. Get it from the program switch's `program_id`
+attribute or the `weekly_planner/get` WebSocket response. Replace the example ID
+above with a real ID. Entity IDs may also vary with language and renaming.
+
+Set a program’s optional area in **Program settings → General**. This is a name
+used to group programs; it is independent of HA device rooms.
+The week is expanded interactively.
+
+The dial displays the same resolved schedule data as the bars and opens the
+existing editor. The inner 12-hour ring covers midnight–noon and the outer ring noon–midnight.
+Both dial variants use the bars’ colours, hourly marks and solar markers.
+Their arcs are not draggable. In a compact list, clicking a row expands its bar
+inline. Click a dialog title to expand its
+desktop width. Mobile dialogs already occupy the full screen.
+
+## Scheduling model and runtime behavior
+
+The UI calls scheduled HA entities “devices”; they are entity IDs, not device
+registry IDs. A program may contain several of them.
+
+| Object | Meaning |
+|---|---|
+| Program | Name, entity list, priority, conditions, reapply policy and weekly profiles. |
+| Setting | Global `{id, name, color, action}` shared across programs. |
+| Slot | Start, optional end, days and a setting reference. |
+| Entity default | Optional `default_label` applied outside bounded slots under the ownership rules. |
+| Entity override | `label_overrides[label_id]` changes that setting's action for this entity in this program. |
+| Mode (`profile` internally) | A named weekly slot set. One is active per program. Vacation is an ordinary mode. Entities, defaults, program conditions and priority are shared. |
+
+A service setting action has this shape:
+
+```json
+{"kind":"service","service":"climate.set_temperature","data":{"temperature":20}}
+```
+
+An action can instead target a different entity explicitly, for example a button
+that moves a cover to its own stored favourite position:
+
+```json
+{"kind":"service","service":"button.press","target_entity_id":"button.example_favourite"}
+```
+
+Choose **Another entity** in the setting action editor. Services and fields are
+discovered from that target; `target_entity_id` is the only target override.
+The relevant service must also be selected in the program device’s offered actions.
+
+A service field can read a live entity state or attribute instead of a fixed value:
+
+```json
+{"kind":"service","service":"cover.set_cover_position","data_sources":{"position":{"entity_id":"input_number.example_position","type":"number"}}}
+```
+
+Sources are read when the action runs. Add `attribute` to read an attribute;
+without it, the entity’s state is used. Supported source types are `number`,
+`boolean`, `string` and `native`. An invalid or unavailable source is reported as
+an action error; it is not silently replaced by a fixed value. Source changes do
+not themselves trigger a scheduled action.
+
+A scene action uses `{"kind":"scene","scene":"scene.example"}`. The service
+target or scene membership must accept the entity. A slot's setting does not need
+to apply to every entity in a mixed program; incompatible entities are skipped.
+
+The engine recalculates desired segments and acts on transitions. It does not
+continuously enforce observed device state or detect manual overrides. Manual
+changes may be shown in the chart; that display does not change engine behavior.
+
+- **Bounded slot:** apply its setting at the start. At its end, apply the eligible
+  default or the action of another program taking ownership.
+- **One-shot slot:** no end, no end/default event, and no replay after its time has
+  passed. A higher-priority running bounded slot can suppress a one-shot.
+- **Ownership:** among eligible active bounded slots, the lowest priority number
+  wins; the oldest program breaks ties. Without an active bounded slot, the
+  highest-priority enabled program containing the entity supplies its optional default.
+- **Conditions:** all program conditions must pass for its slots. A false condition
+  is not a generic off action; default ownership still matters.
+- **Recovery:** startup stabilization is 30 seconds. Reapply can resend the current
+  bounded/default action after restart, activation or edits. Missed ends are caught
+  up, and past one-shots are not replayed.
+- **Time:** schedules are built in HA local time; engine comparisons use UTC.
+  Overnight intervals end on the next day only when the end is earlier than the
+  start **and before noon**. `24:00` is valid as an end.
+- **Solar times:** stored formulas can represent dawn, sunrise, sunset or dusk,
+  offsets and bounds. The current visual form exposes sunrise and sunset with offsets.
+
+Service choices and field selectors come from HA descriptions and entity
+attributes. New devices start with `restrict_services: true` and
+`allowed_services: []`: no service action is selected. The creation form asks the
+user to choose the offered commands, with descriptions supplied by HA. These
+choices can be changed later in **Devices**. A nonempty `allowed_services` list
+restricts actions to that list. Empty or missing lists without
+`restrict_services` remain unrestricted. Scenes are separate from this filter.
+The picker hides unsupported fields and services requiring raw text/object input.
+Presets come from entity attributes; no manufacturer-specific modes are synthesized.
+
+### Program modes and external selection
+
+**Mode to manage** selects the weekly schedule to edit. Editing an inactive mode
+does not activate it or replay the active mode’s actions. **Active mode — changes
+immediately** is a separate control; its effect does not wait for Apply and cannot
+be reversed by draft undo. Mode definitions and their associations still require
+**Apply to program**.
+
+A program can follow any external entity through `mode_source`. Map its raw
+states to saved mode IDs; there is no fixed catalogue of alarm states or selector
+types. For example:
+
+```json
+{"mode_source":{"entity_id":"input_select.example_house_mode","mappings":{"Home":"mode_home_id","Away":"mode_away_id","Vacation":"mode_vacation_id"}}}
+```
+
+The values above are placeholders: use the source entity’s exact raw states and
+the program’s actual profile IDs. When a state is unmapped or the entity is
+unavailable, the last valid mode stays active. Manual activation is blocked while
+the saved external source controls the program. Weekly Planner’s own mode entities
+cannot be used as sources, preventing circular selection. Modes do not switch by
+calendar date unless an external automation changes their source.
+
+The per-program HA profile `select` remains available for manual selection using
+`select.select_option`. The global switch is a separate **Suspension of all
+programs** control. See the
+[mode reference](docs/MODES.md) and [native-action examples](docs/GENERIC_ACTIONS.md).
+
+## Created entities and HA actions
+
+The integration creates one global suspension switch, one program switch per
+program, and one profile `select` per program. Inspect the actual entity registry;
+do not assume a generated English entity ID on another installation.
+
+| Entity | Integration behavior |
+|---|---|
+| Program `switch` | Enable/suspend the program. Attributes include `program_id`, active profile, current slots and next actions. |
+| Global pause `switch` | Suspend programs globally and apply the applicable defaults once. |
+| Program profile `select` | Select the active mode by its exact visible name when manually controlled. |
+
+```yaml
+# Reapply the program's current desired action now.
 action: weekly_planner.apply_now
 data:
-  program_id: office-heating
+  program_id: YOUR_PROGRAM_ID
 ```
 
 ```yaml
-# Skip the next change of a program (once); add cancel: true to cancel the skip
+# Skip the next change once; use cancel: true to cancel a pending skip.
 action: weekly_planner.skip_next
 data:
-  program_id: office-heating
+  program_id: YOUR_PROGRAM_ID
 ```
 
 ```yaml
+# Reload this integration and register the current card bundle.
 action: weekly_planner.reload
 ```
 
-## Integration options
-
-Settings > Devices & services > Weekly Planner > **Configure**.
-
-| Option | Default | Meaning |
-|---|---|---|
-| Only administrators can edit | off | Locks program and label editing. Reading, switches and profile change stay open. Actions on sensitive domains (`homeassistant`, `hassio`, `alarm_control_panel`, `lock`) are always admin-only. |
-| Re-apply after a restart or a change | on | Default for new programs: send the current action again at startup, activation or edit (never a one-shot). |
-| Notify delay (min) | 30 | Persistent notification if a device is still unavailable after this time. |
-| Condition debounce (min) | 2 | A condition must hold this long before it starts or ends a slot. |
-
-## Supported entities
-
-Every entity. The actions offered for a device are the Home Assistant services whose target accepts it
-(with their translated names and input fields) and the scenes that contain it; technical services (a required
-free text or raw object) are hidden. If a call fails (other than a value refused by the device) it is retried
-after 1, 2, 5, 10 and 15 minutes, then a persistent notification appears. A refused value gives a notification
-at once. Weekly Planner knows nothing special about Versatile Thermostat, Evohome or Adaptive Lighting: they
-are scheduled like any other entity.
-
-## FAQ
-
-**What happens when Home Assistant restarts?**
-After a 30 s settling time, the wanted action is recalculated. With "send the current action again" on, the action
-of the current slot (or "the rest of the time") is sent; with it off, nothing is sent until the next transition.
-A slot end missed while HA was down is caught up; one-shots are not replayed.
-
-**What if I change a device by hand?**
-Nothing: Weekly Planner does not detect it. The next slot start or end sends its action as planned. The chart
-shows the changes made by a person in red (from the logbook; a change that only touches attributes, such as a
-thermostat setpoint, is only guessed from the difference with what Weekly Planner sent).
-
-**What if a device is unreachable?**
-The action waits. When the device is back, the wanted action is recalculated and sent. After the notify delay,
-a persistent notification appears.
-
-**What about daylight saving time?**
-Hours are built in local time and normalized through UTC. A non-existent hour moves forward (02:30 becomes
-03:30), an ambiguous hour runs once, a slot entirely inside the skipped hour is ignored that day.
-
-**Can a slot cross midnight?**
-Yes (22:00 to 06:00), and it belongs to the day it starts. `24:00` is allowed as an end.
-
-## Development
-
-```bash
-uv sync --group test                      # Python 3.14 environment
-uv run pytest                             # tests
-cd frontend && npm install && npm run build   # builds custom_components/weekly_planner/frontend/weekly-planner-card.js
-scripts/dev_ha.sh                         # local Home Assistant on http://localhost:8124
-python3 scripts/dev_onboard.py            # onboard the local instance (user dev / dev) and add the integration
+```yaml
+# Select a saved mode in manual mode. Use the actual entity ID and option name.
+action: select.select_option
+target:
+  entity_id: select.example_program_profile
+data:
+  option: Winter
 ```
 
-Use `npm run watch` for rebuilds and `npm run typecheck` for type checks. The full specification (French) is in
-[docs/SPEC.md](docs/SPEC.md); the manual visual check is in
-[docs/controle-visuel.md](docs/controle-visuel.md).
+Program and vacation switches use the usual `switch.turn_on` / `switch.turn_off`
+actions. Enabling an `automation.*` entity with a scheduled `automation.turn_on`
+action enables its triggers; it is not the same as `automation.trigger`.
+
+## Permissions and integration options
+
+**Settings → Devices & services → Weekly Planner → Configure**:
+
+| Option | Default | Current behavior |
+|---|---|---|
+| `admin_only` | `false` | Restricts program/setting mutations. Program/vacation switches and profile selection remain separate controls. |
+| `reapply_default` | `true` | Exposed in options, but currently not consumed by new-program creation; the card initializes `reapply: true`. Set it explicitly per program. |
+| `notify_delay_min` | `30` | Unavailable-entity notification delay, 1–1440 minutes. |
+| `debounce_min` | `2` | Condition stability delay, 0–60 minutes. |
+
+Sensitive-action authorization is enforced server-side independently of
+`admin_only`; see [actions.py](custom_components/weekly_planner/actions.py).
+Shared program settings are only shown to HA administrators. Schedule editing and
+contextual setting editing also depend on `can_edit` and storage state. The reload
+action requires administrator permission for user-originated calls.
+
+## Data, API and concurrent editors
+
+Programs and settings are integration data, not embedded card YAML. Persistence uses
+HA `.storage/weekly_planner`, `.storage/weekly_planner.runtime` and
+`.storage/weekly_planner.journal`. Back up HA configuration, including `.storage`,
+before a Python upgrade or recovery. Do not hand-edit live storage files.
+A backup of the previous files is kept. Configuration corruption
+must not silently replace existing programs with an empty configuration.
+
+The card uses `weekly_planner/subscribe` for live state. `card_version` identifies
+the served bundle; a mismatched card refreshes automatically once idle.
+For another client, the [WebSocket implementation](custom_components/weekly_planner/websocket.py)
+is the source of truth:
+
+| Command family | Purpose |
+|---|---|
+| `weekly_planner/get`, `weekly_planner/subscribe` | Snapshot and live updates. |
+| `weekly_planner/program/save`, `program/delete`, `program/set_enabled` | Program mutations. All suffixes shown are under `weekly_planner/`. |
+| `weekly_planner/label/save`, `label/delete` | Global setting mutations. |
+| `weekly_planner/preview` | Resolve a program/profile's occurrences for a date. |
+| `weekly_planner/journal` | Recorded decisions, up to 14 days. |
+
+Updates to an existing program must carry its current `revision`; stale revisions
+are rejected with `conflict`. The card rebuilds edits against fresh data and retries
+once. Shared-setting saves merge against their original draft base to preserve
+unrelated concurrent schedule changes. A conflict in the same setting is reported
+rather than overwriting it. There is no public `weekly_planner.set_profile` action.
+
+## Known UI limits and diagnostics
+
+- The area filter matches program metadata, not HA entity areas.
+- The slot model supports conditions and solar bounds, but the slot form does not
+  expose a slot-condition builder or a solar-bound editor.
+- `reapply_default` is displayed but new programs still start with reapply enabled.
+- History/manual-change display depends on Recorder/logbook data and attribution;
+  attribute-only changes have attribution limits.
+
+The chart distinguishes missing/future/unavailable history from no planned action.
+History failures do not hide planned actions.
+
+If the card has no rows, inspect its filters and program ID. If an action is
+missing, inspect the service target, supported features, entity attributes and
+`allowed_services`. Use the program switch attributes, Repairs, notifications and
+HA logs for runtime investigation. Failed service calls use bounded retries;
+validation errors are reported without retrying the invalid value.
+
+## Development and deployment
+
+Python development targets **3.14.2–3.14.x**; tests use the HA dependency pinned in
+`pyproject.toml`/`uv.lock`. Frontend tooling is in `frontend/package-lock.json`.
+
+```bash
+uv sync --group test
+uv run --group test pytest -q
+cd frontend
+npm ci
+npx tsc --noEmit
+npx vitest run
+npm run build
+```
+
+The bundle under `custom_components/weekly_planner/frontend/` is versioned with
+its sources. Run `scripts/dev_ha.sh` for the local HA instance on port 8124, then
+`scripts/dev_onboard.py` to initialize it. The onboarding helper prints a development
+token: keep its output and `dev/` runtime data out of Git and published logs.
+
+```bash
+WP_HOST=YOUR_SSH_ALIAS scripts/deploy_prod.sh           # inspect the diff
+WP_HOST=YOUR_SSH_ALIAS scripts/deploy_prod.sh --apply   # test, build, copy
+```
+
+The deploy script accepts a tested uncommitted working tree, prints its base
+revision/dirty status and the card SHA-256, and never restarts HA. For card-only
+updates call `weekly_planner.reload`. For Python changes, take an HA backup and
+restart only with the owner's approval. Deployment is independent of the weekday
+08:00–17:00 local commit prohibition; commit guards remain unchanged.
+
+Further references: [specification](docs/SPEC.md), [decisions](docs/DECISIONS.md),
+[screen inventory](docs/SCREEN_INVENTORY.md), [changelog](CHANGELOG.md).
 
 ## License
 

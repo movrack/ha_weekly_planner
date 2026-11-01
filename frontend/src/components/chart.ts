@@ -3,6 +3,8 @@
 // line, and the manual changes in red. Tapping the chart opens the Home Assistant history. Hand-made SVG.
 // The x axis is in real minutes from the server-zone midnight, so a time-change day is 23 or 25 h.
 
+import { upperBound, hasNearby } from "../sorted-times";
+import { subscribeChartRefresh } from "../chart-refresh";
 import { activePeriods, buildPlanned, shadeActive } from "../planned";
 import type { Planned, Shade } from "../planned";
 import { LitElement, css, html, nothing, svg } from "lit";
@@ -10,7 +12,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { t } from "../i18n";
 import { actionValue, entityAction, labelOf } from "../labels";
 import { activeProfile, entityDomain, friendlyName } from "../planner";
-import { localMinutes, localWeekday, nominal, spillover } from "../time";
+import { addDaysIso, dateFormat, localMinutes, localWeekday, nominal, spillover } from "../time";
 import { nowTip, sunDir, sunTip } from "./day-bar";
 import "./tip";
 import type { HomeAssistant, Label, PlannerData, PreviewSlot, Program, Slot, TimeSpec } from "../types";
@@ -18,7 +20,7 @@ import type { HomeAssistant, Label, PlannerData, PreviewSlot, Program, Slot, Tim
 // ---- date helpers (server time zone) -------------------------------------------------------
 
 function offsetMs(ms: number, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat("en-GB", {
+  const parts = dateFormat("en-GB", {
     timeZone, year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
   }).formatToParts(new Date(ms));
@@ -34,10 +36,7 @@ function midnightMs(dateIso: string, timeZone: string): number {
   return guess - offsetMs(first, timeZone);
 }
 
-export function addDaysIso(dateIso: string, days: number): string {
-  const [y, m, d] = dateIso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
-}
+export { addDaysIso } from "../time";
 
 /** Real start/end (UTC ms) of a local day: 23, 24 or 25 hours long. */
 export function dayBounds(dateIso: string, timeZone: string): { startMs: number; endMs: number } {
@@ -84,13 +83,20 @@ interface Model {
 }
 
 const NEAR = 60_000; // a change within a minute of a decision or an action of Weekly Planner (its journal) is its own
-const cache = new Map<string, { at: number; p: Promise<any> }>();
-function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
+const caches = new WeakMap<object, Map<string, { at: number; p: Promise<any> }>>();
+function cached<T>(scope: object, key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
+  let cache = caches.get(scope);
+  if (!cache) { cache = new Map(); caches.set(scope, cache); }
+  const entries = cache;
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < ttlMs) return hit.p;
+  if (hit && Date.now() - hit.at < ttlMs) {
+    cache.delete(key); cache.set(key, hit);
+    return hit.p;
+  }
   const p = load();
   cache.set(key, { at: Date.now(), p });
-  p.catch(() => cache.delete(key));
+  while (cache.size > 64) cache.delete(cache.keys().next().value!);
+  p.catch(() => { if (entries.get(key)?.p === p) entries.delete(key); });
   return p;
 }
 
@@ -135,6 +141,9 @@ const CLOCK = "M12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12
 
 const isBad = (s: string) => s === "unavailable" || s === "unknown" || s === "";
 const num = (x: unknown): number | null => (typeof x === "number" && Number.isFinite(x) ? x : null);
+/** Narrowest drawn active band (px) and height of its strip along the time axis (px). */
+export const SHADE_MIN = 3;
+export const SHADE_EDGE = 3;
 const ON_STATES = new Set(["on", "open", "heat", "home", "playing", "cleaning", "unlocked", "armed_home", "armed_away"]);
 
 @customElement("wp-chart")
@@ -153,12 +162,19 @@ export class WpChart extends LitElement {
   private _model: Model | null = null;
   private _token = 0;
   private _observer?: ResizeObserver;
+  private _stopRefresh?: () => void;
+  private _refresh = (): void => {
+    if (document.hidden || !this.hass || !this.date) return;
+    const { startMs, endMs } = dayBounds(this.date, this._tz);
+    if (startMs <= Date.now() && Date.now() < endMs) void this._load();
+  };
 
   private get _lang(): string { return this.hass?.locale?.language ?? this.hass?.language ?? "en"; }
   private get _tz(): string { return this.hass.config.time_zone; }
 
   connectedCallback(): void {
     super.connectedCallback();
+    this._stopRefresh = subscribeChartRefresh(this._refresh);
     this._observer = new ResizeObserver((entries) => {
       const w = Math.floor(entries[0].contentRect.width);
       if (w > 120 && w !== this._width) this._width = w;
@@ -168,6 +184,9 @@ export class WpChart extends LitElement {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     this._observer?.disconnect();
+    this._stopRefresh?.();
+    this._stopRefresh = undefined;
+    this._token++;
   }
 
   firstUpdated(): void {
@@ -196,7 +215,7 @@ export class WpChart extends LitElement {
     const end = new Date(Math.min(endMs, now)).toISOString();
     try {
       const histP = past
-        ? cached(`h|${key}`, ttl, () => this.hass.callWS<Record<string, unknown>>({
+        ? cached(this.hass.connection ?? this.hass, `h|${key}`, ttl, () => this.hass.callWS<Record<string, unknown>>({
           type: "history/history_during_period",
           start_time: new Date(startMs).toISOString(), end_time: end, entity_ids: [this.entityId],
           minimal_response: false, no_attributes: false, significant_changes_only: false,
@@ -204,14 +223,14 @@ export class WpChart extends LitElement {
         : Promise.resolve({} as Record<string, unknown>);
       // the logbook knows who changed a state; failing is fine, the chart just shows no manual change
       const logP = past
-        ? cached(`l|${key}`, ttl, () => this.hass.callWS<unknown>({
+        ? cached(this.hass.connection ?? this.hass, `l|${key}`, ttl, () => this.hass.callWS<unknown>({
           type: "logbook/get_events",
           start_time: new Date(startMs).toISOString(), end_time: end, entity_ids: [this.entityId],
         })).catch(() => [])
         : Promise.resolve([]);
       const days = Math.min(14, Math.max(1, Math.ceil((now - startMs) / 86_400_000) + 1));
       const jourP = past
-        ? cached(`j|${this.entityId}|${days}`, 60_000, () =>
+        ? cached(this.hass.connection ?? this.hass, `j|${this.entityId}|${days}`, 60_000, () =>
           this.hass.callWS<{ segments: any[] }>({ type: "weekly_planner/journal", entity_id: this.entityId, days }))
           .catch(() => ({ segments: [] as any[] }))
         : Promise.resolve({ segments: [] as any[] });
@@ -223,7 +242,11 @@ export class WpChart extends LitElement {
         sent: (jour.segments ?? []).filter((e: any) => e.entity_id === this.entityId).map((e: any) => Date.parse(e.at)),
       };
     } catch {
-      if (token === this._token) this._failed = true;
+      if (token === this._token) {
+        this._failed = true;
+        // History is optional: keep the day's planned actions visible when HA cannot return it.
+        this._loaded = { hist: [], log: [], sent: [] };
+      }
     }
   }
 
@@ -242,7 +265,8 @@ export class WpChart extends LitElement {
       }
       default: {
         const n = Number(p.s);
-        return { ...none, main: Number.isFinite(n) ? n : null };
+        // a numeric sensor reports a measured quantity
+        return { ...none, measured: Number.isFinite(n) ? n : null };
       }
     }
   }
@@ -272,16 +296,22 @@ export class WpChart extends LitElement {
     const wd = weekdayOf(this.date);
     interface Range { s: number; e: number | null; slot: Slot; spill?: boolean; ignored?: boolean }
     const ranges: Range[] = [];
-    for (const { slot, end } of spillover(profile.days[(wd + 6) % 7])) ranges.push({ s: 0, e: end, slot, spill: true });
+    if (!this.slots) for (const { slot, end } of spillover(profile.days[(wd + 6) % 7])) {
+      if (!slot.start.random_minutes && !slot.end?.random_minutes) ranges.push({ s: 0, e: end, slot, spill: true });
+    }
     if (this.slots) {
       for (const r of this.slots) {
         const slot = slotById.get(r.slot_id);
         if (!slot) continue;
-        ranges.push({ s: Math.max(0, toM(Date.parse(r.start))), e: r.end ? Math.min(span, toM(Date.parse(r.end))) : null, slot,
-          ignored: Boolean(r.ignored) });
+        const start = toM(Date.parse(r.start)), end = r.end ? toM(Date.parse(r.end)) : null;
+        if (start >= span || (end === null ? start < 0 : end <= 0)) continue;
+        ranges.push({ s: Math.max(0, start), e: end === null ? null : Math.min(span, end), slot,
+          spill: start < 0, ignored: Boolean(r.ignored) });
       }
     } else {
       for (const slot of profile.days[wd]) {
+        // Only server previews know the daily random delay; never invent an exact prediction.
+        if (slot.start.random_minutes || slot.end?.random_minutes) continue;
         const s = nominal(slot.start);
         if (s === null) continue;
         const e = nominal(slot.end ?? null);
@@ -312,9 +342,10 @@ export class WpChart extends LitElement {
       span,
     );
     for (const m of planned.returns) add(m, defaultLabel, true);
-    // real activity of the device (display only): shaded under the planned line, past only
+    // real activity of the device (display only): one full-height band per active period, past only, whatever
+    // setting was in force (a period outside every planned setting is shown too)
     const shade = shadeActive(
-      activePeriods(loaded.hist.map((p) => ({ m: toM(p.t), state: p.s, attrs: p.a })), domain, pastEnd), planned.zones, pastEnd);
+      activePeriods(loaded.hist.map((p) => ({ m: toM(p.t), state: p.s, attrs: p.a })), domain, pastEnd), pastEnd);
     markers.sort((a, b) => a.m - b.m);
 
     // history
@@ -351,7 +382,9 @@ export class WpChart extends LitElement {
 
     // manual changes: display only. A change is manual when the logbook gives a user for it, or when nothing
     // tells where it comes from and Weekly Planner did not send anything at that time.
-    const nearSent = (ms: number) => loaded.sent.some((s) => Math.abs(s - ms) <= NEAR);
+    const sentTimes = [...loaded.sent].sort((a, b) => a - b);
+    const automatedTimes = loaded.log.filter((e) => e.context && !e.user).map((e) => e.t).sort((a, b) => a - b);
+    const nearSent = (ms: number) => hasNearby(sentTimes, ms, NEAR);
     const starts: number[] = [];
     // an entry without a user and with the same state as before is HA coming back (restart, reload), not a change
     let prevState: string | undefined = loaded.hist[0]?.s;
@@ -372,7 +405,7 @@ export class WpChart extends LitElement {
         if (p.v !== null && prev !== null && Math.abs(p.v - prev) > 0.01) {
           const ms = startMs + p.m * 60_000;
           changeTimes.push(p.m);
-          const automated = loaded.log.some((e) => e.context && !e.user && Math.abs(e.t - ms) <= NEAR);
+          const automated = hasNearby(automatedTimes, ms, NEAR);
           if (!nearSent(ms) && !automated && !starts.some((s) => Math.abs(s - p.m) <= 1)) starts.push(p.m);
         }
         if (p.v !== null) prev = p.v;
@@ -380,12 +413,12 @@ export class WpChart extends LitElement {
     }
     starts.sort((a, b) => a - b);
     const stops = [...markers.map((m) => m.m), ...loaded.sent.map(toM), ...changeTimes, ...bands.map((b) => b.s),
-      ...starts];
+      ...starts].sort((a, b) => a - b);
     const manual: Span[] = [];
     for (const s of starts) {
       // the value carried over from the day before is not a change of this day
       if (s <= 1 || s > pastEnd) continue;
-      const next = stops.filter((x) => x > s + 0.5).sort((a, b) => a - b)[0];
+      const next = stops[upperBound(stops, s + 0.5)];
       const e = Math.min(next ?? pastEnd, pastEnd);
       if (e > s) manual.push([s, e]);
       else manual.push([s, Math.min(s + 5, span)]);
@@ -398,13 +431,15 @@ export class WpChart extends LitElement {
       const values = [...lines.flatMap((l) => l.pts.map((p) => p.v)), ...markers.map((m) => m.value), ...planned.steps.map((st) => st.value)]
         .filter((v): v is number => v !== null);
       if (values.length) {
-        lo = Math.floor(Math.min(...values) - 1);
-        hi = Math.ceil(Math.max(...values) + 1);
+        lo = Math.floor(values.reduce((a, b) => Math.min(a, b), Infinity) - 1);
+        hi = Math.ceil(values.reduce((a, b) => Math.max(a, b), -Infinity) + 1);
         if (hi - lo < 2) hi = lo + 2;
       }
     }
-    const unit = domain === "climate" ? "°C" : domain === "cover" || domain === "light" ? "%"
-      : (this.hass.states[this.entityId]?.attributes.unit_of_measurement ?? "");
+    // The unit comes from the device itself; only a device that states none (climate has no
+    // unit_of_measurement, a cover or light position is a percentage) falls back to what Home Assistant uses for it.
+    const unit = String(this.hass.states[this.entityId]?.attributes.unit_of_measurement
+      ?? (domain === "climate" ? this.hass.config?.unit_system?.temperature ?? "°C" : domain === "cover" || domain === "light" ? "%" : ""));
     return { span, pastEnd, isToday: startMs <= now && now < endMs, kind: numeric ? "curve" : "band",
       lines, bands, markers, planned, shade, manual, lo, hi, unit };
   }
@@ -426,6 +461,13 @@ export class WpChart extends LitElement {
 
   // ---- render ----
 
+  /**
+   * Path of a recorded series, by its role. A value that is SET (cover position, light brightness, setpoint: the
+   * "main" and "set" series) holds until the next recorded change: staircase (horizontal, vertical jump at the
+   * change time, last value held up to "now"), never an oblique line that would invent a progressive movement.
+   * A MEASURED probe value (the "measured" series) is a continuous quantity sampled by history: a line through
+   * the recorded points, then the last value held up to "now".
+   */
   private _path(pts: Pt[], model: Model, x: (m: number) => number, y: (v: number) => number, step: boolean, within?: Span): string {
     let d = "";
     let pen = false;
@@ -456,10 +498,21 @@ export class WpChart extends LitElement {
     const lang = this._lang;
     const model = this._model;
     let body;
-    if (this._failed) body = html`<div class="note">${t(lang, "no_data")}</div>`;
-    else if (!model) body = html`<div class="note">${t(lang, "chart_loading")}</div>`;
+    if (!model) body = html`<div class="note">${t(lang, "chart_loading")}</div>`;
     else body = this._renderChart(model);
-    return html`<div class="box">${body}</div>${model ? this._legend(model) : nothing}`;
+    return html`<div class="box">${body}</div>${model ? html`${this._legend(model)}
+      <div class="availability" role="status">
+        ${this._failed ? html`<p>${t(lang, "chart_history_failed")}</p>`
+          : !model.lines.length && !model.bands.length
+            ? html`<p>${t(lang, model.pastEnd === 0 ? "chart_future_history" : "chart_no_history")}</p>` : nothing}
+        ${!model.markers.some((m) => !m.ignored) && !model.planned.zones.length
+          ? html`<p>${t(lang, "chart_no_planned")}</p>` : nothing}
+      </div>` : nothing}`;
+  }
+
+  /** Name the person sees on the card for this chart: the program's own name for a one-device program. */
+  private get _shownName(): string {
+    return this.program?.entities.length === 1 ? this.program.name : friendlyName(this.hass, this.entityId);
   }
 
   private _legend(model: Model) {
@@ -485,7 +538,7 @@ export class WpChart extends LitElement {
     const x = (m: number) => PAD.l + (m / model.span) * (W - PAD.l - PAD.r);
     const y = (v: number) => PAD.t + (1 - (v - model.lo) / (model.hi - model.lo)) * (H - PAD.t - PAD.b);
     const { startMs } = dayBounds(this.date, this._tz);
-    const hourOf = (m: number) => new Intl.DateTimeFormat("en-GB", { timeZone: this._tz, hour: "2-digit", hourCycle: "h23" })
+    const hourOf = (m: number) => dateFormat("en-GB", { timeZone: this._tz, hour: "2-digit", hourCycle: "h23" })
       .format(new Date(startMs + m * 60_000));
     const ticksX: number[] = [];
     for (let m = 0; m <= model.span; m += 180) ticksX.push(m);
@@ -499,48 +552,66 @@ export class WpChart extends LitElement {
     const top = PAD.t - 12;
     const bandY = PAD.t;
     const bandH = H - PAD.t - PAD.b;
+    // Active periods: a translucent band over the whole plot height with a solid strip along the time axis, at
+    // least SHADE_MIN px wide so a short period (a cover moving, a switch on for a minute) stays visible.
+    const shades = model.shade.map((sh) => {
+      const w = Math.max(SHADE_MIN, x(sh.to) - x(sh.from));
+      return svg`<rect class="shade" x=${x(sh.from)} y=${bandY} width=${w} height=${bandH}></rect>
+        <rect class="shade-edge" x=${x(sh.from)} y=${bandY + bandH - SHADE_EDGE} width=${w} height=${SHADE_EDGE}></rect>`;
+    });
     const cyOf = (mk: Marker) => (curve && mk.value !== null ? y(mk.value) : top);
+    // Value texts of two markers close together (the start of a step and the return to the default, or the last
+    // markers of the day squeezed against the right edge) would print over each other ("15 15"): keep the first.
+    const shown: { x: number; y: number }[] = [];
+    const labelAt = (mk: Marker, cy: number) => {
+      const lx = Math.min(Math.max(x(mk.m), 14), W - 14), ly = Math.max(cy - 8, 9);
+      if (shown.some((o) => Math.abs(o.x - lx) < 26 && Math.abs(o.y - ly) < 12)) return null;
+      shown.push({ x: lx, y: ly });
+      return { lx, ly };
+    };
     const mark = (mk: Marker) => {
       const cy = cyOf(mk);
+      const at = mk.value !== null ? labelAt(mk, cy) : null;
       const color = mk.label.color;
       return svg`
         <line class="drop" x1=${x(mk.m)} x2=${x(mk.m)} y1=${cy} y2=${H - PAD.b}></line>
         ${mk.sun ? nothing : svg`<circle class="mk ${mk.end ? "end" : ""} ${mk.ignored ? "faded" : ""}" cx=${x(mk.m)} cy=${cy} r="5" style="--c:${color}"></circle>`}
-        ${mk.value !== null ? svg`<text class="val" x=${Math.min(Math.max(x(mk.m), 14), W - 14)} y=${Math.max(cy - 8, 9)} text-anchor="middle">${Number(mk.value.toFixed(1))}</text>` : nothing}`;
+        ${mk.value !== null && at ? svg`<text class="val" x=${at.lx} y=${at.ly} text-anchor="middle">${Number(mk.value.toFixed(1))}</text>` : nothing}`;
     };
+    // the reference curve is the same for every manual interval: look it up once per render
+    const base = curve ? model.lines.find((l) => l.key === "set") ?? model.lines.find((l) => l.key === "main") ?? model.lines[0] : undefined;
     const nowLine = model.isToday
       ? svg`<line class="now" x1=${x(model.pastEnd)} x2=${x(model.pastEnd)} y1=${PAD.t - 4} y2=${H - PAD.b}></line>
         <g class="nowicon" aria-hidden="true" transform="translate(${x(model.pastEnd) - 6}, ${PAD.t - 17}) scale(0.5)"><path d=${CLOCK}></path></g>` : nothing;
     return html`<div class="cwrap">
       <svg width=${W} height=${H} viewBox="0 0 ${W} ${H}" tabindex="0" role="button"
-        aria-label=${t(lang, "chart_open", { name: friendlyName(this.hass, this.entityId) })}
+        aria-label=${t(lang, "chart_open", { name: this._shownName })}
         @click=${() => this._open()}
         @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this._open(); } }}>
+        ${curve ? shades : nothing}
         ${ticksY.map((v) => svg`<line class="grid" x1=${PAD.l} x2=${W - PAD.r} y1=${y(v)} y2=${y(v)}></line>
-          <text class="ylab" x=${PAD.l - 4} y=${y(v) + 3} text-anchor="end">${Number(v.toFixed(model.unit === "°C" ? 1 : 0))}</text>`)}
+          <text class="ylab" x=${PAD.l - 4} y=${y(v) + 3} text-anchor="end">${Number(v.toFixed(1))}</text>`)}
+        ${curve && model.unit ? svg`<text class="unit" x="2" y="10">${model.unit}</text>` : nothing}
         ${ticksX.map((m) => svg`<text class="xlab" x=${x(m)} y=${H - 6} text-anchor=${m === 0 ? "start" : "middle"}>${Number(hourOf(m))}h</text>`)}
         ${curve ? nothing : svg`
           <rect class="track" x=${PAD.l} y=${bandY} width=${W - PAD.l - PAD.r} height=${bandH} rx="6"></rect>
+          ${model.bands.map((b) => svg`<rect class="band ${b.on ? "on" : ""}" x=${x(b.s)} y=${bandY} width=${Math.max(1, x(b.e) - x(b.s))} height=${bandH}></rect>`)}
+          ${shades}
           ${model.bands.map((b) => {
             const w = x(b.e) - x(b.s);
-            return svg`<rect class="band ${b.on ? "on" : ""}" x=${x(b.s)} y=${bandY} width=${Math.max(1, w)} height=${bandH}></rect>
-              ${fitText(b.text, w) ? svg`<text class="btxt" x=${x(b.s) + w / 2} y=${bandY + bandH / 2 + 4} text-anchor="middle">${fitText(b.text, w)}</text>` : nothing}`;
+            return fitText(b.text, w) ? svg`<text class="btxt" x=${x(b.s) + w / 2} y=${bandY + bandH / 2 + 4} text-anchor="middle">${fitText(b.text, w)}</text>` : nothing;
           })}
           ${model.manual.map(([a, b]) => svg`<rect class="red-band" x=${x(a)} y=${bandY} width=${Math.max(3, x(b) - x(a))} height=${bandH}></rect>`)}`}
-        ${curve ? model.lines.map((l) => svg`<path class="line ${l.key}" d=${this._path(l.pts, model, x, y, l.key === "set")}></path>`) : nothing}
+        ${curve ? model.lines.map((l) => svg`<path class="line ${l.key}" d=${this._path(l.pts, model, x, y, l.key !== "measured")}></path>`) : nothing}
         ${curve ? model.manual.map((span) => {
-          const base = model.lines.find((l) => l.key === "set") ?? model.lines.find((l) => l.key === "main") ?? model.lines[0];
           const pt = base?.pts.find((p, i) => p.v !== null && (base.pts[i + 1]?.m ?? Infinity) > span[0]);
           const dot = pt?.v ?? null;
-          return svg`${base ? svg`<path class="line red" d=${this._path(base.pts, model, x, y, base.key === "set", span)}></path>` : nothing}
+          return svg`${base ? svg`<path class="line red" d=${this._path(base.pts, model, x, y, base.key !== "measured", span)}></path>` : nothing}
             ${dot !== null ? svg`<circle class="reddot" cx=${x(span[0])} cy=${y(dot)} r="3.5"></circle>` : nothing}`;
         }) : nothing}
-        ${model.shade.map((sh) => curve
-          ? (sh.value === null ? nothing : svg`<rect class="shade" x=${x(sh.from)} y=${y(sh.value)} width=${Math.max(1, x(sh.to) - x(sh.from))} height=${Math.max(0, H - PAD.b - y(sh.value))} style="--c:${sh.color}"></rect>`)
-          : svg`<rect class="shade" x=${x(sh.from)} y=${bandY} width=${Math.max(1, x(sh.to) - x(sh.from))} height=${bandH} style="--c:${sh.color}"></rect>`)}
         ${curve ? model.planned.steps.map((st) => svg`<path class="plan" d="M${x(st.from).toFixed(1)},${y(st.value).toFixed(1)}H${x(st.to).toFixed(1)}" style="--c:${st.color}"></path>`) : nothing}
         ${curve ? model.planned.risers.map((r) => svg`<line class="riser" x1=${x(r.m)} x2=${x(r.m)} y1=${y(r.from)} y2=${y(r.to)} style="--c:${r.color}"></line>`) : nothing}
-        ${model.markers.map(mark)}
+        ${[...model.markers].sort((a, b) => a.m - b.m).map(mark)}
         ${nowLine}
         <rect class="hit" x="0" y="0" width=${W} height=${H}></rect>
       </svg>
@@ -555,6 +626,8 @@ export class WpChart extends LitElement {
   static styles = css`
     :host { display: block; }
     .box { position: relative; width: 100%; min-height: 40px; }
+    .availability { color: var(--secondary-text-color); font-size: 13px; line-height: 1.5; }
+    .availability p { margin: 4px 0; }
     .cwrap { position: relative; width: fit-content; max-width: 100%; }
     .nowtip { position: absolute; transform: translate(-50%, -50%); }
     .suntip { position: absolute; transform: translate(-50%, -50%); }
@@ -568,6 +641,7 @@ export class WpChart extends LitElement {
     svg:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; border-radius: 4px; }
     .grid { stroke: var(--divider-color, rgba(127, 127, 127, 0.3)); stroke-width: 1; }
     text { fill: var(--secondary-text-color); font-size: 10px; }
+    text.unit { font-size: 11px; }
     text.val { fill: var(--primary-text-color); font-weight: 600; }
     text.btxt { fill: var(--primary-text-color); font-size: 11px; }
     .line { fill: none; stroke-width: 1.8; stroke-linejoin: round; }
@@ -580,8 +654,9 @@ export class WpChart extends LitElement {
     .band { fill: var(--secondary-text-color); opacity: 0.35; stroke: var(--card-background-color); stroke-width: 1; }
     .band.on { fill: var(--primary-color); opacity: 0.4; }
     .red-band { fill: var(--error-color, #db4437); opacity: 0.55; }
-    .shade { fill: var(--c); opacity: 0.25; }
-    .key i.active { width: 14px; height: 10px; border-radius: 2px; background: var(--secondary-text-color); opacity: 0.35; }
+    /* active periods: same colour in light and dark themes, translucent so the curve stays readable on top */
+    .shade { fill: var(--wp-active-color, var(--primary-color)); opacity: 0.28; }
+    .shade-edge { fill: var(--wp-active-color, var(--primary-color)); }
     .plan { fill: none; stroke: var(--c); stroke-width: 3; stroke-linecap: butt; }
     .riser { stroke: var(--c); stroke-width: 1.2; opacity: 0.8; }
     .drop { stroke: var(--secondary-text-color); stroke-width: 1; stroke-dasharray: 1 3; opacity: 0.6; }
@@ -591,13 +666,24 @@ export class WpChart extends LitElement {
     .nowicon path { fill: var(--primary-text-color); }
     .hit { fill: transparent; }
     .note { padding: 24px 0; text-align: center; color: var(--secondary-text-color); font-size: 13px; }
-    .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 12px; color: var(--secondary-text-color); }
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 14px; color: var(--secondary-text-color); }
     .key { display: inline-flex; align-items: center; gap: 5px; }
     .key i { display: inline-block; width: 16px; height: 0; border-top: 3px solid var(--primary-color); }
     .key i.measured { border-top: 2px solid var(--accent-color, #ff9800); }
     .key i.set { border-top: 2px dashed var(--primary-text-color); }
-    .key i.planned { width: 16px; height: 0; border-top: 3px solid var(--secondary-text-color); border-radius: 2px; }
+    /* a filled dot at the left, like the marker drawn at the start of each planned step (.mk, r=5), then the line */
+    .key i.planned { position: relative; width: 24px; height: 0; border-top: 3px solid var(--secondary-text-color); border-radius: 2px; }
+    .key i.planned::before {
+      content: ""; position: absolute; left: 0; top: -6.5px; width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%;
+      background: var(--secondary-text-color); border: 1.5px solid var(--card-background-color);
+    }
 
+    /* the band of the chart in small: translucent block with the solid strip at its foot */
+    .key i.active { position: relative; width: 16px; height: 12px; box-sizing: border-box; border-top: 0;
+      border-bottom: 3px solid var(--wp-active-color, var(--primary-color)); }
+    .key i.active::before {
+      content: ""; position: absolute; inset: 0; background: var(--wp-active-color, var(--primary-color)); opacity: 0.28;
+    }
     .key i.manual { border-top: 3px solid var(--error-color, #db4437); }
   `;
 }

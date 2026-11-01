@@ -86,14 +86,20 @@ describe("moveBoundary", () => {
 });
 
 describe("splitAt", () => {
-  it("cuts a slot in the middle; the new boundary is returned", () => {
+  it("cuts a slot in the middle: the left part keeps the setting, the right part becomes None", () => {
     const r = splitAt([slot("1", "08:00", "12:00")], { kind: "slot", id: "1" }, ctx())!;
-    expect(show(r.slots)).toEqual(["08:00-10:00:a", "10:00-12:00:a"]);
-    expect(r.slots.find((s) => s.id === r.handle.id)!.start).toEqual({ time: "10:00" });
+    expect(show(r.slots)).toEqual(["08:00-10:00:a"]);
+    expect(r.handle).toEqual({ id: "1", edge: "end" });
+    expect(r.slots.find((s) => s.id === r.handle.id)!.end).toEqual({ time: "10:00" });
+  });
+  it("leaves no slot on the right part, so the rest of the time applies there", () => {
+    const r = splitAt([slot("1", "08:00", "12:00"), slot("2", "14:00", "16:00")], { kind: "slot", id: "1" }, ctx())!;
+    expect(show(r.slots)).toEqual(["08:00-10:00:a", "14:00-16:00:a"]);
+    expect(segments(r.slots, ctx()).filter((x) => x.kind === "gap").map((x) => [x.start, x.end])).toContainEqual([600, 840]);
   });
   it("rounds to 15 minutes and keeps the original end spec (sun)", () => {
     const r = splitAt([slot("1", "08:00", { sun: "sunset" })], { kind: "slot", id: "1" }, ctx())!;
-    expect(show(r.slots)).toEqual(["08:00-13:30:a", "13:30-sun:a"]);
+    expect(show(r.slots)).toEqual(["08:00-13:30:a"]);
   });
   it("cuts a gap: a new slot with the default label on its second half", () => {
     const r = splitAt([slot("1", "08:00", "12:00")], { kind: "gap", start: 720, end: 1440 }, ctx())!;
@@ -105,7 +111,7 @@ describe("splitAt", () => {
     expect(splitAt([], { kind: "gap", start: 0, end: 1440 }, ctx({ defaultLabel: undefined }))).toBeNull();
   });
   it("splits a 30-minute slot at 15 and the whole empty day at noon", () => {
-    expect(show(splitAt([slot("1", "08:00", "08:30")], { kind: "slot", id: "1" }, ctx())!.slots)).toEqual(["08:00-08:15:a", "08:15-08:30:a"]);
+    expect(show(splitAt([slot("1", "08:00", "08:30")], { kind: "slot", id: "1" }, ctx())!.slots)).toEqual(["08:00-08:15:a"]);
     expect(show(splitAt([], { kind: "gap", start: 0, end: 1440 }, ctx())!.slots)).toEqual(["12:00-24:00:rest"]);
   });
 });

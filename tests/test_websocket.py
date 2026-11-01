@@ -117,3 +117,75 @@ async def test_allowed_services_saved_and_warned(hass, hass_storage, freezer, ha
     bad["entities"][0]["allowed_services"] = "climate.set_temperature"
     await ws.send_json_auto_id({"type": f"{DOMAIN}/program/save", "program": bad})
     assert not (await ws.receive_json())["success"]
+
+
+async def test_explicit_empty_services_persist_and_never_call_devices(hass, hass_storage, freezer, hass_ws_client):
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+
+    from .helpers import go_to
+
+    recorder = Recorder(hass)
+    engine = await setup(hass, hass_storage, freezer, [], None)
+    ws = await _client(hass, hass_ws_client)
+    prog = program(entities=[{"entity_id": CLIMATE, "default_label": "t15",
+                              "allowed_services": [], "restrict_services": True}])
+    prog.pop("id")
+    await ws.send_json_auto_id({"type": f"{DOMAIN}/program/save", "program": prog})
+    result = await ws.receive_json()
+    assert result["success"]
+    saved = result["result"]["program"]
+    assert saved["entities"][0]["restrict_services"] is True
+    assert saved["entities"][0]["allowed_services"] == []
+    await hass.async_block_till_done()
+    await ws.close()
+    tomorrow = dt_util.now() + timedelta(days=1)
+    await go_to(hass, freezer, tomorrow.replace(hour=9, minute=0, second=0, microsecond=0))
+    await go_to(hass, freezer, tomorrow.replace(hour=13, minute=0, second=0, microsecond=0))
+    assert recorder.calls == []  # neither the slot nor the default sends an action
+    await engine.store._config.async_save(engine.store.config)
+    stored = hass_storage[DOMAIN]["data"]["programs"][0]["entities"][0]
+    assert stored["restrict_services"] is True and stored["allowed_services"] == []
+
+
+async def test_toggle_during_startup_updates_all_views_without_device_actions(
+    hass, hass_storage, freezer, hass_ws_client,
+):
+    """Configuration stays live while startup stabilization defers physical actions."""
+    from homeassistant.helpers import entity_registry as er
+
+    recorder = Recorder(hass)
+    engine = await setup(hass, hass_storage, freezer, [program()], None)
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id("switch", DOMAIN, f"{engine.entry_id}_program_office")
+    assert entity_id is not None
+    assert hass.states.get(entity_id).state == "on"
+    subscribers = [await hass_ws_client(hass), await hass_ws_client(hass)]
+    for client in subscribers:
+        await client.send_json_auto_id({"type": f"{DOMAIN}/subscribe"})
+        assert (await client.receive_json())["success"]
+        assert (await client.receive_json())["event"]["programs"][0]["enabled"] is True
+    writer = await hass_ws_client(hass)
+    # Exercise the same pre-ready branch as the 30-second startup stabilization.
+    engine._ready = False
+    recorder.calls.clear()
+    await writer.send_json_auto_id({
+        "type": f"{DOMAIN}/program/set_enabled", "program_id": "office", "enabled": False,
+    })
+    assert (await writer.receive_json())["success"]
+    await hass.async_block_till_done()
+    assert engine.store.program("office")["enabled"] is False
+    assert hass.states.get(entity_id).state == "off"
+    for client in subscribers:
+        assert (await client.receive_json())["event"]["programs"][0]["enabled"] is False
+    assert recorder.calls == []  # disabling must not send the default before startup is ready
+
+    # A change through Home Assistant's switch must reach those same subscribed cards.
+    await hass.services.async_call("switch", "turn_on", {"entity_id": entity_id}, blocking=True)
+    await hass.async_block_till_done()
+    assert engine.store.program("office")["enabled"] is True
+    assert hass.states.get(entity_id).state == "on"
+    for client in subscribers:
+        assert (await client.receive_json())["event"]["programs"][0]["enabled"] is True
+    assert recorder.calls == []

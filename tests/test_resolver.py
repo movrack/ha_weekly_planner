@@ -126,3 +126,18 @@ def test_allowed_services_restrict_labels():
     prog["entities"][0]["allowed_services"] = ["climate.set_temperature"]
     prog["entities"][0]["label_overrides"] = {"temp": {"kind": "service", "service": "climate.set_hvac_mode", "data": {}}}
     assert resolve_action(prog, E, "temp", labels) is None  # an override is checked too
+
+
+def test_explicit_empty_service_selection_skips_services_but_keeps_scenes():
+    prog = program("a", 1, [])
+    entity = prog["entities"][0]
+    # Old programs with an absent or empty list retain their actions.
+    assert resolve_action(prog, E, "eco", LABELS) is not None
+    entity.update(allowed_services=[], restrict_services=False)
+    assert resolve_action(prog, E, "eco", LABELS) is not None
+    entity["restrict_services"] = True
+    assert resolve_action(prog, E, "eco", LABELS) is None
+    scene = {"id": "scene", "action": {"kind": "scene", "scene": "scene.evening"}}
+    assert resolve_action(prog, E, "scene", {"scene": scene}) == scene["action"]
+    entity["allowed_services"] = ["climate.set_preset_mode"]
+    assert resolve_action(prog, E, "eco", LABELS) is not None

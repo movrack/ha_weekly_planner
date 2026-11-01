@@ -160,3 +160,30 @@ async def test_storage_version_two(hass, hass_storage, freezer):  # S20
     await store.async_load()
     assert store.programs[0]["id"] == "office" and "modes" not in store.config and store.config["labels"]
     assert engine.store.read_only is False
+
+
+async def test_stop_after_startup_event_removes_no_fired_listener(hass, hass_storage, freezer, caplog):
+    """The one-shot started listener must not be removed again once it has fired."""
+    import logging
+
+    from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
+    from homeassistant.core import CoreState
+
+    hass.set_state(CoreState.not_running)
+    await hass.config.async_update(time_zone="Europe/Brussels")
+    freezer.move_to(local(26, 9, 0))
+    hass_storage[DOMAIN] = {"version": 2, "minor_version": 1, "key": DOMAIN,
+                            "data": {"vacation": False, "labels": [], "programs": [program()]}}
+    entry = MockConfigEntry(domain=DOMAIN, data={}, options={})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    hass.set_state(CoreState.running)
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    await hass.async_block_till_done()
+    await tick(hass, freezer, timedelta(seconds=31))
+    caplog.clear()
+    with caplog.at_level(logging.ERROR):
+        await entry.runtime_data.async_stop()
+    assert "Unable to remove unknown job listener" not in caplog.text
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]

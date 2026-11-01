@@ -2,13 +2,27 @@
 // Full screen on phones, centered card on larger screens; closes on Escape or backdrop.
 
 import { LitElement, css, html } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { customElement, property, state } from "lit/decorators.js";
+
+/** Open dialogs, oldest first: only the newest one answers Escape. */
+const openDialogs: WpDialog[] = [];
+
+/** The focused element, looking through shadow roots. */
+function deepActive(): HTMLElement | null {
+  let el: Element | null = document.activeElement;
+  while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+  return el && el !== document.body ? (el as HTMLElement) : null;
+}
 
 @customElement("wp-dialog")
 export class WpDialog extends LitElement {
   @property() heading = "";
   @property({ type: Boolean, reflect: true }) open = false;
   @property({ type: Boolean }) wide = false;
+  /** Two-column content from 768 px (the schedule screen): a wider panel on tablets and desktops only. */
+  @property({ type: Boolean }) columns = false;
+
+  @state() private _expanded = false;
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -18,7 +32,38 @@ export class WpDialog extends LitElement {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     this.removeEventListener("keydown", this._onKey);
+    this._release();
   }
+
+  private _opener: HTMLElement | null = null;
+  private _tracked = false;
+
+  private _track(): void {
+    if (this._tracked) return;
+    this._tracked = true;
+    this._opener = deepActive();
+    openDialogs.push(this);
+    document.addEventListener("keydown", this._onDocKey);
+  }
+
+  /** Stops listening and gives the focus back to the element that opened the dialog. */
+  private _release(): void {
+    if (!this._tracked) return;
+    this._tracked = false;
+    const at = openDialogs.indexOf(this);
+    if (at >= 0) openDialogs.splice(at, 1);
+    if (!openDialogs.length) document.removeEventListener("keydown", this._onDocKey);
+    const opener = this._opener;
+    this._opener = null;
+    if (opener?.isConnected) opener.focus({ preventScroll: true });
+  }
+
+  // Escape still closes when the focus fell back to the page (for example after a row was opened).
+  private _onDocKey = (ev: KeyboardEvent) => {
+    if (ev.key !== "Escape" || ev.defaultPrevented || openDialogs[openDialogs.length - 1] !== this) return;
+    ev.stopPropagation();
+    this.close();
+  };
 
   // Swipe down from the header closes the dialog on phones (button equivalent: the close button).
   private _sw?: { id: number; y: number; x: number; dy: number };
@@ -79,13 +124,16 @@ export class WpDialog extends LitElement {
   };
 
   updated(changed: Map<string, unknown>): void {
-    if (changed.has("open") && this.open) {
+    if (!changed.has("open")) return;
+    if (this.open) {
+      this._track();
       requestAnimationFrame(() => this.renderRoot.querySelector<HTMLElement>(".panel")?.focus());
-    }
+    } else this._release();
   }
 
   close(): void {
     this.open = false;
+    this._release();
     this.dispatchEvent(new CustomEvent("closed", { bubbles: true, composed: true }));
   }
 
@@ -93,12 +141,14 @@ export class WpDialog extends LitElement {
     if (!this.open) return html``;
     return html`
       <div class="backdrop" @click=${() => this.close()}></div>
-      <div class="panel ${this.wide ? "wide" : ""}" role="dialog" aria-modal="true"
+      <div class="panel ${this._expanded ? "expanded" : this.wide ? "wide" : this.columns ? "columns" : ""}" role="dialog" aria-modal="true"
         aria-label=${this.heading} tabindex="-1">
         <header @pointerdown=${this._hdown} @pointermove=${this._hmove} @pointerup=${this._hup}
           @pointercancel=${this._hcancel}>
           <slot name="header-start"></slot>
-          <h2>${this.heading}</h2>
+          <h2><button class="heading" aria-expanded=${this._expanded}
+            title=${document.documentElement.lang?.startsWith("fr") ? "Agrandir / réduire" : "Expand / reduce"}
+            @click=${() => { this._expanded = !this._expanded; }}>${this.heading}</button></h2>
           <slot name="header-actions"></slot>
           <button class="icon" @click=${() => this.close()} aria-label=${document.documentElement.lang?.startsWith("fr") ? "Fermer" : "Close"}><ha-icon icon="mdi:close"></ha-icon></button>
         </header>
@@ -120,6 +170,9 @@ export class WpDialog extends LitElement {
       border-radius: var(--ha-card-border-radius, 16px); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
     }
     .panel.wide { width: min(880px, calc(100vw - 32px)); }
+    @media (min-width: 768px) { .panel.columns { width: min(960px, calc(100vw - 32px)); } }
+    .panel.expanded { width: min(1400px, calc(100vw - 32px)); }
+    .heading { display: block; width: 100%; min-height: 44px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
     header { display: flex; align-items: center; gap: 12px; padding: 16px 16px 8px 20px; }
     header { touch-action: none; }
     h2 {
@@ -136,7 +189,7 @@ export class WpDialog extends LitElement {
     button.icon:hover { background: var(--secondary-background-color); }
     @media (max-width: 600px) {
       h2 { font-size: 18px; }
-      .panel, .panel.wide {
+      .panel, .panel.wide, .panel.expanded {
         left: 0; top: 0; transform: none; width: 100vw; height: 100vh; max-height: none; border-radius: 0;
       }
     }
