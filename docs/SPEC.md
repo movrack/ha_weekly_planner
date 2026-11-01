@@ -300,7 +300,7 @@ avant la 1.0 : les deux champs sont facultatifs, les données existantes restent
   `last_tick < start <= now`) parcourent les occurrences rognées PAR APPAREIL ; `_next_action_in` et `used` de
   `checks.py` sont calculés par appareil ; `next_transition` = union des sous-ensembles (`subsets`), aussi pour
   `_program_status` et `skip_next` (la carte dit quel appareil et quelle action sont sautés). Le réglage par défaut
-  appartient toujours au programme de plus haute priorité (à confirmer et documenter au lot 2). Renvoi à
+  appartient toujours au programme de plus haute priorité qui contient l'appareil : les listes ne changent que les horaires qui s'exécutent, jamais le réglage par défaut (décision confirmée). Renvoi à
   l'enregistrement limité aux appareils dont le segment ou la cible a changé (D2).
 - **Chronologie** (`timeline.py`, API figée) : `place_day(slots, day, tz, sun, *, identity=())` place chaque horaire
   (trié par début, sans rognage) ; `trim(placed)` rogne les chevauchements (le plus tardif perd) ;
@@ -309,7 +309,7 @@ avant la 1.0 : les deux champs sont facultatifs, les données existantes restent
   rognage mémorisé par (mode, programme, jour, appareils visés).
 - **Aperçu** (`weekly_planner/preview`) : dès qu'un horaire du programme a une liste, la réponse contient un
   `by_entity: {eid: [{slot_id, start, end, ignored, sun}]}` COMPLET (débordement de la veille après minuit compris),
-  les horaires portent `entities`, et le niveau principal n'est pas rogné globalement. Un programme sans liste garde
+  les horaires portent `entities`, et le niveau principal n'est pas rogné globalement. L'état du programme (`status[pid]`) porte `skip_next_targets: [{entity_id, action, label}]` (appareils et actions sautés par `skip_next`). Un programme sans liste garde
   la forme actuelle (`slots` seul).
 
 ### 8.1 Migration 1 → 2 (automatique, testée)
@@ -1027,15 +1027,15 @@ Demande de changement : https://github.com/movrack/ha_weekly_planner/issues/34. 
 - [x] Lot 0 — demande de changement #34 ; décisions ; contrat § 8.2 ; `slots.py` (`applies`, `applicable_ids`,
   `subsets`) et `slots.ts` (`applies`) avec tests ; types `Slot.entities?`, `Slot.seed?`, `PreviewResponse.by_entity` ;
   `timeline.py` découpé en `place_day` / `trim` (refactorisation pure, tous les tests au vert) ; `AGENTS.md`.
-- [ ] Lot 1 — validation et registre (`validation.py`, `registry.py`) : champ du schéma, contrôles sémantiques (codes
+- [x] Lot 1 — validation et registre (`validation.py`, `registry.py`) : champ du schéma, contrôles sémantiques (codes
   § 8.2), chevauchement par paires, renommage, `seed` dans le schéma, `remove_device_from_slots` par mode.
-- [ ] Lot 2 — moteur (`timeline.py`, `resolver.py`, `engine.py`, `checks.py`, `tests/perf_data.py`) : résolution par
+- [x] Lot 2 — moteur (`timeline.py`, `resolver.py`, `engine.py`, `checks.py`, `tests/perf_data.py`) : résolution par
   appareil, ponctuels par appareil (rattrapage compris), cache, avertissements, renvoi restreint (D2), `seed` dans
   `_delay` ; tests à heure figée (07:00 climat 15 °C et volet fermé une fois ; 22:00 défaut pour le climat seul ;
   prochaine action par appareil ; ponctuel du volet dans un horaire du thermostat ; priorité + liste ; débordement de
   la veille ; heure d'été avec horaires solaires) ; test de propriété D2 ; budget de performance avec 1 programme x
   100 appareils aux listes toutes différentes (rappel < 50 ms).
-- [ ] Lot 3 — websocket : aperçu `by_entity`, l'instantané porte `entities` / `seed` ; tests.
+- [x] Lot 3 — websocket : enregistrement (retrait d'un appareil de toutes les listes puis normalisation D5, avant `check_program`), aperçu `by_entity`, l'instantané porte `entities` / `seed` ; tests.
 - [ ] Lot 4 — modules purs de la carte (`edits.ts`, `actions.ts`, `labels.ts`, `slots.ts`, `preview-cache.ts`) :
   fusion, segments, bornes, déplacements, copies, chevauchements, `slotKey` sensibles aux appareils ; `editForDevice`
   (copie à l'écriture + refusion), `applyToAll`, `alsoFor` (normalisation D5), `removeDeviceFromSlots` ;
