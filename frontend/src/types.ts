@@ -64,6 +64,10 @@ export interface Slot {
   color?: string | null;
   /** Id of the label this slot applies. */
   label: string;
+  /** Devices this slot targets (absent: every device of the program, also added later; never empty). */
+  entities?: string[];
+  /** Random-delay seed (default: the slot id); kept when a slot is split so its delay is not redrawn. */
+  seed?: string;
 }
 
 export interface Profile {
@@ -72,7 +76,15 @@ export interface Profile {
   days: Slot[][]; // 0 = Monday … 6 = Sunday
 }
 
+export interface ChartSource {
+  entity_id: string;
+  kind: "numeric" | "states";
+  states?: string[];
+}
+
 export interface ProgramEntity {
+  /** Display-only histories, shared by all cards of this program/device. */
+  chart_sources?: ChartSource[];
   entity_id: string;
   /** "The rest of the time": label applied when a slot with an end finishes (null: nothing). */
   default_label: string | null;
@@ -109,6 +121,8 @@ export interface ProgramStatus {
   current_slots: Record<string, string>;
   next_change: string | null;
   skip_next: string | null;
+  /** Devices whose own timeline changes at the skipped moment, and what they would have received then. */
+  skip_next_targets?: { entity_id: string; action: Action | null; label: string | null }[];
   next_actions?: Record<string, { at: string; action: Action; label: string | null }>;
 }
 
@@ -133,6 +147,16 @@ export interface PreviewSlot {
   end: string | null;
   ignored: string | null;
   sun: boolean;
+  /** Devices the slot targets, when the program uses per-device schedules (absent: every device). */
+  entities?: string[];
+}
+
+/** Occurrences of a program as `weekly_planner/preview` returns them. */
+export interface PreviewResponse {
+  slots: PreviewSlot[];
+  /** Present as soon as one slot of the program has `entities`: the complete timeline of each device
+   * (previous-day overnight spill included); the top-level `slots` is then not trimmed per device. */
+  by_entity?: Record<string, PreviewSlot[]>;
 }
 
 export interface CardConfig {

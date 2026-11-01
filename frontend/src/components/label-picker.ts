@@ -281,7 +281,6 @@ export class WpLabelPicker extends LitElement {
       <div class="details" style="--lc:${chosen.color}">
         <div class="dhead">
           <i class="dot" style="background:${chosen.color}"></i><b>${labelName(this.hass, chosen)}</b>
-          ${labelUsers(this.data, chosen.id).some((n) => n !== this.program.name) ? html`<span class="shared">${t(lang, "shared")}</span>` : nothing}
           ${this.readonlySettings ? nothing : html`<button class="pen ${this._form ? "on" : ""}" aria-label=${t(lang, "rename_label")} title=${t(lang, "rename_label")}
             aria-pressed=${this._form} ?disabled=${this.disabled}
             @click=${() => (this._form && this._editId ? this._close() : this._open(true))}><ha-icon icon="mdi:pencil"></ha-icon></button>
@@ -289,6 +288,11 @@ export class WpLabelPicker extends LitElement {
             aria-expanded=${this._confirmDel} ?disabled=${this.disabled}
             @click=${() => { this._confirmDel = !this._confirmDel; this._delError = ""; }}><ha-icon icon="mdi:delete-outline"></ha-icon></button>`}
         </div>
+        ${(() => {
+          // the other programs that use this setting too (a change here changes them as well), on its own line
+          const others = labelUsers(this.data, chosen.id).filter((n) => n !== this.program.name);
+          return others.length ? html`<small class="shared">${t(lang, "used_by", { names: others.join(", ") })}</small>` : nothing;
+        })()}
         ${this._confirmDel && !this.readonlySettings ? this._renderDelete(chosen) : nothing}
         ${this._form && !this.readonlySettings ? nothing : html`
           <div class="sum"><span class="what">${actionSummary(this.hass, lang, chosen.action, this.entityIds[0])}</span></div>
@@ -349,7 +353,7 @@ export class WpLabelPicker extends LitElement {
     }
     .pen.on { background: var(--secondary-background-color); color: var(--primary-color); }
     .pen:hover { background: var(--secondary-background-color); }
-    .shared { font-size: 12px; color: var(--secondary-text-color); }
+    .shared { display: block; margin: -4px 0 4px; font-size: 12px; color: var(--secondary-text-color); overflow-wrap: anywhere; }
     .dot { width: 14px; height: 14px; border-radius: 7px; flex: none; }
     .form { margin-top: 12px; padding: 12px; border: 1px solid var(--divider-color); border-radius: 12px; }
     .swatches { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }

@@ -2,6 +2,7 @@
 
 import { fmtNum } from "./planner";
 import { serviceLabel, servicesFor } from "./services";
+import { applies } from "./slots";
 import type { Action, HassEntity, HomeAssistant, Label, PlannerData, Program, Slot } from "./types";
 
 /** 12 distinct colours; a new label takes the first one not used yet. */
@@ -71,7 +72,30 @@ export function entityAction(program: Program, entityId: string, label: Label | 
   return own ?? label.action;
 }
 
-export const hasOverride = (program: Program, entityId: string, labelId: string): boolean =>
+/**
+ * What the engine really does for this device: the label's action (own value or global) only if the device
+ * can take it (service accepted by the entity, scene containing it, service allowed). Else undefined: the
+ * slot is ignored for that device, so the card must not draw it there.
+ */
+export function appliedAction(
+  hass: HomeAssistant, program: Program, entityId: string, label: Label | undefined, slot?: Pick<Slot, "entities">,
+): Action | undefined {
+  // a slot that does not target this device does nothing to it (`applies`); no slot: a default label
+  if (slot && !applies(slot, entityId)) return undefined;
+  const action = entityAction(program, entityId, label);
+  return action && compatible(hass, entityId, action, allowedOf(program, entityId)) ? action : undefined;
+}
+
+/**
+ * Devices of the program (except `except`) that this label really acts on (`appliedAction`, never a domain test):
+ * the only ones "Also for: …" may offer. No label yet: none.
+ */
+export function compatibleDevices(hass: HomeAssistant, program: Program, label: Label | undefined, except = ""): string[] {
+  if (!label) return [];
+  return program.entities.map((e) => e.entity_id).filter((eid) => eid !== except && Boolean(appliedAction(hass, program, eid, label)));
+}
+
+export const hasOverride =(program: Program, entityId: string, labelId: string): boolean =>
   Boolean(program.entities.find((e) => e.entity_id === entityId)?.label_overrides?.[labelId]);
 
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);

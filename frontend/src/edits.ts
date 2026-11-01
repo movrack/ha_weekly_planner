@@ -4,7 +4,7 @@
 import { ALL_DAYS, groupSlots, slotKey, writeGroups } from "./actions";
 import type { SlotGroup } from "./actions";
 import { newId } from "./planner";
-import { findOverlap } from "./slots";
+import { applies, findOverlap, normaliseEntities, sameEntities, sharesDevice } from "./slots";
 import { DAY, minutesToClock } from "./time";
 import type { Profile, Slot, TimeSpec } from "./types";
 
@@ -95,8 +95,12 @@ export function splitBusyDays(
 
 const STEP_UP = 5;
 
-/** Start and end of a new slot on a day: just after its last slot (8:00 on an empty day), one hour long. */
-export function nextTimes(daySlots: Slot[], minutes: Minutes): { start: string; end: string } {
+/**
+ * Start and end of a new slot on a day: just after its last slot (8:00 on an empty day), one hour long.
+ * With `entityId`, only the slots of that device count.
+ */
+export function nextTimes(daySlots: Slot[], minutes: Minutes, entityId?: string): { start: string; end: string } {
+  if (entityId !== undefined) daySlots = daySlots.filter((s) => applies(s, entityId));
   let from = 8 * 60;
   if (daySlots.length) {
     from = Math.max(...daySlots.map((s) => minutes(s.end ?? s.start)));
@@ -126,7 +130,21 @@ export interface DayCtx {
   newId?: () => string;
   /** Label given to a slot created over a gap (the rest-of-the-time label, else the first compatible one). */
   defaultLabel?: string;
+  /** Device row being edited: segments, boundaries and merges only see the slots that run for it. */
+  entity?: string;
+  /** Devices of the program in program order (needed to split a slot without list between devices). */
+  devices?: string[];
+  /** Devices given to a slot created over a gap (already normalised; absent: every device). */
+  newEntities?: string[];
 }
+
+/** The slots a day bar shows: every slot, or those of the edited device. */
+const view = (slots: Slot[], ctx: DayCtx): Slot[] => {
+  const entity = ctx.entity;
+  return entity === undefined ? slots : slots.filter((s) => applies(s, entity));
+};
+
+const withEntities = (slot: Slot, ctx: DayCtx): Slot => (ctx.newEntities ? { ...slot, entities: [...ctx.newEntities] } : slot);
 
 export const SNAP = 15;
 const snap = (m: number): number => Math.round(m / SNAP) * SNAP;
@@ -160,7 +178,7 @@ export type Seg =
 
 /** The day cut into slots and gaps (one-shots are not segments). */
 export function segments(slots: Slot[], ctx: DayCtx): Seg[] {
-  const timed = slots
+  const timed = view(slots, ctx)
     .map((slot) => ({ slot, e: eff(slot, ctx.at) }))
     .filter((x) => x.e.end !== null)
     .sort((a, b) => a.e.start - b.e.start);
@@ -178,11 +196,15 @@ export function segments(slots: Slot[], ctx: DayCtx): Seg[] {
 export interface Handle { id: string; edge: "start" | "end" }
 export interface Boundary { m: number; refs: Handle[]; oneShot: boolean }
 
-/** Every movable boundary of the day: edges at the same minute are one boundary, a one-shot is a single handle. */
+/**
+ * Every movable boundary of the day: edges at the same minute are one boundary when their slots share a device
+ * (two devices that only meet at a minute keep separate boundaries); a one-shot is a single handle.
+ */
 export function boundaries(slots: Slot[], ctx: DayCtx): Boundary[] {
   const out: Boundary[] = [];
-  const byMinute = new Map<number, Boundary>();
-  for (const slot of slots) {
+  const byMinute = new Map<number, { b: Boundary; slots: Slot[] }[]>();
+  const dead = new Set<Boundary>();
+  for (const slot of view(slots, ctx)) {
     const e = eff(slot, ctx.at);
     if (e.end === null) {
       out.push({ m: e.start, refs: [{ id: slot.id, edge: "start" }], oneShot: true });
@@ -191,16 +213,26 @@ export function boundaries(slots: Slot[], ctx: DayCtx): Boundary[] {
     const edges: [number, Handle][] = [[e.start, { id: slot.id, edge: "start" }]];
     if (!e.wrap) edges.push([e.end, { id: slot.id, edge: "end" }]);
     for (const [m, ref] of edges) {
-      let b = byMinute.get(m);
-      if (!b) {
-        b = { m, refs: [], oneShot: false };
-        byMinute.set(m, b);
-        out.push(b);
+      const list = byMinute.get(m) ?? [];
+      byMinute.set(m, list);
+      const hits = list.filter((x) => x.slots.some((s) => sharesDevice(s, slot)));
+      let hit = hits[0];
+      if (!hit) {
+        hit = { b: { m, refs: [], oneShot: false }, slots: [] };
+        list.push(hit);
+        out.push(hit.b);
       }
-      b.refs.push(ref);
+      for (const other of hits.slice(1)) { // the slot links two groups: they become one boundary
+        hit.b.refs.push(...other.b.refs);
+        hit.slots.push(...other.slots);
+        list.splice(list.indexOf(other), 1);
+        dead.add(other.b);
+      }
+      hit.b.refs.push(ref);
+      hit.slots.push(slot);
     }
   }
-  return out.sort((a, b) => a.m - b.m);
+  return out.filter((b) => !dead.has(b)).sort((a, b) => a.m - b.m);
 }
 
 const sameRef = (a: Handle, b: Handle): boolean => a.id === b.id && a.edge === b.edge;
@@ -236,7 +268,10 @@ export function moveBoundary(slots: Slot[], ref: Handle, to: number, ctx: DayCtx
     group = b.refs;
     const m = b.m;
     if (m >= (ctx.lead ?? 0)) lo = ctx.lead ?? 0;
+    const members = group.map((g) => slots.find((x) => x.id === g.id)!);
     for (const s of slots) {
+      // only slots sharing a device with a moved slot can be crossed (other devices' slots are free to overlap)
+      if (!members.some((g) => sharesDevice(g, s))) continue;
       const e = eff(s, ctx.at);
       if (e.end === null) continue;
       const edges: [number, Handle | null][] = [[e.start, { id: s.id, edge: "start" }], [e.end, e.wrap ? null : { id: s.id, edge: "end" }]];
@@ -244,6 +279,9 @@ export function moveBoundary(slots: Slot[], ref: Handle, to: number, ctx: DayCtx
         if (h && group.some((g) => sameRef(g, h))) continue;
         if (v < m) lo = Math.max(lo, v);
         else if (v > m) hi = Math.min(hi, v);
+        // an edge at the same minute outside the boundary (slot hidden from this device row): a stop
+        else if (h?.edge === "end") lo = Math.max(lo, m);
+        else if (h) hi = Math.min(hi, m);
       }
     }
     for (const g of group) {
@@ -281,7 +319,7 @@ export function splitAt(slots: Slot[], target: Target, ctx: DayCtx & { defaultLa
   if (target.kind === "gap") {
     const mid = middle(target.start, target.end);
     if (mid === null || !ctx.defaultLabel) return null;
-    const piece: Slot = { id: newId(), start: fixedTime(mid), end: fixedTime(target.end), conditions: [], label: ctx.defaultLabel };
+    const piece = withEntities({ id: newId(), start: fixedTime(mid), end: fixedTime(target.end), conditions: [], label: ctx.defaultLabel }, ctx);
     return { slots: sortByStart([...slots, piece], ctx), handle: { id: piece.id, edge: "start" } };
   }
   const slot = slots.find((s) => s.id === target.id);
@@ -297,7 +335,7 @@ export function splitAt(slots: Slot[], target: Target, ctx: DayCtx & { defaultLa
 /** Sets the label of a slot; a gap becomes a slot with that label over the whole gap. */
 export function setLabel(slots: Slot[], target: Target, label: string, ctx: DayCtx): Slot[] {
   if (target.kind === "slot") return slots.map((s) => (s.id === target.id ? { ...s, label } : s));
-  const piece: Slot = { id: (ctx.newId ?? defaultNewId)(), start: fixedTime(target.start), end: fixedTime(target.end), conditions: [], label };
+  const piece = withEntities({ id: (ctx.newId ?? defaultNewId)(), start: fixedTime(target.start), end: fixedTime(target.end), conditions: [], label }, ctx);
   return sortByStart([...slots, piece], ctx);
 }
 
@@ -313,22 +351,25 @@ function sortByStart(slots: Slot[], ctx: DayCtx): Slot[] {
 }
 
 const sameKind = (a: Slot, b: Slot): boolean =>
-  a.label === b.label && stableJson(a.conditions ?? []) === stableJson(b.conditions ?? []) && (a.color ?? null) === (b.color ?? null);
+  a.label === b.label && sameEntities(a, b) && stableJson(a.conditions ?? []) === stableJson(b.conditions ?? []) && (a.color ?? null) === (b.color ?? null);
 const stableJson = (v: unknown): string => JSON.stringify(v);
 
 /**
- * Merges neighbours with the same label where the end of the first is the start of the second.
+ * Merges neighbours with the same label and the same devices where the end of the first is the start of the second.
+ * The neighbour is the previous slot sharing a device (slots of other devices in between are not in the way).
  * Slots whose id is in `keep` are never merged (the two pieces of a slot just cut, until the user chose their labels).
  */
 export function mergeAdjacent(slots: Slot[], ctx: DayCtx, keep: ReadonlySet<string> = new Set()): Slot[] {
   const out: Slot[] = [];
   for (const slot of sortByStart(slots, ctx)) {
-    const prev = out[out.length - 1];
+    let at = out.length - 1;
+    while (at >= 0 && !sharesDevice(out[at], slot)) at--;
+    const prev = out[at];
     if (prev && prev.end && slot.end) {
       const a = eff(prev, ctx.at);
       const b = eff(slot, ctx.at);
       if (!a.wrap && a.end === b.start && !prev.end.random_minutes && !slot.start.random_minutes && sameKind(prev, slot) && !keep.has(prev.id) && !keep.has(slot.id)) {
-        out[out.length - 1] = { ...prev, end: slot.end };
+        out[at] = { ...prev, end: slot.end };
         continue;
       }
     }
@@ -337,23 +378,36 @@ export function mergeAdjacent(slots: Slot[], ctx: DayCtx, keep: ReadonlySet<stri
   return out;
 }
 
-/** The slots without [a, b): slots are cut around it, nothing outside the range is lost. */
-function trim(slots: Slot[], a: number, b: number, ctx: DayCtx): Slot[] {
+/**
+ * The slots without [a, b) for the devices of `cut`: slots are cut around it, nothing outside the range is lost.
+ * A slot that shares no device with `cut` is untouched; one that also runs for other devices keeps the range
+ * for them (a copy limited to those devices, new id, same `seed`: D7).
+ */
+function trim(slots: Slot[], a: number, b: number, ctx: DayCtx, cut: Pick<Slot, "entities"> = {}): Slot[] {
   const newId = ctx.newId ?? defaultNewId;
   const out: Slot[] = [];
   for (const slot of slots) {
     const e = eff(slot, ctx.at);
-    if (e.end === null || e.end <= a || e.start >= b) {
+    if (e.end === null || e.end <= a || e.start >= b || !sharesDevice(slot, cut)) {
       out.push(slot);
       continue;
     }
     const before = e.start < a;
     const after = e.end > b;
-    if (before) out.push({ ...slot, end: fixedTime(a) });
-    if (after) {
-      // the part after the range keeps the original end (also when it crosses midnight)
-      out.push({ ...structuredClone(slot), id: before ? newId() : slot.id, start: fixedTime(b) });
+    const cutList = cut.entities;
+    const rest = cutList === undefined ? [] : (slot.entities ?? ctx.devices ?? []).filter((d) => !cutList.includes(d));
+    const pieces: Slot[] = [];
+    if (before) pieces.push({ ...slot, end: fixedTime(a) });
+    if (rest.length) {
+      const entities = ctx.devices ? normaliseEntities(rest, ctx.devices) : rest;
+      const keptSlot: Slot = { ...structuredClone(slot), start: before ? fixedTime(a) : slot.start, end: after ? fixedTime(b) : slot.end };
+      if (entities) keptSlot.entities = entities;
+      if (pieces.length) keptSlot.seed = slot.seed ?? slot.id;
+      pieces.push(keptSlot);
     }
+    // the part after the range keeps the original end (also when it crosses midnight)
+    if (after) pieces.push({ ...structuredClone(slot), start: fixedTime(b) });
+    pieces.forEach((p, i) => out.push({ ...p, id: i === 0 ? slot.id : newId() }));
   }
   return out;
 }
@@ -365,6 +419,7 @@ export function copyConflicts(days: Slot[][], src: { day: number; id: string }, 
   const e = eff(slot, ctx.at);
   if (e.end === null) return [];
   return to.filter((d) => d !== src.day && days[d].some((s) => {
+    if (!sharesDevice(s, slot)) return false;
     const x = eff(s, ctx.at);
     return x.end !== null && x.start < (e.end as number) && x.end > e.start;
   }));
@@ -385,9 +440,78 @@ export function copyToDays(
     if (!to.includes(d) || d === src.day || skip.includes(d)) return day;
     const copy: Slot = { ...structuredClone(slot), id: newId() };
     if (e.end === null) {
-      const dup = day.some((s) => !s.end && stableJson(s.start) === stableJson(slot.start) && s.label === slot.label);
+      const dup = day.some((s) => !s.end && stableJson(s.start) === stableJson(slot.start) && s.label === slot.label && sameEntities(s, slot));
       return dup ? day : sortByStart([...day, copy], ctx);
     }
-    return mergeAdjacent([...trim(day, e.start, e.end, ctx), copy], ctx);
+    return mergeAdjacent([...trim(day, e.start, e.end, ctx, slot), copy], ctx);
   });
+}
+
+/* ------------------------------------------------------------------ moving a whole slot (long press, then drag) */
+
+/** Moves a time spec by `delta` minutes (a sun time keeps its event and changes its offset). */
+export type Shift = (spec: TimeSpec, delta: number) => TimeSpec;
+export type MoveRefusal = "oneshot" | "wrap" | "sunbound";
+
+/** Why a slot cannot be dragged as a whole (null: it can). */
+export function moveRefusal(slot: Slot, ctx: DayCtx): MoveRefusal | null {
+  if (!slot.end) return "oneshot"; // a one-shot has its own handle
+  if (eff(slot, ctx.at).wrap) return "wrap"; // crosses midnight: the other day owns its end
+  const bounded = (s: TimeSpec) => "sun" in s && Boolean(s.earliest || s.latest);
+  return bounded(slot.start) || bounded(slot.end) ? "sunbound" : null; // limits would silently undo the shift
+}
+
+const shifted = (slot: Slot, d: number, shift: Shift): Slot =>
+  d === 0 ? slot : { ...slot, start: shift(slot.start, d), end: slot.end ? shift(slot.end, d) : slot.end };
+
+/**
+ * Moves a slot by `delta` minutes inside its day: same duration, 15-minute steps, clamped to the day and to its
+ * neighbours (it can touch them, never cross them). `delta` is the minutes actually applied.
+ */
+export function moveSlotBy(slots: Slot[], id: string, delta: number, ctx: DayCtx, shift: Shift): { slots: Slot[]; start: number; end: number; delta: number } | null {
+  const slot = slots.find((s) => s.id === id);
+  if (!slot || moveRefusal(slot, ctx)) return null;
+  const e = eff(slot, ctx.at);
+  const end = e.end as number;
+  const span = end - e.start;
+  let lo = e.start >= (ctx.lead ?? 0) ? ctx.lead ?? 0 : 0;
+  let hi = DAY;
+  for (const s of slots) {
+    if (s.id === id || !sharesDevice(s, slot)) continue;
+    const o = eff(s, ctx.at);
+    if (o.end === null) continue;
+    if (o.end <= e.start) lo = Math.max(lo, o.end);
+    else if (o.start >= end) hi = Math.min(hi, o.start);
+  }
+  if (hi - lo < span) return null;
+  const start = clamp(snap(e.start + delta), lo, hi - span);
+  const d = start - e.start;
+  return { slots: slots.map((s) => (s.id === id ? shifted(s, d, shift) : s)), start, end: start + span, delta: d };
+}
+
+/**
+ * Moves a slot to another day (same duration, shifted by `delta` minutes on the 15-minute step, clamped to the
+ * day): it leaves its own day only and refuses to land on a slot of the new day (no silent replacement).
+ */
+export function moveToDay(
+  days: Slot[][], src: { day: number; id: string }, to: number, delta: number, ctx: DayCtx, shift: Shift,
+): { days: Slot[][]; start: number } | { error: "gone" | "overlap" | MoveRefusal } {
+  const slot = days[src.day]?.find((s) => s.id === src.id);
+  if (!slot || to === src.day || !days[to]) return { error: "gone" };
+  const refusal = moveRefusal(slot, ctx);
+  if (refusal) return { error: refusal };
+  const e = eff(slot, ctx.at);
+  const span = (e.end as number) - e.start;
+  const start = clamp(snap(e.start + delta), 0, DAY - span);
+  const busy = days[to].some((s) => {
+    if (!sharesDevice(s, slot)) return false;
+    const o = eff(s, ctx.at);
+    return o.end !== null && o.start < start + span && o.end > start;
+  });
+  if (busy) return { error: "overlap" };
+  const copy: Slot = { ...shifted(structuredClone(slot), start - e.start, shift), id: (ctx.newId ?? defaultNewId)() };
+  return {
+    start,
+    days: days.map((day, d) => (d === src.day ? day.filter((s) => s.id !== src.id) : d === to ? sortByStart([...day, copy], ctx) : day)),
+  };
 }

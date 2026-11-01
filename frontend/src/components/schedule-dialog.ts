@@ -10,24 +10,27 @@ import { sunDir, type BarSpan } from "./day-bar";
 import "./dialog";
 import "./label-picker";
 import "./slot-form";
-import { daysText, groupSlots, specText, ALL_DAYS } from "../actions";
+import { daysText, groupSlots, slotKey, specText, ALL_DAYS } from "../actions";
 import type { SlotGroup } from "../actions";
 import { applyEdit, compareOrigin, dayView, findGroup, freshGroup, groupId, nextTimes, overlapPair, splitBusyDays } from "../edits";
+import { devicesOf, dropDeviceSlots, editForDevice, isShared, remergeIdentical } from "../device-edits";
+import type { SlotPatch } from "../device-edits";
 import type { RowEdit } from "../edits";
-import { allowedOf, compatible, entityAction, labelName, labelOf, labelsFor } from "../labels";
+import { appliedAction, labelName, labelOf, labelsFor } from "../labels";
 import type { LabelDraft } from "./label-picker";
 import { addDaysIso } from "./chart";
 import { confirmAction } from "./confirm";
-import { strings, t } from "../i18n";
+import { slotDeviceError, strings, t } from "../i18n";
 import { loadServiceNames } from "../services";
-import { activeProfile, friendlyName } from "../planner";
-import { fetchPreview } from "../preview-cache";
+import { activeProfile, friendlyName, newId } from "../planner";
+import { deviceDays, fetchPreviewResponse } from "../preview-cache";
 import { DAY, localDateIso, minutesToClock } from "../time";
-import { shiftTimeSpec, specMinutes, sunBoundsInvalid } from "../slots";
+import { applicable, applies, normaliseEntities, shiftTimeSpec, specMinutes, sunBoundsInvalid } from "../slots";
 import { editorStyles, langOf } from "../editors/shared";
-import type { Action, HomeAssistant, PlannerData, PreviewSlot, Profile, Program, Slot, TimeSpec } from "../types";
+import type { Action, HomeAssistant, PlannerData, PreviewResponse, PreviewSlot, Profile, Program, Slot, TimeSpec } from "../types";
 
-export type Scope = { kind: "device"; entityId: string } | { kind: "program"; programId: string };
+/** A program screen opened from one device row carries that device (`entityId`): its schedules are shown first. */
+export type Scope = { kind: "device"; entityId: string } | { kind: "program"; programId: string; entityId?: string };
 
 export const scopeKey = (scope: Scope): string => (scope.kind === "device" ? `d:${scope.entityId}` : `p:${scope.programId}`);
 
@@ -45,6 +48,8 @@ export class WpSchedule extends LitElement {
   private _editProfileId: string | null = null;
   /** Opened from a day of the card's week (0 = Monday, `offset` days from today): edit that day. */
   @property({ attribute: false }) day: { weekday: number; offset: number } | null = null;
+  /** Opened from the card's "Create a setting" button: straight to the first slot when there is none. */
+  @property({ type: Boolean }) create = false;
 
   /** Row being edited: its key, "new", or "rest:<entity>". */
   @state() private _open: string | null = null;
@@ -81,8 +86,14 @@ export class WpSchedule extends LitElement {
   @state() private _saving = false;
   @state() private _toggling = false;
   @state() private _offset = 0;
-  @state() private _slots: PreviewSlot[] | null = null;
-  @state() private _chartEntity = "";
+  /** Preview answers of the day before and of the day shown (null: none or failed). */
+  @state() private _resp: [PreviewResponse, PreviewResponse] | null = null;
+  /** Device chosen with the device chips ("" : the one the screen was opened from, else the first). */
+  @state() private _pick = "";
+  /** Editing a slot shared with other devices from this device: "one" (this device) or "all" (D1); null: not chosen. */
+  @state() private _who: "one" | "all" | null = null;
+  /** The opened slot runs for more than one device. */
+  @state() private _shared = false;
   private _token = 0;
   private _loaded = "";
 
@@ -113,10 +124,31 @@ export class WpSchedule extends LitElement {
     return program.profiles.find((p) => p.id === this._editProfileId);
   }
 
+  /** Every device of the screen (the program's devices, or the one device of a device scope). */
   private get _entities(): string[] {
     if (this.scope.kind === "device") return [this.scope.entityId];
     const program = this._programs[0];
     return program ? program.entities.map((e) => e.entity_id) : [];
+  }
+
+  /** Device whose schedules are shown and edited (per-device screen, #34). */
+  private get _eid(): string {
+    const list = this._entities;
+    if (this._pick && list.includes(this._pick)) return this._pick;
+    const wanted = this.scope?.entityId;
+    return wanted && list.includes(wanted) ? wanted : list[0] ?? "";
+  }
+
+  /** Devices of the program being edited (program order). */
+  private _devices(program: Program | undefined = this._programs.find((p) => p.id === this._programId) ?? this._programs[0]): string[] {
+    return program ? devicesOf(program) : [];
+  }
+
+  /** Resolved slots of the shown device for the chart (previous-day spill included, no duplicate). */
+  private get _slots(): PreviewSlot[] | null {
+    if (!this._resp) return null;
+    const { today, previous } = deviceDays(this._resp[1], this._resp[0], this._eid);
+    return [...(previous ?? []), ...(today ?? [])];
   }
 
   private get _title(): string {
@@ -124,8 +156,18 @@ export class WpSchedule extends LitElement {
     return this._programs[0]?.name ?? "";
   }
 
-  /** A slot applies to every device of its program. */
-  private _include = (_slot: Slot): boolean => true;
+  /**
+   * The screen shows and edits the slots of the chosen device only: those that target it (`applies`) and whose
+   * setting it can take (a slot of an unknown setting stays visible, to be fixed).
+   */
+  private _include = (slot: Slot): boolean => {
+    const eid = this._eid;
+    if (!eid) return true;
+    if (!applies(slot, eid)) return false;
+    const label = labelOf(this.data, slot.label);
+    const program = this._programs.find((p) => p.id === this._programId) ?? this._programs[0];
+    return !label?.action || !program || Boolean(appliedAction(this.hass, program, eid, label, slot));
+  };
 
   private _minutes = (spec: TimeSpec): number => specMinutes(this.hass, spec);
 
@@ -146,6 +188,10 @@ export class WpSchedule extends LitElement {
 
   firstUpdated(): void {
     this._loadNames();
+    if (this.create && !this.day) {
+      if (!this._rows().length && this._canEdit) this._add();
+      return;
+    }
     if (!this.day) return;
     const { weekday, offset } = this.day;
     if (offset >= -BACK && offset <= AHEAD) this._offset = offset;
@@ -162,7 +208,7 @@ export class WpSchedule extends LitElement {
   }
 
   willUpdate(changed: Map<string, unknown>): void {
-    if (!this._chartEntity || changed.has("scope")) this._chartEntity = this._entities[0] ?? "";
+    if (changed.has("scope") && changed.get("scope") !== undefined) this._pick = "";
     const owner = this._programs[0];
     if (this.chart && owner && this.hass && !this._modeOnly) {
       const key = `${owner.id}|${owner.revision}|${this._modeProfile(owner)?.id}|${this._date}`;
@@ -179,17 +225,17 @@ export class WpSchedule extends LitElement {
   private async _loadPreview(programId: string, revision: number, date: string, key: string, profileId?: string): Promise<void> {
     const token = ++this._token;
     try {
-      const results = await Promise.all([addDaysIso(date, -1), date].map((day) => fetchPreview(this.hass, programId, revision, day, profileId)));
-      if (token === this._token && key === this._loaded) this._slots = results.flat();
+      const results = await Promise.all([addDaysIso(date, -1), date].map((day) => fetchPreviewResponse(this.hass, programId, revision, day, profileId)));
+      if (token === this._token && key === this._loaded) this._resp = [results[0], results[1]];
     } catch {
-      if (token === this._token) this._slots = null;
+      if (token === this._token) this._resp = null;
     }
   }
 
   private _go(delta: number): void {
     const next = this._offset + delta;
     if (next < -BACK || next > AHEAD) return;
-    this._slots = null;
+    this._resp = null;
     this._offset = next;
   }
 
@@ -216,6 +262,8 @@ export class WpSchedule extends LitElement {
     this._overrides = [];
     this._labelDraft = null;
     this._dropBusy = false;
+    this._who = null;
+    this._shared = Boolean(group && opts.openId && this._eid && isShared(group.slot, devicesOf(program)));
     this._draft = structuredClone(program);
     this._error = "";
     this._note = "";
@@ -259,6 +307,8 @@ export class WpSchedule extends LitElement {
     this._overrides = [];
     this._labelDraft = null;
     this._dropBusy = false;
+    this._who = null;
+    this._shared = false;
     this._draft = null;
     this._restLabel = null;
     this._error = "";
@@ -283,14 +333,18 @@ export class WpSchedule extends LitElement {
   /** A new slot: all days from the full screen, one day when focused (starting after that day's last slot). */
   private _add(days: number[] = this._focus === null ? ALL_DAYS : [this._focus]): void {
     const program = this._programs[0];
-    const eid = this._entities[0];
+    const eid = this._eid;
     if (!program || !eid) return;
-    const first = labelsFor(this.hass, this.data, this._entities)[0];
+    const first = labelsFor(this.hass, this.data, [eid], program)[0];
     const day = days.length === 1 ? days[0] : null;
     const profile = this._modeProfile(program);
     if (!profile) return;
-    const times = day === null ? undefined : nextTimes(profile.days[day], this._minutes);
-    this._expand("new", program, freshGroup(first?.id ?? "", days, times), { dayOnly: day });
+    const times = day === null ? undefined : nextTimes(profile.days[day], this._minutes, eid);
+    const group = freshGroup(first?.id ?? "", days, times);
+    // a new slot belongs to the device it is created from ("Also for" adds others); absent for a single device (D5)
+    const entities = normaliseEntities([eid], devicesOf(program));
+    if (entities) group.slot.entities = entities;
+    this._expand("new", program, group, { dayOnly: day });
     this._dropBusy = day === null;
   }
 
@@ -353,6 +407,7 @@ export class WpSchedule extends LitElement {
       else if (e?.message?.includes("unknown_label")) this._error = t(this._lang, "err_label");
       else if (e?.message?.includes("earliest_after_latest")) this._error = t(this._lang, "err_sun_bounds");
       else if (e?.message?.includes("random_window_too_short")) this._error = t(this._lang, "random_too_short");
+      else if (slotDeviceError(this._lang, e?.message, (eid) => friendlyName(this.hass, eid))) this._error = slotDeviceError(this._lang, e?.message, (eid) => friendlyName(this.hass, eid))!;
       else if (e?.message?.includes("overlapping_slots")) this._error = t(this._lang, "w_err_overlap");
       else if (/offset|invalid_random_minutes|at most|at least|out of range|invalid_time|invalid_clock/i.test(e?.message ?? "")) this._error = t(this._lang, "err_time_range");
       else this._error = t(this._lang, "ss_err_save");
@@ -432,7 +487,63 @@ export class WpSchedule extends LitElement {
     if (sunBoundsInvalid(g.slot.start) || sunBoundsInvalid(g.slot.end)) return t(lang, "err_sun_bounds");
     if (g.slot.end && JSON.stringify(g.slot.start) === JSON.stringify(g.slot.end)) return t(lang, "w_err_same");
     if (!labelOf(this.data, g.slot.label) && !this._fresh.has(g.slot.label)) return t(lang, "err_action");
+    if (this._shared && this._who === null && this._contentChanged()) return t(lang, "who_pick");
     return "";
+  }
+
+  /** Something other than the devices changed in the open slot (times, days, setting): D1 asks for whom. */
+  private _contentChanged(): boolean {
+    const origin = this._origin;
+    const g = this._group;
+    if (!origin || !g) return false;
+    const strip = (slot: Slot): string => slotKey({ ...slot, entities: undefined, seed: undefined });
+    const days = [...(this._dayOnly !== null ? [this._dayOnly] : origin.days)].sort();
+    return strip(g.slot) !== strip(origin.slot) || JSON.stringify([...g.days].sort()) !== JSON.stringify(days);
+  }
+
+  /** "This device" / "All (N)" for a shared slot (D1). "This device" keeps the slot's devices as they were. */
+  private _pickWho(who: "one" | "all"): void {
+    this._who = who;
+    this._error = "";
+    const g = this._group;
+    const origin = this._origin;
+    if (who === "one" && g && origin) {
+      const { entities: _e, ...slot } = g.slot;
+      this._group = { ...g, slot: origin.slot.entities ? { ...slot, entities: [...origin.slot.entities] } : slot };
+    }
+  }
+
+  /** The values of the open slot that an edit for one device changes (never its id, devices or seed). */
+  private _patch(slot: Slot): SlotPatch {
+    const patch: SlotPatch = { start: slot.start, end: slot.end ?? null, label: slot.label };
+    if (slot.conditions !== undefined) patch.conditions = slot.conditions;
+    if (slot.color !== undefined) patch.color = slot.color;
+    return patch;
+  }
+
+  /**
+   * Days of the open group edited for this device only (D1 "This device"), rebuilt on the fresh program. On each edited
+   * day the shared slot is split (copy-on-write, `editForDevice`: the kept part keeps its id, the copy gets the seed);
+   * a day the slot did not have gets a copy for this device; a day taken off stops the slot for this device only.
+   * Null: the slot no longer runs for the device (someone else changed it meanwhile).
+   */
+  private _forDevice(days: Slot[][], origin: SlotGroup, draft: SlotGroup | null, devices: string[]): Slot[][] | null {
+    const eid = this._eid;
+    const edited = this._dayOnly !== null ? [this._dayOnly] : origin.days;
+    const wanted = draft?.days ?? [];
+    for (const d of new Set([...edited, ...wanted])) {
+      const id = origin.ids[d];
+      if (id) {
+        if (!edited.includes(d) && !wanted.includes(d)) continue;
+        const res = editForDevice(days, id, eid, draft && wanted.includes(d) ? this._patch(draft.slot) : null, { devices });
+        if (!res) return null;
+        days = res.days;
+      } else if (draft && wanted.includes(d)) {
+        const { seed: _s, ...slot } = structuredClone(draft.slot);
+        days = days.map((x, i) => (i === d ? [...x, { ...slot, id: newId(), entities: [eid] }] : x));
+      }
+    }
+    return days.map((x) => [...x].sort((a, b) => this._minutes(a.start) - this._minutes(b.start)));
   }
 
   /**
@@ -510,6 +621,21 @@ export class WpSchedule extends LitElement {
       this._error = problem;
       return;
     }
+    if (this._shared && this._who === "one" && this._contentChanged()) {
+      let stale = false;
+      const ok = await this._commit(program.id, (live) => {
+        const profile = this._editProfile(live);
+        if (!profile) return { error: t(this._lang, "ss_changed") };
+        if (this._checkOrigin(profile, live) === "changed" || !this._origin) { stale = true; return { changed: true }; }
+        const days = this._forDevice(profile.days, this._origin, draft, devicesOf(live));
+        if (!days) return { error: t(this._lang, "ss_changed") };
+        const next = { ...profile, days };
+        if (overlapPair(next)) return { error: this._overlapText(next) };
+        return { program: { ...live, entities: this._withOverrides(live), profiles: live.profiles.map((p) => (p.id === profile.id ? next : p)) } };
+      });
+      if (ok && !stale) this._cancel();
+      return;
+    }
     const include = this._include;
     let dropped: number[] = [];
     let changed = false;
@@ -530,7 +656,9 @@ export class WpSchedule extends LitElement {
         group = { ...draft, days: free };
         dropped = busy;
       }
-      const next = applyEdit(current, include, this._minutes, { openId: this._openId, rest: this._rest, draft: group });
+      const edited = applyEdit(current, include, this._minutes, { openId: this._openId, rest: this._rest, draft: group });
+      // copies that became identical again (other devices) are merged back into one slot (D1)
+      const next = { ...edited, days: edited.days.map((d) => remergeIdentical(d, devicesOf(live)).day) };
       if (overlapPair(next)) return { error: this._overlapText(next) };
       return { program: { ...live, entities: this._withOverrides(live), profiles: live.profiles.map((p) => (p.id === profile.id ? next : p)) } };
     });
@@ -548,11 +676,19 @@ export class WpSchedule extends LitElement {
     }
     const program = this._live(this._programId);
     if (!program || !this._openId) return;
+    if (this._shared && this._who === null) { this._error = t(this._lang, "who_pick"); return; }
     if (!(await confirmAction(this, t(this._lang, "w_confirm_slot"), t(this._lang, "yes"), t(this._lang, "no")))) return;
+    const one = this._shared && this._who === "one";
     const ok = await this._commit(program.id, (live) => {
       const profile = this._editProfile(live);
       if (!profile) return { error: t(this._lang, "ss_changed") };
       if (this._checkOrigin(profile, live) === "changed") return { changed: true };
+      if (one && this._origin) {
+        // "This device": the slot stops for this device only, the other devices keep it (D1)
+        const days = this._forDevice(profile.days, this._origin, null, devicesOf(live));
+        if (!days) return { error: t(this._lang, "ss_changed") };
+        return { program: { ...live, profiles: live.profiles.map((p) => (p.id === profile.id ? { ...profile, days } : p)) } };
+      }
       const next = applyEdit(profile, this._include, this._minutes, { openId: this._openId, rest: this._rest, draft: null });
       return { program: { ...live, profiles: live.profiles.map((p) => (p.id === profile.id ? next : p)) } };
     });
@@ -598,6 +734,14 @@ export class WpSchedule extends LitElement {
   }
 
   private async _deleteAll(): Promise<void> {
+    const owner = this._programs[0];
+    if (this.scope.kind === "program" && owner && owner.entities.length > 1 && this._eid) {
+      // one device of several: only its schedules go (every mode); the program and the other devices stay
+      const eid = this._eid;
+      if (!(await confirmAction(this, t(this._lang, "confirm_delete_device", { name: friendlyName(this.hass, eid) }), t(this._lang, "yes"), t(this._lang, "no")))) return;
+      if (await this._commit(owner.id, (live) => ({ program: dropDeviceSlots(live, eid) }))) this._closeDialog();
+      return;
+    }
     if (!(await confirmAction(this, t(this._lang, "confirm_delete_schedule", { name: this._title }), t(this._lang, "yes"), t(this._lang, "no")))) return;
     try {
       for (const program of this._programs) {
@@ -635,36 +779,56 @@ export class WpSchedule extends LitElement {
     return slot.end ? `${start}–${specText(lang, slot.end)}` : start;
   }
 
-  private _rowText(group: SlotGroup): { text: string; days: string; color: string } {
+  private _rowText(group: SlotGroup, program?: Program): { text: string; days: string; color: string; also: string } {
     const lang = this._lang;
     const label = labelOf(this.data, group.slot.label);
     const days = daysText(lang, strings(lang).days_short, group.days);
+    // the other devices this slot also runs for (names from Home Assistant)
+    const others = program ? applicable(group.slot, devicesOf(program)).filter((d) => d !== this._eid) : [];
     return {
       text: [label ? labelName(this.hass, label) : "", this._when(group.slot)].filter(Boolean).join(" · "),
       days,
       color: label?.color ?? "var(--disabled-text-color)",
+      also: others.length ? t(lang, "also_short", { names: others.map((d) => friendlyName(this.hass, d)).join(", ") }) : "",
     };
   }
 
   private _renderRow(row: { program: Program; group: SlotGroup; key: string }) {
     const { program, group, key } = row;
     if (this._open === key && this._group) return this._renderEditor(program, key);
-    const { text, days, color } = this._rowText(group);
+    const { text, days, color, also } = this._rowText(group, program);
     return html`<button class="row" aria-expanded="false" @click=${() => this._openRow(key, program, group)}>
       <span class="dot" style="background:${color}"></span>
-      <span class="txt"><span class="l1">${text}</span>${this._focus === null ? html`<span class="l2">${days}</span>` : nothing}${this._programs.length > 1 ? html`<small>${program.name}</small>` : nothing}</span>
+      <span class="txt"><span class="l1">${text}</span>${this._focus === null ? html`<span class="l2">${days}</span>` : nothing}${also ? html`<small>${also}</small>` : nothing}${this._programs.length > 1 ? html`<small>${program.name}</small>` : nothing}</span>
       <ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
+  }
+
+  /** "All devices (N)", or "With <the other devices>" when the slot runs for some of them only. */
+  private _whoAll(count: number, devices: string[]): string {
+    if (count >= devices.length) return t(this._lang, "who_all", { n: String(count) });
+    const others = this._origin ? applicable(this._origin.slot, devices).filter((d) => d !== this._eid) : [];
+    return t(this._lang, "who_some", { me: friendlyName(this.hass, this._eid), names: others.map((d) => friendlyName(this.hass, d)).join(", ") });
   }
 
   private _renderEditor(program: Program, key: string) {
     const lang = this._lang;
     const isNew = key === "new";
-    const ids = this._entities.filter((e) => program.entities.some((x) => x.entity_id === e));
+    const devices = this._devices(program);
+    const count = this._origin ? applicable(this._origin.slot, devices).length : devices.length;
     return html`<div class="editor">
-      ${keyed(this._pickerKey, html`<wp-slot-form .hass=${this.hass} .data=${this.data} .program=${this._draft ?? program} .group=${this._group!} .entityIds=${ids}
+      ${keyed(this._pickerKey, html`<wp-slot-form .hass=${this.hass} .data=${this.data} .program=${this._draft ?? program} .group=${this._group!} .entityIds=${[this._eid]}
+        .device=${this._eid} .also=${!this._shared}
         .dayOnly=${this._dayOnly} ?disabled=${!this._canEdit}
         @label-draft=${(e: CustomEvent<LabelDraft | null>) => { e.stopPropagation(); this._labelDraft = e.detail; this._error = ""; }}
         @group-change=${(e: CustomEvent<SlotGroup>) => { e.stopPropagation(); this._group = e.detail; this._error = ""; }}></wp-slot-form>`)}
+      ${this._shared && !isNew ? html`<div class="who" role="radiogroup" aria-label=${t(lang, "who_title")}>
+        <span>${t(lang, "who_title")}</span>
+        <div class="seg">
+          <button role="radio" aria-checked=${this._who === "one"} class=${this._who === "one" ? "on" : ""} ?disabled=${!this._canEdit}
+            @click=${() => this._pickWho("one")}><ha-icon icon="mdi:numeric-1-circle-outline"></ha-icon>${t(lang, "who_one", { name: friendlyName(this.hass, this._eid) })}</button>
+          <button role="radio" aria-checked=${this._who === "all"} class=${this._who === "all" ? "on" : ""} ?disabled=${!this._canEdit}
+            @click=${() => this._pickWho("all")}><ha-icon icon="mdi:select-all"></ha-icon>${this._whoAll(count, devices)}</button>
+        </div></div>` : nothing}
       ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
       <div class="btns">
         <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRow()}>${t(lang, "save")}</button>
@@ -681,10 +845,10 @@ export class WpSchedule extends LitElement {
     const lang = this._lang;
     const program = this._programs[0];
     if (!program) return nothing;
-    return this._entities.filter((e) => program.entities.some((x) => x.entity_id === e)).map((eid) => {
+    return [this._eid].filter((e) => program.entities.some((x) => x.entity_id === e)).map((eid) => {
       const entity = program.entities.find((x) => x.entity_id === eid)!;
       const key = `rest:${eid}`;
-      const title = this._entities.length > 1 ? `${t(lang, "rest_of_time")} · ${friendlyName(this.hass, eid)}` : t(lang, "rest_of_time");
+      const title = t(lang, "rest_of_time");
       if (this._open === key) {
         return html`<div class="editor"><h4>${title}</h4>
           ${keyed(this._pickerKey, html`<wp-label-picker embedded allow-none .hass=${this.hass} .data=${this.data} .program=${this._draft ?? program} .entityIds=${[eid]}
@@ -700,16 +864,28 @@ export class WpSchedule extends LitElement {
       const label = labelOf(this.data, entity.default_label);
       return html`<button class="row rest" aria-expanded="false" @click=${() => this._expand(key, program, null, { restLabel: entity.default_label ?? null })}>
         ${label ? html`<span class="dot" style="background:${label.color}"></span>` : html`<ha-icon icon="mdi:update"></ha-icon>`}
-        <span class="txt">${title} · <b>${label ? labelName(this.hass, label) : t(lang, "rest_none_short")}</b></span><ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
+        <span class="txt">${title}${t(lang, "colon")}<b>${label ? labelName(this.hass, label) : t(lang, "rest_untouched")}</b></span><ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
     });
+  }
+
+  /** One chip per device of the program (icon and name from Home Assistant): the screen shows that device's schedules. */
+  private _renderDevices() {
+    if (this._entities.length < 2) return nothing;
+    return html`<div class="devices" role="radiogroup" aria-label=${t(this._lang, "device_label")}>
+      ${this._entities.map((eid) => {
+        const on = eid === this._eid;
+        return html`<button class="devchip ${on ? "on" : ""}" role="radio" aria-checked=${on} ?disabled=${this._open !== null}
+          @click=${() => { this._pick = eid; this._error = ""; this._note = ""; }}>
+          <ha-state-icon .hass=${this.hass} .stateObj=${this.hass.states[eid]}></ha-state-icon><span>${friendlyName(this.hass, eid)}</span></button>`;
+      })}
+    </div>`;
   }
 
   /** Keep the whole week visible, including the unsaved slot being edited. */
   private _renderWeek() {
     const lang = this._lang;
     return html`<section class="schematic" aria-label=${t(lang, "week")}>
-      ${this._entities.map((eid) => html`
-        ${this._entities.length > 1 ? html`<h4>${friendlyName(this.hass, eid)}</h4>` : nothing}
+      ${[this._eid].map((eid) => html`
         ${strings(lang).days_short.map((name, day) => {
           const spans: BarSpan[] = [];
           for (const original of [...this._programs].reverse()) {
@@ -726,7 +902,8 @@ export class WpSchedule extends LitElement {
             for (const d of [(day + 6) % 7, day]) {
               for (const slot of profile.days[d]) {
                 const label = labelOf(this.data, slot.label);
-                if (!label || !compatible(this.hass, eid, entityAction(program, eid, label)!, allowedOf(program, eid))) continue;
+                // only this device's slots with an action it can take (bar, dialog and chart agree)
+                if (!label || !appliedAction(this.hass, program, eid, label, slot)) continue;
                 const start = this._minutes(slot.start);
                 const end = slot.end ? this._minutes(slot.end) : null;
                 const overnight = end !== null && end < start && end < DAY / 2;
@@ -754,19 +931,17 @@ export class WpSchedule extends LitElement {
   private _renderChart() {
     const lang = this._lang;
     const owner = this._programs[0];
-    if (!this.chart || !owner || !this._chartEntity || this._modeOnly) return nothing;
+    if (!this.chart || !owner || !this._eid || this._modeOnly) return nothing;
     const date = this._date;
     const label = new Intl.DateTimeFormat(lang, { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" })
       .format(new Date(`${date}T12:00:00Z`));
     return html`<section class="chart">
-      ${this._entities.length > 1 ? html`<select aria-label=${t(lang, "chart")} @change=${(e: Event) => (this._chartEntity = (e.target as HTMLSelectElement).value)}>
-        ${this._entities.map((e) => html`<option value=${e} ?selected=${e === this._chartEntity}>${friendlyName(this.hass, e)}</option>`)}</select>` : nothing}
       <div class="nav">
         <button class="ibtn" ?disabled=${this._offset <= -BACK} aria-label=${t(lang, "previous_day")} @click=${() => this._go(-1)}><ha-icon icon="mdi:chevron-left"></ha-icon></button>
         <span>${this._offset === 0 ? t(lang, "today") : label}</span>
         <button class="ibtn" ?disabled=${this._offset >= AHEAD} aria-label=${t(lang, "next_day")} @click=${() => this._go(1)}><ha-icon icon="mdi:chevron-right"></ha-icon></button>
       </div>
-      <wp-chart .hass=${this.hass} .data=${this.data} .program=${owner} entity-id=${this._chartEntity} date=${date}
+      <wp-chart show-options .hass=${this.hass} .data=${this.data} .program=${owner} entity-id=${this._eid} date=${date}
         .slots=${this._slots} @open-history=${(e: CustomEvent<string>) => this._openHistory(e.detail)}></wp-chart>
     </section>`;
   }
@@ -778,6 +953,7 @@ export class WpSchedule extends LitElement {
       return html`<wp-dialog open heading=${this._title}><p class="muted">${t(lang, "no_program")}</p></wp-dialog>`;
     }
     const rows = this._rows();
+    const first = !rows.length && this._focus === null && !this._modeOnly;
     const missingMode = this.scope.kind === "program" && !this._modeProfile(this._programs[0]);
     return html`
       <wp-dialog open columns heading=${this._title}>
@@ -795,10 +971,11 @@ export class WpSchedule extends LitElement {
         </label>`}
         ${this.scope.kind === "program" ? html`<label class="mode-select">${t(lang, "profile")}
           <select .value=${this._modeProfile(this._programs[0])?.id ?? ""} ?disabled=${this.profileId !== null || this._open !== null}
-            @change=${(e: Event) => { this._viewProfileId = (e.target as HTMLSelectElement).value; this._slots = null; this._error = ""; }}>
+            @change=${(e: Event) => { this._viewProfileId = (e.target as HTMLSelectElement).value; this._resp = null; this._error = ""; }}>
             ${missingMode ? html`<option value="" selected>${t(lang, "mode_removed")}</option>` : nothing}
             ${this._programs[0].profiles.map((p) => html`<option value=${p.id} ?selected=${p.id === this._modeProfile(this._programs[0])?.id}>${p.name}</option>`)}
           </select></label>` : nothing}
+        ${this._renderDevices()}
         ${this._modeOnly ? html`<p class="muted note">${t(lang, "mode_schedule_hint")}</p>` : nothing}
         ${this._modeOnly ? nothing : html`<div class="rests">${this._renderRest()}</div>`}
         ${this._focus !== null && this._open === null ? html`<div class="focus">
@@ -809,8 +986,8 @@ export class WpSchedule extends LitElement {
         <div class="list">
           ${rows.length ? rows.map((r) => this._renderRow(r)) : (this._open === "new" ? nothing : html`<p class="muted">${t(lang, "w_none")}</p>`)}
           ${this._group && (this._open === "new" || (this._open !== null && !rows.some((r) => r.key === this._open))) ? this._renderEditor(this._programs.find((p) => p.id === this._programId) ?? this._programs[0], this._open!) : nothing}
-          ${this._open === null ? html`<button class="row add" ?disabled=${!this._canEdit || missingMode} @click=${() => this._add()}>
-            <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${this._focus === null ? t(lang, "w_add") : t(lang, "w_add_day", { day: strings(lang).days[this._focus].toLocaleLowerCase(lang) })}</span></button>` : nothing}
+          ${this._open === null ? html`<button class="row add ${first ? "first" : ""}" ?disabled=${!this._canEdit || missingMode} @click=${() => this._add()}>
+            <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${first ? t(lang, "create_setting") : this._focus === null ? t(lang, "w_add") : t(lang, "w_add_day", { day: strings(lang).days[this._focus].toLocaleLowerCase(lang) })}</span></button>` : nothing}
         </div>
         </div>
         <div class="area-week">${this._renderWeek()}</div>
@@ -840,6 +1017,25 @@ export class WpSchedule extends LitElement {
       /* Hidden while a slot editor is open (nothing rendered): no empty grid cell. */
       .area-chart:empty, .area-delete:empty { display: none; }
     }
+    .devices { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .devchip {
+      display: inline-flex; align-items: center; gap: 8px; min-height: 48px; max-width: 100%; padding: 0 16px; border-radius: 24px;
+      border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); font: inherit; font-size: 15px; cursor: pointer;
+      --mdc-icon-size: 20px;
+    }
+    .devchip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .devchip.on { border: 2px solid var(--primary-color); font-weight: 600; }
+    .devchip:disabled:not(.on) { opacity: 0.5; cursor: default; }
+    .who { margin-top: 8px; }
+    .who > span { display: block; font-size: 14px; font-weight: 600; color: var(--secondary-text-color); margin-bottom: 6px; }
+    .who .seg { display: flex; flex-wrap: wrap; gap: 8px; }
+    .who button {
+      flex: 1 1 200px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; padding: 4px 12px;
+      text-align: left;
+      border-radius: 24px; border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); font: inherit;
+      font-size: 15px; cursor: pointer; --mdc-icon-size: 20px;
+    }
+    .who button.on { border: 2px solid var(--primary-color); font-weight: 600; }
     .mode-select { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
     .mode-select select { flex: 1; min-width: 0; min-height: 44px; }
     .schematic { margin-bottom: 16px; }
@@ -861,6 +1057,7 @@ export class WpSchedule extends LitElement {
     .row.rest .txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15px; }
     .row .txt small { display: block; color: var(--secondary-text-color); font-size: 12px; }
     .row.add { border-style: dashed; color: var(--primary-color); font-weight: 500; }
+    .row.add.first:not(:disabled) { border-style: solid; background: var(--primary-color); color: var(--text-primary-color, #fff); }
     .row.rest { background: var(--secondary-background-color); }
     .row:disabled { opacity: 0.5; cursor: default; }
     .dot { width: 14px; height: 14px; border-radius: 7px; flex: none; }

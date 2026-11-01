@@ -173,7 +173,7 @@ Suite de l’écran :
 
 ## S09 — Utiliser le soleil
 
-Les choix Lever et Coucher remplacent l’heure fixe par un événement solaire. Les boutons − et + changent son décalage. Les champs facultatifs **Au plus tôt à** et **Au plus tard à** empêchent l’heure de sortir d’une plage ; une phrase dessous donne l’heure réelle (« coucher du soleil + 30 min, mais pas avant 18:00 ni après 19:00 ») et le résultat d’aujourd’hui.
+Les choix Lever du soleil et Coucher du soleil remplacent l’heure fixe par un événement solaire. Les boutons − et + changent son décalage. Les champs facultatifs **Au plus tôt à** et **Au plus tard à** empêchent l’heure de sortir d’une plage ; une phrase dessous donne l’heure réelle (« coucher du soleil + 30 min, mais pas avant 18:00 ni après 19:00 ») et le résultat d’aujourd’hui.
 
 <a href="images/guide/s09-solar-slot.png"><img src="images/guide/s09-solar-slot.png" width="320" alt="S09 — Utiliser le soleil" /></a>
 
@@ -197,7 +197,7 @@ Le formulaire intégré définit le nom, la couleur et l’action. L’enregistr
 
 ## S12 — Modifier un réglage partagé
 
-Le crayon ouvre le réglage sélectionné. La mention Partagé indique qu’une modification peut concerner d’autres programmes. La corbeille voisine supprime le réglage pour tous les appareils après confirmation ; elle est refusée, avec les noms des programmes concernés, tant que le réglage sert.
+Le crayon ouvre le réglage sélectionné. La mention « Aussi utilisé par : » nomme les autres programmes qu’une modification concernerait. La corbeille voisine supprime le réglage pour tous les appareils après confirmation ; elle est refusée, avec les noms des programmes concernés, tant que le réglage sert.
 
 <a href="images/guide/s12-edit-shared-label.png"><img src="images/guide/s12-edit-shared-label.png" width="320" alt="S12 — Modifier un réglage partagé" /></a>
 
@@ -269,7 +269,7 @@ Les aperçus Avant et Après montrent le résultat. Chaque jour en conflit peut 
 
 ## S21 — Annuler une modification de barre
 
-Après l’enregistrement au relâcher, le bandeau Modifié · Annuler permet de revenir brièvement en arrière.
+Après l’enregistrement au relâcher, le bandeau Enregistré · Annuler permet de revenir brièvement en arrière.
 
 <a href="images/guide/s21-bar-undo.png"><img src="images/guide/s21-bar-undo.png" width="320" alt="S21 — Annuler une modification de barre" /></a>
 
@@ -277,7 +277,7 @@ Après l’enregistrement au relâcher, le bandeau Modifié · Annuler permet de
 
 ## S24 — Affichage : liste filtrée
 
-Choix de la pièce, présentation de la journée et réglages du graphique pour « Plusieurs appareils ».
+Choix de la pièce, présentation de la journée et réglages du graphique pour « Plusieurs programmes ».
 
 <a href="images/guide/s24-card-filter-settings.png"><img src="images/guide/s24-card-filter-settings.png" width="320" alt="S24 — Affichage : liste filtrée" /></a>
 

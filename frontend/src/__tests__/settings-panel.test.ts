@@ -58,7 +58,7 @@ describe("bar panel", () => {
   };
   it("puts None, cut and Copy to above the settings", () => {
     const html = strip(true);
-    const none = html.indexOf("mdi:close-circle-outline"), cut = html.indexOf("mdi:content-cut");
+    const none = html.indexOf("mdi:close-circle-outline"), cut = html.indexOf("mdi:arrow-split-vertical");
     const copy = html.indexOf("mdi:content-copy"), picker = html.indexOf("<wp-label-picker");
     expect(none).toBeGreaterThan(-1);
     expect(none).toBeLessThan(cut);
@@ -137,6 +137,6 @@ describe("setting picker behaviour in the modal", () => {
   });
   it("marks a setting shared with another program", () => {
     const shared = { ...data, programs: [program, { id: "q", name: "Hall", profiles: [{ id: "x", name: "x", days: [[{ id: "s", label: "t21" }], [], [], [], [], [], []] }], entities: [{ entity_id: "climate.a", default_label: null }] }] } as unknown as PlannerData;
-    expect(flat(make({ data: shared }).render())).toContain("Shared");
+    expect(flat(make({ data: shared }).render())).toContain("Also used by: Hall"); // names the other programs, no technical word
   });
 });

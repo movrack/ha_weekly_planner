@@ -2,6 +2,16 @@
 
 Pure functions, no Home Assistant state: the sun provider is injected so the rules
 (midnight crossing, solar bounds, daylight saving time) can be tested in isolation.
+
+Frozen day API (issue #34, per-device schedules); later work relies on these signatures:
+
+- ``place_day(slots, day, tz, sun, *, identity=()) -> list[Occurrence]``: every slot placed on
+  the day, one entry per slot, sorted by start (stable sort), not trimmed.
+- ``trim(placed: list[Occurrence]) -> list[Occurrence]``: overlap trimming of a list already
+  sorted by start (the later slot loses). Filtering a placed list keeps it sorted, so the
+  timeline of one device is ``trim([o for o in placed if <its slot applies to the device>])``.
+- ``day_occurrences(slots, day, tz, sun, *, identity=())`` is exactly
+  ``trim(place_day(slots, day, tz, sun, identity=identity))``; its result is unchanged.
 """
 
 from __future__ import annotations
@@ -77,9 +87,8 @@ def resolve(
             limit, _ = local_datetime(day, *parse_clock(bound), tz)
             if too_far(moment, limit):
                 moment = limit
-    # keep 5-minute steps so bars and comparisons stay aligned
-    moment = moment.replace(second=0, microsecond=0)
-    return moment - timedelta(minutes=moment.minute % 5), True
+    # whole minute, never rounded to a step: the card shows HH:MM and fixed times have minute precision
+    return moment.replace(second=0, microsecond=0), True
 
 
 def _delay(moment: datetime, spec: dict, identity: tuple[str, ...], day: date, edge: str, *, boundary_day: date | None = None) -> datetime:
@@ -110,7 +119,9 @@ def occurrence(
     for that day.
     """
     slot_id = slot["id"]
-    identity = (*identity, slot_id)
+    # D7: the random draw follows the slot's seed (default: its id), so a copy-on-write split
+    # (new id, same seed) keeps the delay of the slot it came from.
+    identity = (*identity, slot.get("seed") or slot_id)
     start, start_existed = resolve(slot["start"], day, tz, sun)
     if start is None:
         return Occurrence(slot_id, _utc(_midnight(day, tz)), None, "sun_event_missing")
@@ -139,11 +150,19 @@ def occurrence(
     return Occurrence(slot_id, start_utc, end_utc)
 
 
-def day_occurrences(
+def place_day(
     slots: list[dict], day: date, tz: tzinfo, sun: SunProvider, *, identity: tuple[str, ...] = ()
 ) -> list[Occurrence]:
-    """All slots of a day, sorted, with overlaps trimmed (the later slot loses)."""
-    placed = sorted((occurrence(s, day, tz, sun, identity=identity) for s in slots), key=lambda o: o.start)
+    """Every slot of a day placed on the calendar, sorted by start, without overlap trimming."""
+    return sorted((occurrence(s, day, tz, sun, identity=identity) for s in slots), key=lambda o: o.start)
+
+
+def trim(placed: list[Occurrence]) -> list[Occurrence]:
+    """Trim overlaps in occurrences sorted by start: the later slot loses.
+
+    A running slot that starts before the furthest end so far starts at that end instead, or is
+    ignored ("overlap") when it is a one-shot or would keep less than 5 minutes.
+    """
     result: list[Occurrence] = []
     last_end: datetime | None = None
     for occ in placed:
@@ -156,6 +175,13 @@ def day_occurrences(
             last_end = max(last_end, occ.end) if last_end else occ.end
         result.append(occ)
     return result
+
+
+def day_occurrences(
+    slots: list[dict], day: date, tz: tzinfo, sun: SunProvider, *, identity: tuple[str, ...] = ()
+) -> list[Occurrence]:
+    """All slots of a day, sorted, with overlaps trimmed (the later slot loses)."""
+    return trim(place_day(slots, day, tz, sun, identity=identity))
 
 
 def _midnight(day: date, tz: tzinfo) -> datetime:

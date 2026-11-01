@@ -32,8 +32,9 @@ def test_fixed_random_range_and_zero():
     assert base.start == placed({"time": "08:17", "random_minutes": 0}).start
 
 
-def test_solar_delay_after_offset_rounding_and_latest_cap():
+def test_solar_delay_after_offset_and_latest_cap():
     base = placed({"sun": "sunset", "offset": 15})
+    assert base.start == datetime(2026, 6, 21, 20, 18, tzinfo=TZ)  # exact minute, not 20:15
     delayed = placed({"sun": "sunset", "offset": 15, "random_minutes": 15})
     assert base.start <= delayed.start <= base.start + timedelta(minutes=15)
     capped = placed({"sun": "sunset", "latest": "20:00", "random_minutes": 240})

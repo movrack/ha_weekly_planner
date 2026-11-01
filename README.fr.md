@@ -38,6 +38,21 @@ Le module servi est `/weekly_planner_static/weekly-planner-card.js?v=<empreinte>
 Pour un autre programme, utiliser **Réglages des programmes → Nouveau programme**,
 pas une nouvelle instance de l’intégration.
 
+## Sources complémentaires du graphique
+
+Dans la fenêtre des horaires, ouvrez **Options du graphique** sous le graphique d’un appareil pour ajouter une entité Home Assistant. Un état numérique
+donne une courbe ; les autres états apparaissent sur une bande nommée, avec des cases pour les états à mettre en évidence.
+Plusieurs états peuvent être cochés. Les observations inconnues ou indisponibles laissent des interruptions ; aucune donnée
+réelle n’est dessinée dans le futur. Les sources suivent le déplacement et le zoom du graphique.
+
+Les choix s’enregistrent automatiquement dans Home Assistant pour ce programme et cet appareil, et sont partagés par ses
+cartes et la fenêtre des horaires, indépendamment du jour ou du mode. Replier les options laisse les tracés visibles.
+Retirer une source enlève seulement son affichage. Ces options ne commandent jamais un appareil et sont verrouillées en lecture seule.
+
+Les courbes de même unité partagent une échelle. Trois unités différentes au plus : l’échelle principale à gauche et deux à
+droite, chacune dans la couleur de sa première courbe. Retirez une source d’une autre unité avant d’ajouter une quatrième unité.
+Seul l’état de l’entité complémentaire est lu ; ses attributs ne sont pas proposés comme sources numériques.
+
 ## Configuration de la carte
 
 L’éditeur distingue deux portées :
@@ -137,10 +152,15 @@ des appareils. Un programme peut en contenir plusieurs.
 |---|---|
 | Programme | Entités, priorité, conditions, réapplication et semaines types. |
 | Réglage | Nom, couleur et action partagés globalement. |
-| Horaire | Début, fin facultative, jours et référence de réglage. |
+| Horaire | Début, fin facultative, jours, référence de réglage et, au besoin, les appareils visés (`entities` ; absent = tous les appareils du programme, y compris ceux ajoutés plus tard). |
 | Défaut d’entité | `default_label`, appliqué hors des plages bornées selon les règles de priorité. |
 | Valeur propre | `label_overrides[label_id]`, action propre à cette entité dans ce programme. |
 | Mode (`profile` en interne) | Semaine type indépendante. Un mode actif par programme ; Vacances est un mode ordinaire. Appareils, défauts, conditions et priorité restent communs. |
+
+Deux horaires d’un programme ne peuvent se chevaucher que s’ils visent des
+appareils différents. Chaque appareil n’exécute que les horaires qui le visent ;
+enregistrer un programme ne renvoie une action qu’aux appareils dont le réglage
+en cours ou la cible a changé.
 
 Le moteur recalcule l’action voulue et agit aux transitions. Il ne force pas en
 continu l’état observé et ne détecte pas les réglages manuels pour les corriger.

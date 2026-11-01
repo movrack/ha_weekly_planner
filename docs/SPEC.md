@@ -59,7 +59,7 @@ Inclus : tout ce qui suit. **Hors v1 (v2)** : import des programmes `scheduler-c
 | D3 | Programmes créés/modifiés uniquement depuis la carte, stockés par l'intégration ; un `switch` par programme. |
 | D6 | Action par défaut facultative par entité (« le reste du temps »), envoyée à la fin d'un horaire avec fin. |
 | D7 | Pas de chevauchement dans un programme ; entre programmes, **priorité numérotée**, l'autre reprend la main ; conflits signalés. |
-| D8 | 7 jours indépendants + copie (raccourcis Lun→Ven, Sam+Dim) ; pas de 5 min ; plages passant minuit ; heures solaires (lever, coucher ± décalage ; aube et crépuscule acceptés par le serveur, non proposés) avec bornes « au plus tôt / au plus tard ». |
+| D8 | 7 jours indépendants + copie (raccourcis Lun→Ven, Sam+Dim) ; toute minute ; plages passant minuit ; heures solaires (lever, coucher ± décalage ; aube et crépuscule acceptés par le serveur, non proposés) avec bornes « au plus tôt / au plus tard ». |
 | D9 | Conditions simples par programme **et par plage** ; interrupteur global « Vacances / Absence ». Condition devenue fausse = fin de plage. |
 | D10 | Réglage par programme « réappliquer en cours de plage » (oui par défaut) : redémarrage, activation, modification. |
 | D11 | Dépôt séparé ; dev et tests sur une instance HA locale (Docker) ; prod seulement pour des versions finies, copiées par script tant que le dépôt est privé. |
@@ -157,7 +157,8 @@ service `override` ni `resume`. Seul l'**affichage** du graphique montre les cha
 - Heure solaire : `aube | lever | coucher | crépuscule` (`dawn | sunrise | sunset | dusk`) ± décalage (−240 à +240 min),
   bornes `au plus tôt` / `au plus tard` facultatives (`earliest` > `latest` refusé : `earliest_after_latest`, § 20) ;
   calcul pour la date locale avec le **fuseau de HA** ; recalcul chaque jour à minuit. Ordre : événement, décalage,
-  bornes, puis **arrondi au pas de 5 min inférieur**, puis délai aléatoire (§ 19). Le formulaire ne propose que
+  bornes, puis **minute exacte** (secondes tronquées : 16:17:12 → 16:17, jamais d'arrondi à un pas), puis délai
+  aléatoire (§ 19). Le formulaire ne propose que
   Lever / Coucher (§ 20).
 - Délai aléatoire facultatif par frontière : `random_minutes` 0 à 240 (§ 19).
 - Si, un jour donné, un horaire ne peut pas être placé, il est **ignoré ce jour-là** avec une raison :
@@ -252,7 +253,8 @@ racine
                      conditions[] : entity_id, attribute?, op (eq|ne|lt|gt), value
                      mode_source? : entity_id, mappings{ état_brut: id_du_mode }
                      active_profile, profiles[] (1–20) : id, name (1–40 car., unique),
-                       days[0..6] : slots[] (≤ 50 par jour) : id, start, end?, conditions[] (≤ 10), color?, label (id de réglage)
+                       days[0..6] : slots[] (≤ 50 par jour) : id, start, end?, conditions[] (≤ 10), color?, label (id de réglage),
+                                         entities? (appareils visés, § 8.2), seed? (graine du délai, § 8.2)
 runtime (`weekly_planner.runtime`) : par entité → segment courant, action en attente, reprises ; par programme → profil actif,
                      skip_at ; `conditions` → dernières valeurs connues des conditions (persistées pour le démarrage, § 5.5)
 journal (`weekly_planner.journal`) : 14 jours glissants, deux sortes d'entrées : segment décidé
@@ -272,6 +274,43 @@ journal (`weekly_planner.journal`) : 14 jours glissants, deux sortes d'entrées 
   valeurs propres, cibles explicites, sources de valeurs, scènes et sources de mode, § 17) ; entité supprimée → alerte
   Réparations `missing_entities`, vérifiée au démarrage et à chaque suppression dans le registre (pas à
   l'enregistrement d'un programme, § 21).
+
+### 8.2 Horaires par appareil (`slot.entities`, `slot.seed`) — contrat (#34)
+
+Décisions D1-D7 du 2026-11-01 (`docs/DECISIONS.md`). Pas de migration ni de changement de version de stockage
+avant la 1.0 : les deux champs sont facultatifs, les données existantes restent valides telles quelles.
+
+- `entities?: string[]` : appareils (`entity_id` du programme) visés par l'horaire. **Absent = tous les appareils du
+  programme**, y compris ceux ajoutés plus tard. Liste vide interdite. Un horaire s'applique à l'appareil E si et
+  seulement si le champ est absent ou contient E (`applies(slot, E)` : `slots.py`, `slots.ts`).
+- `seed?: string` : graine du délai aléatoire (§ 19), défaut = `id` de l'horaire. Copie à l'écriture : la partie
+  gardée garde son `id`, la copie modifiée reçoit un nouvel `id` et le même `seed` (D7).
+- **Normalisation (D5)** « ce qu'on voit = ce qui est stocké » : tous les appareils cochés = champ absent, partout
+  (enregistrement, retrait d'un appareil, renommage). Retirer un appareil d'un programme le retire de toutes les
+  listes dans tous les modes ; un horaire dont la liste devient vide est supprimé. Un programme à un seul appareil
+  n'a jamais de liste.
+- **Validation serveur** (codes d'erreur) : `empty_slot_entities:<slot>`, `duplicate_slot_entity:<slot>:<eid>`,
+  `unknown_slot_entity:<slot>:<eid>`. Chevauchement vérifié **par paires** : refus si deux horaires se chevauchent dans
+  le temps ET que leurs appareils visés ont une intersection non vide ; code `overlapping_slots:<eid>` (un appareil de
+  l'intersection ; la carte reconnaît toujours le préfixe `overlapping_slots`). Sans aucune liste, le chemin actuel
+  est inchangé. `slot_label_incompatible` est un avertissement (`checks.py`), jamais un refus d'enregistrement (D6).
+- **Renommage** (`rename_entity`, `registry.py`) : réécrit `slot.entities` dans tous les modes et retire les doublons.
+- **Moteur** : `applies` est testé AVANT `resolve` dans `running_slot` (l'arbitrage de priorité ne compare que les
+  horaires qui s'appliquent à l'appareil) ; les ponctuels (`_fire_one_shots`, y compris le rattrapage
+  `last_tick < start <= now`) parcourent les occurrences rognées PAR APPAREIL ; `_next_action_in` et `used` de
+  `checks.py` sont calculés par appareil ; `next_transition` = union des sous-ensembles (`subsets`), aussi pour
+  `_program_status` et `skip_next` (la carte dit quel appareil et quelle action sont sautés). Le réglage par défaut
+  appartient toujours au programme de plus haute priorité qui contient l'appareil : les listes ne changent que les horaires qui s'exécutent, jamais le réglage par défaut (décision confirmée). Renvoi à
+  l'enregistrement limité aux appareils dont le segment ou la cible a changé (D2).
+- **Chronologie** (`timeline.py`, API figée) : `place_day(slots, day, tz, sun, *, identity=())` place chaque horaire
+  (trié par début, sans rognage) ; `trim(placed)` rogne les chevauchements (le plus tardif perd) ;
+  `day_occurrences = trim(place_day(...))`, résultat inchangé pour tous les appelants. Chronologie d'un appareil :
+  `trim([o for o in placed if applies(horaire de o, appareil)])`. Cache : occurrences brutes par (mode, programme, jour) ;
+  rognage mémorisé par (mode, programme, jour, appareils visés).
+- **Aperçu** (`weekly_planner/preview`) : dès qu'un horaire du programme a une liste, la réponse contient un
+  `by_entity: {eid: [{slot_id, start, end, ignored, sun}]}` COMPLET (débordement de la veille après minuit compris),
+  les horaires portent `entities`, et le niveau principal n'est pas rogné globalement. L'état du programme (`status[pid]`) porte `skip_next_targets: [{entity_id, action, label}]` (appareils et actions sautés par `skip_next`). Un programme sans liste garde
+  la forme actuelle (`slots` seul).
 
 ### 8.1 Migration 1 → 2 (automatique, testée)
 Conversion des anciennes consignes en actions, puis **regroupement en réglages : des actions identiques donnent UNE
@@ -419,8 +458,19 @@ SVG maison, un jour (précédent / suivant).
 - **Actions prévues** : repères aux heures prévues, avec la valeur quand l'action en contient une
   (`temperature`, `position`, `brightness_pct`).
 - **Maintenant** : trait vertical sur le jour courant.
-- **Toucher** : ouvre l'historique HA de l'entité pour ce jour (`/history?entity_id=…&start_date=…&end_date=…`, navigation HA :
-  `history.pushState` + événement `location-changed`).
+- **Navigation et zoom de l'axe du temps** (état propre à la vue, non mémorisé, remis à zéro au changement de jour ou d'appareil ;
+  maths pures dans `chart-zoom.ts`) : fenêtre `[de, à]` en minutes réelles, minimum 30 min, largeur maximale égale à la durée réelle
+  du jour initial (23, 24 ou 25 h). Elle peut défiler continûment vers les jours précédents et suivants, à largeur conservée.
+  Téléphone : un doigt fait glisser horizontalement, deux doigts pincent pour zoomer ; `touch-action: pan-y` garde le défilement
+  vertical de la page. Souris : glisser = parcourir, Maj + glisser = sélectionner une plage à zoomer ; Ctrl + molette zoome autour
+  du pointeur ; double clic = retour au jour sélectionné. Pavé tactile : défilement horizontal. Clavier : `+`, `-`, flèches, `0`.
+  Dates et boutons période précédente/suivante toujours visibles ; « Revenir au jour sélectionné » (44 px) quand la fenêtre diffère.
+  Chaque jour visible charge ses propres prévisions par appareil et son historique plafonné à maintenant ; modèles de jours locaux
+  décalés par leurs bornes UTC réelles, caches bornés, réponses obsolètes ignorées. Graduations adaptées, date aux passages de minuit.
+  Les données hors fenêtre sont coupées (clip), jamais déformées ; « maintenant » apparaît seulement s'il est dans la fenêtre.
+- **Toucher** : ouvre l'historique HA de l'entité pour la période affichée (`/history?entity_id=…&start_date=…&end_date=…`, navigation HA :
+  `history.pushState` + événement `location-changed`). Après un geste, aucun historique ouvert ; avec une fenêtre déplacée ou zoomée,
+  le clic attend 300 ms pour permettre le double clic.
 - **Changements manuels (affichage seulement)** : en **rouge** (`var(--error-color)`). Source : le journal de bord HA
   (`logbook/get_events` sur l'entité et le jour). Un changement d'état est **manuel** quand l'entrée porte un
   `context_user_id` (action d'une personne dans l'interface), ou n'a aucun contexte et ne correspond à aucune
@@ -460,11 +510,18 @@ Barre « Auj. » et sept barres de la semaine, doigt et souris (événements poi
 - **Enregistrer** au relâcher, **pour ce jour seulement** (jour de la semaine de la date dans le profil actif) ; changement refait sur les
   données COURANTES, un conflit de révision est retenté une fois, jamais de « rechargez ». Bandeau « Modifié · Annuler » ~6 s ;
   « Annuler » remet les horaires précédents de ces jours. Deux horaires voisins de même réglage (fin == début) sont fusionnés.
-- **Sélection** (toucher un horaire ou un trou) : bande sous la barre : « Rien », ciseaux
-  (`mdi:content-cut`, coupe au milieu, pas de 15 min : la partie gauche garde le réglage, la partie droite devient « Rien ») et « Copier vers… » (`mdi:content-copy`), puis les réglages compatibles (choix seulement, sans crayon). Copie : pastilles Lun…Dim sans le jour courant ;
+- **Sélection** (toucher un horaire ou un trou) : bande sous la barre : « Rien », « Couper en deux »
+  (`mdi:arrow-split-vertical`, libellé visible, groupe « dans le temps » ; coupe au milieu, pas de 15 min : la partie gauche garde le réglage, la partie droite devient « Rien ») et « Copier vers… » (`mdi:content-copy`, groupe « sur d'autres jours »), chacun avec `title` / `aria-label` explicites, puis les réglages compatibles (choix seulement, sans crayon). Copie : pastilles Lun…Dim sans le jour courant ;
   sans chevauchement la copie est directe ; sinon petite fenêtre listant les jours en conflit, chacun « Remplacer » (défaut) ou
   « Ne pas copier ce jour ». « Remplacer » rogne ou coupe les horaires existants autour de la plage (mer. 8 h 45–17 h 18 °C + copie de
   12–14 h 19 °C = 8 h 45–12 h 18 °C, 12–14 h 19 °C, 14–17 h 18 °C).
+- **Déplacer une plage entière** (mode édition) : glisser le corps d'une plage (ou appui long de 450 ms sans bouger, y compris sur la zone des poignées,
+  puis glisser ; ou appui long qui ouvre l'édition puis glisser sans lever le doigt). Même durée, pas de 15 min, bornée au jour et aux plages voisines
+  (touche, ne traverse pas), enregistrée au relâcher avec « Annuler ». Sur une autre barre de jour du **même programme et du même appareil** (vue Semaine :
+  la bande de sélection est masquée pendant le glisser pour que les autres jours restent visibles ; la barre visée est cernée en pointillé, la bulle
+  indique « Jour hh:mm ») : la plage quitte son jour seulement et arrive à la même heure ; chevauchement sur le jour visé = refus avec message, jamais de
+  remplacement silencieux. Heure solaire : décalage (`shiftTimeSpec`, devient fixe au-delà de ±240 min) ; refus avec message pour un ponctuel (poignée
+  ronde), une plage qui passe minuit, une heure solaire avec limites (`earliest`/`latest`). Hors périmètre : déplacement d'un appareil à l'autre. `moveSlotBy`, `moveToDay`, `moveRefusal`.
 - **Logique pure** (`edits.ts`, tests vitest) : `moveBoundary`, `splitAt`, `setLabel`, `removeSlot`, `copyConflicts` / `copyToDays`, `mergeAdjacent`.
 - **Icônes solaires** : `mdi:weather-sunset-up` / `-down` à la position de toute frontière ou repère dépendant du soleil.
 - **Trait « maintenant »** : icône `mdi:clock-outline` (12–14 px) centrée au-dessus, hors de la barre, `aria-label` « Maintenant » ; aussi sur le graphique.
@@ -770,7 +827,7 @@ comme n'importe quelle autre ; les **pilotes concurrents** sont signalés (§ 9)
 
 Each start or end TimeSpec may include optional `random_minutes`, an integer from 0 to 240. Absent/zero preserves the existing time exactly. The form offers a per-boundary checkbox and defaults to 15 minutes when enabled; the user can set 1–240 minutes or disable it explicitly. This is a delay after the configured time, never an advance.
 
-Resolve the configured local fixed time or solar event/offset/bounds first, using the existing DST and solar-rounding rules. Add an integer elapsed-minute delay in UTC. A solar `latest` remains a true cap after the delay. Overnight selection is based on the original boundaries, before jitter; the occurrence retains its original local date even if its delayed action falls on the next day.
+Resolve the configured local fixed time or solar event/offset/bounds first, using the existing DST rules; a solar time keeps its exact minute (seconds truncated, no step rounding). Add an integer elapsed-minute delay in UTC. A solar `latest` remains a true cap after the delay. Overnight selection is based on the original boundaries, before jitter; the occurrence retains its original local date even if its delayed action falls on the next day.
 
 The daily draw is derived from stable program, profile, slot, original local occurrence date and boundary identity. Recalculation, preview, restart and all entities of the same slot share the same draw. Different days have independent deterministic draws, which may coincidentally be equal. No additional polling, timer per slot, persistent random state or device-specific rule is introduced.
 
@@ -842,7 +899,7 @@ Les cases encore ouvertes du § 17 restent ouvertes et ne sont pas répétées i
 - [ ] Test réel ≥ 3 jours sur le banc d'essai (§ 13, point 2).
       *en cours — le propriétaire indique que les tests réels sont OK à ce jour (2026-10-31) ; durée ≥ 3 jours et version testée non consignées*
 - [ ] Stratégie de tags / releases : dernier tag et dernière release GitHub `v0.7.10` ; `main` est derrière `develop` ; pas de `1.0.0`.
-- [ ] Tests de mutation : des survivants subsistent dans `validation.py` (informatif, non traités).
+- [x] Tests de mutation : `validation.py` traité (`tests/test_validation.py`) ; 123 survivants sur 479 ramenés à 13, tous équivalents (date de référence arbitraire des contrôles de chevauchement, fuseau UTC et résolveur solaire inutilisés pour des heures fixes, `split(".", n)` sur un identifiant à un seul point).
 - [ ] Refonte des modules / de l'architecture (`engine.py` ~36 ko, `weekly-planner-card.ts` ~29 ko) : hors du périmètre
       des corrections actuelles (§ 17), à planifier séparément.
 
@@ -938,7 +995,7 @@ Demande du propriétaire (2026-10-31) : « graphique sous le schéma en mode mod
 - [x] D : interrupteur partiel net (plus d’opacité), texte « en partie » à côté de « 2 sur 3 », nom accessible « … : en partie (2 sur 3) » ; en-tête « 3 sur 5 » ; le chevron et la sous-liste n’existent qu’à partir de 2 programmes (un seul : ligne directe avec son interrupteur).
 - [x] E : bouton « Graphique du jour » (`mdi:chart-line`), texte 16 px, 16 px d’écart avec « Semaine », cibles ≥ 48 px ; étiquette d’accessibilité du graphique = nom affiché (nom du programme pour un programme à un appareil), pas le nom brut de l’entité.
 - [x] F : légende « Programme », « Valeur mesurée », « Demandé à l’appareil », « Actif » (14 px) ; unité de l’axe lue sur `unit_of_measurement` (repli : unité de température de HA pour un thermostat, % pour position/luminosité) et écrite en haut de l’axe ; les valeurs de repères trop proches ne se recouvrent plus (« 15 15 »).
-- [x] G : « Plusieurs appareils », « Un seul programme », « Pièce (facultatif) » (aide : Réglages des programmes > Général), « Présentation de la journée », aide courte « Choisissez ce que cette carte montre. Les autres cartes ne changent pas. ». Clés de configuration inchangées (`filter.area`, `schedule_view`).
+- [x] G : « Plusieurs programmes » (ex-« Plusieurs appareils »), « Un seul programme », « Pièce (facultatif) » (aide : Réglages des programmes > Général), « Présentation de la journée », aide courte « Choisissez ce que cette carte montre. Les autres cartes ne changent pas. ». Clés de configuration inchangées (`filter.area`, `schedule_view`).
 - [x] H : un réglage dont le nom est un identifiant de service brut (« vacuum.start ») s’affiche avec le nom de service traduit par Home Assistant, sinon la partie service lisible (« Démarrer l’aspirateur ») ; le nom enregistré n’est pas modifié. « Allumer (2) » est un nom enregistré (doublon créé par une ancienne migration), pas un compteur : la carte ne l’invente pas et ne le modifie pas.
 - [x] Vérifié en navigateur (instance locale) à 360 px et 1440 px, thème sombre : carte, éditeur, légende du graphique.
 - [ ] Vérifier le thème clair et un programme multi-appareils (non testé).
@@ -963,3 +1020,83 @@ Demande du propriétaire (2026-10-31) : « Corrige les bugs connus » (`docs/CON
 - [x] Vérifié en navigateur (instance locale, 360 px, clair et sombre) : lumière, prise, aspirateur, volet, climat.
 - [ ] Vérifier sur l'instance réelle (« Volets – Salle de bain », « Bureau »).
 
+## 30. Horaires indépendants par appareil (#34)
+
+Demande de changement : https://github.com/movrack/ha_weekly_planner/issues/34. Contrat : § 8.2 ; décisions D1-D7
+(`docs/DECISIONS.md`, 2026-11-01). Ordre : lot 0, puis 1, 2 et 4 en parallèle, puis 3, puis 5, puis 6.
+
+- [x] Lot 0 — demande de changement #34 ; décisions ; contrat § 8.2 ; `slots.py` (`applies`, `applicable_ids`,
+  `subsets`) et `slots.ts` (`applies`) avec tests ; types `Slot.entities?`, `Slot.seed?`, `PreviewResponse.by_entity` ;
+  `timeline.py` découpé en `place_day` / `trim` (refactorisation pure, tous les tests au vert) ; `AGENTS.md`.
+- [x] Lot 1 — validation et registre (`validation.py`, `registry.py`) : champ du schéma, contrôles sémantiques (codes
+  § 8.2), chevauchement par paires, renommage, `seed` dans le schéma, `remove_device_from_slots` par mode.
+- [x] Lot 2 — moteur (`timeline.py`, `resolver.py`, `engine.py`, `checks.py`, `tests/perf_data.py`) : résolution par
+  appareil, ponctuels par appareil (rattrapage compris), cache, avertissements, renvoi restreint (D2), `seed` dans
+  `_delay` ; tests à heure figée (07:00 climat 15 °C et volet fermé une fois ; 22:00 défaut pour le climat seul ;
+  prochaine action par appareil ; ponctuel du volet dans un horaire du thermostat ; priorité + liste ; débordement de
+  la veille ; heure d'été avec horaires solaires) ; test de propriété D2 ; budget de performance avec 1 programme x
+  100 appareils aux listes toutes différentes (rappel < 50 ms).
+- [x] Lot 3 — websocket : enregistrement (retrait d'un appareil de toutes les listes puis normalisation D5, avant `check_program`), aperçu `by_entity`, l'instantané porte `entities` / `seed` ; tests.
+- [x] Lot 4 — modules purs de la carte (`edits.ts`, `actions.ts`, `labels.ts`, `slots.ts`, `preview-cache.ts`) :
+  fusion, segments, bornes, déplacements, copies, chevauchements, `slotKey` sensibles aux appareils ; `editForDevice`
+  (copie à l'écriture + refusion), `applyToAll`, `alsoFor` (normalisation D5), `removeDeviceFromSlots` ;
+  `appliedAction(hass, program, eid, label, slot)` ; reprise sur conflit par INTENTION réévaluée sur données fraîches.
+- [x] Lot 5 — interface de la carte : barres, fenêtre d'horaires, graphique, repli sans aperçu, barre éditable
+  (annulation limitée aux horaires de l'appareil), dialogue à deux boutons (D1), « Aussi pour : … », « Créer un
+  réglage » par appareil (D4), confirmations de l'éditeur de programme, texte de `skip_next` nommant l'appareil,
+  messages des nouveaux codes (fr/en), mode simple (D3), mise en page 360 px ; tests de modification concurrente
+  dans deux onglets.
+- [x] Lot 6 — intégration : documentation (SPEC, DECISIONS, MODES, GUIDE.fr, README en/fr, CHANGELOG),
+  version 0.23.0, bundle, contrôles navigateur sur l'instance locale (360 px tactile et 1440 px souris, thème HA clair
+  et sombre réellement basculé). Relecture « mamy » intégrée : « Aussi pour » ne propose que les appareils sur
+  lesquels le réglage agit (`appliedAction`), ligne masquée sinon ; une seule question pour un horaire partagé avec les
+  vrais noms (« Seulement <appareil> » / « Tous les appareils (N) » ou « <appareil> et <autres> », « Ne rien
+  changer » sur la barre) ; « Aussi utilisé par : … » au lieu de « Partagé » ; « Enregistré · Annuler » ; « Le reste
+  du temps : on ne touche à rien » ; « Lever du soleil » / « Coucher du soleil » ; « 24 h » en bout d'axe.
+  Correctifs trouvés en navigateur : copies d'un même horaire séparées par appareil affichées en 7 lignes (graine
+  différente par jour, regroupement sans graine hors délai aléatoire) ; sélection de la barre restée sur l'horaire
+  des autres appareils après « Seulement <appareil> » ; copies redevenues identiques non refusionnées lors d'une
+  modification directe ; décompte « commande plus choisie » qui comptait des horaires jamais applicables ; bouton
+  « Créer un réglage » absent pour un appareil dont les seuls horaires ne lui font rien. Restent hors de ce lot :
+  republication du wiki et déploiement (coordinateur, sur ordre du propriétaire).
+- [x] Recette : cas du propriétaire enregistré sans erreur dans le navigateur (thermostat 15 °C 07:00-22:00 et volet
+  « Fermer » 07:00, qui se chevauchent) ; à l'enregistrement, le thermostat reçoit 15 °C et le second volet n'est
+  pas touché ; les actions à l'heure par appareil sont couvertes par les tests à heure figée (lot 2) ; la ligne du
+  volet n'affiche jamais 15 °C (barre, fenêtre, choix de réglage, graphique) et celle du climat jamais « Fermer »
+  (`applies` + `appliedAction`) ; programmes sans liste inchangés (tests et cartes existantes) ; budgets de
+  performance tenus (`pytest`).
+- [ ] À vérifier sur l'instance réelle après déploiement : le cas du propriétaire à 07:00 et 22:00 (heure réelle).
+
+## 31. Édition directe des vues circulaires (#35)
+
+- [x] Réutiliser les opérations et sauvegardes de la barre pour les deux affichages circulaires.
+- [x] Poignées tactiles de 44 px, pas de 15 min, sélection et actions du créneau ou intervalle vide.
+- [x] Conserver la portée par appareil, Annuler et le mode lecture seule.
+- [x] Résoudre les positions des deux cercles et les passages par midi/minuit sans saut.
+- [x] Vérification DOM réel et visuelle à 336 px de contenu, thèmes clair et sombre (sélection et déplacement des limites dans les deux vues).
+- [ ] Vérification sur téléphone tactile réel et viewport exact 360 × 780 px.
+
+## 32. Navigation continue du graphique (#36)
+
+- [x] Déplacement horizontal continu au doigt, souris, pavé tactile et clavier, y compris entre jours, zoom conservé.
+- [x] Pincement/Ctrl + molette pour zoomer ; Maj + glisser pour sélectionner ; défilement vertical de page conservé.
+- [x] Dates visibles, périodes précédente/suivante et retour au jour sélectionné.
+- [x] Charger seulement les jours visibles, leurs prévisions serveur propres et leur historique jusqu’à maintenant.
+- [x] Décaler les modèles selon les minutes réelles (changements d’heure), invalider sur appareil/mode/révision, ignorer les réponses obsolètes et borner les caches.
+- [x] Vérification DOM réel avec données simulées, thèmes clair et sombre, contenu 336 px (10 contrôles par thème).
+- [ ] Vérification intégrée Home Assistant complète et téléphone tactile réel (viewport exact 360 × 780 px).
+
+## 33. Sources complémentaires du graphique (#37)
+
+Plan détaillé : [PLAN_CHART_SOURCES.md](PLAN_CHART_SOURCES.md).
+
+- [x] Stockage facultatif `entities[i].chart_sources`, types, validation, persistance partagée sans migration et suivi des renommages.
+- [x] Sauvegarde automatique sur donnée fraîche, un nouvel essai sur conflit ; diffusion sans recalcul ni commande pour les métadonnées seules.
+- [x] Panneau commun carte/fenêtre replié par défaut ; sélecteur HA générique, retrait et choix multiple des états connus/traduits/disparus.
+- [x] Trois unités numériques, échelles indépendantes gauche + deux droites, couleurs stables, même unité partagée et refus clair de la quatrième.
+- [x] Historiques externes par lot et cache borné par connexion ; dates visibles, absence/futur/échec isolés, ruptures aux jours sans données.
+- [x] Bandes d’états alignées sous le graphique, états sélectionnés colorés, autres états neutres et données manquantes distinctes.
+- [x] Vérifications automatisées complètes : 654 tests frontend, TypeScript/build et 361 tests Python ; guide et README anglais/français actualisés.
+- [x] Copie du guide pour le wiki préparée avec liens vérifiés ; publication en attente.
+- [x] Navigateur avec données simulées : 10 contrôles DOM, cadres 360 × 780 et 1400 px, clair/sombre ; repli du panneau et modification des états vérifiés.
+- [ ] Navigateur Home Assistant réel en 360 × 780 px et bureau, clair/sombre ; téléphone tactile physique (suivi détaillé dans le plan).
