@@ -262,6 +262,8 @@ const en = {
   today: "Today",
   no_data: "No data for this day.",
   chart_loading: "Loading…",
+  chart_zoom_reset: "Reset zoom",
+  chart_zoom_window: "{from} – {to}",
 
   // --- simple mode ---
   cf_title: "Please confirm",
@@ -580,6 +582,8 @@ const fr: typeof en = {
   today: "Aujourd'hui",
   no_data: "Pas de données pour ce jour.",
   chart_loading: "Chargement…",
+  chart_zoom_reset: "Réinitialiser le zoom",
+  chart_zoom_window: "{from} – {to}",
 
   // --- simple mode ---
   cf_title: "Veuillez confirmer",

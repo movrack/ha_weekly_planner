@@ -288,6 +288,18 @@ est sous les horaires. Ses flèches changent le jour. Il compare ce
 qui était prévu avec les données disponibles de l’appareil. Toucher le graphique
 ouvre l’historique de Home Assistant : [S15 et S16](SCREENS.fr.md#s15).
 
+Pour voir une partie de la journée en détail, **zoomez** sur le graphique :
+
+- **Téléphone** : pincez avec deux doigts (écartez pour zoomer, rapprochez pour dézoomer). Une fois zoomé,
+  glissez un doigt à l’horizontale pour déplacer la fenêtre ; faire défiler la page à la verticale marche toujours.
+- **Ordinateur** : maintenez le bouton de la souris et glissez sur le graphique pour entourer la plage voulue ;
+  Ctrl + molette zoome autour du pointeur ; le double clic remet tout.
+- **Clavier** : `+` et `-` zoomment, les flèches déplacent, `0` remet tout.
+
+Quand le graphique est zoomé, la fenêtre affichée (par exemple « 06:00 – 11:00 ») et le bouton
+**Réinitialiser le zoom** apparaissent sous lui. La fenêtre la plus étroite est de 30 minutes. Le zoom est
+oublié quand on change de jour.
+
 [Graphique sans données S45](SCREENS.fr.md#s45).
 
 Le texte sous le graphique distingue **Aucun historique enregistré** et
