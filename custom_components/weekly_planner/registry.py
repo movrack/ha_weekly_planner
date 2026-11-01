@@ -26,6 +26,17 @@ def rename_entity(config: dict[str, Any], old: str, new: str) -> bool:
             changed |= swap(source)
         return changed
 
+    def swap_slot_entities(slot: dict) -> bool:
+        """Rewrite ``slot.entities`` (any mode); a rename onto an id already listed leaves one copy."""
+        targets = slot.get("entities")
+        if not targets:
+            return False
+        new_targets = list(dict.fromkeys(new if eid == old else eid for eid in targets))
+        if new_targets == targets:
+            return False
+        slot["entities"] = new_targets
+        return True
+
     labels_changed = False
     for label in config.get("labels", []):
         labels_changed |= swap_action(label["action"])
@@ -44,6 +55,7 @@ def rename_entity(config: dict[str, Any], old: str, new: str) -> bool:
                 for slot in day:
                     for condition in slot.get("conditions", []):
                         program_changed |= swap(condition)
+                    program_changed |= swap_slot_entities(slot)
         if program_changed:
             program["revision"] = program.get("revision", 0) + 1
         changed |= program_changed
