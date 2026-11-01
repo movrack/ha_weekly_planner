@@ -111,15 +111,6 @@ class PlannerStore:
         self.runtime = await self._runtime.async_load() or self.runtime
         self.journal = (await self._journal.async_load() or {}).get("segments", [])
 
-    async def async_backup(self) -> None:
-        """Copy the configuration file aside (before a migration or a risky change)."""
-        src = self._config_path
-        if await self.hass.async_add_executor_job(src.exists):
-            stamp = dt_util.utcnow().strftime("%Y%m%d%H%M%S")
-            await self.hass.async_add_executor_job(
-                shutil.copy2, src, src.with_name(f"{DOMAIN}.backup-{stamp}")
-            )
-
     def save_config(self) -> None:
         if self.read_only:
             raise ConfigStoreError("configuration is read-only")

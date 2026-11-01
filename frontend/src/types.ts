@@ -4,7 +4,7 @@ export interface HomeAssistant {
   states: Record<string, HassEntity>;
   language: string;
   locale?: { language: string };
-  config: { time_zone: string };
+  config: { time_zone: string; unit_system?: { temperature?: string } };
   user?: { is_admin: boolean; name: string };
   themes?: { darkMode?: boolean };
   services?: Record<string, Record<string, unknown>>;
@@ -27,12 +27,18 @@ export interface HassEntity {
 }
 
 export type TimeSpec =
-  | { time: string }
-  | { sun: "dawn" | "sunrise" | "sunset" | "dusk"; offset?: number; earliest?: string; latest?: string };
+  | { time: string; random_minutes?: number }
+  | { sun: "dawn" | "sunrise" | "sunset" | "dusk"; offset?: number; earliest?: string; latest?: string; random_minutes?: number };
 
 /** What a label does: a service called on the entity, or a scene. */
+export interface ActionValueSource {
+  entity_id: string;
+  attribute?: string;
+  type: "number" | "boolean" | "string" | "native";
+}
+
 export type Action =
-  | { kind: "service"; service: string; data?: Record<string, unknown> }
+  | { kind: "service"; service: string; target_entity_id?: string; data?: Record<string, unknown>; data_sources?: Record<string, ActionValueSource> }
   | { kind: "scene"; scene: string };
 
 /** Shared by every program (spec § 6): slots and defaults only point at labels. */
@@ -72,8 +78,10 @@ export interface ProgramEntity {
   default_label: string | null;
   /** Value of a label for this device only. */
   label_overrides: Record<string, Action>;
-  /** Services offered for this device (`domain.service`); empty or missing = all. */
+  /** Services offered for this device (`domain.service`); restrict_services makes an empty list mean none. */
   allowed_services?: string[];
+  /** Explicit restriction, including an empty selection. Missing keeps legacy empty = all. */
+  restrict_services?: boolean;
 }
 
 export interface Program {
@@ -89,12 +97,15 @@ export interface Program {
   conditions: Condition[];
   entities: ProgramEntity[];
   active_profile?: string | null;
+  mode_source?: { entity_id: string; mappings: Record<string, string> };
   profiles: Profile[];
 }
 
 export interface ProgramStatus {
   program_id: string;
   active_profile: string | null;
+  mode_source_state?: string | null;
+  mode_source_status?: "matched" | "unmapped" | "unavailable";
   current_slots: Record<string, string>;
   next_change: string | null;
   skip_next: string | null;
@@ -112,6 +123,8 @@ export interface PlannerData {
   is_admin?: boolean;
   /** Version (hash) of the card bundle the integration serves now. */
   card_version?: string | null;
+  /** Defaults for a new program (absent on older integrations). */
+  defaults?: { reapply: boolean; priority: number };
 }
 
 export interface PreviewSlot {
@@ -126,8 +139,13 @@ export interface CardConfig {
   type: string;
   title?: string;
   program?: string;
-  filter?: { types?: string[]; area?: string };
+  filter?: { types?: string[]; area?: string; programs?: string[] };
+  schedule_view?: "bars" | "radial" | "radial_12h" | "list";
+  /** Deprecated: accepted and ignored (the week list is always collapsible); kept so existing YAML never breaks. */
   show_week?: boolean;
   show_chart?: boolean;
+  /** Optional: start with the day chart collapsed. */
+  chart_collapsed?: boolean;
+  /** Deprecated: accepted and ignored; kept so existing YAML never breaks. */
   show_advanced?: boolean;
 }

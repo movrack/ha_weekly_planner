@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from hashlib import sha256
+import json
 from datetime import date, datetime, time, timedelta, tzinfo, UTC
 
 SUN_EVENTS = ("dawn", "sunrise", "sunset", "dusk")
@@ -39,8 +41,6 @@ def parse_clock(value: str) -> tuple[int, int]:
     hours, minutes = (int(part) for part in value.split(":"))
     if not (0 <= minutes < 60 and (0 <= hours < 24 or (hours, minutes) == (24, 0))):
         raise ValueError(f"invalid time {value!r}")
-    if minutes % 5:
-        raise ValueError(f"time {value!r} is not on a 5-minute step")
     return hours, minutes
 
 
@@ -82,7 +82,26 @@ def resolve(
     return moment - timedelta(minutes=moment.minute % 5), True
 
 
-def occurrence(slot: dict, day: date, tz: tzinfo, sun: SunProvider) -> Occurrence:
+def _delay(moment: datetime, spec: dict, identity: tuple[str, ...], day: date, edge: str, *, boundary_day: date | None = None) -> datetime:
+    """Stable occurrence-specific elapsed delay, independent of process random state."""
+    maximum = spec.get("random_minutes", 0)
+    if not maximum:
+        return moment
+    seed = json.dumps([*identity, day.isoformat(), edge], ensure_ascii=True).encode()
+    minutes = int.from_bytes(sha256(seed).digest(), "big") % (maximum + 1)
+    try:
+        delayed = (_utc(moment) + timedelta(minutes=minutes)).astimezone(moment.tzinfo)
+    except OverflowError:  # end of the supported calendar: keep the configured time
+        return moment
+    if "sun" in spec and spec.get("latest"):
+        limit, _ = local_datetime(boundary_day or day, *parse_clock(spec["latest"]), moment.tzinfo)
+        delayed = min(_utc(delayed), _utc(limit)).astimezone(moment.tzinfo)
+    return delayed
+
+
+def occurrence(
+    slot: dict, day: date, tz: tzinfo, sun: SunProvider, *, identity: tuple[str, ...] = ()
+) -> Occurrence:
     """Place one slot on a given day.
 
     The end lands on the next day when it would otherwise not be after the start and
@@ -91,9 +110,12 @@ def occurrence(slot: dict, day: date, tz: tzinfo, sun: SunProvider) -> Occurrenc
     for that day.
     """
     slot_id = slot["id"]
+    identity = (*identity, slot_id)
     start, start_existed = resolve(slot["start"], day, tz, sun)
     if start is None:
         return Occurrence(slot_id, _utc(_midnight(day, tz)), None, "sun_event_missing")
+    base_start = start
+    start = _delay(start, slot["start"], identity, day, "start")
     if slot.get("end") is None:
         return Occurrence(slot_id, _utc(start), None)
 
@@ -102,10 +124,13 @@ def occurrence(slot: dict, day: date, tz: tzinfo, sun: SunProvider) -> Occurrenc
         return Occurrence(slot_id, _utc(start), None, "sun_event_missing")
     if not start_existed and not end_existed:
         return Occurrence(slot_id, _utc(start), _utc(end), "skipped_by_dst")
-    if _utc(end) <= _utc(start) and end.timetz().replace(tzinfo=None) < NOON:
-        end, _ = resolve(slot["end"], day + timedelta(days=1), tz, sun)
+    end_day = day
+    if _utc(end) <= _utc(base_start) and end.timetz().replace(tzinfo=None) < NOON:
+        end_day = day + timedelta(days=1)
+        end, _ = resolve(slot["end"], end_day, tz, sun)
         if end is None:
             return Occurrence(slot_id, _utc(start), None, "sun_event_missing")
+    end = _delay(end, slot["end"], identity, day, "end", boundary_day=end_day)
     start_utc, end_utc = _utc(start), _utc(end)
     if end_utc <= start_utc:
         return Occurrence(slot_id, start_utc, end_utc, "empty")
@@ -115,10 +140,10 @@ def occurrence(slot: dict, day: date, tz: tzinfo, sun: SunProvider) -> Occurrenc
 
 
 def day_occurrences(
-    slots: list[dict], day: date, tz: tzinfo, sun: SunProvider
+    slots: list[dict], day: date, tz: tzinfo, sun: SunProvider, *, identity: tuple[str, ...] = ()
 ) -> list[Occurrence]:
     """All slots of a day, sorted, with overlaps trimmed (the later slot loses)."""
-    placed = sorted((occurrence(s, day, tz, sun) for s in slots), key=lambda o: o.start)
+    placed = sorted((occurrence(s, day, tz, sun, identity=identity) for s in slots), key=lambda o: o.start)
     result: list[Occurrence] = []
     last_end: datetime | None = None
     for occ in placed:

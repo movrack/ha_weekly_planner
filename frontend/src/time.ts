@@ -3,6 +3,21 @@
 
 import type { Slot, TimeSpec } from "./types";
 
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
+/** Cached `Intl.DateTimeFormat`: building one is costly and the render paths call these helpers many times. */
+export function dateFormat(locale: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const key = `${locale}|${JSON.stringify(options)}`;
+  let format = formatters.get(key);
+  if (!format) formatters.set(key, (format = new Intl.DateTimeFormat(locale, options)));
+  return format;
+}
+
+export function addDaysIso(dateIso: string, days: number): string {
+  const [y, m, d] = dateIso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
 export const STEP = 5; // minutes
 export const DAY = 1440;
 
@@ -19,7 +34,7 @@ export function minutesToClock(minutes: number): string {
 /** Minutes since local midnight (server zone) for an ISO date. */
 export function localMinutes(iso: string | Date, timeZone: string): number {
   const date = typeof iso === "string" ? new Date(iso) : iso;
-  const parts = new Intl.DateTimeFormat("en-GB", {
+  const parts = dateFormat("en-GB", {
     timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23",
   }).formatToParts(date);
   const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
@@ -29,33 +44,18 @@ export function localMinutes(iso: string | Date, timeZone: string): number {
 
 /** Day of week in the server zone, 0 = Monday. */
 export function localWeekday(date: Date, timeZone: string): number {
-  const name = new Intl.DateTimeFormat("en-GB", { timeZone, weekday: "short" }).format(date);
+  const name = dateFormat("en-GB", { timeZone, weekday: "short" }).format(date);
   return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(name);
 }
 
 export function localDateIso(date: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone }).format(date); // YYYY-MM-DD
-}
-
-export function formatClock(iso: string, timeZone: string, language: string): string {
-  return new Intl.DateTimeFormat(language, { timeZone, hour: "2-digit", minute: "2-digit" }).format(
-    new Date(iso),
-  );
+  return dateFormat("en-CA", { timeZone }).format(date); // YYYY-MM-DD
 }
 
 /** Nominal minutes of a fixed time spec, null for a sun-based time. */
 export function nominal(spec: TimeSpec | null | undefined): number | null {
   if (!spec || !("time" in spec)) return null;
   return clockToMinutes(spec.time);
-}
-
-/** Bar segments of a slot on its own day: [start, end] pairs within 0–1440. */
-export function slotSpans(slot: Slot, resolved?: { start: number; end: number | null }): [number, number][] {
-  const start = resolved?.start ?? nominal(slot.start) ?? 0;
-  const endRaw = resolved ? resolved.end : nominal(slot.end ?? null);
-  if (endRaw === null || endRaw === undefined) return [[start, Math.min(DAY, start + STEP)]];
-  if (endRaw > start) return [[start, endRaw]];
-  return [[start, DAY]]; // crosses midnight: the rest is drawn on the next day
 }
 
 /** Part of the previous day's slots that spill over midnight onto this day. */
@@ -78,7 +78,7 @@ export function fmtClock(language: string, minutes: number): string {
   const date = new Date(Date.UTC(2000, 0, 1, h, min));
   const opts: Intl.DateTimeFormatOptions = { timeZone: "UTC", hour: "numeric" };
   if (min) opts.minute = "2-digit";
-  return new Intl.DateTimeFormat(language, opts).format(date).replace(/\s?(AM|PM)/, (_, x: string) => ` ${x.toLowerCase()}`);
+  return dateFormat(language, opts).format(date).replace(/\s?(AM|PM)/, (_, x: string) => ` ${x.toLowerCase()}`);
 }
 
 /** "22 h" today, "lun. 22 h" another day (server zone). */
@@ -87,10 +87,10 @@ export function formatWhen(iso: string, timeZone: string, language: string, now 
   const sameDay = localDateIso(date, timeZone) === localDateIso(now, timeZone);
   const clock = fmtClock(language, localMinutes(date, timeZone));
   if (sameDay) return clock;
-  const tomorrow = localDateIso(new Date(now.getTime() + 86_400_000), timeZone) === localDateIso(date, timeZone);
+  const tomorrow = addDaysIso(localDateIso(now, timeZone), 1) === localDateIso(date, timeZone);
   if (tomorrow) return `${new Intl.RelativeTimeFormat(language, { numeric: "auto" }).format(1, "day")} ${clock}`;
   // a week or more ahead: the weekday alone would be read as this week ("lun. 2 nov.")
   const far = date.getTime() - now.getTime() > 6 * 86_400_000;
   const opts: Intl.DateTimeFormatOptions = far ? { timeZone, weekday: "short", day: "numeric", month: "short" } : { timeZone, weekday: "short" };
-  return `${new Intl.DateTimeFormat(language, opts).format(date)} ${clock}`;
+  return `${dateFormat(language, opts).format(date)} ${clock}`;
 }

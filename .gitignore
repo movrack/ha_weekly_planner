@@ -58,5 +58,21 @@ captures/
 *.tmp
 .python-version
 
+# Local analysis reports
+/rapport/
+/.human-review/
+
 # Integration brand images (HACS / Home Assistant)
 !custom_components/weekly_planner/brand/*.png
+
+# Versioned screenshots for the illustrated user guide
+!docs/images/guide/*.png
+
+# Coverage and mutation testing output
+coverage.xml
+.coverage.*
+mutants/
+.mutmut-cache/
+frontend/reports/
+frontend/.stryker-tmp/
+frontend/coverage/

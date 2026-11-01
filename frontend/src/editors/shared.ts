@@ -1,26 +1,14 @@
 // Reusable editing pieces: styles, entity picker and conditions editor.
 
 import { LitElement, css, html, nothing } from "lit";
-import type { TemplateResult } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
-import { strings, t } from "../i18n";
+import { customElement, property } from "lit/decorators.js";
+import { t } from "../i18n";
 import { entityDomain, friendlyName } from "../planner";
 import type { Condition, HassEntity, HomeAssistant } from "../types";
 
 export type K = Parameters<typeof t>[1];
 
 export const langOf = (hass?: HomeAssistant): string => hass?.locale?.language ?? hass?.language ?? "en";
-
-/** Display name of a device type (falls back to the raw type). */
-export function typeLabel(lang: string, type: string): string {
-  const text = (strings(lang) as Record<string, unknown>)[`type_${type}`];
-  return typeof text === "string" ? text : type;
-}
-
-export const SUPPORTED_DOMAINS = [
-  "climate", "cover", "light", "switch", "input_boolean", "fan", "water_heater",
-  "media_player", "input_number", "input_select",
-];
 
 export const editorStyles = css`
   :host { display: block; color: var(--primary-text-color); font-size: 14px; }
@@ -59,7 +47,10 @@ export const editorStyles = css`
   :is(button, input, select, textarea, [tabindex]):focus-visible {
     outline: 2px solid var(--primary-color); outline-offset: 2px;
   }
-  .error { color: var(--error-color, #db4437); margin: 8px 0; }
+  .error { color: var(--error-color, #db4437); color: color-mix(in srgb, var(--error-color, #db4437) 65%, var(--primary-text-color, #000));
+    font-size: 16px; font-weight: 500; margin: 8px 0; }
+  .field-error { margin: 2px 0 4px; }
+  input[aria-invalid="true"] { border-color: var(--error-color, #db4437); border-width: 2px; }
   .hint { display: flex; align-items: center; gap: 4px; --mdc-icon-size: 16px; color: var(--secondary-text-color); font-size: 12px; margin: 4px 0; }
   .card {
     border: 1px solid var(--divider-color); border-radius: 12px; padding: 8px 12px; margin: 8px 0;
@@ -80,6 +71,8 @@ export class WpEntityPicker extends LitElement {
   @property({ attribute: false }) hass!: HomeAssistant;
   @property() value = "";
   @property() label = "";
+  @property({ type: Boolean }) disabled = false;
+  @property({ type: Boolean }) required = false;
   @property({ attribute: false }) domains: string[] = [];
   @property({ attribute: false }) exclude: string[] = [];
   @property({ attribute: false }) filter?: (entityId: string) => boolean;
@@ -101,7 +94,7 @@ export class WpEntityPicker extends LitElement {
     if (customElements.get("ha-entity-picker")) {
       const filter = this.filter;
       return html`<ha-entity-picker
-        .hass=${this.hass} .value=${this.value} .label=${this.label}
+        .hass=${this.hass} .value=${this.value} .label=${this.label} .disabled=${this.disabled} .required=${this.required}
         .includeDomains=${this.domains.length ? this.domains : undefined}
         .excludeEntities=${this.exclude}
         .entityFilter=${filter ? (e: HassEntity) => filter(e.entity_id) : undefined}
@@ -114,7 +107,7 @@ export class WpEntityPicker extends LitElement {
     return html`
       <div class="field">
         ${this.label ? html`<label>${this.label}</label>` : nothing}
-        <input type="text" list=${this._listId} .value=${this.value} autocomplete="off"
+        <input type="text" ?disabled=${this.disabled} ?required=${this.required} list=${this._listId} .value=${this.value} autocomplete="off"
           aria-label=${this.label || "entity"} placeholder="domain.entity"
           @change=${(ev: Event) => {
             const v = (ev.target as HTMLInputElement).value.trim();

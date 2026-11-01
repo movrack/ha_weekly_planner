@@ -71,6 +71,15 @@ export function overlapDay(profile: Profile): number | null {
   return day < 0 ? null : day;
 }
 
+/** The first overlap of a profile: the day and the two slots that collide (null: none). */
+export function overlapPair(profile: Profile): { day: number; a: Slot; b: Slot } | null {
+  for (let day = 0; day < profile.days.length; day++) {
+    const pair = findOverlap(profile.days[day]);
+    if (pair) return { day, a: pair[0], b: pair[1] };
+  }
+  return null;
+}
+
 /** Days where a slot would overlap nothing: `days` split into the free ones and the busy ones. */
 export function splitBusyDays(
   profile: Profile, include: Include, minutes: Minutes, slot: Slot, days: number[] = ALL_DAYS,
@@ -263,8 +272,9 @@ export function middle(start: number, end: number): number | null {
 }
 
 /**
- * Cuts a slot (or a gap) in two at its middle. A slot keeps its first half and its copy takes the second half.
- * A gap gets a new slot on its second half, with the default label. `handle` is the new boundary.
+ * Cuts a slot (or a gap) in two at its middle. A slot keeps its setting on the first half; the second half becomes
+ * "None" (no slot there: the rest of the time applies). `handle` is the new boundary (the end of the first half).
+ * A gap gets a new slot on its second half, with the default label.
  */
 export function splitAt(slots: Slot[], target: Target, ctx: DayCtx & { defaultLabel?: string }): { slots: Slot[]; handle: Handle } | null {
   const newId = ctx.newId ?? defaultNewId;
@@ -279,10 +289,9 @@ export function splitAt(slots: Slot[], target: Target, ctx: DayCtx & { defaultLa
   const e = eff(slot, ctx.at);
   const mid = middle(e.start, e.end as number);
   if (mid === null) return null;
-  const second: Slot = { ...structuredClone(slot), id: newId(), start: fixedTime(mid) };
   const first: Slot = { ...slot, end: fixedTime(mid) };
-  const next = slots.flatMap((s) => (s.id === slot.id ? [first, second] : [s]));
-  return { slots: sortByStart(next, ctx), handle: { id: second.id, edge: "start" } };
+  const next = slots.map((s) => (s.id === slot.id ? first : s));
+  return { slots: sortByStart(next, ctx), handle: { id: slot.id, edge: "end" } };
 }
 
 /** Sets the label of a slot; a gap becomes a slot with that label over the whole gap. */
@@ -318,7 +327,7 @@ export function mergeAdjacent(slots: Slot[], ctx: DayCtx, keep: ReadonlySet<stri
     if (prev && prev.end && slot.end) {
       const a = eff(prev, ctx.at);
       const b = eff(slot, ctx.at);
-      if (!a.wrap && a.end === b.start && sameKind(prev, slot) && !keep.has(prev.id) && !keep.has(slot.id)) {
+      if (!a.wrap && a.end === b.start && !prev.end.random_minutes && !slot.start.random_minutes && sameKind(prev, slot) && !keep.has(prev.id) && !keep.has(slot.id)) {
         out[out.length - 1] = { ...prev, end: slot.end };
         continue;
       }

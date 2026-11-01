@@ -54,10 +54,17 @@ def test_end_of_day_2400():  # S27
     assert occ.runs and occ.end == at(SUMMER, 0, 0, plus_days=1)
 
 
-@pytest.mark.parametrize("bad", ["24:05", "12:03", "25:00", "07:60"])
+@pytest.mark.parametrize("bad", ["24:05", "25:00", "07:60"])
 def test_invalid_clock(bad):
     with pytest.raises(ValueError):
         parse_clock(bad)
+
+
+def test_typed_minutes_are_not_snapped():
+    assert parse_clock("12:03") == (12, 3)
+    occ = occurrence(slot({"time": "08:17"}, {"time": "08:23"}), SUMMER, TZ, fake_sun)
+    assert occ.runs and occ.start == at(SUMMER, 8, 17) and occ.end == at(SUMMER, 8, 23)
+    assert occurrence(slot({"time": "08:17"}, {"time": "08:20"}), SUMMER, TZ, fake_sun).ignored
 
 
 def test_sun_with_offset_and_bounds():  # S3

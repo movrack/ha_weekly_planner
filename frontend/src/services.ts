@@ -1,7 +1,7 @@
 // Generic actions: the Home Assistant services whose target accepts an entity (`hass.services`),
 // their translated names and the input fields of each one.
 
-const entityDomain = (entityId: string): string => entityId.split(".")[0];
+import { entityDomain } from "./planner";
 import type { HassEntity, HomeAssistant } from "./types";
 
 type Localize = (key: string, ...args: unknown[]) => string;
@@ -81,6 +81,12 @@ export function serviceLabel(hass: HomeAssistant, id: string): string {
   return translate(hass, `component.${domain}.services.${service}.name`) || infoOf(hass, id)?.name || id;
 }
 
+/** Prefer Home Assistant's translated explanation, then the integration's description. */
+export function serviceDescription(hass: HomeAssistant, id: string): string {
+  const [domain, service] = id.split(".");
+  return translate(hass, `component.${domain}.services.${service}.description`) || infoOf(hass, id)?.description || "";
+}
+
 function accepts(filters: EntityFilter | EntityFilter[] | undefined, entity: HassEntity | undefined, domain: string): boolean {
   const list = Array.isArray(filters) ? filters : filters ? [filters] : [];
   const features = Number(entity?.attributes.supported_features ?? 0);
@@ -93,7 +99,7 @@ function accepts(filters: EntityFilter | EntityFilter[] | undefined, entity: Has
   });
 }
 
-/** Services offered for an entity, sorted by their translated name; `allowed` (non empty) restricts them. */
+/** Services offered for an entity, sorted by their translated name; `allowed` restricts them (undefined: all, empty: none). */
 export function servicesFor(hass: HomeAssistant, entityId: string, allowed?: string[]): ServiceChoice[] {
   const domain = entityDomain(entityId);
   const entity = hass.states[entityId];
@@ -109,7 +115,7 @@ export function servicesFor(hass: HomeAssistant, entityId: string, allowed?: str
       const fields = Object.values(info.fields ?? {}) as { required?: boolean; selector?: Record<string, unknown> }[];
       if (fields.some((f) => f.required && (!f.selector || "text" in f.selector || "object" in f.selector))) continue;
       const id = `${d}.${service}`;
-      if (allowed?.length && !allowed.includes(id)) continue;
+      if (allowed !== undefined && !allowed.includes(id)) continue;
       out.push({ id, domain: d, service, label: serviceLabel(hass, id) });
     }
   }
@@ -169,27 +175,6 @@ export function serviceFields(hass: HomeAssistant, id: string, entityId?: string
   return [...out.filter((f) => f.required), ...out.filter((f) => !f.required)];
 }
 
-const LINK_WORDS = new Set(["avec", "de", "du", "à", "au", "with", "of", "the", "for", "on"]);
-
-/**
- * Shorter chip labels: the words most labels end with (the device, e.g. "l'aspirateur") are dropped,
- * with the linking word before them ("avec", "de"…). Labels are kept whole when nothing is shared.
- */
-export function shortLabels(labels: string[]): string[] {
-  if (labels.length < 3) return labels;
-  const words = labels.map((l) => l.split(" "));
-  const last = new Map<string, number>();
-  for (const w of words) last.set(w[w.length - 1], (last.get(w[w.length - 1]) ?? 0) + 1);
-  const [tail, count] = [...last.entries()].sort((a, b) => b[1] - a[1])[0];
-  if (count < Math.ceil(labels.length * 0.6)) return labels;
-  return words.map((w, i) => {
-    if (w.length < 2 || w[w.length - 1] !== tail) return labels[i];
-    const cut = w.slice(0, -1);
-    while (cut.length > 1 && LINK_WORDS.has(cut[cut.length - 1].toLowerCase())) cut.pop();
-    return cut.join(" ");
-  });
-}
-
 /** Data to start from when a service is chosen: its required fields get a usable value. */
 export function startData(hass: HomeAssistant, id: string, entityId: string): Record<string, unknown> {
   const attrs = hass.states[entityId]?.attributes ?? {};
@@ -206,10 +191,10 @@ export function startData(hass: HomeAssistant, id: string, entityId: string): Re
 
 /** Required fields still empty (labels of them), so a form does not save a call that must fail. */
 export function missingFields(
-  hass: HomeAssistant, id: string, data: Record<string, unknown> | undefined, entityId?: string,
+  hass: HomeAssistant, id: string, data: Record<string, unknown> | undefined, entityId?: string, sources?: Record<string, { entity_id: string }>,
 ): string[] {
   return serviceFields(hass, id, entityId)
-    .filter((f) => f.required && (data?.[f.key] === undefined || data[f.key] === "" || data[f.key] === null))
+    .filter((f) => sources?.[f.key] ? !sources[f.key].entity_id : f.required && (data?.[f.key] === undefined || data[f.key] === "" || data[f.key] === null))
     .map((f) => f.label);
 }
 

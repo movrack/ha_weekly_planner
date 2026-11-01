@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -11,6 +11,7 @@ import voluptuous as vol
 from homeassistant.helpers import config_validation as cv
 
 from .actions import needs_admin
+from .const import DEFAULT_PRIORITY, DEFAULT_REAPPLY
 from .timeline import SUN_EVENTS, day_occurrences, parse_clock
 
 
@@ -19,17 +20,43 @@ def _clock(value: Any) -> str:
     return str(value)
 
 
-TIME_SPEC = vol.Any(
-    vol.Schema({vol.Required("time"): _clock}),
+def _random_minutes(value: Any) -> int:
+    if type(value) is not int or not 0 <= value <= 240:
+        raise vol.Invalid("invalid_random_minutes")
+    return value
+
+
+def _sun_bounds(spec: dict) -> dict:
+    """A solar time may not be required to come before its own earliest limit."""
+    if spec.get("earliest") and spec.get("latest"):
+        earliest = parse_clock(spec["earliest"])
+        latest = parse_clock(spec["latest"])
+        if earliest > latest:
+            raise vol.Invalid("earliest_after_latest")
+    return spec
+
+
+_FIXED_TIME = vol.Schema({vol.Required("time"): _clock, vol.Optional("random_minutes"): _random_minutes})
+_SUN_TIME = vol.All(
     vol.Schema({
         vol.Required("sun"): vol.In(SUN_EVENTS),
+        vol.Optional("random_minutes"): _random_minutes,
         vol.Optional("offset", default=0): vol.All(int, vol.Range(min=-240, max=240)),
         vol.Optional("earliest"): _clock,
         vol.Optional("latest"): _clock,
     }),
+    _sun_bounds,
 )
 
-# The device is the only target of an action: service data may not redirect it elsewhere.
+
+def TIME_SPEC(value: Any) -> dict:  # noqa: N802 - used like a schema
+    """Fixed or solar time; the error names the actual problem of a solar time."""
+    if isinstance(value, dict) and "sun" in value:
+        return _SUN_TIME(value)
+    return _FIXED_TIME(value)
+
+
+# Targets are explicit action properties; service data may not redirect them.
 TARGET_KEYS = ("entity_id", "device_id", "area_id", "floor_id", "label_id")
 
 
@@ -41,11 +68,28 @@ def _service_data(value: Any) -> dict:
     return value
 
 
+VALUE_SOURCE = vol.Schema({
+    vol.Required("entity_id"): cv.entity_id,
+    vol.Optional("attribute"): vol.All(str, vol.Length(min=1, max=255)),
+    vol.Required("type"): vol.In(("number", "boolean", "string", "native")),
+})
+
+
+def _service_sources(value: Any) -> dict:
+    if not isinstance(value, dict):
+        raise vol.Invalid("invalid_service_data_sources")
+    if any(key in value for key in (*TARGET_KEYS, "target")):
+        raise vol.Invalid("service_data_target")
+    return vol.Schema({vol.All(str, vol.Length(min=1, max=255)): VALUE_SOURCE})(value)
+
+
 ACTION = vol.Any(
     vol.Schema({
         vol.Required("kind"): "service",
         vol.Required("service"): str,
+        vol.Optional("target_entity_id"): cv.entity_id,
         vol.Optional("data", default=dict): _service_data,
+        vol.Optional("data_sources"): _service_sources,
     }),
     vol.Schema({
         vol.Required("kind"): "scene",
@@ -86,8 +130,9 @@ ENTITY = vol.Schema({
     vol.Required("entity_id"): cv.entity_id,
     vol.Optional("default_label", default=None): vol.Any(None, str),
     vol.Optional("label_overrides", default=dict): {str: ACTION},
-    # Services offered for this device in the card; empty = all.
+    # Legacy empty lists allow all services; explicit restriction also permits selecting none.
     vol.Optional("allowed_services", default=list): [vol.All(str, vol.Match(r"^[a-z0-9_]+\.[a-z0-9_]+$"))],
+    vol.Optional("restrict_services", default=False): bool,
 })
 
 PROGRAM = vol.Schema({
@@ -97,14 +142,19 @@ PROGRAM = vol.Schema({
     vol.Required("name"): vol.All(str, vol.Length(min=1, max=60)),
     vol.Optional("icon"): vol.Any(None, str),
     vol.Optional("area"): vol.Any(None, str),
-    vol.Optional("priority", default=10): vol.All(int, vol.Range(min=1, max=100)),
+    vol.Optional("priority", default=DEFAULT_PRIORITY): vol.All(int, vol.Range(min=1, max=100)),
     vol.Optional("enabled", default=True): bool,
     vol.Optional("reapply", default=True): bool,
     vol.Optional("conditions", default=list): [CONDITION],
     vol.Required("entities"): vol.All([ENTITY], vol.Length(min=1, max=100)),
     vol.Optional("active_profile"): vol.Any(None, str),
+    vol.Optional("mode_source"): vol.Schema({
+        vol.Required("entity_id"): cv.entity_id,
+        vol.Required("mappings"): vol.All({vol.All(str, vol.Length(min=1)): vol.All(str, vol.Length(min=1))}, vol.Length(min=1)),
+    }),
     vol.Required("profiles"): vol.All([PROFILE], vol.Length(min=1, max=20)),
 })
+
 
 class ProgramError(vol.Invalid):
     """A program breaks a rule that the schema cannot express."""
@@ -122,6 +172,7 @@ def _check_service(hass: Any, descriptions: dict | None, entity_id: str | None, 
     domain, name = service.split(".")
     if not hass.services.has_service(domain, name):
         raise ProgramError(f"unknown_service:{service}")
+    entity_id = action.get("target_entity_id", entity_id)
     if entity_id is not None and not service_accepts(descriptions, service, entity_id):
         raise ProgramError(f"service_not_for_entity:{service}:{entity_id}")
 
@@ -157,9 +208,31 @@ def check_label(label: dict, hass: Any = None, descriptions: dict | None = None)
     return label
 
 
-def check_program(program: dict, labels: dict[str, dict], hass: Any = None, descriptions: dict | None = None) -> dict:
-    """Schema + semantic rules: unique profile names, known labels, valid overrides, no overlap on a day."""
-    program = PROGRAM(program)
+def with_defaults(program: dict, reapply_default: bool = DEFAULT_REAPPLY) -> dict:
+    """Copy of ``program`` where a missing ``reapply`` takes the global option (priority: schema default)."""
+    return {"reapply": reapply_default, **program}
+
+
+def check_program(program: dict, labels: dict[str, dict], hass: Any = None, descriptions: dict | None = None,
+                  reapply_default: bool = DEFAULT_REAPPLY) -> dict:
+    """Schema + semantic rules: unique profile names, known labels, valid overrides, no overlap on a day.
+
+    A program saved without ``reapply`` takes ``reapply_default`` (the integration option).
+    """
+    program = PROGRAM(with_defaults(program, reapply_default))
+    source = program.get("mode_source")
+    if source:
+        profile_ids = {p["id"] for p in program["profiles"]}
+        if any(pid not in profile_ids for pid in source["mappings"].values()):
+            raise ProgramError("unknown_mode_profile")
+        if any(not state.strip() for state in source["mappings"]):
+            raise ProgramError("empty_mode_state")
+        if hass is not None:
+            from homeassistant.helpers import entity_registry as er
+            from .const import DOMAIN
+            entry = er.async_get(hass).async_get(source["entity_id"])
+            if entry and entry.platform == DOMAIN:
+                raise ProgramError("circular_mode_source")
     names = [p["name"] for p in program["profiles"]]
     if len(set(names)) != len(names):
         raise ProgramError("duplicate_profile_name")
@@ -177,22 +250,56 @@ def check_program(program: dict, labels: dict[str, dict], hass: Any = None, desc
             for slot in day_slots:
                 if slot["label"] not in labels:
                     raise ProgramError(f"unknown_label:{slot['label']}")
-            _check_overlaps(day_slots)
+        _check_week_overlaps(profile["days"])
     return program
 
 
+def _fixed_intervals(day_slots: list[dict], day: date) -> list[tuple]:
+    """Reserve each fixed interval's entire random window, before any runtime trim."""
+    intervals = []
+    for slot in day_slots:
+        if "time" not in slot["start"] or not (slot.get("end") or {}).get("time"):
+            continue
+        start_random = slot["start"].get("random_minutes", 0)
+        end_random = slot["end"].get("random_minutes", 0)
+        base = {**slot, "start": {"time": slot["start"]["time"]},
+                "end": {"time": slot["end"]["time"]}}
+        occ = day_occurrences([base], day, ZoneInfo("UTC"), lambda e, d: None)[0]
+        randomized = bool(start_random or end_random)
+        if randomized and (not occ.runs or occ.end - occ.start < timedelta(minutes=5 + start_random)):
+            raise ProgramError("random_window_too_short")
+        if occ.runs and occ.end is not None:
+            intervals.append((occ.start, occ.end + timedelta(minutes=end_random), randomized))
+    return intervals
+
+
+def _reject_overlaps(intervals: list[tuple]) -> None:
+    latest_end = None
+    for start, end, *_ in sorted(intervals):
+        if latest_end is not None and start < latest_end:
+            raise ProgramError("overlapping_slots")
+        latest_end = end
+
+
 def _check_overlaps(day_slots: list[dict]) -> None:
-    """Fixed-time slots of a day may not overlap (sun slots are trimmed at run time)."""
-    fixed = [s for s in day_slots if "time" in s["start"] and (s.get("end") or {}).get("time")]
-    tz = ZoneInfo("UTC")
-    occ = day_occurrences(fixed, date(2026, 1, 5), tz, lambda e, d: None)
-    if any(o.ignored == "overlap" for o in occ) or _trimmed(fixed, occ):
-        raise ProgramError("overlapping_slots")
+    """Validate a standalone day's fixed windows (solar intervals trim at runtime)."""
+    _reject_overlaps(_fixed_intervals(day_slots, date(2026, 1, 5)))
 
 
-def _trimmed(slots: list[dict], occ: list) -> bool:
-    starts = {s["id"]: s["start"]["time"] for s in slots}
-    return any(o.runs and o.start.strftime("%H:%M") != starts[o.slot_id] for o in occ)
+def _check_week_overlaps(days: list[list[dict]]) -> None:
+    """Include adjacent days and Sunday-to-Monday spill, including random delays."""
+    monday = date(2026, 1, 5)
+    intervals = []
+    for index in range(8):
+        day = monday + timedelta(days=index)
+        # slots without a delay keep the historical per-day rule (the runtime trims their spill)
+        found = _fixed_intervals(days[index % 7], day)
+        _reject_overlaps(found)
+        intervals.extend(found)
+    for n, (start, end, delayed) in enumerate(intervals):
+        for other_start, other_end, other_delayed in intervals[n + 1:]:
+            if (delayed or other_delayed) and start < other_end and other_start < end:
+                raise ProgramError("overlapping_slots")
 
 
 def admin_required(program: dict, labels: dict[str, dict]) -> bool:

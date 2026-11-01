@@ -15,10 +15,23 @@ export function nextColor(labels: Label[]): string {
   return PALETTE.find((c) => !used.has(c)) ?? PALETTE[labels.length % PALETTE.length];
 }
 
-export const sameAction = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
-
 export const labelOf = (data: PlannerData, id: string | null | undefined): Label | undefined =>
   id ? data.labels.find((l) => l.id === id) : undefined;
+
+const SERVICE_ID = /^[a-z0-9_]+\.[a-z0-9_]+$/;
+
+/**
+ * Name to show for a setting. A name that is a raw service id ("vacuum.start", what an unnamed setting got
+ * from its action) is shown with Home Assistant's translated service name, else the service part made readable.
+ * The stored name is never changed.
+ */
+export function labelName(hass: HomeAssistant, label: Pick<Label, "name">): string {
+  if (!SERVICE_ID.test(label.name)) return label.name;
+  const translated = serviceLabel(hass, label.name);
+  if (translated !== label.name) return translated;
+  const part = label.name.split(".")[1].replace(/_/g, " ");
+  return part.charAt(0).toUpperCase() + part.slice(1);
+}
 
 /** Scenes that contain the entity (attribute `entity_id` of `scene.*`). */
 export function scenesOf(hass: HomeAssistant, entityId: string): HassEntity[] {
@@ -28,18 +41,22 @@ export function scenesOf(hass: HomeAssistant, entityId: string): HassEntity[] {
 }
 
 /** Services the owner offers for a device of a program (empty: all). */
-export const allowedOf = (program: Program | null | undefined, entityId: string): string[] =>
-  program?.entities.find((e) => e.entity_id === entityId)?.allowed_services ?? [];
+export const allowedOf = (program: Program | null | undefined, entityId: string): string[] | undefined => {
+  const entity = program?.entities.find((e) => e.entity_id === entityId);
+  return entity?.restrict_services || entity?.allowed_services?.length ? entity.allowed_services ?? [] : undefined;
+};
 
 /** Can this action be applied to the entity? (service target accepts it, scene contains it, service allowed) */
-export function compatible(hass: HomeAssistant, entityId: string, action: Action, allowed: string[] = []): boolean {
+export function compatible(hass: HomeAssistant, entityId: string, action: Action, allowed?: string[]): boolean {
   if (action.kind === "scene") {
     const members = hass.states[action.scene]?.attributes.entity_id;
     return Array.isArray(members) ? members.includes(entityId) : true;
   }
-  if (allowed.length && !allowed.includes(action.service)) return false;
-  if (action.service.split(".")[0] === entityId.split(".")[0]) return true;
-  return servicesFor(hass, entityId).some((s) => s.id === action.service);
+  if (allowed !== undefined && !allowed.includes(action.service)) return false;
+  const target = action.target_entity_id ?? entityId;
+  if (!target) return false;
+  if (action.service.split(".")[0] === target.split(".")[0]) return true;
+  return servicesFor(hass, target).some((s) => s.id === action.service);
 }
 
 /** Labels offered for devices: compatible with at least one of them. */
@@ -61,20 +78,33 @@ const num = (v: unknown): number | null => (typeof v === "number" && Number.isFi
 
 /** Number an action sets, for the chart: a temperature, a position or a brightness (null: none). */
 export function actionValue(action: Action | undefined): number | null {
-  if (!action || action.kind !== "service") return null;
+  if (!action || action.kind !== "service" || action.target_entity_id) return null;
   const d = action.data ?? {};
-  return num(d.temperature) ?? num(d.position) ?? num(d.brightness_pct);
+  return num(action.data_sources?.temperature ? null : d.temperature) ?? num(action.data_sources?.position ? null : d.position) ?? num(action.data_sources?.brightness_pct ? null : d.brightness_pct);
 }
 
 /** Short text of an action: "18 °C", "30 %", the scene name, else the translated service. */
 export function actionText(hass: HomeAssistant, lang: string, action: Action | undefined): string {
   if (!action) return "";
   if (action.kind === "scene") return String(hass.states[action.scene]?.attributes.friendly_name ?? action.scene);
+  if (action.target_entity_id) return `${serviceLabel(hass, action.service)} · ${hass.states[action.target_entity_id]?.attributes.friendly_name ?? action.target_entity_id}`;
+  if (Object.keys(action.data_sources ?? {}).length) return actionSourceText(hass, action);
   const d = action.data ?? {};
   if (num(d.temperature) !== null) return `${fmtNum(lang, Number(d.temperature))} °C`;
   if (num(d.position) !== null) return `${d.position} %`;
   if (num(d.brightness_pct) !== null) return `${d.brightness_pct} %`;
   return serviceLabel(hass, action.service);
+}
+
+/** A source remains identifiable even while its value is unavailable. Never present it as a fixed target. */
+function actionSourceText(hass: HomeAssistant, action: Extract<Action, { kind: "service" }>): string {
+  return Object.values(action.data_sources ?? {}).map((source) => {
+    const state = hass.states[source.entity_id];
+    const name = String(state?.attributes.friendly_name ?? source.entity_id);
+    const value = source.attribute ? state?.attributes[source.attribute] : state?.state;
+    const available = state && !["unknown", "unavailable"].includes(state.state) && value !== undefined && value !== null;
+    return `${name}${source.attribute ? ` · ${source.attribute}` : ""}${available && ["string", "number", "boolean"].includes(typeof value) ? ` (${value})` : ""}`;
+  }).join(" · ");
 }
 
 /**
@@ -85,9 +115,11 @@ export function actionSummary(hass: HomeAssistant, lang: string, action: Action 
   if (!action) return "";
   if (action.kind === "scene") return actionText(hass, lang, action);
   const values: string[] = [];
-  const stateObj = entityId ? hass.states[entityId] : undefined;
+  const target = action.target_entity_id ?? entityId;
+  const stateObj = target ? hass.states[target] : undefined;
   const fmt = (hass as unknown as { formatEntityState?: (s: HassEntity, v?: string) => string }).formatEntityState;
   for (const [key, value] of Object.entries(action.data ?? {})) {
+    if (action.data_sources?.[key]) continue;
     if (typeof value === "number") {
       values.push(key === "temperature" ? `${fmtNum(lang, value)} °C` : key === "position" || key === "brightness_pct" ? `${value} %` : fmtNum(lang, value));
     } else if (typeof value === "string" && value) {
@@ -96,7 +128,8 @@ export function actionSummary(hass: HomeAssistant, lang: string, action: Action 
       values.push(text);
     }
   }
-  return [serviceLabel(hass, action.service), ...values].join(" · ");
+  if (Object.keys(action.data_sources ?? {}).length) values.push(actionSourceText(hass, action));
+  return [serviceLabel(hass, action.service), ...(action.target_entity_id ? [String(hass.states[action.target_entity_id]?.attributes.friendly_name ?? action.target_entity_id)] : []), ...values].join(" · ");
 }
 
 /** Names of the programs using a label (slots of any profile, defaults, values for a device). */

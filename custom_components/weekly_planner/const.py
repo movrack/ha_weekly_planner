@@ -18,4 +18,6 @@ CONF_DEBOUNCE_MIN: Final = "debounce_min"
 DEFAULT_ADMIN_ONLY: Final = False
 DEFAULT_NOTIFY_DELAY_MIN: Final = 30
 DEFAULT_REAPPLY: Final = True
+# Priority of a program saved without one (1 = strongest); the card offers the same value.
+DEFAULT_PRIORITY: Final = 10
 DEFAULT_DEBOUNCE_MIN: Final = 2

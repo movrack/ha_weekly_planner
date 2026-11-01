@@ -4,6 +4,7 @@
 
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { ifDefined } from "lit/directives/if-defined.js";
 import { repeat } from "lit/directives/repeat.js";
 import "./day-bar";
 import "./dialog";
@@ -17,8 +18,9 @@ import {
 } from "../edits";
 import type { At, DayCtx, Handle, Target } from "../edits";
 import { editorStyles } from "../editors/shared";
+import { dismissHoldHint, HOLD_HINT_MS, takeHoldHint } from "../hold-hint";
 import { strings, t } from "../i18n";
-import { entityAction, labelOf, labelsFor } from "../labels";
+import { entityAction, labelName, labelOf, labelsFor } from "../labels";
 import { activeProfile, newId } from "../planner";
 import { specMinutes } from "../slots";
 import { DAY, clockToMinutes, fmtClock, localMinutes } from "../time";
@@ -66,6 +68,11 @@ export class WpBarEditor extends LitElement {
   @state() private _conflict: { to: number[]; days: number[]; skip: number[]; id: string } | null = null;
   @state() private _error = "";
   @state() private _hover = false;
+  /** "Press and hold to edit" shown after a plain tap (first times only). */
+  @state() private _hint = false;
+  private _hintTimer?: number;
+  /** Edit mode was entered with the keyboard: focus goes to the first handle, then back to the bar. */
+  private _kbd = false;
 
   private _sun = new Map<string, number>();
   private _keep = new Set<string>();
@@ -73,9 +80,9 @@ export class WpBarEditor extends LitElement {
   private _clearTimer?: number;
   private _errTimer?: number;
   private _press?: { id: number; x: number; y: number; timer?: number; fired: boolean; mouse: boolean };
-  private _drag?: { ref: Handle; m0: number; x0: number; id: number; moved: boolean; last: number };
+  private _drag?: { ref: Handle; m0: number; x0: number; id: number; moved: boolean; last: number; profileId: string; weekday: number; ctx: DayCtx };
   private _tap?: { id: number; x: number; y: number; target: Target | null };
-  private _nudge?: { ref: Handle; m: number; timer: number };
+  private _nudge?: { ref: Handle; m: number; timer: number; profileId: string; weekday: number; ctx: DayCtx };
   private _listening = false;
 
   /* ---- times of the day ---- */
@@ -105,8 +112,10 @@ export class WpBarEditor extends LitElement {
   private _ctx(newIds?: () => string): DayCtx {
     const entity = this.program.entities.find((e) => e.entity_id === this.entityId);
     const fallback = labelsFor(this.hass, this.data, [this.entityId])[0]?.id;
+    const sun = new Map(this._sun);
     return {
-      at: this._at, lead: this._lead, newId: newIds ?? newId,
+      at: (spec) => "time" in spec ? clockToMinutes(spec.time) : sun.get(JSON.stringify(spec)) ?? specMinutes(this.hass, spec),
+      lead: this._lead, newId: newIds ?? newId,
       defaultLabel: entity?.default_label ?? fallback,
     };
   }
@@ -127,9 +136,15 @@ export class WpBarEditor extends LitElement {
 
   updated(changed: Map<string, unknown>): void {
     if (changed.has("editing")) {
-      if (this.editing) this._listen(true);
+      if (this.editing) {
+        this._clearHint();
+        this._listen(true);
+        if (this._kbd) this.renderRoot.querySelector<HTMLElement>(".hd")?.focus();
+      }
       else {
         this._listen(false);
+        if (this._kbd) this.renderRoot.querySelector<HTMLElement>(".zone")?.focus();
+        this._kbd = false;
         this._flushNudge();
         this._selected = null;
         this._hsel = null;
@@ -146,6 +161,7 @@ export class WpBarEditor extends LitElement {
     this._listen(false);
     window.clearTimeout(this._clearTimer);
     window.clearTimeout(this._errTimer);
+    window.clearTimeout(this._hintTimer);
     window.clearTimeout(this._press?.timer);
   }
 
@@ -190,6 +206,8 @@ export class WpBarEditor extends LitElement {
         if (!this._press) return;
         this._press.fired = true;
         navigator.vibrate?.(12);
+        this._clearHint();
+        dismissHoldHint();
         this._emit("edit-request");
       }, LONG_PRESS_MS);
     }
@@ -211,7 +229,45 @@ export class WpBarEditor extends LitElement {
     this._press = undefined;
     if (p.fired) return; // the long press already did its job
     if (p.mouse && this.editable) this._emit("edit-request");
+    else if (this.editable && !p.mouse) this._tapHint();
     else this._emit("open-day");
+  }
+
+  /** A plain touch on an editable bar: tell how to edit for 2 s, then open the day screen as before (a second tap opens it at once). */
+  private _tapHint(): void {
+    if (this._hint) {
+      this._clearHint();
+      this._emit("open-day");
+      return;
+    }
+    if (!takeHoldHint()) {
+      this._emit("open-day");
+      return;
+    }
+    this._hint = true;
+    this._hintTimer = window.setTimeout(() => {
+      this._hint = false;
+      this._hintTimer = undefined;
+      this._emit("open-day");
+    }, HOLD_HINT_MS);
+  }
+
+  private _clearHint(): void {
+    window.clearTimeout(this._hintTimer);
+    this._hintTimer = undefined;
+    this._hint = false;
+  }
+
+  /** Keyboard: Enter or Space on the focused bar does what a click does. */
+  private _zoneKey(e: KeyboardEvent): void {
+    if (this.editing || e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+    e.preventDefault();
+    if (this.editable) {
+      this._kbd = true;
+      this._clearHint();
+      dismissHoldHint();
+      this._emit("edit-request");
+    } else this._emit("open-day");
   }
 
   private _zoneCancel(): void {
@@ -253,7 +309,8 @@ export class WpBarEditor extends LitElement {
     const near = this._nearest(m, ppm);
     if (near) {
       (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-      this._drag = { ref: near.refs[0], m0: near.m, x0: e.clientX, id: e.pointerId, moved: false, last: near.m };
+      this._drag = { ref: near.refs[0], m0: near.m, x0: e.clientX, id: e.pointerId, moved: false, last: near.m,
+        profileId: activeProfile(this._live, this.data).id, weekday: this.weekday, ctx: this._ctx() };
       this._hsel = near.refs[0];
       e.preventDefault();
       return;
@@ -267,8 +324,9 @@ export class WpBarEditor extends LitElement {
       const dx = e.clientX - d.x0;
       if (!d.moved && Math.abs(dx) < 3) return;
       d.moved = true;
-      const base = this._baseDay;
-      const res = moveBoundary(base, d.ref, d.m0 + dx / this._minuteAt(0).ppm, this._ctx());
+      const base = this._live.profiles.find((profile) => profile.id === d.profileId)?.days[d.weekday];
+      if (!base) { this._ovCancel(); return; }
+      const res = moveBoundary(base, d.ref, d.m0 + dx / this._minuteAt(0).ppm, d.ctx);
       if (res) {
         d.last = res.m;
         this._draft = res.slots;
@@ -290,9 +348,9 @@ export class WpBarEditor extends LitElement {
       if (d.moved) {
         const { ref, last } = d;
         void this._commit((days) => {
-          const r = moveBoundary(days[this.weekday], ref, last, this._ctx());
-          return r ? this._with(days, this.weekday, r.slots) : null;
-        }, [this.weekday]);
+          const r = moveBoundary(days[d.weekday], ref, last, d.ctx);
+          return r ? this._with(days, d.weekday, r.slots) : null;
+        }, [d.weekday], false, d.profileId);
       } else {
         // a tap on a one-shot marker selects it
         const slot = this._baseDay.find((s) => s.id === d.ref.id);
@@ -326,15 +384,21 @@ export class WpBarEditor extends LitElement {
   private _key(e: KeyboardEvent, ref: Handle): void {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     e.preventDefault();
+    const profileId = activeProfile(this._live, this.data).id;
+    if (this._nudge && this._nudge.profileId !== profileId) {
+      this._flushNudge();
+      this._draft = null;
+    }
+    const ctx = this._nudge?.ctx ?? this._ctx();
     const base = this._draft ?? this._baseDay;
-    const m = this._nudge?.m ?? handleMinute(base, ref, this._ctx());
+    const m = this._nudge?.m ?? handleMinute(base, ref, ctx);
     if (m === null) return;
-    const res = moveBoundary(base, ref, m + (e.key === "ArrowRight" ? 15 : -15), this._ctx());
+    const res = moveBoundary(base, ref, m + (e.key === "ArrowRight" ? 15 : -15), ctx);
     if (!res) return;
     this._draft = res.slots;
     this._bubble = { m: res.m };
     window.clearTimeout(this._nudge?.timer);
-    this._nudge = { ref, m: res.m, timer: window.setTimeout(() => this._flushNudge(), COMMIT_DELAY_MS) };
+    this._nudge = { ref, m: res.m, timer: window.setTimeout(() => this._flushNudge(), COMMIT_DELAY_MS), profileId, weekday: this.weekday, ctx };
   }
 
   private _flushNudge(): void {
@@ -344,9 +408,9 @@ export class WpBarEditor extends LitElement {
     this._nudge = undefined;
     this._bubble = null;
     void this._commit((days) => {
-      const r = moveBoundary(days[this.weekday], n.ref, n.m, this._ctx());
-      return r ? this._with(days, this.weekday, r.slots) : null;
-    }, [this.weekday]);
+      const r = moveBoundary(days[n.weekday], n.ref, n.m, n.ctx);
+      return r ? this._with(days, n.weekday, r.slots) : null;
+    }, [n.weekday], false, n.profileId);
   }
 
   /* ---- saving ---- */
@@ -365,10 +429,11 @@ export class WpBarEditor extends LitElement {
    * Builds the change on the CURRENT program (`op` is applied to the days of its active profile) and saves it.
    * A revision conflict is retried once on the fresh data; the user is never asked to reload.
    */
-  private async _commit(op: Op, touched: number[], silent = false): Promise<boolean> {
+  private async _commit(op: Op, touched: number[], silent = false, profileId = activeProfile(this._live, this.data).id): Promise<boolean> {
     let live = this._live;
     for (let attempt = 0; attempt < 2; attempt++) {
-      const profile = activeProfile(live, this.data);
+      const profile = live.profiles.find((p) => p.id === profileId);
+      if (!profile) { this._dropDraft(); return false; }
       const before = profile.days;
       const after = op(before);
       if (!after) {
@@ -395,7 +460,11 @@ export class WpBarEditor extends LitElement {
         if (!silent) {
           const restore = changed.map((i) => [i, before[i]] as const);
           this._emit("edited", {
-            undo: () => this._commit((days) => days.map((d, i) => restore.find((r) => r[0] === i)?.[1] ?? d), changed, true),
+            undo: () => this._commit((days) => {
+              // Never overwrite another editor's subsequent change to a restored day.
+              if (changed.some((i) => JSON.stringify(days[i]) !== JSON.stringify(merged[i]))) return null;
+              return days.map((d, i) => restore.find((r) => r[0] === i)?.[1] ?? d);
+            }, changed, true, profileId),
           });
         }
         return true;
@@ -465,14 +534,13 @@ export class WpBarEditor extends LitElement {
     const ctx = this._ctx(() => id);
     const res = splitAt(this._day, target, ctx);
     if (!res) return;
-    this._keep.add(id);
-    if (target.kind === "slot") this._keep.add(target.id);
+    if (target.kind === "gap") this._keep.add(id);
     this._hsel = res.handle;
     void this._commit((days) => {
       const r = splitAt(days[this.weekday], target, this._ctx(() => id));
       return r ? this._with(days, this.weekday, r.slots) : null;
     }, [this.weekday]).then(() => {
-      void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(`[data-h="${id}:start"]`)?.focus());
+      void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(`[data-h="${res.handle.id}:${res.handle.edge}"]`)?.focus());
     });
     if (target.kind === "gap") this._selected = { kind: "slot", id };
   }
@@ -522,7 +590,7 @@ export class WpBarEditor extends LitElement {
       if (!label || !entityAction(this.program, this.entityId, label)) continue;
       const e = eff(slot, this._at);
       out.push({
-        start: e.start, end: e.end ?? e.start + 10, color: label.color, label: label.name, slotId: slot.id,
+        start: e.start, end: e.end ?? e.start + 10, color: label.color, label: labelName(this.hass, label), slotId: slot.id,
         marker: e.end === null, startSun: sunDir(slot.start), endSun: slot.end ? sunDir(slot.end) : null,
         startSpec: slot.start, endSpec: slot.end ?? null,
       });
@@ -575,8 +643,6 @@ export class WpBarEditor extends LitElement {
     const canCut = sel.end !== null && (sel.slot ? Boolean(sel.slot.end) : Boolean(ctx.defaultLabel)) && middle(sel.start, sel.end) !== null;
     const days = strings(lang).days_short;
     return html`<div class="strip" role="group">
-      <wp-label-picker compact .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${[this.entityId]}
-        .value=${sel.slot?.label ?? null} @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._pickLabel(e.detail); }}></wp-label-picker>
       <div class="acts">
         ${sel.slot ? html`<button class="act" @click=${() => void this._nothing()}><ha-icon icon="mdi:close-circle-outline"></ha-icon>${t(lang, "rest_none_short")}</button>` : nothing}
         <button class="act" ?disabled=${!canCut} aria-label=${t(lang, "cut")} title=${t(lang, "cut")} @click=${() => this._cut()}>
@@ -590,6 +656,10 @@ export class WpBarEditor extends LitElement {
         <button class="act go" ?disabled=${!this._copyDays.length} aria-label=${t(lang, "copy_go")} title=${t(lang, "copy_go")}
           @click=${() => this._copyGo()}><ha-icon icon="mdi:check"></ha-icon>${t(lang, "copy_go")}</button>
       </div>` : nothing}
+      <div class="pick">
+        <wp-label-picker compact readonly-settings .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${[this.entityId]}
+          .value=${sel.slot?.label ?? null} @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._pickLabel(e.detail); }}></wp-label-picker>
+      </div>
     </div>`;
   }
 
@@ -625,11 +695,14 @@ export class WpBarEditor extends LitElement {
   render() {
     if (!this.hass || !this.data || !this.program) return nothing;
     return html`
-      <div class="zone ${this.editing ? "editing" : ""}"
+      <div class="zone ${this.editing ? "editing" : ""}" tabindex=${ifDefined(this.editing ? undefined : 0)}
+        role=${ifDefined(this.editing ? undefined : "button")} aria-label=${ifDefined(this.editing ? undefined : t(this.lang, "edit_bar"))}
+        @keydown=${this._zoneKey}
         @pointerdown=${this._zoneDown} @pointermove=${this._zoneMove} @pointerup=${this._zoneUp}
         @pointercancel=${this._zoneCancel} @contextmenu=${(e: Event) => { if (this._press && !this._press.mouse) e.preventDefault(); }}>
         <wp-day-bar ?show-hours=${this.hours} notches lang=${this.lang} ?tall=${this.editing} .spans=${this._spansNow()} .now=${this.now}
           aria-label=${t(this.lang, "edit_bar")}>${this.editing ? this._overlay_() : nothing}</wp-day-bar>
+        <div class="hint" role="status">${this._hint ? t(this.lang, "hold_hint") : nothing}</div>
       </div>
       ${this.editing ? this._strip() : nothing}
       ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
@@ -638,7 +711,15 @@ export class WpBarEditor extends LitElement {
 
   static styles = [editorStyles, css`
     :host { display: block; min-width: 0; }
-    .zone { touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: pointer; }
+    .zone { position: relative; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: pointer; }
+    .zone:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 3px; border-radius: 14px; }
+    /* above the "now" line of the bar (z-index 5) */
+    .hint {
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; max-width: 96%;
+      padding: 6px 12px; border-radius: 16px; font-size: 13px; line-height: 1.3; text-align: center; pointer-events: none;
+      background: var(--primary-text-color); color: var(--card-background-color, #fff);
+    }
+    .hint:empty { display: none; }
     .zone.editing { touch-action: none; cursor: default; }
     .ov { position: absolute; inset: 0; touch-action: none; z-index: 2; }
     .ov.grab { cursor: ew-resize; }
@@ -668,7 +749,8 @@ export class WpBarEditor extends LitElement {
     }
     .strip { margin: 4px 0 8px; padding: 8px; border: 1px solid var(--divider-color); border-radius: 12px; }
     .strip wp-label-picker { --mdc-icon-size: 18px; }
-    .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .acts { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pick { margin-top: 8px; }
     .act {
       display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; min-width: 48px; padding: 0 14px;
       border-radius: 24px; border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color);
