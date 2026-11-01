@@ -42,8 +42,10 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
 - **Delegation**: when sub-agents are available, delegate suitable independent tasks to agents with
   appropriate expertise. Keep the main conversation available for new instructions, coordinate file
   ownership, review their results and give the owner a consolidated report.
-  The main session coordinates only (it does not write code itself): it picks the agent and a model sized
-  to the work, checks evidence, and asks the owner before creating a new specialised agent.
+  The main session coordinates and does short work itself (fix under ~10 lines, wording, config, one command);
+  it delegates only when it pays off (long, independent, provable by a test/script/capture), picks a model
+  sized to the work, checks evidence, and asks the owner before creating a new specialised agent. Another
+  model (local Qwen, Codex…) is used only when worthwhile, never for user-facing wording or unreviewed engine code.
 - **Parallel work uses worktrees**: when two or more agents edit files in parallel, each one works in its own
   git worktree, created explicitly from `develop`: `git worktree add ../weekly-planner-wt/<task> -b <type>/<task> develop`.
   Pass its absolute path to the agent and tell it to work only there. Do not rely on a tool's automatic
@@ -59,6 +61,8 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
   without the owner's approval.
 - **Method**: the shared operating manual is the agent `methode-travail` (source
   `~/.config/ai-agents/agents/methode-travail.md`, generated for every AI tool).
+  At the start of every new session, read this manual, this file and `PROJECT_MEMORY.md` if present,
+  before taking action or reporting status; never rely only on instructions retained from an earlier session.
 - **Rule updates are automatic**: as soon as the owner states a new rule, preference or correction, record
   it without being asked: durable project rules here (product decisions in `docs/DECISIONS.md`), shared
   working notes in `PROJECT_MEMORY.md`; then tell the owner in one line what was recorded and where. If
@@ -83,6 +87,8 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
   (Keep a Changelog).
 - **Branches**: work on `develop`; `main` only receives releases approved by the maintainer. Changes go
   through an issue (`bug` or `change request`) and a pull request that references it.
+  When the owner approves a plan for implementation, save it in `docs/` and create or update its GitHub
+  tracking issue with the task checklist at implementation start, without waiting for completion.
 - **No secrets** in the repository: no tokens, passwords, addresses or personal data. The local test
   instance under `dev/` stays untracked.
 - Code, commits, README and CHANGELOG in English; `README.fr.md` in French.
@@ -136,6 +142,7 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
 - `scripts/bench.py` prints best/median per scenario (not run in CI).
 
 ## Deploying to a real instance
+- Before any Home Assistant restart check the owner's time-based automations: never restart between sunset and ~35 minutes after it, nor during morning/evening shutter or heating windows (a restart cancels automations waiting in a random delay; on 2026-11-01 a restart at 17:36 cancelled the evening shutter closing). Read the automation delays/triggers first, or restart outside those windows, and after a restart check that nothing planned was missed.
 - The weekday 08:00–17:00 restriction applies to commits, cherry-picks, merges and reverts only.
   It does not prohibit deployments. When the owner requests deployment, deploy the tested working
   tree even if changes are uncommitted; never require a commit or another approval solely for that reason.
@@ -150,3 +157,4 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
   The owner explicitly authorizes any necessary restart when requesting deployment; do not ask again.
 - Release: once the maintainer has merged the release PR into `main`, run `scripts/release.sh` (dry run; `--apply` to create the tag and GitHub release from the CHANGELOG section of the version on `main`). Releases are never created from `develop`.
 - Reports and plans never give effort estimates in human days or weeks (the work is done by AI agents); list the steps, dependencies and risks instead.
+- Token discipline: sub-agents default to a light/medium model (strong model only for architecture or a real adversarial review); at most 2 heavy agents in parallel; reuse finished agents with SendMessage instead of re-reading the same code with new ones; briefs name exact files and cap the report (≤ 25 lines); browser passes follow a short checklist; run the full suites once per merge batch.
