@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [Unreleased]
 
 ### Changed
+- Removed the "Drag to browse · Pinch to zoom · Shift + drag to select" help line under the chart.
 - The chart-options panel (extra entities) is offered in the schedule window only; the dashboard card no longer shows the selector but still draws the chosen curves and bands (#37).
 
 ## [0.26.0] - 2026-11-01

@@ -280,7 +280,6 @@ const en = {
   chart_previous: "Previous period",
   chart_next: "Next period",
   chart_return: "Return to selected day",
-  chart_pan_help: "Drag to browse · Pinch to zoom · Shift + drag to select a range",
   chart_zoom_reset: "Reset zoom",
   chart_zoom_window: "{from} – {to}",
 
@@ -642,7 +641,6 @@ const fr: typeof en = {
   chart_previous: "Période précédente",
   chart_next: "Période suivante",
   chart_return: "Revenir au jour sélectionné",
-  chart_pan_help: "Glisser pour parcourir · Pincer pour zoomer · Maj + glisser pour sélectionner",
   chart_zoom_reset: "Réinitialiser le zoom",
   chart_zoom_window: "{from} – {to}",
 

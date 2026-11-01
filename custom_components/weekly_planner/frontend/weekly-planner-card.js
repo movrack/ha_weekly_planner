@@ -1045,7 +1045,6 @@ var pt = {
 	chart_previous: "Previous period",
 	chart_next: "Next period",
 	chart_return: "Return to selected day",
-	chart_pan_help: "Drag to browse · Pinch to zoom · Shift + drag to select a range",
 	chart_zoom_reset: "Reset zoom",
 	chart_zoom_window: "{from} – {to}",
 	cf_title: "Please confirm",
@@ -1413,7 +1412,6 @@ var pt = {
 	chart_previous: "Période précédente",
 	chart_next: "Période suivante",
 	chart_return: "Revenir au jour sélectionné",
-	chart_pan_help: "Glisser pour parcourir · Pincer pour zoomer · Maj + glisser pour sélectionner",
 	chart_zoom_reset: "Réinitialiser le zoom",
 	chart_zoom_window: "{from} – {to}",
 	cf_title: "Veuillez confirmer",
@@ -5848,7 +5846,6 @@ var ka = "M12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20M1
 		})}</span>
         <button class="zreset return-day" type="button" @click=${() => this._reset()}>
           <ha-icon icon="mdi:magnify-minus-outline"></ha-icon><span>${D(e, "chart_return")}</span></button>` : b}
-        <small class="panhelp">${D(e, "chart_pan_help")}</small>
       </div>` : b}${t ? v`${this._legend(t)}
       <div class="availability" role="status">
         ${this._failed ? v`<p>${D(e, "chart_history_failed")}</p>` : !t.lines.length && !t.bands.length ? v`<p>${D(e, t.pastEnd <= this._win.from ? "chart_future_history" : "chart_no_history")}</p>` : b}
@@ -6064,7 +6061,6 @@ var ka = "M12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20M1
     svg { display: block; user-select: none; outline: none; max-width: 100%; cursor: pointer; touch-action: pan-y; }
     .rubber { fill: var(--primary-color); opacity: 0.2; stroke: var(--primary-color); stroke-width: 1; pointer-events: none; }
     .zoombar { display: flex; align-items: center; justify-content: space-between; gap: 4px 8px; margin-top: 2px; flex-wrap: wrap; }
-    .panhelp { flex-basis: 100%; color: var(--secondary-text-color); }
     .zdate { font-size: 13px; }
     .zwin { color: var(--secondary-text-color); font-size: 14px; white-space: nowrap; }
     .zreset {
