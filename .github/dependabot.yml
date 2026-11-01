@@ -1,23 +1,34 @@
 version: 2
+# One grouped pull request per ecosystem, so tools that must move together
+# (vite, vitest, TypeScript) never arrive as separate, failing pull requests.
 updates:
   - package-ecosystem: github-actions
     directory: /
     target-branch: develop
     schedule:
-      interval: weekly
+      interval: monthly
     commit-message:
       prefix: chore
+    groups:
+      actions:
+        patterns: ["*"]
   - package-ecosystem: npm
     directory: /frontend
     target-branch: develop
     schedule:
-      interval: weekly
+      interval: monthly
     commit-message:
       prefix: chore
+    groups:
+      frontend-tooling:
+        patterns: ["*"]
   - package-ecosystem: uv
     directory: /
     target-branch: develop
     schedule:
-      interval: weekly
+      interval: monthly
     commit-message:
       prefix: chore
+    groups:
+      python-tooling:
+        patterns: ["*"]
