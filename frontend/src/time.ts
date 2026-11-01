@@ -31,6 +31,12 @@ export function minutesToClock(minutes: number): string {
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 }
 
+/** "HH:MM" of any whole minute (no step), clamped to 00:00…24:00. */
+export function exactClock(minutes: number): string {
+  const m = Math.max(0, Math.min(DAY, Math.round(minutes)));
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+}
+
 /** Minutes since local midnight (server zone) for an ISO date. */
 export function localMinutes(iso: string | Date, timeZone: string): number {
   const date = typeof iso === "string" ? new Date(iso) : iso;
