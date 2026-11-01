@@ -13,7 +13,7 @@ function chart(entityId = "switch.lamp") {
   const c = new WpChart() as any;
   c.entityId = entityId;
   c.date = DAY;
-  c.hass = { language: "en", config: { time_zone: "UTC" }, states: {}, callWS: vi.fn() };
+  c.hass = { language: "en", config: { time_zone: "UTC" }, states: {}, callWS: vi.fn(async () => ({})) };
   c.data = { labels: [], status: {} };
   c.program = { id: "p", name: "P", entities: [{ entity_id: entityId, default_label: null }],
     profiles: [{ id: "home", days: Array.from({ length: 7 }, () => []) }] };
@@ -79,25 +79,28 @@ describe("pinch (two fingers)", () => {
 });
 
 describe("one finger", () => {
-  it("does nothing when not zoomed (the page scrolls), then a tap opens the history", () => {
+  it("pans a whole day, suppresses the gesture click, then allows a later tap", () => {
     const c = chart();
     const open = vi.fn(); c._open = open;
     c._down(ev(1, 100)); c._move(ev(1, 160));
-    expect(win(c)).toBeNull();
+    expect(win(c).from).toBeLessThan(0);
+    expect(win(c).to - win(c).from).toBeCloseTo(1440);
     c._up(up(1, 160));
     vi.advanceTimersByTime(1000);
     c._click();
+    vi.advanceTimersByTime(300);
     expect(open).toHaveBeenCalledTimes(1);
   });
 
-  it("pans when zoomed, and stops at the edges", () => {
+  it("pans when zoomed across day boundaries, keeping its duration", () => {
     const c = chart();
     c._zoom = { from: 600, to: 840 };
     c._down(ev(1, 150)); c._move(ev(1, 150 - 20));
     expect(win(c).from).toBeGreaterThan(600);
     expect(win(c).to - win(c).from).toBeCloseTo(240);
     c._move(ev(1, 150 - 5000));
-    expect(win(c)).toEqual({ from: 1200, to: 1440 });
+    expect(win(c).from).toBeGreaterThan(1440);
+    expect(win(c).to - win(c).from).toBeCloseTo(240);
     c._up(up(1, 0));
   });
 
@@ -109,7 +112,7 @@ describe("one finger", () => {
 describe("mouse", () => {
   it("drag selects a range and zooms to it", () => {
     const c = chart();
-    c._down(ev(1, px(480), "mouse")); c._move(ev(1, px(720), "mouse"));
+    c._down({ ...ev(1, px(480), "mouse"), shiftKey: true }); c._move(ev(1, px(720), "mouse"));
     expect(c._band).not.toBeNull();
     expect(flat(tpl(c))).toContain('class="rubber"');
     c._up(up(1, px(720), "mouse"));
@@ -120,10 +123,10 @@ describe("mouse", () => {
 
   it("selects right to left too, and a tiny selection gives the 30 min minimum", () => {
     const c = chart();
-    c._down(ev(1, px(720), "mouse")); c._move(ev(1, px(480), "mouse")); c._up(up(1, px(480), "mouse"));
+    c._down({ ...ev(1, px(720), "mouse"), shiftKey: true }); c._move(ev(1, px(480), "mouse")); c._up(up(1, px(480), "mouse"));
     expect(win(c).from).toBeCloseTo(480, 0);
     const d = chart();
-    d._down(ev(1, px(700), "mouse")); d._move(ev(1, px(700) + 7, "mouse")); d._up(up(1, px(700) + 7, "mouse"));
+    d._down({ ...ev(1, px(700), "mouse"), shiftKey: true }); d._move(ev(1, px(700) + 7, "mouse")); d._up(up(1, px(700) + 7, "mouse"));
     expect(win(d).to - win(d).from).toBeGreaterThanOrEqual(30);
     expect(win(d).to - win(d).from).toBeLessThan(40);
   });
@@ -180,7 +183,8 @@ describe("mouse", () => {
     key("0");
     expect(win(c)).toBeNull();
     expect(key("x")).toBe(false);
-    expect(key("ArrowLeft")).toBe(false);
+    expect(key("ArrowLeft")).toBe(true);
+    expect(win(c).from).toBeLessThan(0);
   });
 });
 
@@ -203,13 +207,13 @@ describe("rendering when zoomed", () => {
 
   it("the reset button shows only when zoomed, with a window hint", () => {
     const c = chart();
-    expect(flat(c.render())).not.toContain("zreset");
+    expect(flat(c.render())).not.toContain("mdi:magnify-minus-outline");
     c._zoom = { from: 480, to: 600 };
     const html = flat(c.render());
     expect(html).toContain("mdi:magnify-minus-outline");
-    expect(html).toContain("Reset zoom");
+    expect(html).toContain("Return to selected day");
     expect(html).toContain("08:00 – 10:00");
-    find(c.render(), "click", "zreset").fn();
+    find(c.render(), "click", "return-day").fn();
     expect(win(c)).toBeNull();
   });
 

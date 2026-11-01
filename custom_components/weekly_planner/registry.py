@@ -48,6 +48,8 @@ def rename_entity(config: dict[str, Any], old: str, new: str) -> bool:
             program_changed |= swap(condition)
         for entity in program["entities"]:
             program_changed |= swap(entity)
+            for source in entity.get("chart_sources", []):
+                program_changed |= swap(source)
             for action in entity.get("label_overrides", {}).values():
                 program_changed |= swap_action(action)
         for profile in program["profiles"]:

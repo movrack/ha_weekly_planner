@@ -6,6 +6,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-11-01
+
+### Added
+- Chart options shared in Home Assistant per program and device (#37): add any entity as a recorded numeric curve or selected-state band. Numeric curves share scales by unit (one left and up to two right axes), with stable colours and an explicit refusal of a fourth unit. State bands support multiple highlighted states, translated labels and distinct gaps for unavailable data. Choices persist independently of the displayed day or mode, preserve missing entities/states, save automatically on fresh data with one conflict retry, and respect read-only access. External histories use a bounded, connection-scoped batched cache, follow the visible dates and pan/zoom, and never extend into the future. A display-only save pushes the new options without re-evaluating schedules or sending device commands.
+
+## [0.25.0] - 2026-11-01
+
+### Added
+- Card charts scroll continuously across days with one finger, a mouse drag, horizontal trackpad scrolling or arrow keys (#36). Zoom stays unchanged while panning; Shift + drag selects a zoom range and pinch/Ctrl + wheel still zoom. Visible dates, previous/next period buttons and Return to selected day keep navigation clear. Each visible local day loads its own bounded history and resolved device preview, respecting 23/25-hour days, ignoring stale responses and never loading future history.
+
+## [0.24.0] - 2026-11-01
+
+### Added
+- Card: edit schedules directly on circular and double circular views (#35), with the same touch/mouse entry, 44 px handles, 15-minute dragging, whole-slot movement, setting selection, splitting, copying, device-scope confirmation and Undo as day bars. Noon endpoints stay on their corresponding rings; dragging through midnight does not jump.
+
 ## [0.23.0] - 2026-11-01
 
 ### Fixed

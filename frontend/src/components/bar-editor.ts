@@ -1,12 +1,14 @@
-// A day bar of the card that can be edited in place (spec § 10.8): long press / click to enter, handles on every
+// A day schedule (bar or circular) of the card that can be edited in place (spec § 10.8): long press / click to enter, handles on every
 // boundary, saved on release for that day only, a strip under the bar for the selected slot or gap.
 // All the logic lives in edits.ts (pure); this element only handles pointers, keys and saving.
 
-import { LitElement, css, html, nothing } from "lit";
+import { LitElement, css, html, svg, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { ifDefined } from "lit/directives/if-defined.js";
 import { repeat } from "lit/directives/repeat.js";
 import "./day-bar";
+import "./radial-day";
+import { radialPointerMinute, radialPosition, radialDelta, radialSegments } from "../radial";
 import "./dialog";
 import "./label-picker";
 import { confirmAction } from "./confirm";
@@ -62,6 +64,12 @@ export class WpBarEditor extends LitElement {
   @property({ type: Boolean }) hours = false;
   @property() lang = "en";
   @property() tz = "UTC";
+  @property() view = "bar";
+  @property() rest = "";
+  private get _radial(): boolean { return this.view === "radial" || this.view === "radial_12h"; }
+  private _pointerY = 0;
+  private _polarDrag?: { x: number; y: number; minute: number };
+  private _polarProgress?: { x: number; y: number; delta: number };
   /** A slot dragged from another day bar is above this one (drop target). */
   @property({ type: Boolean, reflect: true }) drop = false;
 
@@ -239,6 +247,7 @@ export class WpBarEditor extends LitElement {
     if (p.fired) {
       // the long press opened the edit mode and the finger is still down: dragging moves the slot under it
       if (!this._mv && this.editing) {
+        this._pointerY = p.y;
         const target = this._segAt(this._minuteAt(p.x).m);
         if (target?.kind === "slot") {
           this._mvBegin(e, target.id, p);
@@ -317,9 +326,68 @@ export class WpBarEditor extends LitElement {
   }
 
   private _minuteAt(clientX: number): { m: number; ppm: number } {
+    if (this._radial) {
+      const r = this._dialRect();
+      return { m: radialPointerMinute(clientX, this._pointerY, r, this.view === "radial_12h"), ppm: r.width / 320 * 2 * Math.PI * 112 / (this.view === "radial_12h" ? 720 : DAY) };
+    }
     const r = this._overlay?.getBoundingClientRect();
     const width = r?.width || 1;
     return { m: ((clientX - (r?.left ?? 0)) / width) * DAY, ppm: width / DAY };
+  }
+
+  private _dialRect() {
+    const r = (this._overlay ?? this.renderRoot.querySelector(".radial-face")!).getBoundingClientRect();
+    return { left: r.left, top: r.top, width: r.width, height: r.width };
+  }
+
+  private _radialMovement(x: number, y: number, x0: number, y0: number): number {
+    const prev = this._polarProgress ?? { x: x0, y: y0, delta: 0 };
+    const delta = prev.delta + radialDelta(prev.x, prev.y, x, y, this._dialRect(), this.view === "radial_12h");
+    this._polarProgress = { x, y, delta };
+    return delta;
+  }
+
+  private _radialBoundaries() {
+    return boundaries(this._day, this._ctx()).flatMap(b => this.view === "radial_12h" && b.m === 720
+      ? ["end", "start"].flatMap(edge => {
+        const refs = b.refs.filter(ref => ref.edge === edge);
+        return refs.length ? [{ ...b, refs }] : [];
+      }) : [b]);
+  }
+
+  private _radialNearest(x: number, y: number) {
+    const r = this._dialRect();
+    let best: { b: ReturnType<typeof boundaries>[number]; d: number } | undefined;
+    for (const b of this._radialBoundaries()) {
+      const p = radialPosition(b.m, this.view === "radial_12h", b.refs[0].edge === "end");
+      const d = Math.hypot(x - r.left - p.x / 320 * r.width, y - r.top - p.y / 320 * r.height);
+      if (d <= GRAB_PX && (!best || d < best.d)) best = { b, d };
+    }
+    return best?.b;
+  }
+
+  private _radialOverlay() {
+    const sel = this._sel;
+    return html`<div class="ov polar" @pointerdown=${this._ovDown} @pointermove=${this._ovMove}
+      @pointerup=${this._ovUp} @pointercancel=${this._ovCancel}>
+      ${sel ? html`<svg class="polar-selection" viewBox="0 0 320 320" aria-hidden="true">
+        ${radialSegments([{ start: sel.start, end: sel.end ?? sel.start, marker: sel.end === null, color: "", label: "" }], this.view === "radial_12h").map(s => {
+          const radius = this.view === "radial_12h" && s.ring === 0 ? 78 : 112;
+          const p = radialPosition(s.start, this.view === "radial_12h");
+          return s.source.marker ? svg`<circle cx=${p.x} cy=${p.y} r="12" fill="none" stroke="var(--primary-text-color)" stroke-width="2" />`
+            : svg`<circle cx="160" cy="160" r=${radius} fill="none" stroke="var(--primary-text-color)" stroke-width=${this.view === "radial_12h" ? 28 : 40}
+                pathLength="100" stroke-dasharray="${s.fraction * 100} ${100 - s.fraction * 100}" stroke-dashoffset=${-s.offset * 100} transform="rotate(-90 160 160)" opacity=".4" />`;
+        })}</svg>` : nothing}
+      ${this._radialBoundaries().map((b) => {
+        const ref = b.refs[0];
+        const p = radialPosition(b.m, this.view === "radial_12h", ref.edge === "end");
+        return html`<button class="hd dot" style="left:${p.x / 3.2}%;top:${p.y / 3.2}%" role="slider"
+          aria-valuemin="0" aria-valuemax="1440" aria-valuenow=${b.m} aria-valuetext=${this._clock(b.m)}
+          aria-label=${t(this.lang, "handle", { time: this._clock(b.m) })} data-h=${`${ref.id}:${ref.edge}`}
+          @keydown=${(e: KeyboardEvent) => this._key(e, ref)} @focus=${() => (this._hsel = ref)}><i></i></button>`;
+      })}
+      ${this._bubble || sel ? html`<div class="polar-time">${this._bubble?.text ?? (this._bubble ? this._clock(this._bubble.m) : `${this._clock(sel!.start)}${sel!.end === null ? "" : `–${this._clock(sel!.end)}`}`)}</div>` : nothing}
+    </div>`;
   }
 
   private _nearest(m: number, ppm: number) {
@@ -340,8 +408,11 @@ export class WpBarEditor extends LitElement {
   private _ovDown(e: PointerEvent): void {
     if (e.button !== 0) return;
     this._flushNudge();
+    this._pointerY = e.clientY;
     const { m, ppm } = this._minuteAt(e.clientX);
-    const near = this._nearest(m, ppm);
+    const near = this._radial ? this._radialNearest(e.clientX, e.clientY) : this._nearest(m, ppm);
+    this._polarProgress = undefined;
+    if (this._radial) this._polarDrag = { x: e.clientX, y: e.clientY, minute: m };
     if (near) {
       (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
       this._drag = { ref: near.refs[0], m0: near.m, x0: e.clientX, id: e.pointerId, moved: false, last: near.m,
@@ -354,6 +425,7 @@ export class WpBarEditor extends LitElement {
       window.clearTimeout(this._mvTimer);
       this._mvTimer = window.setTimeout(() => {
         const d = this._drag;
+        this._pointerY = at.y;
         const target = this._segAt(this._minuteAt(at.x).m);
         if (!d || d.moved || d.id !== e.pointerId || target?.kind !== "slot") return;
         navigator.vibrate?.(12);
@@ -374,6 +446,7 @@ export class WpBarEditor extends LitElement {
   /* ---- moving a whole slot ---- */
 
   private _mvBegin(e: PointerEvent, slotId: string, from: { x: number; y: number } = { x: e.clientX, y: e.clientY }): void {
+    this._polarProgress = undefined;
     const ctx = this._ctx();
     const slot = this._baseDay.find((s) => s.id === slotId);
     if (!slot) return;
@@ -416,7 +489,7 @@ export class WpBarEditor extends LitElement {
     if (mv.refused) return true;
     const base = this._live.profiles.find((profile) => profile.id === mv.profileId)?.days[mv.weekday];
     if (!base) { this._mvCancel(); return true; }
-    const delta = dx / this._minuteAt(0).ppm;
+    const delta = this._radial ? this._radialMovement(e.clientX, e.clientY, mv.x0, mv.y0) : dx / this._minuteAt(0).ppm;
     const bar = this._barAt(e.clientX, e.clientY);
     this._setDrop(bar);
     if (bar) {
@@ -482,11 +555,11 @@ export class WpBarEditor extends LitElement {
     const d = this._drag;
     if (d && d.id === e.pointerId) {
       const dx = e.clientX - d.x0;
-      if (!d.moved && Math.abs(dx) < 3) return;
+      if (!d.moved && (this._radial ? Math.hypot(dx, e.clientY - (this._polarDrag?.y ?? e.clientY)) : Math.abs(dx)) < 3) return;
       d.moved = true;
       const base = this._live.profiles.find((profile) => profile.id === d.profileId)?.days[d.weekday];
       if (!base) { this._ovCancel(); return; }
-      const res = moveBoundary(base, d.ref, d.m0 + dx / this._minuteAt(0).ppm, d.ctx);
+      const res = moveBoundary(base, d.ref, d.m0 + (this._radial ? this._radialMovement(e.clientX, e.clientY, this._polarDrag?.x ?? d.x0, this._polarDrag?.y ?? e.clientY) : dx / this._minuteAt(0).ppm), d.ctx);
       if (res) {
         d.last = res.m;
         this._draft = res.slots;
@@ -495,8 +568,9 @@ export class WpBarEditor extends LitElement {
       return;
     }
     if (!this._tap && !d) {
+      this._pointerY = e.clientY;
       const { m, ppm } = this._minuteAt(e.clientX);
-      this._hover = Boolean(this._nearest(m, ppm));
+      this._hover = Boolean(this._radial ? this._radialNearest(e.clientX, e.clientY) : this._nearest(m, ppm));
     }
   }
 
@@ -963,8 +1037,10 @@ export class WpBarEditor extends LitElement {
         @keydown=${this._zoneKey}
         @pointerdown=${this._zoneDown} @pointermove=${this._zoneMove} @pointerup=${this._zoneUp}
         @pointercancel=${this._zoneCancel} @contextmenu=${(e: Event) => { if (this._press && !this._press.mouse) e.preventDefault(); }}>
-        <wp-day-bar ?show-hours=${this.hours} notches lang=${this.lang} ?tall=${this.editing} .spans=${this._spansNow()} .now=${this.now}
-          aria-label=${t(this.lang, "edit_bar")}>${this.editing ? this._overlay_() : nothing}</wp-day-bar>
+        ${this._radial ? html`<div class="radial-face"><wp-radial-day passive .spans=${this._spansNow()} .now=${this.now}
+          .double=${this.view === "radial_12h"} lang=${this.lang} rest=${this.rest}></wp-radial-day>
+          ${this.editing ? this._radialOverlay() : nothing}</div>` : html`<wp-day-bar ?show-hours=${this.hours} notches lang=${this.lang} ?tall=${this.editing} .spans=${this._spansNow()} .now=${this.now}
+          aria-label=${t(this.lang, "edit_bar")}>${this.editing ? this._overlay_() : nothing}</wp-day-bar>`}
         <div class="hint" role="status">${this._hint ? t(this.lang, "hold_hint") : nothing}</div>
       </div>
       ${this.editing && !this._moving && !this._ask ? this._strip() : nothing}
@@ -986,6 +1062,11 @@ export class WpBarEditor extends LitElement {
     .hint:empty { display: none; }
     .zone.editing { touch-action: none; cursor: default; }
     .ov { position: absolute; inset: 0; touch-action: none; z-index: 2; }
+    .radial-face { position: relative; max-width: 360px; margin: auto; }
+    .polar { bottom: auto; aspect-ratio: 1; }
+    .polar-selection { position: absolute; inset: 0; width: 100%; pointer-events: none; }
+    .polar .hd { width: 44px; height: 44px; bottom: auto; margin: -22px 0 0 -22px; }
+    .polar-time { position: absolute; top: 42%; left: 32%; width: 36%; padding: 12px 0; text-align: center; background: var(--card-background-color); pointer-events: none; font-weight: 600; }
     .ov.grab { cursor: ew-resize; }
     .selbox {
       position: absolute; top: 0; bottom: 0; border: 2px solid var(--primary-text-color); border-radius: 10px;

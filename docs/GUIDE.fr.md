@@ -315,17 +315,29 @@ est sous les horaires. Ses flèches changent le jour. Il compare ce
 qui était prévu avec les données disponibles de l’appareil. Toucher le graphique
 ouvre l’historique de Home Assistant : [S15 et S16](SCREENS.fr.md#s15).
 
-Pour voir une partie de la journée en détail, **zoomez** sur le graphique :
+Pour parcourir le temps, glissez horizontalement : le graphique continue dans les jours précédents et suivants,
+et les dates s’affichent sous lui. Les flèches montrent la période précédente ou suivante, sans changer le zoom.
 
-- **Téléphone** : pincez avec deux doigts (écartez pour zoomer, rapprochez pour dézoomer). Une fois zoomé,
-  glissez un doigt à l’horizontale pour déplacer la fenêtre ; faire défiler la page à la verticale marche toujours.
-- **Ordinateur** : maintenez le bouton de la souris et glissez sur le graphique pour entourer la plage voulue ;
-  Ctrl + molette zoome autour du pointeur ; le double clic remet tout.
-- **Clavier** : `+` et `-` zoomment, les flèches déplacent, `0` remet tout.
+- **Téléphone** : glissez un doigt pour parcourir ; pincez avec deux doigts pour zoomer ou dézoomer. La page défile toujours verticalement.
+- **Ordinateur** : glissez à la souris pour parcourir ; maintenez Maj en glissant pour entourer une plage à zoomer. Ctrl + molette zoome autour du pointeur.
+- **Clavier** : `+` et `-` zooment, les flèches déplacent, `0` ou le double clic revient au jour sélectionné.
 
-Quand le graphique est zoomé, la fenêtre affichée (par exemple « 06:00 – 11:00 ») et le bouton
-**Réinitialiser le zoom** apparaissent sous lui. La fenêtre la plus étroite est de 30 minutes. Le zoom est
-oublié quand on change de jour.
+**Revenir au jour sélectionné** rétablit la journée entière. La fenêtre la plus étroite est de 30 minutes.
+
+### Comparer avec une autre entité
+
+Ouvrez **Options du graphique**, puis **Ajouter une entité** et recherchez son nom. Le panneau est replié au départ.
+Une mesure numérique apparaît en courbe : par exemple, comparez température et humidité. Chaque unité a son échelle colorée,
+avec trois unités différentes au plus. Des courbes de même unité partagent la même échelle.
+
+Pour une entité à états, cochez les états qui vous intéressent : par exemple « Ouvert » pour une fenêtre.
+Vous pouvez en cocher plusieurs, chacun a sa couleur. Les autres états restent neutres ; les données manquantes
+ont un motif distinct. La bande porte le nom de l’entité et suit exactement la période du graphique.
+
+Les choix s’enregistrent automatiquement et sont partagés pour cet appareil dans ce programme, sur la carte et dans la
+fenêtre des horaires. Replier les options ne masque pas les tracés. La croix retire seulement une source du graphique,
+sans agir sur l’appareil. Une entité disparue et les états enregistrés restent dans les options pour pouvoir les retrouver ou les retirer.
+En lecture seule, les sources se consultent mais ne se modifient pas.
 
 [Graphique sans données S45](SCREENS.fr.md#s45).
 

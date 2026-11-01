@@ -155,6 +155,27 @@ def _clean_slot_entities(existing: dict | None, program: dict) -> dict:
         return program
 
 
+def _chart_metadata_only(before: dict | None, after: dict, reapply_default: bool = True) -> bool:
+    """Only display sources changed: do not re-evaluate schedules or send device services."""
+    if before is None:
+        return False
+    try:
+        before = PROGRAM(with_defaults(before, reapply_default))
+    except vol.Invalid:
+        return False
+
+    def scheduling(program: dict) -> dict:
+        return {**program, "entities": [
+            {key: value for key, value in entity.items() if key != "chart_sources"}
+            for entity in program["entities"]
+        ]}
+
+    sources_changed = [entity.get("chart_sources") for entity in before["entities"]] != [
+        entity.get("chart_sources") for entity in after["entities"]
+    ]
+    return sources_changed and scheduling(before) == scheduling(after)
+
+
 @websocket_api.websocket_command({
     vol.Required("type"): f"{DOMAIN}/program/save",
     vol.Required("program"): dict,
@@ -193,6 +214,7 @@ async def ws_program_save(hass, connection, msg) -> None:
     if existing and existing.get("revision", 0) != program.get("revision", 0):
         connection.send_error(msg["id"], "conflict", "Modified elsewhere, reload")
         return
+    chart_metadata_only = _chart_metadata_only(existing, program, engine.reapply_default)
     inactive_mode_edit = bool(existing) and _is_inactive_mode_edit(engine, existing, program)
     program["revision"] = program.get("revision", 0) + 1
     program.setdefault("created_at", existing.get("created_at") if existing else dt_util.utcnow().isoformat())
@@ -201,7 +223,7 @@ async def ws_program_save(hass, connection, msg) -> None:
     else:
         engine.store.programs.append(program)
     engine.store.save_config()
-    await engine.async_config_changed(reapply=not inactive_mode_edit)
+    await engine.async_config_changed(reapply=not inactive_mode_edit, metadata_only=chart_metadata_only)
     connection.send_result(msg["id"], {"program": program})
 
 

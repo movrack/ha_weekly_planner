@@ -75,3 +75,15 @@ export function ticksIn(w: ZoomWindow, step: number): number[] {
   for (let m = Math.ceil(w.from / step - EPS) * step + 0; m <= w.to + EPS; m += step) out.push(m);
   return out;
 }
+
+/** Continuous navigation across local-day boundaries; the interval keeps its real duration. */
+export function slideTimeline(w: ZoomWindow, delta: number): ZoomWindow {
+  return { from: w.from + delta, to: w.to + delta };
+}
+
+/** Zoom a continuous timeline without clamping its location to the initially selected day. */
+export function zoomTimeline(w: ZoomWindow, scale: number, anchor: number, frac: number, maxSpan: number): ZoomWindow {
+  const len = Math.max(MIN_WINDOW, Math.min(maxSpan, (w.to - w.from) / (scale > 0 ? scale : 1)));
+  const from = anchor - Math.max(0, Math.min(1, frac)) * len;
+  return { from, to: from + len };
+}

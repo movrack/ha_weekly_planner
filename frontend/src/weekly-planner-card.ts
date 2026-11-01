@@ -364,7 +364,8 @@ export class WeeklyPlannerCard extends LitElement {
       weekday=${weekday} .spans=${this._spans(entityId, programs, offset)} .preview=${this._deviceDays(program.id, date, entityId).today}
       .now=${offset === 0 ? localMinutes(this._now, this._tz) : null} ?hours=${kind === "today"}
       ?editing=${this._edit === key} ?editable=${Boolean(this._data?.can_edit) && !this._data?.read_only}
-      lang=${this._lang} tz=${this._tz}
+      lang=${this._lang} tz=${this._tz} view=${kind === "today" ? this._config.schedule_view ?? "bar" : "bar"}
+      .rest=${(() => { const l = labelOf(this._data!, program.entities.find((e) => e.entity_id === entityId)?.default_label); return l ? labelName(this.hass, l) : t(this._lang, "rest_none"); })()}
       @edit-request=${() => (this._edit = key)} @edit-exit=${() => { if (this._edit === key) this._edit = null; }}
       @open-day=${openDay} @edited=${(e: CustomEvent<{ undo: () => Promise<boolean> }>) => this._showSnack(e.detail.undo)}></wp-bar-editor>`;
   }
@@ -400,11 +401,7 @@ export class WeeklyPlannerCard extends LitElement {
             <button class="hours" aria-label=${t(lang, "hours")} title=${t(lang, "hours")} @click=${open}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
           </div>${this._disabledBadge(paused)}</div>` : nothing}
         </div>
-        ${create ? this._createButton(opts.open) : (this._config.schedule_view === "radial" || this._config.schedule_view === "radial_12h") ? html`<wp-radial-day
-          .spans=${this._spans(entityId, programs)} .now=${localMinutes(this._now, this._tz)} lang=${lang}
-          .rest=${(() => { const l = labelOf(data, programs[0].entities.find((e) => e.entity_id === entityId)?.default_label); return l ? labelName(this.hass, l) : t(lang, "rest_none"); })()}
-          .double=${this._config.schedule_view === "radial_12h"}
-          @open-day=${open}></wp-radial-day>` : html`<div class="today">
+        ${create ? this._createButton(opts.open) : (this._config.schedule_view === "radial" || this._config.schedule_view === "radial_12h") ? this._bar(entityId, programs[0], 0, "today", open) : html`<div class="today">
           <span class="wname" title=${t(lang, "today")}>${t(lang, "today_short")}</span>
           ${this._bar(entityId, programs[0], 0, "today", open)}
         </div>`}
