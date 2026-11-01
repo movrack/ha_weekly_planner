@@ -142,6 +142,11 @@ des appareils. Un programme peut en contenir plusieurs.
 | Valeur propre | `label_overrides[label_id]`, action propre à cette entité dans ce programme. |
 | Mode (`profile` en interne) | Semaine type indépendante. Un mode actif par programme ; Vacances est un mode ordinaire. Appareils, défauts, conditions et priorité restent communs. |
 
+Deux horaires d’un programme ne peuvent se chevaucher que s’ils visent des
+appareils différents. Chaque appareil n’exécute que les horaires qui le visent ;
+enregistrer un programme ne renvoie une action qu’aux appareils dont le réglage
+en cours ou la cible a changé.
+
 Le moteur recalcule l’action voulue et agit aux transitions. Il ne force pas en
 continu l’état observé et ne détecte pas les réglages manuels pour les corriger.
 Leur affichage dans le graphique ne modifie pas cette règle.

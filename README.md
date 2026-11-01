@@ -148,6 +148,10 @@ registry IDs. A program may contain several of them.
 | Entity override | `label_overrides[label_id]` changes that setting's action for this entity in this program. |
 | Mode (`profile` internally) | A named weekly slot set. One is active per program. Vacation is an ordinary mode. Entities, defaults, program conditions and priority are shared. |
 
+Two slots of a program may overlap in time only when they target different
+devices. Each device runs only the slots that target it; saving a program
+re-sends an action only to the devices whose current setting or target changed.
+
 A service setting action has this shape:
 
 ```json
