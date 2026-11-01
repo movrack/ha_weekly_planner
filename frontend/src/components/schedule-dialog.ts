@@ -45,6 +45,8 @@ export class WpSchedule extends LitElement {
   private _editProfileId: string | null = null;
   /** Opened from a day of the card's week (0 = Monday, `offset` days from today): edit that day. */
   @property({ attribute: false }) day: { weekday: number; offset: number } | null = null;
+  /** Opened from the card's "Create a setting" button: straight to the first slot when there is none. */
+  @property({ type: Boolean }) create = false;
 
   /** Row being edited: its key, "new", or "rest:<entity>". */
   @state() private _open: string | null = null;
@@ -146,6 +148,10 @@ export class WpSchedule extends LitElement {
 
   firstUpdated(): void {
     this._loadNames();
+    if (this.create && !this.day) {
+      if (!this._rows().length && this._canEdit) this._add();
+      return;
+    }
     if (!this.day) return;
     const { weekday, offset } = this.day;
     if (offset >= -BACK && offset <= AHEAD) this._offset = offset;
@@ -778,6 +784,7 @@ export class WpSchedule extends LitElement {
       return html`<wp-dialog open heading=${this._title}><p class="muted">${t(lang, "no_program")}</p></wp-dialog>`;
     }
     const rows = this._rows();
+    const first = !rows.length && this._focus === null && !this._modeOnly;
     const missingMode = this.scope.kind === "program" && !this._modeProfile(this._programs[0]);
     return html`
       <wp-dialog open columns heading=${this._title}>
@@ -809,8 +816,8 @@ export class WpSchedule extends LitElement {
         <div class="list">
           ${rows.length ? rows.map((r) => this._renderRow(r)) : (this._open === "new" ? nothing : html`<p class="muted">${t(lang, "w_none")}</p>`)}
           ${this._group && (this._open === "new" || (this._open !== null && !rows.some((r) => r.key === this._open))) ? this._renderEditor(this._programs.find((p) => p.id === this._programId) ?? this._programs[0], this._open!) : nothing}
-          ${this._open === null ? html`<button class="row add" ?disabled=${!this._canEdit || missingMode} @click=${() => this._add()}>
-            <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${this._focus === null ? t(lang, "w_add") : t(lang, "w_add_day", { day: strings(lang).days[this._focus].toLocaleLowerCase(lang) })}</span></button>` : nothing}
+          ${this._open === null ? html`<button class="row add ${first ? "first" : ""}" ?disabled=${!this._canEdit || missingMode} @click=${() => this._add()}>
+            <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${first ? t(lang, "create_setting") : this._focus === null ? t(lang, "w_add") : t(lang, "w_add_day", { day: strings(lang).days[this._focus].toLocaleLowerCase(lang) })}</span></button>` : nothing}
         </div>
         </div>
         <div class="area-week">${this._renderWeek()}</div>
@@ -861,6 +868,7 @@ export class WpSchedule extends LitElement {
     .row.rest .txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15px; }
     .row .txt small { display: block; color: var(--secondary-text-color); font-size: 12px; }
     .row.add { border-style: dashed; color: var(--primary-color); font-weight: 500; }
+    .row.add.first:not(:disabled) { border-style: solid; background: var(--primary-color); color: var(--text-primary-color, #fff); }
     .row.rest { background: var(--secondary-background-color); }
     .row:disabled { opacity: 0.5; cursor: default; }
     .dot { width: 14px; height: 14px; border-radius: 7px; flex: none; }

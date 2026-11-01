@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+- Card: a program with no setting at all in its active mode shows one primary "Create a setting" button (fr: "Créer un réglage") instead of its empty bars; it opens the schedule screen straight on the new-setting form. Hidden when the user cannot edit or the card is read-only. In the schedule screen, an empty program's add button reads "Create a setting" and is filled.
+
 ### Changed
 - Card editor, programs to display: the list now shows each program once, with a single switch and its devices (names and type icons) underneath, instead of repeating a program under every device type. Quick selection by type is a separate "Select all by type" row of chips (with distinct-program counts). The mode "Several devices" is now "Several programs" (fr: "Plusieurs programmes"). Configuration keys and YAML are unchanged.
 - Tooling only: frontend dev dependencies bumped together (vite 8, vitest 5, @vitest/coverage-v8 5, TypeScript 7) and `npm audit fix` applied. Pillow stays at 12.3.0 (pinned by homeassistant 2026.10.3). New component and editor tests raise the frontend coverage floors to 80 % statements and lines, 60 % branches and functions.

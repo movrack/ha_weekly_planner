@@ -1061,6 +1061,7 @@ var ut = {
 	schedule_on: "Schedule on",
 	w_add: "Add a schedule",
 	w_none: "No schedule.",
+	create_setting: "Create a setting",
 	w_whole_week: "Whole week",
 	w_add_day: "Add a schedule on {day}",
 	w_dropped: "Not added on {days}: already busy.",
@@ -1376,6 +1377,7 @@ var ut = {
 	schedule_on: "Horaires actifs",
 	w_add: "Ajouter un horaire",
 	w_none: "Aucun horaire.",
+	create_setting: "Créer un réglage",
 	w_whole_week: "Toute la semaine",
 	w_add_day: "Ajouter un horaire le {day}",
 	w_dropped: "Pas ajouté {days} : déjà occupé.",
@@ -4989,7 +4991,7 @@ O([E({ attribute: !1 })], Y.prototype, "hass", void 0), O([E({ attribute: !1 })]
 // src/components/schedule-dialog.ts
 var Pi = (e) => e.kind === "device" ? `d:${e.entityId}` : `p:${e.programId}`, Fi = 7, X = class extends w {
 	constructor(...e) {
-		super(...e), this.chart = !0, this.profileId = null, this._viewProfileId = null, this._editProfileId = null, this.day = null, this._open = null, this._group = null, this._dayOnly = null, this._rest = null, this._openId = null, this._base = null, this._dropBusy = !1, this._focus = null, this._note = "", this._origin = null, this._overrides = [], this._saved = {}, this._draft = null, this._restLabel = null, this._labelDraft = null, this._pickerKey = 0, this._fresh = /* @__PURE__ */ new Set(), this._programId = "", this._error = "", this._saving = !1, this._toggling = !1, this._offset = 0, this._slots = null, this._chartEntity = "", this._token = 0, this._loaded = "", this._include = (e) => !0, this._minutes = (e) => Xn(this.hass, e);
+		super(...e), this.chart = !0, this.profileId = null, this._viewProfileId = null, this._editProfileId = null, this.day = null, this.create = !1, this._open = null, this._group = null, this._dayOnly = null, this._rest = null, this._openId = null, this._base = null, this._dropBusy = !1, this._focus = null, this._note = "", this._origin = null, this._overrides = [], this._saved = {}, this._draft = null, this._restLabel = null, this._labelDraft = null, this._pickerKey = 0, this._fresh = /* @__PURE__ */ new Set(), this._programId = "", this._error = "", this._saving = !1, this._toggling = !1, this._offset = 0, this._slots = null, this._chartEntity = "", this._token = 0, this._loaded = "", this._include = (e) => !0, this._minutes = (e) => Xn(this.hass, e);
 	}
 	get _lang() {
 		return kn(this.hass);
@@ -5032,7 +5034,11 @@ var Pi = (e) => e.kind === "device" ? `d:${e.entityId}` : `p:${e.programId}`, Fi
 		return e;
 	}
 	firstUpdated() {
-		if (this._loadNames(), !this.day) return;
+		if (this._loadNames(), this.create && !this.day) {
+			!this._rows().length && this._canEdit && this._add();
+			return;
+		}
+		if (!this.day) return;
 		let { weekday: e, offset: t } = this.day;
 		t >= -14 && t <= Fi && (this._offset = t), this._focus = e, !this._rows().length && this._canEdit && this._add([e]);
 	}
@@ -5530,12 +5536,12 @@ var Pi = (e) => e.kind === "device" ? `d:${e.entityId}` : `p:${e.programId}`, Fi
 		if (!this.hass || !this.data || !this.scope) return C;
 		let e = this._lang;
 		if (!this._programs.length) return x`<wp-dialog open heading=${this._title}><p class="muted">${A(e, "no_program")}</p></wp-dialog>`;
-		let t = this._rows(), n = this.scope.kind === "program" && !this._modeProfile(this._programs[0]);
+		let t = this._rows(), n = !t.length && this._focus === null && !this._modeOnly, r = this.scope.kind === "program" && !this._modeProfile(this._programs[0]);
 		return x`
       <wp-dialog open columns heading=${this._title}>
         <div class="cols">
         <div class="params">
-        ${n ? x`<p class="err" role="alert">${A(e, "mode_removed")}</p>` : C}
+        ${r ? x`<p class="err" role="alert">${A(e, "mode_removed")}</p>` : C}
         ${this._canEdit ? C : x`<p class="err" role="alert">${A(e, "read_only")}</p>`}
         ${this._error && !this._open ? x`<p class="err" role="alert">${this._error}</p>` : C}
         ${this._open !== null || this._modeOnly ? C : x`<label class="switch">
@@ -5550,7 +5556,7 @@ var Pi = (e) => e.kind === "device" ? `d:${e.entityId}` : `p:${e.programId}`, Fi
             @change=${(e) => {
 			this._viewProfileId = e.target.value, this._slots = null, this._error = "";
 		}}>
-            ${n ? x`<option value="" selected>${A(e, "mode_removed")}</option>` : C}
+            ${r ? x`<option value="" selected>${A(e, "mode_removed")}</option>` : C}
             ${this._programs[0].profiles.map((e) => x`<option value=${e.id} ?selected=${e.id === this._modeProfile(this._programs[0])?.id}>${e.name}</option>`)}
           </select></label>` : C}
         ${this._modeOnly ? x`<p class="muted note">${A(e, "mode_schedule_hint")}</p>` : C}
@@ -5565,8 +5571,8 @@ var Pi = (e) => e.kind === "device" ? `d:${e.entityId}` : `p:${e.programId}`, Fi
         <div class="list">
           ${t.length ? t.map((e) => this._renderRow(e)) : this._open === "new" ? C : x`<p class="muted">${A(e, "w_none")}</p>`}
           ${this._group && (this._open === "new" || this._open !== null && !t.some((e) => e.key === this._open)) ? this._renderEditor(this._programs.find((e) => e.id === this._programId) ?? this._programs[0], this._open) : C}
-          ${this._open === null ? x`<button class="row add" ?disabled=${!this._canEdit || n} @click=${() => this._add()}>
-            <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${this._focus === null ? A(e, "w_add") : A(e, "w_add_day", { day: k(e).days[this._focus].toLocaleLowerCase(e) })}</span></button>` : C}
+          ${this._open === null ? x`<button class="row add ${n ? "first" : ""}" ?disabled=${!this._canEdit || r} @click=${() => this._add()}>
+            <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${n ? A(e, "create_setting") : this._focus === null ? A(e, "w_add") : A(e, "w_add_day", { day: k(e).days[this._focus].toLocaleLowerCase(e) })}</span></button>` : C}
         </div>
         </div>
         <div class="area-week">${this._renderWeek()}</div>
@@ -5617,6 +5623,7 @@ var Pi = (e) => e.kind === "device" ? `d:${e.entityId}` : `p:${e.programId}`, Fi
     .row.rest .txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15px; }
     .row .txt small { display: block; color: var(--secondary-text-color); font-size: 12px; }
     .row.add { border-style: dashed; color: var(--primary-color); font-weight: 500; }
+    .row.add.first:not(:disabled) { border-style: solid; background: var(--primary-color); color: var(--text-primary-color, #fff); }
     .row.rest { background: var(--secondary-background-color); }
     .row:disabled { opacity: 0.5; cursor: default; }
     .dot { width: 14px; height: 14px; border-radius: 7px; flex: none; }
@@ -5652,7 +5659,7 @@ var Pi = (e) => e.kind === "device" ? `d:${e.entityId}` : `p:${e.programId}`, Fi
   `];
 	}
 };
-O([E({ attribute: !1 })], X.prototype, "hass", void 0), O([E({ attribute: !1 })], X.prototype, "data", void 0), O([E({ attribute: !1 })], X.prototype, "scope", void 0), O([E({ type: Boolean })], X.prototype, "chart", void 0), O([E({ attribute: !1 })], X.prototype, "profileId", void 0), O([D()], X.prototype, "_viewProfileId", void 0), O([E({ attribute: !1 })], X.prototype, "day", void 0), O([D()], X.prototype, "_open", void 0), O([D()], X.prototype, "_group", void 0), O([D()], X.prototype, "_dayOnly", void 0), O([D()], X.prototype, "_focus", void 0), O([D()], X.prototype, "_note", void 0), O([D()], X.prototype, "_draft", void 0), O([D()], X.prototype, "_restLabel", void 0), O([D()], X.prototype, "_labelDraft", void 0), O([D()], X.prototype, "_pickerKey", void 0), O([D()], X.prototype, "_programId", void 0), O([D()], X.prototype, "_error", void 0), O([D()], X.prototype, "_saving", void 0), O([D()], X.prototype, "_toggling", void 0), O([D()], X.prototype, "_offset", void 0), O([D()], X.prototype, "_slots", void 0), O([D()], X.prototype, "_chartEntity", void 0), X = O([T("wp-schedule")], X);
+O([E({ attribute: !1 })], X.prototype, "hass", void 0), O([E({ attribute: !1 })], X.prototype, "data", void 0), O([E({ attribute: !1 })], X.prototype, "scope", void 0), O([E({ type: Boolean })], X.prototype, "chart", void 0), O([E({ attribute: !1 })], X.prototype, "profileId", void 0), O([D()], X.prototype, "_viewProfileId", void 0), O([E({ attribute: !1 })], X.prototype, "day", void 0), O([E({ type: Boolean })], X.prototype, "create", void 0), O([D()], X.prototype, "_open", void 0), O([D()], X.prototype, "_group", void 0), O([D()], X.prototype, "_dayOnly", void 0), O([D()], X.prototype, "_focus", void 0), O([D()], X.prototype, "_note", void 0), O([D()], X.prototype, "_draft", void 0), O([D()], X.prototype, "_restLabel", void 0), O([D()], X.prototype, "_labelDraft", void 0), O([D()], X.prototype, "_pickerKey", void 0), O([D()], X.prototype, "_programId", void 0), O([D()], X.prototype, "_error", void 0), O([D()], X.prototype, "_saving", void 0), O([D()], X.prototype, "_toggling", void 0), O([D()], X.prototype, "_offset", void 0), O([D()], X.prototype, "_slots", void 0), O([D()], X.prototype, "_chartEntity", void 0), X = O([T("wp-schedule")], X);
 // src/chart-state.ts
 var Ii = "weekly-planner:chart-choices", Li = "weekly-planner:open-charts";
 function Ri() {
@@ -5913,12 +5920,24 @@ var Z = class extends w {
 			if (t) return t;
 		}
 	}
-	_open(e, t) {
+	_open(e, t, n = !1) {
 		this._dialog = {
 			kind: "schedule",
 			scope: e,
-			day: t
+			day: t,
+			create: n
 		};
+	}
+	_noSlots(e) {
+		let t = this._data ? R(e, this._data) : void 0;
+		return !!t && t.days.every((e) => e.length === 0);
+	}
+	_needsCreate(e) {
+		return !!this._data?.can_edit && !this._data?.read_only && this._noSlots(e);
+	}
+	_createButton(e) {
+		return x`<button class="create" @click=${() => this._open(e, void 0, !0)}>
+      <ha-icon icon="mdi:plus"></ha-icon>${A(this._lang, "create_setting")}</button>`;
 	}
 	async _toggleProgram(e) {
 		if (this._toggling.has(e.id)) return;
@@ -5965,7 +5984,7 @@ var Z = class extends w {
       @open-day=${i} @edited=${(e) => this._showSnack(e.detail.undo)}></wp-bar-editor>`;
 	}
 	_line(e, t, n) {
-		let r = this._lang, i = this._data, a = this._next(e, t), o = V(i, a?.label), s = t.length > 0 && t.every((e) => !e.enabled), c = this.hass.states[e], l = n.icon ?? c?.attributes.icon ?? "mdi:calendar-clock", u = () => this._open(n.open);
+		let r = this._lang, i = this._data, a = this._next(e, t), o = V(i, a?.label), s = t.length > 0 && t.every((e) => !e.enabled), c = this.hass.states[e], l = n.icon ?? c?.attributes.icon ?? "mdi:calendar-clock", u = () => this._open(n.open), d = this._needsCreate(t[0]);
 		return x`
       <div class="block">
         <div class="line">
@@ -5984,7 +6003,7 @@ var Z = class extends w {
             <button class="hours" aria-label=${A(r, "hours")} title=${A(r, "hours")} @click=${u}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
           </div>${this._disabledBadge(s)}</div>` : C}
         </div>
-        ${this._config.schedule_view === "radial" || this._config.schedule_view === "radial_12h" ? x`<wp-radial-day
+        ${d ? n.button ? this._createButton(n.open) : C : this._config.schedule_view === "radial" || this._config.schedule_view === "radial_12h" ? x`<wp-radial-day
           .spans=${this._spans(e, t)} .now=${N(this._now, this._tz)} lang=${r}
           .rest=${(() => {
 			let n = V(i, t[0].entities.find((t) => t.entity_id === e)?.default_label);
@@ -5995,7 +6014,7 @@ var Z = class extends w {
           <span class="wname">${A(r, "today_short")}</span>
           ${this._bar(e, t[0], 0, "today", u)}
         </div>`}
-        ${this._extras(n.open, e, t)}
+        ${d ? C : this._extras(n.open, e, t)}
       </div>`;
 	}
 	_extras(e, t, n) {
@@ -6058,6 +6077,7 @@ var Z = class extends w {
             <button class="hours" aria-label=${A(t, "hours")} title=${A(t, "hours")} @click=${() => this._open(n)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
           </div>${this._disabledBadge(!e.enabled)}</div>
         </div>
+        ${this._needsCreate(e) ? x`<div class="block">${this._createButton(n)}</div>` : C}
         ${e.entities.map((t) => this._line(t.entity_id, [e], {
 				name: z(this.hass, t.entity_id),
 				button: null,
@@ -6091,7 +6111,7 @@ var Z = class extends w {
           @click=${() => this._open(t)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>` : C}</div>
           ${this._disabledBadge(!e.enabled)}</div></div>
         ${r ? x`<div id=${`compact-${e.id}`} class="compact-details" role="region" aria-label=${e.name}>
-          ${e.entities.map((n) => x`
+          ${this._needsCreate(e) ? this._createButton(t) : e.entities.map((n) => x`
             ${e.entities.length > 1 ? x`<strong class="compact-device">${z(this.hass, n.entity_id)}</strong>` : C}
             <div class="today"><span class="wname">${A(this._lang, "today_short")}</span>
               ${this._bar(n.entity_id, e, 0, "today", () => this._open(t))}</div>
@@ -6123,7 +6143,7 @@ var Z = class extends w {
 		let e = this._dialog;
 		if (!e || !this._data) return C;
 		let t = () => this._dialog = null;
-		if (e.kind === "schedule") return nt(Pi(e.scope), x`<wp-schedule .hass=${this.hass} .data=${this._data} .scope=${e.scope} .day=${e.day ?? null}
+		if (e.kind === "schedule") return nt(Pi(e.scope), x`<wp-schedule .hass=${this.hass} .data=${this._data} .scope=${e.scope} .day=${e.day ?? null} ?create=${!!e.create}
           .chart=${this._config.show_chart !== !1} @closed=${t}></wp-schedule>`);
 	}
 	static {
@@ -6163,6 +6183,12 @@ var Z = class extends w {
       background: none; color: var(--primary-text-color); cursor: pointer; --mdc-icon-size: 24px;
       display: inline-flex; align-items: center; justify-content: center;
     }
+    button.create {
+      display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 48px; margin-top: 8px;
+      padding: 0 16px; border: none; border-radius: 24px; font: inherit; font-size: 16px; font-weight: 500; cursor: pointer;
+      background: var(--primary-color); color: var(--text-primary-color, #fff); --mdc-icon-size: 22px;
+    }
+    button.create:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
     button.hours:hover { background: var(--secondary-background-color); }
     wp-bar-editor { margin-top: 2px; }
     .toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }

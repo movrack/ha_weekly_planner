@@ -55,12 +55,13 @@ Prenons cet exemple pour le chauffage du salon :
 
 Toucher le **calendrier avec un crayon**, à droite de Chauffage du salon.
 Les horaires déjà créés apparaissent sous les sept barres de la semaine.
+Si rien n'est encore réglé, la carte affiche un bouton **Créer un réglage** à la place des barres : il ouvre directement le formulaire d'un premier horaire.
 
 <a href="images/guide/s06-schedules.png"><img src="images/guide/s06-schedules.png" width="320" alt="Les horaires du chauffage : Confort le matin et le soir, Éco le reste du temps." /></a>
 
 ### 2. Régler le matin
 
-1. Toucher **Ajouter un horaire**, ou la ligne du matin si elle existe déjà.
+1. Toucher **Ajouter un horaire** (**Créer un réglage** s'il n'y en a aucun), ou la ligne du matin si elle existe déjà.
 2. Sous **Début**, saisir **06:30**.
 3. Sous **Fin**, choisir **Jusqu’à…**, puis saisir **08:30**.
 4. Choisir **Tous les jours**.
