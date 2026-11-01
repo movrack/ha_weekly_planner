@@ -1,12 +1,13 @@
 // Shared cache of `weekly_planner/preview` answers: the card and every schedule dialog ask for the same
 // (program, revision, date, mode) and now share one websocket call, in flight or answered.
 
-import type { HomeAssistant, PreviewSlot } from "./types";
+import { applies } from "./slots";
+import type { HomeAssistant, PreviewResponse, PreviewSlot } from "./types";
 
 const TTL_MS = 10 * 60_000;
 const MAX_ENTRIES = 400;
 
-interface Entry { at: number; promise: Promise<PreviewSlot[]> }
+interface Entry { at: number; promise: Promise<PreviewResponse> }
 
 const entries = new Map<string, Entry>();
 const latestRevision = new Map<string, number>();
@@ -45,15 +46,32 @@ function dropProgram(programId: string): void {
  * answers for the active one (the card passes the active mode so a mode change never reuses a stale answer).
  */
 export function fetchPreview(hass: HomeAssistant, programId: string, revision: number, date: string, profileId?: string, send = true): Promise<PreviewSlot[]> {
+  return fetchPreviewResponse(hass, programId, revision, date, profileId, send).then((res) => res.slots);
+}
+
+/** Same as `fetchPreview`, whole answer (`by_entity` included when the program has per-device slots). */
+export function fetchPreviewResponse(
+  hass: HomeAssistant, programId: string, revision: number, date: string, profileId?: string, send = true,
+): Promise<PreviewResponse> {
   const key = [programId, revision, date, profileId ?? ""].join("\u0000");
   const now = Date.now();
   const hit = entries.get(key);
   if (hit && now - hit.at < TTL_MS) return hit.promise;
   if (entries.size >= MAX_ENTRIES) entries.delete(entries.keys().next().value as string);
-  const promise = hass.callWS<{ slots: PreviewSlot[] }>({
+  const promise = hass.callWS<PreviewResponse>({
     type: "weekly_planner/preview", program_id: programId, date, ...(profileId && send ? { profile_id: profileId } : {}),
-  }).then((res) => res.slots);
+  }).then((res) => ({ slots: res?.slots ?? [], ...(res?.by_entity ? { by_entity: res.by_entity } : {}) }));
   entries.set(key, { at: now, promise });
   promise.catch(() => { if (entries.get(key)?.promise === promise) entries.delete(key); }); // never keep a failure
   return promise;
+}
+
+/**
+ * Occurrences of one device in a preview answer. With `by_entity` (program with per-device slots) its own
+ * complete list (previous-day spill included; a device missing there has nothing that day). Without it the
+ * program has no lists, so the main list is every device's timeline (filtered by `applies` for safety).
+ */
+export function deviceSpans(res: PreviewResponse, entityId: string): PreviewSlot[] {
+  if (res.by_entity) return res.by_entity[entityId] ?? [];
+  return res.slots.filter((s) => applies(s, entityId));
 }

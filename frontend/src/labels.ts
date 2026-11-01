@@ -2,6 +2,7 @@
 
 import { fmtNum } from "./planner";
 import { serviceLabel, servicesFor } from "./services";
+import { applies } from "./slots";
 import type { Action, HassEntity, HomeAssistant, Label, PlannerData, Program, Slot } from "./types";
 
 /** 12 distinct colours; a new label takes the first one not used yet. */
@@ -76,7 +77,11 @@ export function entityAction(program: Program, entityId: string, label: Label | 
  * can take it (service accepted by the entity, scene containing it, service allowed). Else undefined: the
  * slot is ignored for that device, so the card must not draw it there.
  */
-export function appliedAction(hass: HomeAssistant, program: Program, entityId: string, label: Label | undefined): Action | undefined {
+export function appliedAction(
+  hass: HomeAssistant, program: Program, entityId: string, label: Label | undefined, slot?: Pick<Slot, "entities">,
+): Action | undefined {
+  // a slot that does not target this device does nothing to it (`applies`); no slot: a default label
+  if (slot && !applies(slot, entityId)) return undefined;
   const action = entityAction(program, entityId, label);
   return action && compatible(hass, entityId, action, allowedOf(program, entityId)) ? action : undefined;
 }
