@@ -75,3 +75,15 @@ export function deviceSpans(res: PreviewResponse, entityId: string): PreviewSlot
   if (res.by_entity) return res.by_entity[entityId] ?? [];
   return res.slots.filter((s) => applies(s, entityId));
 }
+
+/**
+ * Occurrences of one device for a day and the day before, ready to be drawn. With `by_entity` the day's list is
+ * already complete (previous-day spill included), so the day before adds nothing (no duplicate spill). Without it,
+ * both days are needed as before. `undefined`: that answer is missing (the caller falls back to nominal times).
+ */
+export function deviceDays(
+  today: PreviewResponse | undefined, previous: PreviewResponse | undefined, entityId: string,
+): { today: PreviewSlot[] | undefined; previous: PreviewSlot[] | undefined } {
+  if (today?.by_entity) return { today: deviceSpans(today, entityId), previous: [] };
+  return { today: today && deviceSpans(today, entityId), previous: previous && deviceSpans(previous, entityId) };
+}

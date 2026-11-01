@@ -143,7 +143,7 @@ registry IDs. A program may contain several of them.
 |---|---|
 | Program | Name, entity list, priority, conditions, reapply policy and weekly profiles. |
 | Setting | Global `{id, name, color, action}` shared across programs. |
-| Slot | Start, optional end, days and a setting reference. |
+| Slot | Start, optional end, days, a setting reference and, optionally, the devices it targets (`entities`; absent = every device of the program, also those added later). |
 | Entity default | Optional `default_label` applied outside bounded slots under the ownership rules. |
 | Entity override | `label_overrides[label_id]` changes that setting's action for this entity in this program. |
 | Mode (`profile` internally) | A named weekly slot set. One is active per program. Vacation is an ordinary mode. Entities, defaults, program conditions and priority are shared. |

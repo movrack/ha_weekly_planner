@@ -137,7 +137,7 @@ des appareils. Un programme peut en contenir plusieurs.
 |---|---|
 | Programme | Entités, priorité, conditions, réapplication et semaines types. |
 | Réglage | Nom, couleur et action partagés globalement. |
-| Horaire | Début, fin facultative, jours et référence de réglage. |
+| Horaire | Début, fin facultative, jours, référence de réglage et, au besoin, les appareils visés (`entities` ; absent = tous les appareils du programme, y compris ceux ajoutés plus tard). |
 | Défaut d’entité | `default_label`, appliqué hors des plages bornées selon les règles de priorité. |
 | Valeur propre | `label_overrides[label_id]`, action propre à cette entité dans ce programme. |
 | Mode (`profile` en interne) | Semaine type indépendante. Un mode actif par programme ; Vacances est un mode ordinaire. Appareils, défauts, conditions et priorité restent communs. |

@@ -26,9 +26,9 @@ describe("Create a setting (card)", () => {
     expect(html).toContain("mdi:plus");
     expect(html).not.toContain("wp-bar-editor");
   });
-  it("shows a single button for a program with two empty devices", () => {
+  it("shows one button per empty device of a program with several devices (D4)", () => {
     const c = card([program("p", ["switch.a", "switch.b"], false)]);
-    expect(flat(c._bySchedule(c._data.programs)).match(/class="create"/g)).toHaveLength(1);
+    expect(flat(c._bySchedule(c._data.programs)).match(/class="create"/g)).toHaveLength(2);
   });
   it("does not show it when there are slots", () => {
     const c = card([program("p", ["switch.a"], true)]);

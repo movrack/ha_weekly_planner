@@ -183,3 +183,72 @@ export function applyIntent(fresh: Program, intent: EditIntent, newId?: () => st
   const next = { ...profile, days };
   return { program: { ...fresh, profiles: fresh.profiles.map((p) => (p.id === profile.id ? next : p)) }, id };
 }
+
+/* ------------------------------------------------------------------ helpers of the card screens (LOT 5) */
+
+/**
+ * Every slot of every mode stops running for the device, which stays in the program ("Delete" of one device's
+ * schedule): a slot without list keeps the other devices, a list left empty deletes its slot (D5). Ids are kept.
+ */
+export function dropDeviceSlots(program: Program, entityId: string): Program {
+  const devices = devicesOf(program);
+  const clean = (slot: Slot): Slot[] => {
+    if (!applies(slot, entityId)) return [slot];
+    const next = forDevices(slot, applicable(slot, devices).filter((d) => d !== entityId), program);
+    return next ? [next] : [];
+  };
+  return { ...program, profiles: program.profiles.map((p) => ({ ...p, days: p.days.map((day) => day.flatMap(clean)) })) };
+}
+
+/** Slots (every mode) that run for this device only: removing the device from the program deletes them. */
+export function ownSlotCount(program: Program, entityId: string): number {
+  const devices = devicesOf(program);
+  return program.profiles.reduce((n, p) => n + p.days.flat().filter((s) => {
+    const list = applicable(s, devices);
+    return list.length === 1 && list[0] === entityId;
+  }).length, 0);
+}
+
+/** Slots (every mode) without device list: a device added to the program runs them too. */
+export function commonSlotCount(program: Program): number {
+  return program.profiles.reduce((n, p) => n + p.days.flat().filter((s) => s.entities === undefined).length, 0);
+}
+
+/**
+ * "This device" on a day bar: each listed slot that is shared is split before the edit. The kept part keeps its id
+ * and the other devices; the device's copy gets a new id, the same seed (D7) and this device only. `map` gives the
+ * copy id of each split slot (the edit then works on the copy). Slots not shared are left as they are.
+ */
+export function isolateForDevice(
+  day: Slot[], entityId: string, devices: readonly string[], ids: readonly string[], newId: () => string = defaultNewId,
+): { day: Slot[]; map: Map<string, string> } {
+  const map = new Map<string, string>();
+  const out = day.flatMap((slot) => {
+    const list = applicable(slot, devices);
+    if (!ids.includes(slot.id) || !list.includes(entityId) || list.length <= 1) return [slot];
+    const kept = setEntities(slot, normaliseEntities(list.filter((d) => d !== entityId), devices));
+    const copy: Slot = { ...structuredClone(slot), id: newId(), seed: effSeed(slot), entities: [entityId] };
+    map.set(slot.id, copy.id);
+    return [kept, copy];
+  });
+  return { day: out, map };
+}
+
+/**
+ * Undo of a day edit limited to the slots that edit wrote: on the fresh day, the slots it added are taken out and
+ * the ones it replaced come back; everything else (another device's change made meanwhile) is kept. Null when a
+ * slot the edit wrote was changed since, or when the result would overlap (the caller says so, never silently).
+ */
+export function undoSlots(current: Slot[], before: Slot[], after: Slot[]): Slot[] | null {
+  const key = (s: Slot): string => `${s.id}\u0000${slotKey(s)}`;
+  const beforeKeys = new Set(before.map(key));
+  const afterKeys = new Set(after.map(key));
+  const added = new Set(after.filter((s) => !beforeKeys.has(key(s))).map(key));
+  const removed = before.filter((s) => !afterKeys.has(key(s)));
+  const currentKeys = new Set(current.map(key));
+  if ([...added].some((k) => !currentKeys.has(k))) return null;
+  const kept = current.filter((s) => !added.has(key(s)));
+  if (removed.some((s) => kept.some((k) => k.id === s.id))) return null;
+  const out = [...kept, ...structuredClone(removed)];
+  return findOverlap(out) ? null : out;
+}

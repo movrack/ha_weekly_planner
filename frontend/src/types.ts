@@ -113,6 +113,8 @@ export interface ProgramStatus {
   current_slots: Record<string, string>;
   next_change: string | null;
   skip_next: string | null;
+  /** Devices whose own timeline changes at the skipped moment, and what they would have received then. */
+  skip_next_targets?: { entity_id: string; action: Action | null; label: string | null }[];
   next_actions?: Record<string, { at: string; action: Action; label: string | null }>;
 }
 

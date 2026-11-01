@@ -56,10 +56,10 @@ it("draws actual previous-day delayed tails and next-day one-shots from previews
   const program = { id: "p", enabled: true, active_profile: "home", entities: [{ entity_id: "switch.x", label_overrides: {} }],
     profiles: [{ id: "home", days: [[], [], [], [overnight, shot], [], [], []] }] };
   card._data = { labels: [{ id: "a", name: "On", color: "red", action: { kind: "service", service: "switch.turn_on" } }], status: {}, programs: [program] };
-  card._preview = { "2026-01-01": { p: [
+  card._preview = { "2026-01-01": { p: { slots: [
     { slot_id: "overnight", start: "2026-01-01T23:07:00Z", end: "2026-01-02T00:22:00Z" },
     { slot_id: "shot", start: "2026-01-02T00:06:00Z", end: null },
-  ] }, "2026-01-02": { p: [] } };
+  ] } }, "2026-01-02": { p: { slots: [] } } };
   const spans = card._spans("switch.x", [program]);
   expect(spans.map((s: any) => [s.slotId, s.start, s.end, s.spill])).toEqual([
     ["overnight", 0, 22, true], ["shot", 6, 16, false],

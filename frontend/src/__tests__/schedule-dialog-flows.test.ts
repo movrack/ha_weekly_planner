@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WpSchedule, scopeKey } from "../components/schedule-dialog";
 import { confirmAction } from "../components/confirm";
-import { fetchPreview } from "../preview-cache";
+import { fetchPreviewResponse } from "../preview-cache";
 import { flat, handlers, find } from "./helpers/tpl";
 import type { Program } from "../types";
 
 vi.mock("../components/confirm", () => ({ confirmAction: vi.fn(async () => true) }));
-vi.mock("../preview-cache", () => ({ fetchPreview: vi.fn(async () => [{ start: "2026-01-01T08:00:00", end: "2026-01-01T09:00:00", label: "comfort" }]) }));
+vi.mock("../preview-cache", async (orig) => ({ ...(await orig<typeof import("../preview-cache")>()),
+  fetchPreviewResponse: vi.fn(async () => ({ slots: [{ slot_id: "m", start: "2026-01-01T08:00:00", end: "2026-01-01T09:00:00", ignored: null, sun: false }] })) }));
 
 const slot = (id: string, s = "08:00", e: string | null = "10:00") => ({ id, start: { time: s }, end: e ? { time: e } : null, label: "comfort" });
 const emptyDays = () => Array.from({ length: 7 }, () => [] as any[]);
@@ -29,7 +30,6 @@ function make(scope: any = { kind: "program", programId: "p" }, program = mkProg
     labels: [{ id: "comfort", name: "Comfort", color: "#f00", action: { kind: "service", service: "switch.turn_on" } }], ...extra };
   view.renderRoot = { querySelector: () => null };
   view.requestUpdate = vi.fn();
-  view._chartEntity = "switch.demo";
   return { view, events, program };
 }
 
@@ -87,11 +87,11 @@ describe("schedule screen rendering", () => {
     const { view } = make();
     view.willUpdate(new Map([["scope", 1]]));
     await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
-    expect(fetchPreview).toHaveBeenCalledTimes(2);
+    expect(fetchPreviewResponse).toHaveBeenCalledTimes(2);
     expect(view._slots).toHaveLength(2);
     view.willUpdate(new Map());
-    expect(fetchPreview).toHaveBeenCalledTimes(2);
-    vi.mocked(fetchPreview).mockRejectedValueOnce(new Error("x"));
+    expect(fetchPreviewResponse).toHaveBeenCalledTimes(2);
+    vi.mocked(fetchPreviewResponse).mockRejectedValueOnce(new Error("x"));
     view._offset = 1; view.willUpdate(new Map());
     await new Promise((r) => setTimeout(r, 0));
     expect(view._slots).toBeNull();
@@ -151,6 +151,9 @@ describe("schedule screen editing", () => {
     await view._saveRow(); expect(view._error).not.toBe("");
     view._group = { ...view._group, slot: { ...view._group.slot, end: { time: "11:00" } } };
     await view._saveRow();
+    expect(view._error).toBe("Choose: this device or all."); // shared by both devices: D1 asks first
+    view._pickWho("all");
+    await view._saveRow();
     expect(view._open).toBeNull();
     const sent = view.hass.callWS.mock.calls.slice(-1)[0][0].program;
     expect(sent.profiles[0].days[0][0].end).toEqual({ time: "11:00" });
@@ -208,7 +211,7 @@ describe("schedule screen editing", () => {
     expect(view._base).not.toBeNull();
     const late = make(); const lr = late.view._rows()[0];
     late.view._openRow(lr.key, lr.program, lr.group);
-    late.view._group.slot.start = { time: "23:00" }; late.view._group.slot.end = { time: "23:50" };
+    late.view._group.slot.start = { time: "23:00" }; late.view._group.slot.end = { time: "23:50" }; late.view._who = "all";
     late.view._duplicate();
     expect(late.view._group.slot.end).toEqual({ time: "24:00" });
     const bad = make(); const br = bad.view._rows()[0];
@@ -265,13 +268,16 @@ describe("schedule screen editing", () => {
     const a = make();
     const row = a.view._rows()[0]; a.view._openRow(row.key, row.program, row.group);
     await a.view._deleteRow();
+    expect(a.view._error).toBe("Choose: this device or all.");
+    a.view._pickWho("all");
+    await a.view._deleteRow();
     expect(a.view.hass.callWS.mock.calls.slice(-1)[0][0].program.profiles[0].days[0]).toEqual([]);
     const b = make({ kind: "device", entityId: "switch.demo" });
     b.view.renderRoot = { querySelector: () => ({ close: vi.fn() }) };
     await b.view._deleteAll();
     expect(b.view.hass.callWS.mock.calls[0][0].type).toBe("weekly_planner/program/save");
     expect(b.view.hass.callWS.mock.calls[0][0].program.entities.map((e: any) => e.entity_id)).toEqual(["switch.two"]);
-    const c = make();
+    const c = make(undefined, mkProgram({ entities: [{ entity_id: "switch.demo", default_label: null, label_overrides: {} }] } as any));
     await c.view._deleteAll();
     expect(c.view.hass.callWS.mock.calls[0][0].type).toBe("weekly_planner/program/delete");
     c.view.hass.callWS.mockRejectedValueOnce(new Error("x")); await c.view._deleteAll();
