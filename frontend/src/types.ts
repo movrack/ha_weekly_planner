@@ -76,7 +76,15 @@ export interface Profile {
   days: Slot[][]; // 0 = Monday … 6 = Sunday
 }
 
+export interface ChartSource {
+  entity_id: string;
+  kind: "numeric" | "states";
+  states?: string[];
+}
+
 export interface ProgramEntity {
+  /** Display-only histories, shared by all cards of this program/device. */
+  chart_sources?: ChartSource[];
   entity_id: string;
   /** "The rest of the time": label applied when a slot with an end finishes (null: nothing). */
   default_label: string | null;

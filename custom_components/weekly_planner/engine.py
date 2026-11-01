@@ -1086,8 +1086,11 @@ class PlannerEngine:
             return
         await self._async_recompute("profile", program_id)
 
-    async def async_config_changed(self, *, reapply: bool = True) -> None:
+    async def async_config_changed(self, *, reapply: bool = True, metadata_only: bool = False) -> None:
         async with self._lock:
+            if metadata_only:
+                self._notify_listeners()
+                return
             await self._async_config_changed(reapply=reapply)
 
     async def _async_config_changed(self, *, reapply: bool = True) -> None:

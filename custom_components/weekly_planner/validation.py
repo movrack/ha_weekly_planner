@@ -129,6 +129,21 @@ PROFILE = vol.Schema({
     vol.Required("days"): vol.All([vol.All([SLOT], vol.Length(max=50))], vol.Length(min=7, max=7)),
 })
 
+CHART_SOURCE = vol.Schema({
+    vol.Required("entity_id"): cv.entity_id,
+    vol.Required("kind"): vol.In(("numeric", "states")),
+    vol.Optional("states", default=list): vol.All([vol.All(str, vol.Length(min=1, max=255))], vol.Length(max=100)),
+})
+
+
+def _chart_sources(value: Any) -> list:
+    sources = vol.Schema([CHART_SOURCE])(value)
+    ids = [source["entity_id"] for source in sources]
+    if len(ids) != len(set(ids)):
+        raise vol.Invalid("duplicate_chart_source")
+    return sources
+
+
 ENTITY = vol.Schema({
     vol.Required("entity_id"): cv.entity_id,
     vol.Optional("default_label", default=None): vol.Any(None, str),
@@ -136,6 +151,7 @@ ENTITY = vol.Schema({
     # Legacy empty lists allow all services; explicit restriction also permits selecting none.
     vol.Optional("allowed_services", default=list): [vol.All(str, vol.Match(r"^[a-z0-9_]+\.[a-z0-9_]+$"))],
     vol.Optional("restrict_services", default=False): bool,
+    vol.Optional("chart_sources"): _chart_sources,
 })
 
 PROGRAM = vol.Schema({

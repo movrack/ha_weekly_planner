@@ -458,18 +458,19 @@ SVG maison, un jour (précédent / suivant).
 - **Actions prévues** : repères aux heures prévues, avec la valeur quand l'action en contient une
   (`temperature`, `position`, `brightness_pct`).
 - **Maintenant** : trait vertical sur le jour courant.
-- **Zoom de l'axe du temps** (état propre à la vue, non mémorisé, remis à zéro au changement de jour ou d'appareil ;
-  maths pures dans `chart-zoom.ts`) : fenêtre `[de, à]` en minutes, bornée à 0-24 h (la durée réelle du jour), au moins
-  30 min. Téléphone : pincement à deux doigts autour du centre des doigts, un doigt fait glisser la fenêtre quand elle est
-  zoomée (`touch-action: pan-y` : le défilement vertical de la page reste au navigateur). Souris : glisser = sélection
-  d'une plage qui devient la fenêtre ; Ctrl + molette zoome autour du pointeur ; double clic = remise à zéro (avec un
-  zoom, le clic simple attend 300 ms avant d'ouvrir l'historique) ; un geste de zoom n'ouvre jamais l'historique.
-  Clavier : `+`, `-`, flèches, `0`. Bouton « Réinitialiser le zoom » (`mdi:magnify-minus-outline`, 44 px) et fenêtre
-  affichée, visibles seulement quand c'est zoomé. Graduations : pas de 3 h, 2 h, 1 h, 30, 15, 10 ou 5 min selon la
-  largeur de la fenêtre. Les données hors fenêtre sont **coupées** (clip), jamais déformées ; « maintenant », bande
-  d'activité, escaliers, légende et info-bulles restent actifs. Échelle verticale inchangée.
-- **Toucher** : ouvre l'historique HA de l'entité pour ce jour (`/history?entity_id=…&start_date=…&end_date=…`, navigation HA :
-  `history.pushState` + événement `location-changed`).
+- **Navigation et zoom de l'axe du temps** (état propre à la vue, non mémorisé, remis à zéro au changement de jour ou d'appareil ;
+  maths pures dans `chart-zoom.ts`) : fenêtre `[de, à]` en minutes réelles, minimum 30 min, largeur maximale égale à la durée réelle
+  du jour initial (23, 24 ou 25 h). Elle peut défiler continûment vers les jours précédents et suivants, à largeur conservée.
+  Téléphone : un doigt fait glisser horizontalement, deux doigts pincent pour zoomer ; `touch-action: pan-y` garde le défilement
+  vertical de la page. Souris : glisser = parcourir, Maj + glisser = sélectionner une plage à zoomer ; Ctrl + molette zoome autour
+  du pointeur ; double clic = retour au jour sélectionné. Pavé tactile : défilement horizontal. Clavier : `+`, `-`, flèches, `0`.
+  Dates et boutons période précédente/suivante toujours visibles ; « Revenir au jour sélectionné » (44 px) quand la fenêtre diffère.
+  Chaque jour visible charge ses propres prévisions par appareil et son historique plafonné à maintenant ; modèles de jours locaux
+  décalés par leurs bornes UTC réelles, caches bornés, réponses obsolètes ignorées. Graduations adaptées, date aux passages de minuit.
+  Les données hors fenêtre sont coupées (clip), jamais déformées ; « maintenant » apparaît seulement s'il est dans la fenêtre.
+- **Toucher** : ouvre l'historique HA de l'entité pour la période affichée (`/history?entity_id=…&start_date=…&end_date=…`, navigation HA :
+  `history.pushState` + événement `location-changed`). Après un geste, aucun historique ouvert ; avec une fenêtre déplacée ou zoomée,
+  le clic attend 300 ms pour permettre le double clic.
 - **Changements manuels (affichage seulement)** : en **rouge** (`var(--error-color)`). Source : le journal de bord HA
   (`logbook/get_events` sur l'entité et le jour). Un changement d'état est **manuel** quand l'entrée porte un
   `context_user_id` (action d'une personne dans l'interface), ou n'a aucun contexte et ne correspond à aucune
@@ -1065,3 +1066,37 @@ Demande de changement : https://github.com/movrack/ha_weekly_planner/issues/34. 
   (`applies` + `appliedAction`) ; programmes sans liste inchangés (tests et cartes existantes) ; budgets de
   performance tenus (`pytest`).
 - [ ] À vérifier sur l'instance réelle après déploiement : le cas du propriétaire à 07:00 et 22:00 (heure réelle).
+
+## 31. Édition directe des vues circulaires (#35)
+
+- [x] Réutiliser les opérations et sauvegardes de la barre pour les deux affichages circulaires.
+- [x] Poignées tactiles de 44 px, pas de 15 min, sélection et actions du créneau ou intervalle vide.
+- [x] Conserver la portée par appareil, Annuler et le mode lecture seule.
+- [x] Résoudre les positions des deux cercles et les passages par midi/minuit sans saut.
+- [x] Vérification DOM réel et visuelle à 336 px de contenu, thèmes clair et sombre (sélection et déplacement des limites dans les deux vues).
+- [ ] Vérification sur téléphone tactile réel et viewport exact 360 × 780 px.
+
+## 32. Navigation continue du graphique (#36)
+
+- [x] Déplacement horizontal continu au doigt, souris, pavé tactile et clavier, y compris entre jours, zoom conservé.
+- [x] Pincement/Ctrl + molette pour zoomer ; Maj + glisser pour sélectionner ; défilement vertical de page conservé.
+- [x] Dates visibles, périodes précédente/suivante et retour au jour sélectionné.
+- [x] Charger seulement les jours visibles, leurs prévisions serveur propres et leur historique jusqu’à maintenant.
+- [x] Décaler les modèles selon les minutes réelles (changements d’heure), invalider sur appareil/mode/révision, ignorer les réponses obsolètes et borner les caches.
+- [x] Vérification DOM réel avec données simulées, thèmes clair et sombre, contenu 336 px (10 contrôles par thème).
+- [ ] Vérification intégrée Home Assistant complète et téléphone tactile réel (viewport exact 360 × 780 px).
+
+## 33. Sources complémentaires du graphique (#37)
+
+Plan détaillé : [PLAN_CHART_SOURCES.md](PLAN_CHART_SOURCES.md).
+
+- [x] Stockage facultatif `entities[i].chart_sources`, types, validation, persistance partagée sans migration et suivi des renommages.
+- [x] Sauvegarde automatique sur donnée fraîche, un nouvel essai sur conflit ; diffusion sans recalcul ni commande pour les métadonnées seules.
+- [x] Panneau commun carte/fenêtre replié par défaut ; sélecteur HA générique, retrait et choix multiple des états connus/traduits/disparus.
+- [x] Trois unités numériques, échelles indépendantes gauche + deux droites, couleurs stables, même unité partagée et refus clair de la quatrième.
+- [x] Historiques externes par lot et cache borné par connexion ; dates visibles, absence/futur/échec isolés, ruptures aux jours sans données.
+- [x] Bandes d’états alignées sous le graphique, états sélectionnés colorés, autres états neutres et données manquantes distinctes.
+- [x] Vérifications automatisées complètes : 654 tests frontend, TypeScript/build et 361 tests Python ; guide et README anglais/français actualisés.
+- [x] Copie du guide pour le wiki préparée avec liens vérifiés ; publication en attente.
+- [x] Navigateur avec données simulées : 10 contrôles DOM, cadres 360 × 780 et 1400 px, clair/sombre ; repli du panneau et modification des états vérifiés.
+- [ ] Navigateur Home Assistant réel en 360 × 780 px et bureau, clair/sombre ; téléphone tactile physique (suivi détaillé dans le plan).

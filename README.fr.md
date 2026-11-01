@@ -38,6 +38,21 @@ Le module servi est `/weekly_planner_static/weekly-planner-card.js?v=<empreinte>
 Pour un autre programme, utiliser **Réglages des programmes → Nouveau programme**,
 pas une nouvelle instance de l’intégration.
 
+## Sources complémentaires du graphique
+
+Ouvrez **Options du graphique** sous le graphique d’un appareil pour ajouter une entité Home Assistant. Un état numérique
+donne une courbe ; les autres états apparaissent sur une bande nommée, avec des cases pour les états à mettre en évidence.
+Plusieurs états peuvent être cochés. Les observations inconnues ou indisponibles laissent des interruptions ; aucune donnée
+réelle n’est dessinée dans le futur. Les sources suivent le déplacement et le zoom du graphique.
+
+Les choix s’enregistrent automatiquement dans Home Assistant pour ce programme et cet appareil, et sont partagés par ses
+cartes et la fenêtre des horaires, indépendamment du jour ou du mode. Replier les options laisse les tracés visibles.
+Retirer une source enlève seulement son affichage. Ces options ne commandent jamais un appareil et sont verrouillées en lecture seule.
+
+Les courbes de même unité partagent une échelle. Trois unités différentes au plus : l’échelle principale à gauche et deux à
+droite, chacune dans la couleur de sa première courbe. Retirez une source d’une autre unité avant d’ajouter une quatrième unité.
+Seul l’état de l’entité complémentaire est lu ; ses attributs ne sont pas proposés comme sources numériques.
+
 ## Configuration de la carte
 
 L’éditeur distingue deux portées :
