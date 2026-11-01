@@ -16,7 +16,7 @@ import { scopeKey } from "./components/schedule-dialog";
 import type { Scope } from "./components/schedule-dialog";
 import { nb } from "./actions";
 import { cardIdentity, chartKey, isChartOpen, loadChartChoices, openHistory, saveChartChoices } from "./chart-state";
-import { actionText, entityAction, labelName, labelOf } from "./labels";
+import { actionText, appliedAction, labelName, labelOf } from "./labels";
 import { strings, t } from "./i18n";
 import { loadServiceNames } from "./services";
 import { reloadIfOutdated } from "./update";
@@ -221,7 +221,7 @@ export class WeeklyPlannerCard extends LitElement {
     for (const program of [...programs].reverse()) {
       if (!program.enabled) continue;
       const profile = activeProfile(program, data);
-      const of = (slot: Slot) => entityAction(program, entityId, labelOf(data, slot.label));
+      const of = (slot: Slot) => appliedAction(this.hass, program, entityId, labelOf(data, slot.label));
       const mk = (slot: Slot, start: number, end: number, extra: Partial<BarSpan> = {}): BarSpan => {
         const label = labelOf(data, slot.label)!;
         return { start, end, color: label.color, label: labelName(this.hass, label), slotId: slot.id, startSun: sunDir(slot.start),

@@ -20,7 +20,7 @@ import type { At, DayCtx, Handle, Target } from "../edits";
 import { editorStyles } from "../editors/shared";
 import { dismissHoldHint, HOLD_HINT_MS, takeHoldHint } from "../hold-hint";
 import { strings, t } from "../i18n";
-import { entityAction, labelName, labelOf, labelsFor } from "../labels";
+import { appliedAction, labelName, labelOf, labelsFor } from "../labels";
 import { activeProfile, newId } from "../planner";
 import { shiftTimeSpec, specMinutes } from "../slots";
 import { DAY, clockToMinutes, fmtClock, localMinutes } from "../time";
@@ -743,7 +743,7 @@ export class WpBarEditor extends LitElement {
     const out: BarSpan[] = [];
     for (const slot of slots) {
       const label = labelOf(this.data, slot.label);
-      if (!label || !entityAction(this.program, this.entityId, label)) continue;
+      if (!label || !appliedAction(this.hass, this.program, this.entityId, label)) continue;
       const e = eff(slot, this._at);
       out.push({
         start: e.start, end: e.end ?? e.start + 10, color: label.color, label: labelName(this.hass, label), slotId: slot.id,
