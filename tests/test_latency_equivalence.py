@@ -200,11 +200,16 @@ EVENTS = {  # (day, hour, minute) -> what happens then, before the step is recor
 }
 
 
+def _status(engine, program_id: str) -> dict:
+    """Program status without ``skip_next_targets``: added with per-device schedules (#34), not in the reference."""
+    return {k: v for k, v in engine.program_status(program_id).items() if k != "skip_next_targets"}
+
+
 def _record(engine, log: CallLog, events: list) -> dict:
     return {
         "calls": list(log.calls),
         "events": list(events),
-        "status": {p["id"]: engine.program_status(p["id"]) for p in engine.store.programs},
+        "status": {p["id"]: _status(engine, p["id"]) for p in engine.store.programs},
         "next": {eid: engine.next_action(eid) for eid in ENTITIES},
         "segments": {eid: engine.segment(eid) for eid in ENTITIES},
         "runtime": deepcopy(engine.store.runtime),
@@ -304,7 +309,7 @@ async def test_lookups_match_reference_on_the_large_install(hass, hass_storage, 
         now = dt_util.utcnow()
         assert [engine.segment(e, now) for e in eids] == [reference.segment(e, now) for e in eids]
         assert [engine.next_action(e, now) for e in eids] == [reference.next_action(e, now) for e in eids]
-        statuses = [engine.program_status(p["id"]) for p in engine.store.programs]
+        statuses = [_status(engine, p["id"]) for p in engine.store.programs]
         assert statuses == [reference.program_status(p["id"]) for p in engine.store.programs]
         assert any(status["next_actions"] for status in statuses)
 
@@ -334,7 +339,7 @@ async def test_recompute_of_the_large_install_matches_reference(hass, hass_stora
         await hass.async_block_till_done()
         await go_to(hass, freezer, local(27, 2, 5))
         result = (list(log.calls), deepcopy(engine.store.runtime["entities"]),
-                  [engine.program_status(p["id"]) for p in engine.store.programs])
+                  [_status(engine, p["id"]) for p in engine.store.programs])
         assert await hass.config_entries.async_remove(engine.entry_id)
         await hass.async_block_till_done()
         hass_storage.clear()
