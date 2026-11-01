@@ -102,6 +102,13 @@ describe("rendered sources on a shared timeline", () => {
       "sensor.watts":[{t:start,s:"300",a:{}}],"binary_sensor.window":[{t:start,s:"on",a:{}},{t:start+7200000,s:"off",a:{}}]};
     return c;
   };
+  it("offers the chart-options panel only in the schedule window, not on the dashboard card", () => {
+    const c = chart();
+    expect(c.showOptions).toBe(false);
+    expect(flat(c.render())).not.toContain("wp-chart-options");
+    c.showOptions = true;
+    expect(flat(c.render())).toContain("wp-chart-options");
+  });
   it("uses separate bounds for Celsius, percent and watts, and aligns the source state row", () => {
     const c=chart(),conf=c._plotConfig(c._model);
     expect(conf.axes.map((a:any)=>a.unit)).toEqual(["°C","%","W"]);

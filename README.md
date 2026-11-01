@@ -43,7 +43,7 @@ settings → New program** in the card editor. See [S36](docs/SCREENS.fr.md#s36)
 
 ## Additional chart sources
 
-Open **Chart options** below a device chart to add another Home Assistant entity. A numeric state is drawn as a curve;
+In the schedule window, open **Chart options** below a device chart to add another Home Assistant entity. A numeric state is drawn as a curve;
 other states appear on a named band with checkboxes for the states to highlight. Multiple states can be selected.
 Unknown or unavailable observations leave gaps; future periods contain no recorded data. The sources follow chart panning and zoom.
 

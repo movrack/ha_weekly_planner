@@ -168,6 +168,8 @@ export class WpChart extends LitElement {
   @property({ attribute: false }) data!: PlannerData;
   @property({ attribute: false }) program!: Program;
   @property({ attribute: "entity-id" }) entityId = "";
+  /** The chart-options panel (extra entities) is offered in the schedule window only, never on the dashboard card. */
+  @property({ type: Boolean, attribute: "show-options" }) showOptions = false;
   @property() date = "";
   /** Resolved slots of the day (null when the preview failed: nominal times are used). */
   @property({ attribute: false }) slots: PreviewSlot[] | null = null;
@@ -818,9 +820,9 @@ export class WpChart extends LitElement {
         ${!this._previewFailed && !model.markers.some((m) => !m.ignored) && !model.planned.zones.length
           ? html`<p>${t(lang, "chart_no_planned")}</p>` : nothing}
       </div>` : nothing}
-      <wp-chart-options .hass=${this.hass} .data=${this.data} .program=${this._displayProgram?.id === this.program.id && this._displayProgram.revision > this.program.revision ? this._displayProgram : this.program}
+      ${this.showOptions ? html`<wp-chart-options .hass=${this.hass} .data=${this.data} .program=${this._displayProgram?.id === this.program.id && this._displayProgram.revision > this.program.revision ? this._displayProgram : this.program}
         .entityId=${this.entityId} .mainUnit=${this._primaryUnit()} .histories=${this._sourceHistory}
-        @chart-sources-saved=${(e: CustomEvent<Program>) => { e.stopPropagation(); this._displayProgram = e.detail; }}></wp-chart-options>`;
+        @chart-sources-saved=${(e: CustomEvent<Program>) => { e.stopPropagation(); this._displayProgram = e.detail; }}></wp-chart-options>` : nothing}`;
   }
 
   private _primaryUnit(): string | null {
