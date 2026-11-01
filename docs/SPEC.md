@@ -253,7 +253,8 @@ racine
                      conditions[] : entity_id, attribute?, op (eq|ne|lt|gt), value
                      mode_source? : entity_id, mappings{ état_brut: id_du_mode }
                      active_profile, profiles[] (1–20) : id, name (1–40 car., unique),
-                       days[0..6] : slots[] (≤ 50 par jour) : id, start, end?, conditions[] (≤ 10), color?, label (id de réglage)
+                       days[0..6] : slots[] (≤ 50 par jour) : id, start, end?, conditions[] (≤ 10), color?, label (id de réglage),
+                                         entities? (appareils visés, § 8.2), seed? (graine du délai, § 8.2)
 runtime (`weekly_planner.runtime`) : par entité → segment courant, action en attente, reprises ; par programme → profil actif,
                      skip_at ; `conditions` → dernières valeurs connues des conditions (persistées pour le démarrage, § 5.5)
 journal (`weekly_planner.journal`) : 14 jours glissants, deux sortes d'entrées : segment décidé
@@ -273,6 +274,43 @@ journal (`weekly_planner.journal`) : 14 jours glissants, deux sortes d'entrées 
   valeurs propres, cibles explicites, sources de valeurs, scènes et sources de mode, § 17) ; entité supprimée → alerte
   Réparations `missing_entities`, vérifiée au démarrage et à chaque suppression dans le registre (pas à
   l'enregistrement d'un programme, § 21).
+
+### 8.2 Horaires par appareil (`slot.entities`, `slot.seed`) — contrat (#34)
+
+Décisions D1-D7 du 2026-11-01 (`docs/DECISIONS.md`). Pas de migration ni de changement de version de stockage
+avant la 1.0 : les deux champs sont facultatifs, les données existantes restent valides telles quelles.
+
+- `entities?: string[]` : appareils (`entity_id` du programme) visés par l'horaire. **Absent = tous les appareils du
+  programme**, y compris ceux ajoutés plus tard. Liste vide interdite. Un horaire s'applique à l'appareil E si et
+  seulement si le champ est absent ou contient E (`applies(slot, E)` : `slots.py`, `slots.ts`).
+- `seed?: string` : graine du délai aléatoire (§ 19), défaut = `id` de l'horaire. Copie à l'écriture : la partie
+  gardée garde son `id`, la copie modifiée reçoit un nouvel `id` et le même `seed` (D7).
+- **Normalisation (D5)** « ce qu'on voit = ce qui est stocké » : tous les appareils cochés = champ absent, partout
+  (enregistrement, retrait d'un appareil, renommage). Retirer un appareil d'un programme le retire de toutes les
+  listes dans tous les modes ; un horaire dont la liste devient vide est supprimé. Un programme à un seul appareil
+  n'a jamais de liste.
+- **Validation serveur** (codes d'erreur) : `empty_slot_entities:<slot>`, `duplicate_slot_entity:<slot>:<eid>`,
+  `unknown_slot_entity:<slot>:<eid>`. Chevauchement vérifié **par paires** : refus si deux horaires se chevauchent dans
+  le temps ET que leurs appareils visés ont une intersection non vide ; code `overlapping_slots:<eid>` (un appareil de
+  l'intersection ; la carte reconnaît toujours le préfixe `overlapping_slots`). Sans aucune liste, le chemin actuel
+  est inchangé. `slot_label_incompatible` est un avertissement (`checks.py`), jamais un refus d'enregistrement (D6).
+- **Renommage** (`rename_entity`, `registry.py`) : réécrit `slot.entities` dans tous les modes et retire les doublons.
+- **Moteur** : `applies` est testé AVANT `resolve` dans `running_slot` (l'arbitrage de priorité ne compare que les
+  horaires qui s'appliquent à l'appareil) ; les ponctuels (`_fire_one_shots`, y compris le rattrapage
+  `last_tick < start <= now`) parcourent les occurrences rognées PAR APPAREIL ; `_next_action_in` et `used` de
+  `checks.py` sont calculés par appareil ; `next_transition` = union des sous-ensembles (`subsets`), aussi pour
+  `_program_status` et `skip_next` (la carte dit quel appareil et quelle action sont sautés). Le réglage par défaut
+  appartient toujours au programme de plus haute priorité (à confirmer et documenter au lot 2). Renvoi à
+  l'enregistrement limité aux appareils dont le segment ou la cible a changé (D2).
+- **Chronologie** (`timeline.py`, API figée) : `place_day(slots, day, tz, sun, *, identity=())` place chaque horaire
+  (trié par début, sans rognage) ; `trim(placed)` rogne les chevauchements (le plus tardif perd) ;
+  `day_occurrences = trim(place_day(...))`, résultat inchangé pour tous les appelants. Chronologie d'un appareil :
+  `trim([o for o in placed if applies(horaire de o, appareil)])`. Cache : occurrences brutes par (mode, programme, jour) ;
+  rognage mémorisé par (mode, programme, jour, appareils visés).
+- **Aperçu** (`weekly_planner/preview`) : dès qu'un horaire du programme a une liste, la réponse contient un
+  `by_entity: {eid: [{slot_id, start, end, ignored, sun}]}` COMPLET (débordement de la veille après minuit compris),
+  les horaires portent `entities`, et le niveau principal n'est pas rogné globalement. Un programme sans liste garde
+  la forme actuelle (`slots` seul).
 
 ### 8.1 Migration 1 → 2 (automatique, testée)
 Conversion des anciennes consignes en actions, puis **regroupement en réglages : des actions identiques donnent UNE
@@ -981,3 +1019,35 @@ Demande du propriétaire (2026-10-31) : « Corrige les bugs connus » (`docs/CON
 - [x] Vérifié en navigateur (instance locale, 360 px, clair et sombre) : lumière, prise, aspirateur, volet, climat.
 - [ ] Vérifier sur l'instance réelle (« Volets – Salle de bain », « Bureau »).
 
+## 30. Horaires indépendants par appareil (#34)
+
+Demande de changement : https://github.com/movrack/ha_weekly_planner/issues/34. Contrat : § 8.2 ; décisions D1-D7
+(`docs/DECISIONS.md`, 2026-11-01). Ordre : lot 0, puis 1, 2 et 4 en parallèle, puis 3, puis 5, puis 6.
+
+- [x] Lot 0 — demande de changement #34 ; décisions ; contrat § 8.2 ; `slots.py` (`applies`, `applicable_ids`,
+  `subsets`) et `slots.ts` (`applies`) avec tests ; types `Slot.entities?`, `Slot.seed?`, `PreviewResponse.by_entity` ;
+  `timeline.py` découpé en `place_day` / `trim` (refactorisation pure, tous les tests au vert) ; `AGENTS.md`.
+- [ ] Lot 1 — validation et registre (`validation.py`, `registry.py`) : champ du schéma, contrôles sémantiques (codes
+  § 8.2), chevauchement par paires, renommage, `seed` dans le schéma, `remove_device_from_slots` par mode.
+- [ ] Lot 2 — moteur (`timeline.py`, `resolver.py`, `engine.py`, `checks.py`, `tests/perf_data.py`) : résolution par
+  appareil, ponctuels par appareil (rattrapage compris), cache, avertissements, renvoi restreint (D2), `seed` dans
+  `_delay` ; tests à heure figée (07:00 climat 15 °C et volet fermé une fois ; 22:00 défaut pour le climat seul ;
+  prochaine action par appareil ; ponctuel du volet dans un horaire du thermostat ; priorité + liste ; débordement de
+  la veille ; heure d'été avec horaires solaires) ; test de propriété D2 ; budget de performance avec 1 programme x
+  100 appareils aux listes toutes différentes (rappel < 50 ms).
+- [ ] Lot 3 — websocket : aperçu `by_entity`, l'instantané porte `entities` / `seed` ; tests.
+- [ ] Lot 4 — modules purs de la carte (`edits.ts`, `actions.ts`, `labels.ts`, `slots.ts`, `preview-cache.ts`) :
+  fusion, segments, bornes, déplacements, copies, chevauchements, `slotKey` sensibles aux appareils ; `editForDevice`
+  (copie à l'écriture + refusion), `applyToAll`, `alsoFor` (normalisation D5), `removeDeviceFromSlots` ;
+  `appliedAction(hass, program, eid, label, slot)` ; reprise sur conflit par INTENTION réévaluée sur données fraîches.
+- [ ] Lot 5 — interface de la carte : barres, fenêtre d'horaires, graphique, repli sans aperçu, barre éditable
+  (annulation limitée aux horaires de l'appareil), dialogue à deux boutons (D1), « Aussi pour : … », « Créer un
+  réglage » par appareil (D4), confirmations de l'éditeur de programme, texte de `skip_next` nommant l'appareil,
+  messages des nouveaux codes (fr/en), mode simple (D3), mise en page 360 px ; tests de modification concurrente
+  dans deux onglets.
+- [ ] Lot 6 — intégration : documentation (SPEC, DECISIONS, MODES, GUIDE.fr, README en/fr, CHANGELOG, wiki),
+  version 0.23.0, bundle, contrôles navigateur (360 px et ≥ 1400 px, clair et sombre) ; déploiement seulement sur
+  ordre du propriétaire.
+- [ ] Recette : cas du propriétaire enregistré sans erreur ; chaque appareil reçoit seulement son action à la bonne
+  heure ; la ligne du volet n'affiche jamais 15 °C et celle du climat jamais « Fermer » (`applies` + `appliedAction`,
+  jamais par test de domaine) ; programmes sans liste inchangés ; budgets de performance tenus.

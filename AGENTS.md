@@ -24,7 +24,8 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
   control another HA entity (for example a favorite-position button); discover services and fields from
   that actual target. Never redirect targets through `data` or `data_sources`.
 - **Labels** are global and shared (name, colour, default action), with an optional value per device.
-  A slot = start, optional end, days, label. When a slot ends, the device's default label applies
+  A slot = start, optional end, days, label, and optional `entities` (the program devices it targets;
+  absent = every device, including ones added later; never empty; test with `applies`). When a slot ends, the device's default label applies
   ("the rest of the time"). A slot without end is a one-shot.
 - Service fields follow the device: unsupported fields (`filter.supported_features` / `attribute`)
   are hidden; a service whose fields are all optional requires its first one; an optional field that
