@@ -1036,7 +1036,7 @@ Demande de changement : https://github.com/movrack/ha_weekly_planner/issues/34. 
   la veille ; heure d'été avec horaires solaires) ; test de propriété D2 ; budget de performance avec 1 programme x
   100 appareils aux listes toutes différentes (rappel < 50 ms).
 - [x] Lot 3 — websocket : enregistrement (retrait d'un appareil de toutes les listes puis normalisation D5, avant `check_program`), aperçu `by_entity`, l'instantané porte `entities` / `seed` ; tests.
-- [ ] Lot 4 — modules purs de la carte (`edits.ts`, `actions.ts`, `labels.ts`, `slots.ts`, `preview-cache.ts`) :
+- [x] Lot 4 — modules purs de la carte (`edits.ts`, `actions.ts`, `labels.ts`, `slots.ts`, `preview-cache.ts`) :
   fusion, segments, bornes, déplacements, copies, chevauchements, `slotKey` sensibles aux appareils ; `editForDevice`
   (copie à l'écriture + refusion), `applyToAll`, `alsoFor` (normalisation D5), `removeDeviceFromSlots` ;
   `appliedAction(hass, program, eid, label, slot)` ; reprise sur conflit par INTENTION réévaluée sur données fraîches.
@@ -1045,9 +1045,23 @@ Demande de changement : https://github.com/movrack/ha_weekly_planner/issues/34. 
   réglage » par appareil (D4), confirmations de l'éditeur de programme, texte de `skip_next` nommant l'appareil,
   messages des nouveaux codes (fr/en), mode simple (D3), mise en page 360 px ; tests de modification concurrente
   dans deux onglets.
-- [ ] Lot 6 — intégration : documentation (SPEC, DECISIONS, MODES, GUIDE.fr, README en/fr, CHANGELOG, wiki),
-  version 0.23.0, bundle, contrôles navigateur (360 px et ≥ 1400 px, clair et sombre) ; déploiement seulement sur
-  ordre du propriétaire.
-- [ ] Recette : cas du propriétaire enregistré sans erreur ; chaque appareil reçoit seulement son action à la bonne
-  heure ; la ligne du volet n'affiche jamais 15 °C et celle du climat jamais « Fermer » (`applies` + `appliedAction`,
-  jamais par test de domaine) ; programmes sans liste inchangés ; budgets de performance tenus.
+- [x] Lot 6 — intégration : documentation (SPEC, DECISIONS, MODES, GUIDE.fr, README en/fr, CHANGELOG),
+  version 0.23.0, bundle, contrôles navigateur sur l'instance locale (360 px tactile et 1440 px souris, thème HA clair
+  et sombre réellement basculé). Relecture « mamy » intégrée : « Aussi pour » ne propose que les appareils sur
+  lesquels le réglage agit (`appliedAction`), ligne masquée sinon ; une seule question pour un horaire partagé avec les
+  vrais noms (« Seulement <appareil> » / « Tous les appareils (N) » ou « <appareil> et <autres> », « Ne rien
+  changer » sur la barre) ; « Aussi utilisé par : … » au lieu de « Partagé » ; « Enregistré · Annuler » ; « Le reste
+  du temps : on ne touche à rien » ; « Lever du soleil » / « Coucher du soleil » ; « 24 h » en bout d'axe.
+  Correctifs trouvés en navigateur : copies d'un même horaire séparées par appareil affichées en 7 lignes (graine
+  différente par jour, regroupement sans graine hors délai aléatoire) ; sélection de la barre restée sur l'horaire
+  des autres appareils après « Seulement <appareil> » ; copies redevenues identiques non refusionnées lors d'une
+  modification directe ; décompte « commande plus choisie » qui comptait des horaires jamais applicables ; bouton
+  « Créer un réglage » absent pour un appareil dont les seuls horaires ne lui font rien. Restent hors de ce lot :
+  republication du wiki et déploiement (coordinateur, sur ordre du propriétaire).
+- [x] Recette : cas du propriétaire enregistré sans erreur dans le navigateur (thermostat 15 °C 07:00-22:00 et volet
+  « Fermer » 07:00, qui se chevauchent) ; à l'enregistrement, le thermostat reçoit 15 °C et le second volet n'est
+  pas touché ; les actions à l'heure par appareil sont couvertes par les tests à heure figée (lot 2) ; la ligne du
+  volet n'affiche jamais 15 °C (barre, fenêtre, choix de réglage, graphique) et celle du climat jamais « Fermer »
+  (`applies` + `appliedAction`) ; programmes sans liste inchangés (tests et cartes existantes) ; budgets de
+  performance tenus (`pytest`).
+- [ ] À vérifier sur l'instance réelle après déploiement : le cas du propriétaire à 07:00 et 22:00 (heure réelle).

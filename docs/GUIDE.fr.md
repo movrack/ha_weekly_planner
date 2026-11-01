@@ -109,7 +109,7 @@ du programme. Les commandes doivent d’abord y être cochées.
 
 Un réglage peut servir à plusieurs programmes. **Changer Confort de 20 à
 21 °C peut donc changer leurs horaires aussi.** Le crayon ouvre son réglage ; la
-mention **Partagé** signale une utilisation dans un autre programme.
+mention **Aussi utilisé par :** nomme les autres programmes qui s’en servent.
 
 Pour une exception, **Valeur pour cet appareil** permet un autre réglage pour
 cet appareil seulement : [S13](SCREENS.fr.md#s13). **Revenir à la valeur commune**
@@ -150,7 +150,7 @@ modification en cours. Pour enlever un horaire, ouvrir sa ligne, toucher
 Tu peux aussi modifier la barre directement : faire un **appui long au doigt**, ou
 un clic à la souris, puis sélectionner la plage. Déplacer ses poignées change
 les heures. **C’est enregistré dès que tu relâches**, pour ce jour seulement.
-Le bandeau **Modifié · Annuler** permet de revenir en arrière pendant quelques
+Le bandeau **Enregistré · Annuler** permet de revenir en arrière pendant quelques
 secondes : [S21](SCREENS.fr.md#s21).
 
 Sous la barre, quand une plage est sélectionnée, deux boutons à ne pas confondre :
@@ -187,12 +187,17 @@ ligne du volet ne montre que « Fermer », celle du thermostat que « 15 °C ».
 - Toucher la barre ou le calendrier d’un appareil ouvre **ses** horaires. En haut
   de l’écran, une pastille par appareil permet de passer à un autre.
 - Un nouvel horaire est créé pour cet appareil. Sous **Aussi pour :**, toucher un
-  autre appareil pour qu’il suive le même horaire. Tous cochés : l’horaire vaut
-  pour tout le programme, y compris un appareil ajouté plus tard.
-- Si un horaire sert à plusieurs appareils, l’écran demande toujours **Modifier
-  pour :** **Cet appareil** ou **Tous (N)**. **Cet appareil** ne change que cet
-  appareil ; les autres gardent l’horaire tel quel. Même question sur la barre,
-  après un glissement ou un choix de réglage ; la croix abandonne la modification.
+  autre appareil pour qu’il suive le même horaire. Seuls les appareils que le
+  réglage choisi sait piloter sont proposés (pas de volet pour « 15 °C ») ; s’il n’y
+  en a aucun, la ligne n’apparaît pas. Tous cochés : l’horaire vaut pour tout le
+  programme, y compris un appareil ajouté plus tard.
+- Un horaire qui sert à plusieurs appareils porte « Aussi : » suivi de leurs noms.
+  Pour le modifier, l’écran demande toujours **Modifier pour :**
+  **Seulement** (le nom de l’appareil) ou **Tous les appareils (N)**. **Seulement**
+  ne change que cet appareil ; les autres gardent l’horaire tel quel. Même question
+  sur la barre, après un glissement ou un choix de réglage ; **Ne rien changer**
+  abandonne la modification. Une modification enregistrée sur la barre affiche
+  **Enregistré · Annuler**.
 - **Supprimer**, en bas de l’écran, n’enlève que les horaires de cet appareil.
 - Dans **Réglages des programmes > Appareils**, retirer un appareil supprime aussi
   ses horaires propres (un message dit combien). Un appareil ajouté suit les
@@ -201,7 +206,7 @@ ligne du volet ne montre que « Fermer », celle du thermostat que « 15 °C ».
 
 ## Je veux fermer le volet au coucher du soleil
 
-Dans son horaire, sous Début, choisir **Coucher**. Les boutons − et + avancent ou
+Dans son horaire, sous Début, choisir **Coucher du soleil**. Les boutons − et + avancent ou
 retardent l’action. Choisir une fin à **07:30** et le réglage de fermeture ;
 dans **Le reste du temps**, choisir le réglage d’ouverture.
 
