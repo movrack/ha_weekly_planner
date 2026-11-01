@@ -419,6 +419,16 @@ SVG maison, un jour (précédent / suivant).
 - **Actions prévues** : repères aux heures prévues, avec la valeur quand l'action en contient une
   (`temperature`, `position`, `brightness_pct`).
 - **Maintenant** : trait vertical sur le jour courant.
+- **Zoom de l'axe du temps** (état propre à la vue, non mémorisé, remis à zéro au changement de jour ou d'appareil ;
+  maths pures dans `chart-zoom.ts`) : fenêtre `[de, à]` en minutes, bornée à 0-24 h (la durée réelle du jour), au moins
+  30 min. Téléphone : pincement à deux doigts autour du centre des doigts, un doigt fait glisser la fenêtre quand elle est
+  zoomée (`touch-action: pan-y` : le défilement vertical de la page reste au navigateur). Souris : glisser = sélection
+  d'une plage qui devient la fenêtre ; Ctrl + molette zoome autour du pointeur ; double clic = remise à zéro (avec un
+  zoom, le clic simple attend 300 ms avant d'ouvrir l'historique) ; un geste de zoom n'ouvre jamais l'historique.
+  Clavier : `+`, `-`, flèches, `0`. Bouton « Réinitialiser le zoom » (`mdi:magnify-minus-outline`, 44 px) et fenêtre
+  affichée, visibles seulement quand c'est zoomé. Graduations : pas de 3 h, 2 h, 1 h, 30, 15, 10 ou 5 min selon la
+  largeur de la fenêtre. Les données hors fenêtre sont **coupées** (clip), jamais déformées ; « maintenant », bande
+  d'activité, escaliers, légende et info-bulles restent actifs. Échelle verticale inchangée.
 - **Toucher** : ouvre l'historique HA de l'entité pour ce jour (`/history?entity_id=…&start_date=…&end_date=…`, navigation HA :
   `history.pushState` + événement `location-changed`).
 - **Changements manuels (affichage seulement)** : en **rouge** (`var(--error-color)`). Source : le journal de bord HA
