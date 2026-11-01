@@ -10,7 +10,7 @@ import type { Planned, Shade } from "../planned";
 import { LitElement, css, html, nothing, svg } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { t } from "../i18n";
-import { actionValue, entityAction, labelOf } from "../labels";
+import { actionValue, appliedAction, labelOf } from "../labels";
 import { activeProfile, entityDomain, friendlyName } from "../planner";
 import { addDaysIso, dateFormat, localMinutes, localWeekday, nominal, spillover } from "../time";
 import { nowTip, sunDir, sunTip } from "./day-bar";
@@ -323,7 +323,7 @@ export class WpChart extends LitElement {
     const markers: Marker[] = [];
     const add = (m: number, label: Label | undefined, end: boolean, extra: Partial<Marker> = {}) => {
       if (!label || m < 0 || m > span) return;
-      const action = entityAction(this.program, this.entityId, label);
+      const action = appliedAction(this.hass, this.program, this.entityId, label);
       if (action) markers.push({ m, label, value: actionValue(action), end, ...extra });
     };
     for (const r of ranges) {
@@ -331,14 +331,14 @@ export class WpChart extends LitElement {
         { sun: sunDir(r.slot.start), spec: r.slot.start, ignored: r.ignored });
     }
     // the planned value as a staircase; the hollow circle only where the value really returns to the default
-    const valueOf = (label: Label | undefined) => actionValue(entityAction(this.program, this.entityId, label));
+    const valueOf = (label: Label | undefined) => actionValue(appliedAction(this.hass, this.program, this.entityId, label));
     const planned = buildPlanned(
       ranges.filter((r) => !r.ignored).flatMap((r) => {
         const label = labelOf(this.data, r.slot.label);
-        return label && entityAction(this.program, this.entityId, label)
+        return label && appliedAction(this.hass, this.program, this.entityId, label)
           ? [{ start: r.s, end: r.e, color: label.color, value: valueOf(label) }] : [];
       }),
-      defaultLabel ? { color: defaultLabel.color, value: valueOf(defaultLabel), active: Boolean(entityAction(this.program, this.entityId, defaultLabel)) } : null,
+      defaultLabel ? { color: defaultLabel.color, value: valueOf(defaultLabel), active: Boolean(appliedAction(this.hass, this.program, this.entityId, defaultLabel)) } : null,
       span,
     );
     for (const m of planned.returns) add(m, defaultLabel, true);

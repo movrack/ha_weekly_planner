@@ -71,6 +71,16 @@ export function entityAction(program: Program, entityId: string, label: Label | 
   return own ?? label.action;
 }
 
+/**
+ * What the engine really does for this device: the label's action (own value or global) only if the device
+ * can take it (service accepted by the entity, scene containing it, service allowed). Else undefined: the
+ * slot is ignored for that device, so the card must not draw it there.
+ */
+export function appliedAction(hass: HomeAssistant, program: Program, entityId: string, label: Label | undefined): Action | undefined {
+  const action = entityAction(program, entityId, label);
+  return action && compatible(hass, entityId, action, allowedOf(program, entityId)) ? action : undefined;
+}
+
 export const hasOverride = (program: Program, entityId: string, labelId: string): boolean =>
   Boolean(program.entities.find((e) => e.entity_id === entityId)?.label_overrides?.[labelId]);
 
