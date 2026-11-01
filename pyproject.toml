@@ -64,6 +64,7 @@ pytest_add_cli_args_test_selection = [
   "tests/test_actions.py",
   "tests/test_defaults_and_repairs.py",
   "tests/test_mode_sources.py",
+  "tests/test_validation.py",
 ]
 also_copy = ["custom_components/", "tests/", "pyproject.toml"]
 
