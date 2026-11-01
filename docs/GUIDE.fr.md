@@ -220,9 +220,10 @@ Si les boutons manquent, demander à cette personne de les ouvrir.
 
 Les intitulés de Home Assistant peuvent varier légèrement selon sa version.
 
-**Affichage de la carte** permet de choisir **Un seul programme** ou **Plusieurs appareils**.
-Dans **Programmes à afficher**, des interrupteurs par type d’appareil et par programme choisissent
-ce que la carte montre. Sous **Présentation de la journée**, choisir **Barres**, **Cadran 24 heures**, **Double
+**Affichage de la carte** permet de choisir **Un seul programme** ou **Plusieurs programmes**.
+Dans **Programmes à afficher**, un interrupteur par programme choisit ce que la carte montre ; sous chaque
+programme figurent ses appareils. Les boutons **Tout sélectionner par type** (Climatisation, Ouverture…) cochent
+d’un coup tous les programmes qui ont un appareil de ce type. Sous **Présentation de la journée**, choisir **Barres**, **Cadran 24 heures**, **Double
 cadran 12 heures** ou **Liste compacte**. Les cadrans sont aussi possibles en
 liste filtrée. Enregistrer la carte et terminer l’édition du tableau de bord.
 
@@ -246,7 +247,7 @@ Actions proposées**. Enregistrer aussi la carte pour garder sa présentation.
 Dans **Général**, **Pièce du programme** permet de le ranger, par exemple dans
 Salon. Choisir un nom existant ou en écrire un nouveau. Cette pièce est propre
 au programme : elle n’est pas reprise automatiquement de la pièce d’un appareil.
-Dans **Affichage de la carte → Plusieurs appareils**, choisir ensuite cette pièce ou
+Dans **Affichage de la carte → Plusieurs programmes**, choisir ensuite cette pièce ou
 **Toutes les pièces**. Si la carte est vide, vérifier ses filtres.
 
 **Attention aux deux enregistrements :**

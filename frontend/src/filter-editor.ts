@@ -1,4 +1,4 @@
-// Pure logic of the card editor's "programs to display" tree (switches grouped by type).
+// Pure logic of the card editor's "programs to display" tree (one switch per program; quick type helpers).
 // Config mapping: `filter.types` (legacy, kept) and `filter.programs` (explicit ids) are both honoured by
 // filterPrograms(). A program is "on" when it passes both. Any edit materialises the selection in
 // `filter.programs`; `filter.types` is only ever widened (to let an enabled program through) or, for a type
@@ -32,6 +32,14 @@ export function typeGroups(programs: Program[], filter: FilterConfig | undefined
   const groups = [...map.values()].sort((a, b) => a.label.localeCompare(b.label, lang) || a.type.localeCompare(b.type));
   for (const g of groups) g.programs.sort((a, b) => a.name.localeCompare(b.name, lang) || a.id.localeCompare(b.id));
   return { groups, orphans: orphanRefs(programs, filter) };
+}
+
+export interface ProgramRow { id: string; name: string; domains: string[]; devices: string[] }
+
+/** One row per program (never repeated per type), sorted by name; `deviceName` gives each device's display name. */
+export function programRows(programs: Program[], deviceName: (entityId: string) => string, lang: string): ProgramRow[] {
+  return programs.map((p) => ({ id: p.id, name: p.name, domains: domainsOf(p), devices: p.entities.map((e) => deviceName(e.entity_id)) }))
+    .sort((a, b) => a.name.localeCompare(b.name, lang) || a.id.localeCompare(b.id));
 }
 
 /** Entries of `filter.programs` that designate no program (neither by id nor by name); kept as-is. */

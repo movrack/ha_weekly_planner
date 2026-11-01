@@ -982,7 +982,7 @@ var ut = {
 	ce_title: "Title",
 	ce_mode: "Content",
 	ce_one_program: "One program only",
-	ce_filtered: "Several devices",
+	ce_filtered: "Several programs",
 	ce_program: "Program",
 	ce_edit_program: "Program to edit",
 	ce_edit_selected: "Edit this program",
@@ -997,6 +997,11 @@ var ut = {
 	ce_display_programs_hint: "Choose what this card shows. Other cards are not changed.",
 	ce_no_types: "Types appear when devices are added to programs.",
 	ce_type_switch: "All {type} programs",
+	ce_quick_types: "Select all by type",
+	ce_quick_types_hint: "Tap a type to select or clear every program that has a device of that type.",
+	ce_type_chip: "All {type}",
+	ce_programs_list: "Programs",
+	ce_no_device: "No device",
 	ce_type_count: "{on} of {total}",
 	ce_type_empty: "No program of this type.",
 	ce_other_programs: "Other selected programs",
@@ -1292,7 +1297,7 @@ var ut = {
 	ce_title: "Titre",
 	ce_mode: "Contenu",
 	ce_one_program: "Un seul programme",
-	ce_filtered: "Plusieurs appareils",
+	ce_filtered: "Plusieurs programmes",
 	ce_program: "Programme",
 	ce_edit_program: "Programme à modifier",
 	ce_edit_selected: "Modifier ce programme",
@@ -1307,6 +1312,11 @@ var ut = {
 	ce_display_programs_hint: "Choisissez ce que cette carte montre. Les autres cartes ne changent pas.",
 	ce_no_types: "Les types apparaissent après l’ajout d’appareils aux programmes.",
 	ce_type_switch: "Tous les programmes {type}",
+	ce_quick_types: "Tout sélectionner par type",
+	ce_quick_types_hint: "Touchez un type pour choisir ou retirer tous les programmes qui ont un appareil de ce type.",
+	ce_type_chip: "Tout {type}",
+	ce_programs_list: "Programmes",
+	ce_no_device: "Aucun appareil",
 	ce_type_count: "{on} sur {total}",
 	ce_type_empty: "Aucun programme de ce type.",
 	ce_other_programs: "Autres programmes choisis",
@@ -7061,38 +7071,46 @@ function ba(e, t, n, r) {
 	for (let e of o) e.programs.sort((e, t) => e.name.localeCompare(t.name, r) || e.id.localeCompare(t.id));
 	return {
 		groups: o,
-		orphans: xa(e, t)
+		orphans: Sa(e, t)
 	};
 }
-var xa = (e, t) => (t?.programs ?? []).filter((t) => !Wt(e, [t]).size);
-function Sa(e, t, n) {
+function xa(e, t, n) {
+	return e.map((e) => ({
+		id: e.id,
+		name: e.name,
+		domains: va(e),
+		devices: e.entities.map((e) => t(e.entity_id))
+	})).sort((e, t) => e.name.localeCompare(t.name, n) || e.id.localeCompare(t.id));
+}
+var Sa = (e, t) => (t?.programs ?? []).filter((t) => !Wt(e, [t]).size);
+function Ca(e, t, n) {
 	if (!e.programs.length) return !n?.types?.length || n.types.includes(e.type) ? "on" : "off";
 	let r = new Map(t.map((e) => [e.id, e])), i = e.programs.filter((e) => r.get(e.id) && ya(r.get(e.id), n, t)).length;
 	return i === 0 ? "off" : i === e.programs.length ? "on" : "partial";
 }
-function Ca(e, t, n, r) {
-	let i = xa(e, t), a = t?.types ?? [], o = { programs: [...e.map((e) => e.id).filter((e) => n.has(e)), ...i] };
+function wa(e, t, n, r) {
+	let i = Sa(e, t), a = t?.types ?? [], o = { programs: [...e.map((e) => e.id).filter((e) => n.has(e)), ...i] };
 	return a.length && (o.types = [.../* @__PURE__ */ new Set([...a, ...r])]), o;
 }
-var wa = (e, t) => new Set(e.filter((n) => ya(n, t, e)).map((e) => e.id));
-function Ta(e, t, n, r) {
-	let i = wa(e, t), a = e.find((e) => e.id === n);
-	return r ? i.add(n) : i.delete(n), Ca(e, t, i, r && a ? va(a) : []);
-}
+var Ta = (e, t) => new Set(e.filter((n) => ya(n, t, e)).map((e) => e.id));
 function Ea(e, t, n, r) {
-	let i = wa(e, t), a = e.filter((e) => va(e).includes(n));
+	let i = Ta(e, t), a = e.find((e) => e.id === n);
+	return r ? i.add(n) : i.delete(n), wa(e, t, i, r && a ? va(a) : []);
+}
+function Da(e, t, n, r) {
+	let i = Ta(e, t), a = e.filter((e) => va(e).includes(n));
 	for (let e of a) r ? i.add(e.id) : i.delete(e.id);
-	let o = Ca(e, t, i, r ? [n] : []);
+	let o = wa(e, t, i, r ? [n] : []);
 	return !r && !a.length && o.types && (o.types = o.types.filter((e) => e !== n)), o;
 }
-var Da = () => ({
+var Oa = () => ({
 	types: void 0,
 	programs: void 0
 });
-function Oa(e, t) {
-	return Ca(e, t, /* @__PURE__ */ new Set(), []);
+function ka(e, t) {
+	return wa(e, t, /* @__PURE__ */ new Set(), []);
 }
-function ka(e, t, n) {
+function Aa(e, t, n) {
 	if (e.program !== void 0) {
 		let { filter: t, ...r } = e;
 		return {
@@ -7103,16 +7121,16 @@ function ka(e, t, n) {
 	let r = t.some((e) => e.id === n.id) ? t : [...t, n], i = { ...e.filter ?? {} };
 	return i.area && n.area !== i.area && delete i.area, ya(n, i, r) || (i = {
 		...i,
-		...Ta(r, i, n.id, !0)
+		...Ea(r, i, n.id, !0)
 	}), {
 		...e,
 		filter: i
 	};
 }
 // src/card-editor.ts
-var Aa = 1500, ja = (e) => JSON.stringify(e, (e, t) => t && typeof t == "object" && !Array.isArray(t) ? Object.fromEntries(Object.entries(t).sort(([e], [t]) => e.localeCompare(t))) : t), $ = class extends w {
+var ja = 1500, Ma = (e) => JSON.stringify(e, (e, t) => t && typeof t == "object" && !Array.isArray(t) ? Object.fromEntries(Object.entries(t).sort(([e], [t]) => e.localeCompare(t))) : t), $ = class extends w {
 	constructor(...e) {
-		super(...e), this._config = { type: "custom:weekly-planner-card" }, this._programs = [], this._section = "display", this._editing = null, this._openTypes = /* @__PURE__ */ new Set(), this._leftAll = !1, this._typeIcons = /* @__PURE__ */ new Map(), this._iconKey = "", this._createdName = "", this._createdProgramId = null, this._scheduleProgramId = null, this._editors = /* @__PURE__ */ new Map(), this._domainLoadKey = "", this._tabKey = (e) => {
+		super(...e), this._config = { type: "custom:weekly-planner-card" }, this._programs = [], this._section = "display", this._editing = null, this._leftAll = !1, this._typeIcons = /* @__PURE__ */ new Map(), this._iconKey = "", this._createdName = "", this._createdProgramId = null, this._scheduleProgramId = null, this._editors = /* @__PURE__ */ new Map(), this._domainLoadKey = "", this._tabKey = (e) => {
 			[
 				"ArrowLeft",
 				"ArrowRight",
@@ -7124,7 +7142,7 @@ var Aa = 1500, ja = (e) => JSON.stringify(e, (e, t) => t && typeof t == "object"
 	setConfig(e) {
 		let t = Xi(e), n = this._sent;
 		if (n && Date.now() < n.until) {
-			let e = ja(t);
+			let e = Ma(t);
 			if (e === n.config) return;
 			if (e === n.previous && n.resent < 5) {
 				n.resent += 1, this._dispatch(this._config);
@@ -7181,7 +7199,7 @@ var Aa = 1500, ja = (e) => JSON.stringify(e, (e, t) => t && typeof t == "object"
 		if (this._data && this._setData({
 			...this._data,
 			programs: [...this._data.programs.filter((e) => e.id !== t.id), t]
-		}), o && (this._justCreated = t), o) this._emit(ka(this._config, this._data?.programs ?? [t], t));
+		}), o && (this._justCreated = t), o) this._emit(Aa(this._config, this._data?.programs ?? [t], t));
 		else if (a && i !== t.id) {
 			let e = {
 				...this._config,
@@ -7229,9 +7247,9 @@ var Aa = 1500, ja = (e) => JSON.stringify(e, (e, t) => t && typeof t == "object"
 	_emit(e) {
 		let t = Qi(e);
 		this._sent = {
-			config: ja(t),
-			previous: ja(this._config),
-			until: Date.now() + Aa,
+			config: Ma(t),
+			previous: Ma(this._config),
+			until: Date.now() + ja,
 			resent: 0
 		}, this._config = t, this._dispatch(t);
 	}
@@ -7281,50 +7299,41 @@ var Aa = 1500, ja = (e) => JSON.stringify(e, (e, t) => t && typeof t == "object"
 		let t = this._config.filter, n = t?.programs === void 0 && !t?.types?.length;
 		e.programs === void 0 ? this._leftAll = !1 : n && (this._leftAll = !0), this._setFilter(e);
 	}
-	_toggleType(e) {
-		let t = new Set(this._openTypes);
-		t.delete(e) || t.add(e), this._openTypes = t;
-	}
 	_displayPrograms() {
-		let e = this._config.filter, t = this._data?.programs ?? [], n = e?.programs === void 0 && !e?.types?.length, { groups: r, orphans: i } = ba(t, e, (e) => this._typeLabel(e), this._lang), a = new Map(t.map((e) => [e.id, e])), o = n ? this._tr("ce_all_programs") : this._tr("ce_of_total", {
+		let e = this._config.filter, t = this._data?.programs ?? [], n = e?.programs === void 0 && !e?.types?.length, { groups: r, orphans: i } = ba(t, e, (e) => this._typeLabel(e), this._lang), a = new Map(t.map((e) => [e.id, e])), o = xa(t, (e) => this.hass ? z(this.hass, e) : e, this._lang), s = n ? this._tr("ce_all_programs") : this._tr("ce_of_total", {
 			on: String(t.filter((n) => ya(n, e, t)).length + i.length),
 			total: String(t.length + i.length)
 		});
 		return x`<details class="display-programs">
-      <summary>${this._tr("ce_display_programs")} · ${o}</summary>
+      <summary>${this._tr("ce_display_programs")} · ${s}</summary>
       <p class="hint">${this._tr("ce_display_programs_hint")}</p>
       <div class="switch-row"><span class="grow">${this._tr("ce_all_programs")}</span>
-        ${this._switch(n, this._tr("ce_all_programs"), (n) => this._treeChange(n ? Da() : Oa(t, e)))}</div>
+        ${this._switch(n, this._tr("ce_all_programs"), (n) => this._treeChange(n ? Oa() : ka(t, e)))}</div>
       ${!n && this._leftAll ? x`<div class="notice" role="status"><ha-icon icon="mdi:information-outline"></ha-icon>
         <span class="grow">${this._tr("ce_left_all")}</span>
-        <button class="btn" @click=${() => this._treeChange(Da())}><ha-icon icon="mdi:restore"></ha-icon>${this._tr("ce_back_all")}</button></div>` : C}
-      ${!r.length && !i.length ? x`<p class="hint">${this._tr("ce_no_types")}</p>` : C}
-      <div role="group" aria-label=${this._tr("ce_display_programs")}>
-        ${r.map((n) => {
-			let r = Sa(n, t, e), i = n.programs.length >= 2, o = i && this._openTypes.has(n.type), s = n.programs.filter((n) => ya(a.get(n.id), e, t)).length, c = r === "partial", l = String(this._tr("ce_type_count", {
-				on: String(s),
+        <button class="btn" @click=${() => this._treeChange(Oa())}><ha-icon icon="mdi:restore"></ha-icon>${this._tr("ce_back_all")}</button></div>` : C}
+      ${!o.length && !i.length ? x`<p class="hint">${this._tr("ce_no_types")}</p>` : C}
+      ${r.length ? x`<div class="quick" role="group" aria-label=${this._tr("ce_quick_types")}>
+        <div class="label">${this._tr("ce_quick_types")}</div>
+        <p class="hint">${this._tr("ce_quick_types_hint")}</p>
+        <div class="chips">${r.map((n) => {
+			let r = Ca(n, t, e), i = n.programs.filter((n) => ya(a.get(n.id), e, t)).length, o = n.programs.length ? String(this._tr("ce_type_count", {
+				on: String(i),
 				total: String(n.programs.length)
-			})), u = x`<ha-icon class="type-icon" icon=${this._typeIcons.get(n.type) ?? "mdi:shape-outline"}></ha-icon>
-            <span class="grow titles"><span class="type-title">${n.label}</span>
-              ${i ? x`<span class="count">${l}${c ? x` · <b>${this._tr("ce_partial")}</b>` : C}</span>` : C}
-              <span class="type-names">${n.programs.length ? n.programs.map((e) => e.name).join(", ") : this._tr("ce_type_empty")}</span></span>`, d = c ? this._tr("ce_partial_label", {
-				name: this._tr("ce_type_switch", { type: n.label }),
-				on: String(s),
-				total: String(n.programs.length)
-			}) : this._tr("ce_type_switch", { type: n.label });
-			return x`<div class="type-group" data-type=${n.type}>
-            <div class="switch-row">
-              ${i ? x`<button class="type-head" aria-expanded=${o} aria-controls=${`ce-type-${n.type}`} @click=${() => this._toggleType(n.type)}>
-                    <ha-icon icon=${o ? "mdi:chevron-down" : "mdi:chevron-right"}></ha-icon>${u}</button>` : x`<div class="type-head static"><span class="chev-space"></span>${u}</div>`}
-              ${this._switch(r !== "off", d, (r) => this._treeChange(Ea(t, e, n.type, r)), c)}
-            </div>
-            ${i ? x`<div id=${`ce-type-${n.type}`} class="type-body" ?hidden=${!o}>
-              ${n.programs.map((n) => x`<div class="switch-row sub"><span class="grow">${n.name}</span>
-                ${this._switch(ya(a.get(n.id), e, t), n.name, (r) => this._treeChange(Ta(t, e, n.id, r)))}</div>`)}
-            </div>` : C}
-          </div>`;
-		})}
-        ${i.length ? x`<div class="label">${this._tr("ce_other_programs")}</div>${i.map((t) => x`<div class="switch-row sub"><span class="grow">${t}</span>
+			})) : "", s = this._tr("ce_type_chip", { type: n.label });
+			return x`<button class="chip ${r}" data-type=${n.type} aria-pressed=${r === "on" ? "true" : r === "partial" ? "mixed" : "false"}
+            aria-label=${o ? `${s} (${o})` : s}
+            @click=${() => this._treeChange(Da(t, e, n.type, r === "off"))}>
+            <ha-icon icon=${this._typeIcons.get(n.type) ?? "mdi:shape-outline"}></ha-icon>${n.label}${o ? x` <span class="count">${o}</span>` : C}</button>`;
+		})}</div>
+      </div>` : C}
+      <div class="label">${this._tr("ce_programs_list")}</div>
+      <div class="program-list" role="group" aria-label=${this._tr("ce_display_programs")}>
+        ${o.map((n) => x`<div class="switch-row program-row" data-program=${n.id}>
+          <span class="grow titles"><span class="type-title">${n.name}</span>
+            <span class="type-names">${n.domains.map((e) => x`<ha-icon class="mini" icon=${this._typeIcons.get(e) ?? "mdi:shape-outline"}></ha-icon>`)}${n.devices.length ? n.devices.join(", ") : this._tr("ce_no_device")}</span></span>
+          ${this._switch(ya(a.get(n.id), e, t), n.name, (r) => this._treeChange(Ea(t, e, n.id, r)))}</div>`)}
+        ${i.length ? x`<div class="label">${this._tr("ce_other_programs")}</div>${i.map((t) => x`<div class="switch-row"><span class="grow">${t}</span>
           ${this._switch(!0, t, () => this._treeChange({ programs: (e?.programs ?? []).filter((e) => e !== t) }))}</div>`)}` : C}
       </div>
     </details>`;
@@ -7398,10 +7407,10 @@ var Aa = 1500, ja = (e) => JSON.stringify(e, (e, t) => t && typeof t == "object"
 		}}></wp-schedule>` : C}`;
 	}
 	static {
-		this.styles = [U, o`:host { display: block; padding: 4px 0; } h3 { margin: 12px 0; font-size: 16px; } .program-settings { padding-top: 4px; } nav { display: flex; border-bottom: 1px solid var(--divider-color); margin-bottom: 12px; } nav button { flex: 1; min-height: 48px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--secondary-text-color); cursor: pointer; } nav button[aria-selected="true"] { color: var(--primary-color); border-bottom-color: var(--primary-color); font-weight: 600; } .hint { line-height: 1.5; } .display-programs { margin: 12px 0; border: 1px solid var(--divider-color); border-radius: 8px; padding: 8px 12px; } summary { min-height: 44px; align-content: center; cursor: pointer; } .display-programs .check { min-height: 44px; overflow-wrap: anywhere; } .switch-row { display: flex; align-items: center; gap: 8px; min-height: 48px; overflow-wrap: anywhere; } .switch-row.sub { padding-left: 28px; } .type-head { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; min-height: 48px; border: 0; background: none; color: inherit; text-align: start; cursor: pointer; } .type-body[hidden] { display: none; } ha-switch { padding: 12px 8px; margin: -12px -8px; flex: none; } ha-switch.partial { --mdc-theme-secondary: var(--warning-color, #ffa600); } .type-icon { flex: none; color: var(--secondary-text-color); } .titles { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; } .type-title { font-size: 16px; overflow-wrap: normal; word-break: keep-all; } .type-names { font-size: 14px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .count { font-size: 14px; color: var(--secondary-text-color); } .count b { color: var(--primary-text-color); } .type-head.static { cursor: default; } .chev-space { flex: none; width: 24px; } .notice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; padding: 8px 12px; border-radius: 8px; background: var(--secondary-background-color); border-inline-start: 4px solid var(--warning-color, #ffa600); line-height: 1.5; } .notice .grow { flex: 1 1 10em; min-width: 10em; } .notice .btn { flex: 1 1 100%; box-sizing: border-box; min-width: 0; max-width: 100%; min-height: 44px; height: auto; white-space: normal; text-align: center; overflow-wrap: anywhere; } .program-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }`];
+		this.styles = [U, o`:host { display: block; padding: 4px 0; } h3 { margin: 12px 0; font-size: 16px; } .program-settings { padding-top: 4px; } nav { display: flex; border-bottom: 1px solid var(--divider-color); margin-bottom: 12px; } nav button { flex: 1; min-height: 48px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--secondary-text-color); cursor: pointer; } nav button[aria-selected="true"] { color: var(--primary-color); border-bottom-color: var(--primary-color); font-weight: 600; } .hint { line-height: 1.5; } .display-programs { margin: 12px 0; border: 1px solid var(--divider-color); border-radius: 8px; padding: 8px 12px; } summary { min-height: 44px; align-content: center; cursor: pointer; } .display-programs .check { min-height: 44px; overflow-wrap: anywhere; } .switch-row { display: flex; align-items: center; gap: 8px; min-height: 48px; overflow-wrap: anywhere; } .type-head { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; min-height: 48px; border: 0; background: none; color: inherit; text-align: start; cursor: pointer; } .type-body[hidden] { display: none; } ha-switch { padding: 12px 8px; margin: -12px -8px; flex: none; } ha-switch.partial { --mdc-theme-secondary: var(--warning-color, #ffa600); } .type-icon { flex: none; color: var(--secondary-text-color); } .titles { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; } .type-title { font-size: 16px; overflow-wrap: normal; word-break: keep-all; } .type-names { font-size: 14px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .mini { --mdc-icon-size: 16px; vertical-align: -3px; margin-inline-end: 4px; } .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; } .chip { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 12px; border: 1px solid var(--divider-color); border-radius: 22px; background: none; color: var(--primary-text-color); font: inherit; cursor: pointer; } .chip.on { background: var(--primary-color); border-color: var(--primary-color); color: var(--text-primary-color, #fff); } .chip.partial { border: 2px dashed var(--primary-color); } .chip .count { font-size: 13px; opacity: .85; } .chip.on .count { opacity: 1; } .quick .hint { margin: 0; } .count { font-size: 14px; color: var(--secondary-text-color); } .count b { color: var(--primary-text-color); } .type-head.static { cursor: default; } .chev-space { flex: none; width: 24px; } .notice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; padding: 8px 12px; border-radius: 8px; background: var(--secondary-background-color); border-inline-start: 4px solid var(--warning-color, #ffa600); line-height: 1.5; } .notice .grow { flex: 1 1 10em; min-width: 10em; } .notice .btn { flex: 1 1 100%; box-sizing: border-box; min-width: 0; max-width: 100%; min-height: 44px; height: auto; white-space: normal; text-align: center; overflow-wrap: anywhere; } .program-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }`];
 	}
 };
-O([E({ attribute: !1 })], $.prototype, "hass", void 0), O([D()], $.prototype, "_config", void 0), O([D()], $.prototype, "_programs", void 0), O([D()], $.prototype, "_data", void 0), O([D()], $.prototype, "_section", void 0), O([D()], $.prototype, "_editing", void 0), O([D()], $.prototype, "_openTypes", void 0), O([D()], $.prototype, "_leftAll", void 0), O([D()], $.prototype, "_typeIcons", void 0), O([D()], $.prototype, "_createdName", void 0), O([D()], $.prototype, "_createdProgramId", void 0), O([D()], $.prototype, "_scheduleProgramId", void 0), $ = O([T("weekly-planner-card-editor")], $), window.customCards = window.customCards || [], window.customCards.some((e) => e.type === "weekly-planner-card") || window.customCards.push({
+O([E({ attribute: !1 })], $.prototype, "hass", void 0), O([D()], $.prototype, "_config", void 0), O([D()], $.prototype, "_programs", void 0), O([D()], $.prototype, "_data", void 0), O([D()], $.prototype, "_section", void 0), O([D()], $.prototype, "_editing", void 0), O([D()], $.prototype, "_leftAll", void 0), O([D()], $.prototype, "_typeIcons", void 0), O([D()], $.prototype, "_createdName", void 0), O([D()], $.prototype, "_createdProgramId", void 0), O([D()], $.prototype, "_scheduleProgramId", void 0), $ = O([T("weekly-planner-card-editor")], $), window.customCards = window.customCards || [], window.customCards.some((e) => e.type === "weekly-planner-card") || window.customCards.push({
 	type: "weekly-planner-card",
 	name: "Weekly Planner",
 	description: "Weekly schedules for thermostats, covers, lights and more.",

@@ -4,12 +4,12 @@ import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "./editors/program-editor";
 import type { WpProgramEditor } from "./editors/program-editor";
-import { subscribePlanner } from "./planner";
+import { friendlyName, subscribePlanner } from "./planner";
 import { syncSelectValues } from "./select-value";
 import { programAreas } from "./program-areas";
 import { domainIcon, programDomains, type DomainLocalize } from "./domains";
 import { normalizeConfig, withDefaults } from "./config";
-import { allPrograms, isOn, selectCreated, toggleAllOff, toggleProgram, toggleType, typeGroups, typeState, type FilterConfig, type FilterPatch } from "./filter-editor";
+import { allPrograms, isOn, selectCreated, toggleAllOff, toggleProgram, programRows, toggleType, typeGroups, typeState, type FilterConfig, type FilterPatch } from "./filter-editor";
 import { t } from "./i18n";
 import type { CardConfig, HomeAssistant, PlannerData, Program } from "./types";
 import { editorStyles, langOf } from "./editors/shared";
@@ -30,7 +30,6 @@ export class WeeklyPlannerCardEditor extends LitElement {
   @state() private _data?: PlannerData;
   @state() private _section: "display" | "programs" = "display";
   @state() private _editing: string | null = null;
-  @state() private _openTypes = new Set<string>();
   /** The person turned something off while "All programs" was on: tell them what changes (until they go back). */
   @state() private _leftAll = false;
   /** Icon Home Assistant gives each domain (a type header shows it). */
@@ -287,18 +286,13 @@ export class WeeklyPlannerCardEditor extends LitElement {
     this._setFilter(patch);
   }
 
-  private _toggleType(type: string): void {
-    const open = new Set(this._openTypes);
-    if (!open.delete(type)) open.add(type);
-    this._openTypes = open;
-  }
-
   private _displayPrograms() {
     const filter = this._config.filter;
     const programs = this._data?.programs ?? [];
     const all = filter?.programs === undefined && !filter?.types?.length;
     const { groups, orphans } = typeGroups(programs, filter, (ty) => this._typeLabel(ty), this._lang);
     const byId = new Map(programs.map((p) => [p.id, p]));
+    const rows = programRows(programs, (id) => (this.hass ? friendlyName(this.hass, id) : id), this._lang);
     const count = all ? this._tr("ce_all_programs")
       : this._tr("ce_of_total", { on: String(programs.filter((p) => isOn(p, filter, programs)).length + orphans.length), total: String(programs.length + orphans.length) });
     return html`<details class="display-programs">
@@ -309,36 +303,28 @@ export class WeeklyPlannerCardEditor extends LitElement {
       ${!all && this._leftAll ? html`<div class="notice" role="status"><ha-icon icon="mdi:information-outline"></ha-icon>
         <span class="grow">${this._tr("ce_left_all")}</span>
         <button class="btn" @click=${() => this._treeChange(allPrograms())}><ha-icon icon="mdi:restore"></ha-icon>${this._tr("ce_back_all")}</button></div>` : nothing}
-      ${!groups.length && !orphans.length ? html`<p class="hint">${this._tr("ce_no_types")}</p>` : nothing}
-      <div role="group" aria-label=${this._tr("ce_display_programs")}>
-        ${groups.map((g) => {
+      ${!rows.length && !orphans.length ? html`<p class="hint">${this._tr("ce_no_types")}</p>` : nothing}
+      ${groups.length ? html`<div class="quick" role="group" aria-label=${this._tr("ce_quick_types")}>
+        <div class="label">${this._tr("ce_quick_types")}</div>
+        <p class="hint">${this._tr("ce_quick_types_hint")}</p>
+        <div class="chips">${groups.map((g) => {
           const state = typeState(g, programs, filter);
-          const many = g.programs.length >= 2;
-          const open = many && this._openTypes.has(g.type);
           const on = g.programs.filter((x) => isOn(byId.get(x.id)!, filter, programs)).length;
-          const partial = state === "partial";
-          const counter = String(this._tr("ce_type_count", { on: String(on), total: String(g.programs.length) }));
-          const titles = html`<ha-icon class="type-icon" icon=${this._typeIcons.get(g.type) ?? "mdi:shape-outline"}></ha-icon>
-            <span class="grow titles"><span class="type-title">${g.label}</span>
-              ${many ? html`<span class="count">${counter}${partial ? html` · <b>${this._tr("ce_partial")}</b>` : nothing}</span>` : nothing}
-              <span class="type-names">${g.programs.length ? g.programs.map((p) => p.name).join(", ") : this._tr("ce_type_empty")}</span></span>`;
-          const switchLabel = partial ? this._tr("ce_partial_label", { name: this._tr("ce_type_switch", { type: g.label }), on: String(on), total: String(g.programs.length) })
-            : this._tr("ce_type_switch", { type: g.label });
-          return html`<div class="type-group" data-type=${g.type}>
-            <div class="switch-row">
-              ${many
-                ? html`<button class="type-head" aria-expanded=${open} aria-controls=${`ce-type-${g.type}`} @click=${() => this._toggleType(g.type)}>
-                    <ha-icon icon=${open ? "mdi:chevron-down" : "mdi:chevron-right"}></ha-icon>${titles}</button>`
-                : html`<div class="type-head static"><span class="chev-space"></span>${titles}</div>`}
-              ${this._switch(state !== "off", switchLabel, (v) => this._treeChange(toggleType(programs, filter, g.type, v)), partial)}
-            </div>
-            ${many ? html`<div id=${`ce-type-${g.type}`} class="type-body" ?hidden=${!open}>
-              ${g.programs.map((p) => html`<div class="switch-row sub"><span class="grow">${p.name}</span>
-                ${this._switch(isOn(byId.get(p.id)!, filter, programs), p.name, (v) => this._treeChange(toggleProgram(programs, filter, p.id, v)))}</div>`)}
-            </div>` : nothing}
-          </div>`;
-        })}
-        ${orphans.length ? html`<div class="label">${this._tr("ce_other_programs")}</div>${orphans.map((id) => html`<div class="switch-row sub"><span class="grow">${id}</span>
+          const counter = g.programs.length ? String(this._tr("ce_type_count", { on: String(on), total: String(g.programs.length) })) : "";
+          const label = this._tr("ce_type_chip", { type: g.label });
+          return html`<button class="chip ${state}" data-type=${g.type} aria-pressed=${state === "on" ? "true" : state === "partial" ? "mixed" : "false"}
+            aria-label=${counter ? `${label} (${counter})` : label}
+            @click=${() => this._treeChange(toggleType(programs, filter, g.type, state === "off"))}>
+            <ha-icon icon=${this._typeIcons.get(g.type) ?? "mdi:shape-outline"}></ha-icon>${g.label}${counter ? html` <span class="count">${counter}</span>` : nothing}</button>`;
+        })}</div>
+      </div>` : nothing}
+      <div class="label">${this._tr("ce_programs_list")}</div>
+      <div class="program-list" role="group" aria-label=${this._tr("ce_display_programs")}>
+        ${rows.map((p) => html`<div class="switch-row program-row" data-program=${p.id}>
+          <span class="grow titles"><span class="type-title">${p.name}</span>
+            <span class="type-names">${p.domains.map((d) => html`<ha-icon class="mini" icon=${this._typeIcons.get(d) ?? "mdi:shape-outline"}></ha-icon>`)}${p.devices.length ? p.devices.join(", ") : this._tr("ce_no_device")}</span></span>
+          ${this._switch(isOn(byId.get(p.id)!, filter, programs), p.name, (v) => this._treeChange(toggleProgram(programs, filter, p.id, v)))}</div>`)}
+        ${orphans.length ? html`<div class="label">${this._tr("ce_other_programs")}</div>${orphans.map((id) => html`<div class="switch-row"><span class="grow">${id}</span>
           ${this._switch(true, id, () => this._treeChange({ programs: (filter?.programs ?? []).filter((x) => x !== id) }))}</div>`)}` : nothing}
       </div>
     </details>`;
@@ -412,7 +398,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
         @closed=${(e: Event) => { e.stopPropagation(); this._scheduleProgramId = null; }}></wp-schedule>` : nothing}`;
   }
 
-  static styles = [editorStyles, css`:host { display: block; padding: 4px 0; } h3 { margin: 12px 0; font-size: 16px; } .program-settings { padding-top: 4px; } nav { display: flex; border-bottom: 1px solid var(--divider-color); margin-bottom: 12px; } nav button { flex: 1; min-height: 48px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--secondary-text-color); cursor: pointer; } nav button[aria-selected="true"] { color: var(--primary-color); border-bottom-color: var(--primary-color); font-weight: 600; } .hint { line-height: 1.5; } .display-programs { margin: 12px 0; border: 1px solid var(--divider-color); border-radius: 8px; padding: 8px 12px; } summary { min-height: 44px; align-content: center; cursor: pointer; } .display-programs .check { min-height: 44px; overflow-wrap: anywhere; } .switch-row { display: flex; align-items: center; gap: 8px; min-height: 48px; overflow-wrap: anywhere; } .switch-row.sub { padding-left: 28px; } .type-head { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; min-height: 48px; border: 0; background: none; color: inherit; text-align: start; cursor: pointer; } .type-body[hidden] { display: none; } ha-switch { padding: 12px 8px; margin: -12px -8px; flex: none; } ha-switch.partial { --mdc-theme-secondary: var(--warning-color, #ffa600); } .type-icon { flex: none; color: var(--secondary-text-color); } .titles { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; } .type-title { font-size: 16px; overflow-wrap: normal; word-break: keep-all; } .type-names { font-size: 14px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .count { font-size: 14px; color: var(--secondary-text-color); } .count b { color: var(--primary-text-color); } .type-head.static { cursor: default; } .chev-space { flex: none; width: 24px; } .notice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; padding: 8px 12px; border-radius: 8px; background: var(--secondary-background-color); border-inline-start: 4px solid var(--warning-color, #ffa600); line-height: 1.5; } .notice .grow { flex: 1 1 10em; min-width: 10em; } .notice .btn { flex: 1 1 100%; box-sizing: border-box; min-width: 0; max-width: 100%; min-height: 44px; height: auto; white-space: normal; text-align: center; overflow-wrap: anywhere; } .program-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }`];
+  static styles = [editorStyles, css`:host { display: block; padding: 4px 0; } h3 { margin: 12px 0; font-size: 16px; } .program-settings { padding-top: 4px; } nav { display: flex; border-bottom: 1px solid var(--divider-color); margin-bottom: 12px; } nav button { flex: 1; min-height: 48px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--secondary-text-color); cursor: pointer; } nav button[aria-selected="true"] { color: var(--primary-color); border-bottom-color: var(--primary-color); font-weight: 600; } .hint { line-height: 1.5; } .display-programs { margin: 12px 0; border: 1px solid var(--divider-color); border-radius: 8px; padding: 8px 12px; } summary { min-height: 44px; align-content: center; cursor: pointer; } .display-programs .check { min-height: 44px; overflow-wrap: anywhere; } .switch-row { display: flex; align-items: center; gap: 8px; min-height: 48px; overflow-wrap: anywhere; } .type-head { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; min-height: 48px; border: 0; background: none; color: inherit; text-align: start; cursor: pointer; } .type-body[hidden] { display: none; } ha-switch { padding: 12px 8px; margin: -12px -8px; flex: none; } ha-switch.partial { --mdc-theme-secondary: var(--warning-color, #ffa600); } .type-icon { flex: none; color: var(--secondary-text-color); } .titles { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; } .type-title { font-size: 16px; overflow-wrap: normal; word-break: keep-all; } .type-names { font-size: 14px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .mini { --mdc-icon-size: 16px; vertical-align: -3px; margin-inline-end: 4px; } .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; } .chip { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 12px; border: 1px solid var(--divider-color); border-radius: 22px; background: none; color: var(--primary-text-color); font: inherit; cursor: pointer; } .chip.on { background: var(--primary-color); border-color: var(--primary-color); color: var(--text-primary-color, #fff); } .chip.partial { border: 2px dashed var(--primary-color); } .chip .count { font-size: 13px; opacity: .85; } .chip.on .count { opacity: 1; } .quick .hint { margin: 0; } .count { font-size: 14px; color: var(--secondary-text-color); } .count b { color: var(--primary-text-color); } .type-head.static { cursor: default; } .chev-space { flex: none; width: 24px; } .notice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; padding: 8px 12px; border-radius: 8px; background: var(--secondary-background-color); border-inline-start: 4px solid var(--warning-color, #ffa600); line-height: 1.5; } .notice .grow { flex: 1 1 10em; min-width: 10em; } .notice .btn { flex: 1 1 100%; box-sizing: border-box; min-width: 0; max-width: 100%; min-height: 44px; height: auto; white-space: normal; text-align: center; overflow-wrap: anywhere; } .program-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }`];
 }
 
 declare global {

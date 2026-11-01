@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allPrograms, isOn, toggleAllOff, toggleProgram, toggleType, typeGroups, typeState } from "../filter-editor";
+import { allPrograms, isOn, programRows, toggleAllOff, toggleProgram, toggleType, typeGroups, typeState } from "../filter-editor";
 import { filterPrograms } from "../planner";
 import type { PlannerData, Program } from "../types";
 
@@ -105,5 +105,30 @@ describe("programs designated by name", () => {
     expect(toggleProgram(list, f, "a1", true).programs).toEqual(["a1", "b2", "ghost"]);
     expect(toggleProgram(list, f, "b2", false).programs).toEqual(["ghost"]);
     expect(toggleType(list, { programs: ["Bureau"] }, "light", true).programs).toEqual(["a1", "b2", "d4"]);
+  });
+});
+
+describe("multi-type programs: one row, quick type helper", () => {
+  const multi = [prog("t", "climate.bureau", "cover.bureau"), prog("u", "cover.salon"), prog("v", "climate.salon")];
+  const label = (t: string) => t;
+  it("lists each program once, with all its devices", () => {
+    const rows = programRows(multi, (id) => id.toUpperCase(), "en");
+    expect(rows.map((r) => r.id)).toEqual(["t", "u", "v"]);
+    expect(rows[0].domains).toEqual(["climate", "cover"]);
+    expect(rows[0].devices).toEqual(["CLIMATE.BUREAU", "COVER.BUREAU"]);
+  });
+  it("type groups count distinct programs per type", () => {
+    const { groups } = typeGroups(multi, {}, label, "en");
+    expect(groups.map((g) => [g.type, g.programs.length])).toEqual([["climate", 2], ["cover", 2]]);
+    const f = apply({}, toggleProgram(multi, {}, "t", false));
+    expect(groups.map((g) => typeState(g, multi, f))).toEqual(["partial", "partial"]);
+    expect(multi.filter((p) => isOn(p, f, multi)).length).toBe(2);
+  });
+  it("a type helper toggles the multi-type program without duplicating it", () => {
+    const off = apply({}, toggleType(multi, {}, "cover", false));
+    expect(filterPrograms({ programs: multi } as unknown as PlannerData, { filter: off }).map((p) => p.id)).toEqual(["v"]);
+    const on = apply(off, toggleType(multi, off, "cover", true));
+    expect(filterPrograms({ programs: multi } as unknown as PlannerData, { filter: on }).map((p) => p.id).sort()).toEqual(["t", "u", "v"]);
+    expect(on.programs).toEqual(["t", "u", "v"]);
   });
 });
