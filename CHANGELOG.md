@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+- `Release` workflow: after a merge into `main` it creates the tag and the GitHub release from the CHANGELOG (fails on version mismatch, skips an existing tag).
+
 ### Changed
 - Removed the "Drag to browse · Pinch to zoom · Shift + drag to select" help line under the chart.
 - The chart-options panel (extra entities) is offered in the schedule window only; the dashboard card no longer shows the selector but still draws the chosen curves and bands (#37).
