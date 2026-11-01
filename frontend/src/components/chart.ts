@@ -15,6 +15,8 @@ import { activeProfile, entityDomain, friendlyName } from "../planner";
 import { addDaysIso, dateFormat, localMinutes, localWeekday, nominal, spillover } from "../time";
 import { nowTip, sunDir, sunTip } from "./day-bar";
 import "./tip";
+import { minuteAt, normalise, panWindow, pinchWindow, rangeToWindow, tickStep, ticksIn, zoomAround } from "../chart-zoom";
+import type { ZoomWindow } from "../chart-zoom";
 import type { HomeAssistant, Label, PlannerData, PreviewSlot, Program, Slot, TimeSpec } from "../types";
 
 // ---- date helpers (server time zone) -------------------------------------------------------
@@ -144,6 +146,14 @@ const num = (x: unknown): number | null => (typeof x === "number" && Number.isFi
 /** Narrowest drawn active band (px) and height of its strip along the time axis (px). */
 export const SHADE_MIN = 3;
 export const SHADE_EDGE = 3;
+/** Drag shorter than this (px) is a tap or a click, not a pan or a selection. */
+const DRAG_PX = 6;
+/** A click this soon after a zoom gesture ended belongs to it (it must not open the history). */
+const CLICK_GUARD_MS = 350;
+/** With a zoom, a click waits this long for a second one (double click = reset). */
+const DOUBLE_MS = 300;
+const PAD_CURVE = { l: 38, r: 10, t: 22, b: 22 };
+const PAD_BAND = { l: 8, r: 10, t: 22, b: 22 };
 const ON_STATES = new Set(["on", "open", "heat", "home", "playing", "cleaning", "unlocked", "armed_home", "armed_away"]);
 
 @customElement("wp-chart")
@@ -158,6 +168,18 @@ export class WpChart extends LitElement {
 
   @state() private _width = 320;
   @state() private _loaded: Loaded | null = null;
+  /** Visible part of the day (minutes); null = the whole day. Per chart view: reset when the day or device changes. */
+  @state() private _zoom: ZoomWindow | null = null;
+  /** Rubber band being drawn (x in chart px). */
+  @state() private _band: { a: number; b: number } | null = null;
+  private _ptrs = new Map<number, { x: number; y: number }>();
+  private _gesture: (
+    | { kind: "pinch"; win: ZoomWindow; dist: number; anchor: number }
+    | { kind: "pan"; win: ZoomWindow; x0: number; moved: boolean }
+    | { kind: "select"; x0: number; moved: boolean }
+  ) | null = null;
+  private _guardUntil = 0;
+  private _openTimer?: ReturnType<typeof setTimeout>;
   @state() private _failed = false;
   private _model: Model | null = null;
   private _token = 0;
@@ -187,6 +209,7 @@ export class WpChart extends LitElement {
     this._stopRefresh?.();
     this._stopRefresh = undefined;
     this._token++;
+    clearTimeout(this._openTimer);
   }
 
   firstUpdated(): void {
@@ -195,7 +218,13 @@ export class WpChart extends LitElement {
   }
 
   willUpdate(changed: Map<string, unknown>): void {
-    if (changed.has("entityId") || changed.has("date")) void this._load();
+    if (changed.has("entityId") || changed.has("date")) {
+      this._zoom = null;
+      this._band = null;
+      this._gesture = null;
+      this._ptrs.clear();
+      void this._load();
+    }
     if (changed.has("slots") || changed.has("data") || changed.has("program") || changed.has("entityId")
       || changed.has("date") || changed.has("_loaded")) {
       this._model = this._loaded ? this._build(this._loaded) : null;
@@ -456,7 +485,142 @@ export class WpChart extends LitElement {
   }
 
   private _open(): void {
+    clearTimeout(this._openTimer);
     this.dispatchEvent(new CustomEvent("open-history", { detail: this._historyPath, bubbles: true, composed: true }));
+  }
+
+  // ---- zoom (pinch, drag, wheel, keys) ----
+
+  private get _pad() { return this._model?.kind === "band" ? PAD_BAND : PAD_CURVE; }
+  private get _span(): number { return this._model?.span ?? 1440; }
+  private get _win(): ZoomWindow { return this._zoom ?? { from: 0, to: this._span }; }
+
+  private _setZoom(w: ZoomWindow | null): void {
+    this._zoom = w ? normalise(w, this._span) : null;
+  }
+
+  /** x of a pointer in chart px (the svg may be drawn smaller than its width). */
+  private _px(e: { clientX: number }): number {
+    const r = (this.renderRoot.querySelector("svg") as SVGSVGElement | null)?.getBoundingClientRect();
+    return r && r.width > 0 ? ((e.clientX - r.left) * this._width) / r.width : e.clientX;
+  }
+
+  private _frac(x: number): number {
+    const pad = this._pad;
+    return (x - pad.l) / (this._width - pad.l - pad.r);
+  }
+
+  private _down(e: PointerEvent): void {
+    if (!this._model || (e.pointerType === "mouse" && e.button !== 0)) return;
+    const x = this._px(e);
+    this._ptrs.set(e.pointerId, { x, y: e.clientY });
+    try { (e.currentTarget as Element | null)?.setPointerCapture?.(e.pointerId); } catch { /* pointer already gone */ }
+    if (this._ptrs.size === 2) {
+      const [a, b] = [...this._ptrs.values()];
+      const win = this._win;
+      this._band = null;
+      this._gesture = { kind: "pinch", win, dist: Math.hypot(a.x - b.x, a.y - b.y),
+        anchor: minuteAt(win, this._frac((a.x + b.x) / 2)) };
+      this._guardUntil = Date.now() + CLICK_GUARD_MS;
+    } else if (this._ptrs.size === 1) {
+      if (e.pointerType === "mouse") this._gesture = { kind: "select", x0: x, moved: false };
+      else if (this._zoom) this._gesture = { kind: "pan", win: this._zoom, x0: x, moved: false };
+      else this._gesture = null;
+    }
+  }
+
+  private _move(e: PointerEvent): void {
+    const g = this._gesture;
+    const p = this._ptrs.get(e.pointerId);
+    if (!g || !p || !this._model) return;
+    p.x = this._px(e);
+    p.y = e.clientY;
+    const pad = this._pad;
+    const plotW = this._width - pad.l - pad.r;
+    if (g.kind === "pinch") {
+      const [a, b] = [...this._ptrs.values()];
+      if (!b) return;
+      this._setZoom(pinchWindow(g.win, g.dist, Math.hypot(a.x - b.x, a.y - b.y), g.anchor,
+        this._frac((a.x + b.x) / 2), this._span));
+    } else if (g.kind === "pan") {
+      if (!g.moved && Math.abs(p.x - g.x0) < DRAG_PX) return;
+      g.moved = true;
+      this._guardUntil = Date.now() + CLICK_GUARD_MS;
+      this._setZoom(panWindow(g.win, (-(p.x - g.x0) / plotW) * (g.win.to - g.win.from), this._span));
+    } else {
+      if (!g.moved && Math.abs(p.x - g.x0) < DRAG_PX) return;
+      g.moved = true;
+      this._guardUntil = Date.now() + CLICK_GUARD_MS;
+      this._band = { a: g.x0, b: p.x };
+    }
+  }
+
+  private _up(e: PointerEvent): void {
+    const p = this._ptrs.get(e.pointerId);
+    if (!p) return;
+    this._ptrs.delete(e.pointerId);
+    const g = this._gesture;
+    if (g?.kind === "select" && g.moved && e.type === "pointerup") {
+      this._setZoom(rangeToWindow(minuteAt(this._win, this._frac(g.x0)), minuteAt(this._win, this._frac(p.x)), this._span));
+    }
+    if (g?.kind === "select" || !this._ptrs.size) this._gesture = null;
+    if (g?.kind === "select" || g?.kind === "pan") this._guardUntil = g.moved ? Date.now() + CLICK_GUARD_MS : this._guardUntil;
+    this._band = null;
+    if (g?.kind === "pinch") {
+      // one finger stays: it goes on panning from where it is, without a jump
+      const rest = [...this._ptrs.values()][0];
+      this._gesture = rest && this._zoom ? { kind: "pan", win: this._zoom, x0: rest.x, moved: true } : null;
+      this._guardUntil = Date.now() + CLICK_GUARD_MS;
+    }
+  }
+
+  private _wheel(e: WheelEvent): void {
+    if (!this._model) return;
+    if (e.ctrlKey) {
+      // ctrl + wheel (also a trackpad pinch) zooms around the pointer
+      e.preventDefault();
+      const win = this._win;
+      this._setZoom(zoomAround(win, Math.exp(-e.deltaY * 0.01), minuteAt(win, this._frac(this._px(e))),
+        this._frac(this._px(e)), this._span));
+    } else if (this._zoom && Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      e.preventDefault();
+      const w = this._zoom;
+      this._setZoom(panWindow(w, (e.deltaX / (this._width - this._pad.l - this._pad.r)) * (w.to - w.from), this._span));
+    }
+  }
+
+  private _zoomKey(e: KeyboardEvent): boolean {
+    const win = this._win;
+    const mid = (win.from + win.to) / 2;
+    if (e.key === "+" || e.key === "=") this._setZoom(zoomAround(win, 1.5, mid, 0.5, this._span));
+    else if (e.key === "-") this._setZoom(zoomAround(win, 1 / 1.5, mid, 0.5, this._span));
+    else if (e.key === "0") this._setZoom(null);
+    else if (this._zoom && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+      this._setZoom(panWindow(win, (e.key === "ArrowLeft" ? -0.25 : 0.25) * (win.to - win.from), this._span));
+    } else return false;
+    e.preventDefault();
+    return true;
+  }
+
+  private _reset(): void {
+    clearTimeout(this._openTimer);
+    this._zoom = null;
+  }
+
+  /** A click opens the history, unless it ends a zoom gesture; with a zoom it waits for a possible double click. */
+  private _click(): void {
+    if (Date.now() < this._guardUntil) return;
+    clearTimeout(this._openTimer);
+    if (this._zoom) this._openTimer = setTimeout(() => this._open(), DOUBLE_MS);
+    else this._open();
+  }
+
+  /** "08:00" at a minute of the day. */
+  private _clock(m: number, span: number): string {
+    if (m >= span && span === 1440) return "24:00";
+    const { startMs } = dayBounds(this.date, this._tz);
+    return dateFormat("en-GB", { timeZone: this._tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+      .format(new Date(startMs + m * 60_000));
   }
 
   // ---- render ----
@@ -500,7 +664,11 @@ export class WpChart extends LitElement {
     let body;
     if (!model) body = html`<div class="note">${t(lang, "chart_loading")}</div>`;
     else body = this._renderChart(model);
-    return html`<div class="box">${body}</div>${model ? html`${this._legend(model)}
+    return html`<div class="box">${body}</div>${model && this._zoom ? html`<div class="zoombar">
+        <span class="zwin">${t(lang, "chart_zoom_window", { from: this._clock(this._zoom.from, model.span), to: this._clock(this._zoom.to, model.span) })}</span>
+        <button class="zreset" type="button" @click=${() => this._reset()}>
+          <ha-icon icon="mdi:magnify-minus-outline"></ha-icon><span>${t(lang, "chart_zoom_reset")}</span></button>
+      </div>` : nothing}${model ? html`${this._legend(model)}
       <div class="availability" role="status">
         ${this._failed ? html`<p>${t(lang, "chart_history_failed")}</p>`
           : !model.lines.length && !model.bands.length
@@ -534,14 +702,25 @@ export class WpChart extends LitElement {
     const W = this._width;
     const curve = model.kind === "curve";
     const H = curve ? 150 : 84;
-    const PAD = { l: curve ? 38 : 8, r: 10, t: 22, b: 22 };
-    const x = (m: number) => PAD.l + (m / model.span) * (W - PAD.l - PAD.r);
+    const PAD = curve ? PAD_CURVE : PAD_BAND;
+    const win = this._zoom ?? { from: 0, to: model.span };
+    const zoomed = Boolean(this._zoom);
+    const x = (m: number) => PAD.l + ((m - win.from) / (win.to - win.from)) * (W - PAD.l - PAD.r);
     const y = (v: number) => PAD.t + (1 - (v - model.lo) / (model.hi - model.lo)) * (H - PAD.t - PAD.b);
     const { startMs } = dayBounds(this.date, this._tz);
-    const hourOf = (m: number) => dateFormat("en-GB", { timeZone: this._tz, hour: "2-digit", hourCycle: "h23" })
-      .format(new Date(startMs + m * 60_000));
-    const ticksX: number[] = [];
-    for (let m = 0; m <= model.span; m += 180) ticksX.push(m);
+    const step = tickStep(win.to - win.from);
+    const tickFmt = dateFormat("en-GB", { timeZone: this._tz, hour: "2-digit", ...(step < 60 ? { minute: "2-digit" } : {}), hourCycle: "h23" });
+    const tickText = (m: number) => {
+      const s = tickFmt.format(new Date(startMs + m * 60_000));
+      return step < 60 ? s : `${Number(s)}h`;
+    };
+    const ticksX = ticksIn(win, step);
+    const inPlot = (m: number) => m >= win.from - 1e-6 && m <= win.to + 1e-6;
+    const anchorOf = (m: number) => {
+      if (!zoomed) return m === 0 ? "start" : "middle";
+      const px = x(m);
+      return px - PAD.l < 16 ? "start" : W - PAD.r - px < 16 ? "end" : "middle";
+    };
     // round values on the vertical axis (1, 2, 5, 10… apart), never 17.3 or 20.7
     const ticksY: number[] = [];
     if (curve) {
@@ -586,20 +765,32 @@ export class WpChart extends LitElement {
     return html`<div class="cwrap">
       <svg width=${W} height=${H} viewBox="0 0 ${W} ${H}" tabindex="0" role="button"
         aria-label=${t(lang, "chart_open", { name: this._shownName })}
-        @click=${() => this._open()}
-        @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this._open(); } }}>
-        ${curve ? shades : nothing}
+        @click=${() => this._click()}
+        @dblclick=${() => this._reset()}
+        @pointerdown=${(e: PointerEvent) => this._down(e)}
+        @pointermove=${(e: PointerEvent) => this._move(e)}
+        @pointerup=${(e: PointerEvent) => this._up(e)}
+        @pointercancel=${(e: PointerEvent) => this._up(e)}
+        @wheel=${(e: WheelEvent) => this._wheel(e)}
+        @keydown=${(e: KeyboardEvent) => {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this._open(); } else this._zoomKey(e);
+        }}>
+        ${zoomed ? svg`<defs><clipPath id="plot"><rect x=${PAD.l - 3} y="0" width=${W - PAD.l - PAD.r + 6} height=${H}></rect></clipPath></defs>` : nothing}
+        <g clip-path=${zoomed ? "url(#plot)" : nothing}>${curve ? shades : nothing}</g>
         ${ticksY.map((v) => svg`<line class="grid" x1=${PAD.l} x2=${W - PAD.r} y1=${y(v)} y2=${y(v)}></line>
           <text class="ylab" x=${PAD.l - 4} y=${y(v) + 3} text-anchor="end">${Number(v.toFixed(1))}</text>`)}
         ${curve && model.unit ? svg`<text class="unit" x="2" y="10">${model.unit}</text>` : nothing}
-        ${ticksX.map((m) => svg`<text class="xlab" x=${x(m)} y=${H - 6} text-anchor=${m === 0 ? "start" : "middle"}>${Number(hourOf(m))}h</text>`)}
+        ${ticksX.map((m) => svg`<text class="xlab" x=${x(m)} y=${H - 6} text-anchor=${anchorOf(m)}>${tickText(m)}</text>`)}
+        <g clip-path=${zoomed ? "url(#plot)" : nothing}>
         ${curve ? nothing : svg`
           <rect class="track" x=${PAD.l} y=${bandY} width=${W - PAD.l - PAD.r} height=${bandH} rx="6"></rect>
           ${model.bands.map((b) => svg`<rect class="band ${b.on ? "on" : ""}" x=${x(b.s)} y=${bandY} width=${Math.max(1, x(b.e) - x(b.s))} height=${bandH}></rect>`)}
           ${shades}
           ${model.bands.map((b) => {
-            const w = x(b.e) - x(b.s);
-            return fitText(b.text, w) ? svg`<text class="btxt" x=${x(b.s) + w / 2} y=${bandY + bandH / 2 + 4} text-anchor="middle">${fitText(b.text, w)}</text>` : nothing;
+            // the text is centred on the part of the band that is visible
+            const s0 = Math.max(b.s, win.from), e0 = Math.min(b.e, win.to);
+            const w = x(e0) - x(s0);
+            return e0 > s0 && fitText(b.text, w) ? svg`<text class="btxt" x=${x(s0) + w / 2} y=${bandY + bandH / 2 + 4} text-anchor="middle">${fitText(b.text, w)}</text>` : nothing;
           })}
           ${model.manual.map(([a, b]) => svg`<rect class="red-band" x=${x(a)} y=${bandY} width=${Math.max(3, x(b) - x(a))} height=${bandH}></rect>`)}`}
         ${curve ? model.lines.map((l) => svg`<path class="line ${l.key}" d=${this._path(l.pts, model, x, y, l.key !== "measured")}></path>`) : nothing}
@@ -611,14 +802,17 @@ export class WpChart extends LitElement {
         }) : nothing}
         ${curve ? model.planned.steps.map((st) => svg`<path class="plan" d="M${x(st.from).toFixed(1)},${y(st.value).toFixed(1)}H${x(st.to).toFixed(1)}" style="--c:${st.color}"></path>`) : nothing}
         ${curve ? model.planned.risers.map((r) => svg`<line class="riser" x1=${x(r.m)} x2=${x(r.m)} y1=${y(r.from)} y2=${y(r.to)} style="--c:${r.color}"></line>`) : nothing}
-        ${[...model.markers].sort((a, b) => a.m - b.m).map(mark)}
+        ${[...model.markers].filter((mk) => !zoomed || inPlot(mk.m)).sort((a, b) => a.m - b.m).map(mark)}
         ${nowLine}
+        </g>
+        ${this._band ? svg`<rect class="rubber" x=${Math.min(this._band.a, this._band.b)} y=${PAD.t - 4}
+          width=${Math.abs(this._band.b - this._band.a)} height=${H - PAD.t - PAD.b + 4}></rect>` : nothing}
         <rect class="hit" x="0" y="0" width=${W} height=${H}></rect>
       </svg>
-      ${model.markers.filter((mk) => mk.sun).map((mk) => html`<wp-tip class="suntip ${mk.ignored ? "faded" : ""}"
+      ${model.markers.filter((mk) => mk.sun && (!zoomed || inPlot(mk.m))).map((mk) => html`<wp-tip class="suntip ${mk.ignored ? "faded" : ""}"
         style="left:${x(mk.m)}px;top:${cyOf(mk)}px;--c:${mk.label.color}" text=${sunTip(lang, mk.spec, mk.m)}>
         <span class="sunc"><ha-icon icon=${mk.sun === "up" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down"}></ha-icon></span></wp-tip>`)}
-      ${model.isToday ? html`<wp-tip class="nowtip" style="left:${x(model.pastEnd)}px;top:${PAD.t - 11}px"
+      ${model.isToday && (!zoomed || inPlot(model.pastEnd)) ? html`<wp-tip class="nowtip" style="left:${x(model.pastEnd)}px;top:${PAD.t - 11}px"
         text=${nowTip(lang, localMinutes(new Date(), this._tz))}></wp-tip>` : nothing}
     </div>`;
   }
@@ -637,7 +831,17 @@ export class WpChart extends LitElement {
       box-shadow: 0 0 0 2px var(--c);
     }
     .faded { opacity: 0.45; }
-    svg { display: block; user-select: none; outline: none; max-width: 100%; cursor: pointer; }
+    /* vertical scroll of the page stays with the browser; horizontal moves and two fingers are ours (zoom) */
+    svg { display: block; user-select: none; outline: none; max-width: 100%; cursor: pointer; touch-action: pan-y; }
+    .rubber { fill: var(--primary-color); opacity: 0.2; stroke: var(--primary-color); stroke-width: 1; pointer-events: none; }
+    .zoombar { display: flex; align-items: center; justify-content: space-between; gap: 4px 8px; margin-top: 2px; flex-wrap: wrap; }
+    .zwin { color: var(--secondary-text-color); font-size: 14px; white-space: nowrap; }
+    .zreset {
+      display: inline-flex; align-items: center; gap: 6px; min-height: 44px; min-width: 44px; padding: 0 12px;
+      border: 1px solid var(--divider-color); border-radius: 22px; background: transparent; color: var(--primary-color);
+      font: inherit; font-size: 14px; cursor: pointer; white-space: nowrap; --mdc-icon-size: 20px;
+    }
+    .zreset:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
     svg:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; border-radius: 4px; }
     .grid { stroke: var(--divider-color, rgba(127, 127, 127, 0.3)); stroke-width: 1; }
     text { fill: var(--secondary-text-color); font-size: 10px; }
