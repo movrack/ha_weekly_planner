@@ -148,3 +148,4 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
 - Card-only change: `weekly_planner.reload`. Python change: back up Home Assistant, then restart it.
   The owner explicitly authorizes any necessary restart when requesting deployment; do not ask again.
 - Release: once the maintainer has merged the release PR into `main`, run `scripts/release.sh` (dry run; `--apply` to create the tag and GitHub release from the CHANGELOG section of the version on `main`). Releases are never created from `develop`.
+- Reports and plans never give effort estimates in human days or weeks (the work is done by AI agents); list the steps, dependencies and risks instead.
