@@ -48,7 +48,8 @@ STABILIZATION = timedelta(seconds=30)
 RETRY_STEPS = (1, 2, 5, 10, 15)  # minutes after a failed service call, then give up
 UNAVAILABLE = ("unavailable", "unknown")
 
-# Reasons that only re-apply when the program asks for it (spec § 5.5)
+# Reasons that only re-apply when the program asks for it (spec § 5.5). "modification" is narrowed (D2,
+# #34): a save re-sends only to devices whose effective segment or target changed, see _process_entity.
 REAPPLY_REASONS = frozenset({"startup", "enable", "modification", "profile", "vacation_off"})
 
 SIGNAL_UPDATED = f"{DOMAIN}_updated"
@@ -377,18 +378,43 @@ class PlannerEngine:
                 current[eid] = seg[2]
         nxt = next_transition([program], now, ctx.tz, ctx.sun, active_profiles=ctx.profiles, cache=ctx.occurrences)
         prt = self.store.runtime["programs"].get(program_id, {})
+        skip_at = prt.get("skip_at")
         return {
             "program_id": program_id,
             "active_profile": active_profile(program, ctx.profiles)["id"],
             **self._mode_source_status(program),
             "current_slots": current,
             "next_change": nxt.isoformat() if nxt else None,
-            "skip_next": prt.get("skip_at"),
+            "skip_next": skip_at,
+            "skip_next_targets": self._skip_targets(ctx, program, skip_at),
             "next_actions": {
                 e["entity_id"]: action for e in program["entities"]
                 if (action := self._next_action_in(ctx, e["entity_id"], now))
             },
         }
+
+    def _skip_targets(self, ctx: _Pass, program: dict, skip_at: str | None) -> list[dict[str, Any]]:
+        """Devices of the program whose own timeline has an edge at the skipped moment, and what they
+        would have received then: ``[{"entity_id", "action", "label"}]`` (the card names them).
+
+        ``skip_at`` is the next edge of the union of the device timelines, so it may concern a single
+        device of the program. The skip itself is consumed by the program's first segment change at or
+        after that moment (unchanged rule).
+        """
+        moment = self.store.parse(skip_at) if skip_at else None
+        if moment is None:
+            return []
+        profile = active_profile(program, ctx.profiles)
+        targets: list[dict[str, Any]] = []
+        for entity in program["entities"]:
+            eid = entity["entity_id"]
+            timeline = occurrences_around(profile, moment, ctx.tz, ctx.sun, days=(-1, 0), program_id=program["id"],
+                                          cache=ctx.occurrences, entity_id=eid)
+            if not any(occ.runs and moment in (occ.start, occ.end) for occ, _slot in timeline):
+                continue
+            seg = self._segment_in(ctx, eid, moment)
+            targets.append({"entity_id": eid, "action": seg.action, "label": seg.label})
+        return targets
 
     def next_action(self, entity_id: str, now: datetime | None = None) -> dict[str, Any] | None:
         """Next thing the plan does to an entity: ``{"at": iso, "action": {...}, "label": id}``.
@@ -409,7 +435,7 @@ class PlannerEngine:
                 continue
             profile = active_profile(program, ctx.profiles)
             found = occurrences_around(profile, now, ctx.tz, ctx.sun, days=range(-1, 8),
-                                       program_id=program["id"], cache=ctx.occurrences)
+                                       program_id=program["id"], cache=ctx.occurrences, entity_id=entity_id)
             for occ, slot in found:
                 if not occ.runs:
                     continue
@@ -608,6 +634,12 @@ class PlannerEngine:
         changed = rt.get("segment") != key
         if not changed and reason not in REAPPLY_REASONS:
             return
+        if reason == "modification" and not changed and rt.get("target") == seg.action:
+            # D2 (#34): a save re-sends only to devices whose effective timeline changed at this instant
+            # (segment identity or target). The device timelines are trimmed per device, so editing the
+            # cover's slot leaves the thermostat's segment and target identical: no command, and its
+            # manual change is kept. A change later in the day is applied at its own edge anyway.
+            return
 
         if reason == "profile" and profile_program_ids and not changed and seg.program_id not in profile_program_ids:
             return
@@ -672,25 +704,41 @@ class PlannerEngine:
             return
         excluded = excluded or set()
         due: list[tuple[str, dict]] = []
+
+        def due_for(program: dict, eid: str, slot: dict) -> None:
+            action = ctx.resolve(program, eid, slot.get("label"))
+            if action is None:
+                return
+            seg = segments[eid] if segments is not None else self._segment_in(ctx, eid, now)
+            higher = seg.in_slot and seg.program_id != program["id"] and self._priority(seg.program_id, ctx.by_id) < program.get("priority", DEFAULT_PRIORITY)
+            if not higher:  # skipped under a higher priority slot (Q-L)
+                due.append((eid, action))
+
+        def fires(occ, slot: dict) -> bool:
+            return (occ.end is None and occ.runs and last < occ.start <= now
+                    and ctx.check(slot.get("conditions", [])))
+
+        local_day = now.astimezone(ctx.tz).date()
         for program in ctx.programs:
             if program["id"] in excluded or not program.get("enabled", True) or not ctx.check(program.get("conditions", [])):
                 continue
             profile = active_profile(program, ctx.profiles)
-            for occ, slot in occurrences_around(profile, now, ctx.tz, ctx.sun, program_id=program["id"], cache=ctx.occurrences):
-                if occ.end is not None or not occ.runs or not (last < occ.start <= now):
+            eids = [entity["entity_id"] for entity in program["entities"]]
+            for delta in (-1, 0, 1):
+                day = ctx.occurrences.entry(profile, local_day + timedelta(days=delta), ctx.tz, ctx.sun, program["id"])
+                if not day.lists:  # one timeline for every device: same order as before lists existed
+                    for occ, slot in day.all():
+                        if fires(occ, slot):
+                            for eid in eids:
+                                due_for(program, eid, slot)
                     continue
-                if not ctx.check(slot.get("conditions", [])):
-                    continue
-                for entity in program["entities"]:
-                    eid = entity["entity_id"]
-                    action = ctx.resolve(program, eid, slot.get("label"))
-                    if action is None:
-                        continue
-                    seg = segments[eid] if segments is not None else self._segment_in(ctx, eid, now)
-                    higher = seg.in_slot and seg.program_id != program["id"] and self._priority(seg.program_id, ctx.by_id) < program.get("priority", DEFAULT_PRIORITY)
-                    if higher:
-                        continue  # skipped under a higher priority slot (Q-L)
-                    due.append((eid, action))
+                # Per-device timelines (#34): a one-shot of the cover inside a thermostat slot runs for
+                # the cover, a one-shot never reaches a device it does not apply to.
+                found = [(occ.start, index, eid, slot) for index, eid in enumerate(eids)
+                         for occ, slot in day.device(eid) if fires(occ, slot)]
+                found.sort(key=lambda item: (item[0], item[1]))  # by time, then program order of devices
+                for _start, _index, eid, slot in found:
+                    due_for(program, eid, slot)
         for eid, action in due:
             await self._async_send(eid, action, "one_shot", oneshot=True)
         for prt in self.store.runtime["programs"].values():
