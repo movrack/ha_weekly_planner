@@ -5216,7 +5216,7 @@ var ka = "M12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20M1
 	"armed_away"
 ]), J = class extends x {
 	constructor(...e) {
-		super(...e), this.entityId = "", this.date = "", this.slots = null, this._width = 320, this._loaded = null, this._zoom = null, this._band = null, this._ptrs = /* @__PURE__ */ new Map(), this._gesture = null, this._sourceKey = "", this._sourceHistory = {}, this._sourceFailures = [], this._displayProgram = null, this._dayData = /* @__PURE__ */ new Map(), this._guardUntil = 0, this._failed = !1, this._previewFailed = !1, this._model = null, this._token = 0, this._refresh = () => {
+		super(...e), this.entityId = "", this.showOptions = !1, this.date = "", this.slots = null, this._width = 320, this._loaded = null, this._zoom = null, this._band = null, this._ptrs = /* @__PURE__ */ new Map(), this._gesture = null, this._sourceKey = "", this._sourceHistory = {}, this._sourceFailures = [], this._displayProgram = null, this._dayData = /* @__PURE__ */ new Map(), this._guardUntil = 0, this._failed = !1, this._previewFailed = !1, this._model = null, this._token = 0, this._refresh = () => {
 			if (document.hidden || !this.hass || !this.date) return;
 			let { startMs: e } = q(this.date, this._tz);
 			e + this._win.from * 6e4 <= Date.now() && Date.now() < e + this._win.to * 6e4 && this._load();
@@ -5855,11 +5855,11 @@ var ka = "M12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20M1
         ${this._previewFailed ? v`<p>${D(e, "chart_preview_failed")}</p>` : b}
         ${!this._previewFailed && !t.markers.some((e) => !e.ignored) && !t.planned.zones.length ? v`<p>${D(e, "chart_no_planned")}</p>` : b}
       </div>` : b}
-      <wp-chart-options .hass=${this.hass} .data=${this.data} .program=${this._displayProgram?.id === this.program.id && this._displayProgram.revision > this.program.revision ? this._displayProgram : this.program}
+      ${this.showOptions ? v`<wp-chart-options .hass=${this.hass} .data=${this.data} .program=${this._displayProgram?.id === this.program.id && this._displayProgram.revision > this.program.revision ? this._displayProgram : this.program}
         .entityId=${this.entityId} .mainUnit=${this._primaryUnit()} .histories=${this._sourceHistory}
         @chart-sources-saved=${(e) => {
 			e.stopPropagation(), this._displayProgram = e.detail;
-		}}></wp-chart-options>`;
+		}}></wp-chart-options>` : b}`;
 	}
 	_primaryUnit() {
 		let e = _n(this.entityId);
@@ -6123,7 +6123,10 @@ var ka = "M12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20M1
   `;
 	}
 };
-T([C({ attribute: !1 })], J.prototype, "hass", void 0), T([C({ attribute: !1 })], J.prototype, "data", void 0), T([C({ attribute: !1 })], J.prototype, "program", void 0), T([C({ attribute: "entity-id" })], J.prototype, "entityId", void 0), T([C()], J.prototype, "date", void 0), T([C({ attribute: !1 })], J.prototype, "slots", void 0), T([w()], J.prototype, "_width", void 0), T([w()], J.prototype, "_loaded", void 0), T([w()], J.prototype, "_zoom", void 0), T([w()], J.prototype, "_band", void 0), T([w()], J.prototype, "_sourceHistory", void 0), T([w()], J.prototype, "_sourceFailures", void 0), T([w()], J.prototype, "_displayProgram", void 0), T([w()], J.prototype, "_failed", void 0), T([w()], J.prototype, "_previewFailed", void 0), J = T([S("wp-chart")], J);
+T([C({ attribute: !1 })], J.prototype, "hass", void 0), T([C({ attribute: !1 })], J.prototype, "data", void 0), T([C({ attribute: !1 })], J.prototype, "program", void 0), T([C({ attribute: "entity-id" })], J.prototype, "entityId", void 0), T([C({
+	type: Boolean,
+	attribute: "show-options"
+})], J.prototype, "showOptions", void 0), T([C()], J.prototype, "date", void 0), T([C({ attribute: !1 })], J.prototype, "slots", void 0), T([w()], J.prototype, "_width", void 0), T([w()], J.prototype, "_loaded", void 0), T([w()], J.prototype, "_zoom", void 0), T([w()], J.prototype, "_band", void 0), T([w()], J.prototype, "_sourceHistory", void 0), T([w()], J.prototype, "_sourceFailures", void 0), T([w()], J.prototype, "_displayProgram", void 0), T([w()], J.prototype, "_failed", void 0), T([w()], J.prototype, "_previewFailed", void 0), J = T([S("wp-chart")], J);
 // src/components/slot-form.ts
 var Ra = ["sunrise", "sunset"], za = {
 	dawn: "next_dawn",
@@ -7151,7 +7154,7 @@ var Ja = (e) => e.kind === "device" ? `d:${e.entityId}` : `p:${e.programId}`, Ya
         <span>${this._offset === 0 ? D(e, "today") : r}</span>
         <button class="ibtn" ?disabled=${this._offset >= Ya} aria-label=${D(e, "next_day")} @click=${() => this._go(1)}><ha-icon icon="mdi:chevron-right"></ha-icon></button>
       </div>
-      <wp-chart .hass=${this.hass} .data=${this.data} .program=${t} entity-id=${this._eid} date=${n}
+      <wp-chart show-options .hass=${this.hass} .data=${this.data} .program=${t} entity-id=${this._eid} date=${n}
         .slots=${this._slots} @open-history=${(e) => this._openHistory(e.detail)}></wp-chart>
     </section>`;
 	}

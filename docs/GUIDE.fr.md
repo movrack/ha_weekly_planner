@@ -326,7 +326,7 @@ et les dates s’affichent sous lui. Les flèches montrent la période précéde
 
 ### Comparer avec une autre entité
 
-Ouvrez **Options du graphique**, puis **Ajouter une entité** et recherchez son nom. Le panneau est replié au départ.
+Dans la fenêtre des horaires d’un appareil, ouvrez **Options du graphique** sous le graphique (elles n’existent pas sur la carte du tableau de bord ; les courbes choisies y restent affichées), puis **Ajouter une entité** et recherchez son nom. Le panneau est replié au départ.
 Une mesure numérique apparaît en courbe : par exemple, comparez température et humidité. Chaque unité a son échelle colorée,
 avec trois unités différentes au plus. Des courbes de même unité partagent la même échelle.
 

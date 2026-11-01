@@ -941,7 +941,7 @@ export class WpSchedule extends LitElement {
         <span>${this._offset === 0 ? t(lang, "today") : label}</span>
         <button class="ibtn" ?disabled=${this._offset >= AHEAD} aria-label=${t(lang, "next_day")} @click=${() => this._go(1)}><ha-icon icon="mdi:chevron-right"></ha-icon></button>
       </div>
-      <wp-chart .hass=${this.hass} .data=${this.data} .program=${owner} entity-id=${this._eid} date=${date}
+      <wp-chart show-options .hass=${this.hass} .data=${this.data} .program=${owner} entity-id=${this._eid} date=${date}
         .slots=${this._slots} @open-history=${(e: CustomEvent<string>) => this._openHistory(e.detail)}></wp-chart>
     </section>`;
   }

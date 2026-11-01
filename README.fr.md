@@ -40,7 +40,7 @@ pas une nouvelle instance de l’intégration.
 
 ## Sources complémentaires du graphique
 
-Ouvrez **Options du graphique** sous le graphique d’un appareil pour ajouter une entité Home Assistant. Un état numérique
+Dans la fenêtre des horaires, ouvrez **Options du graphique** sous le graphique d’un appareil pour ajouter une entité Home Assistant. Un état numérique
 donne une courbe ; les autres états apparaissent sur une bande nommée, avec des cases pour les états à mettre en évidence.
 Plusieurs états peuvent être cochés. Les observations inconnues ou indisponibles laissent des interruptions ; aucune donnée
 réelle n’est dessinée dans le futur. Les sources suivent le déplacement et le zoom du graphique.
