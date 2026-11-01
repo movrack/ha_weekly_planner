@@ -94,7 +94,11 @@ export function groupSlots(
   profile.days.forEach((slots, day) => {
     for (const slot of slots) {
       if (!include(slot)) continue;
-      const key = slotKey(slot);
+      // the seed only matters with a random delay: copies split for a device on each day (each with its own seed)
+      // still read as one row
+      const random = Boolean(slot.start.random_minutes || slot.end?.random_minutes);
+      const { seed: _seed, ...unseeded } = slot;
+      const key = slotKey(random ? slot : unseeded);
       let g = groups.get(key);
       if (g && g.days.includes(day)) {
         g = undefined;

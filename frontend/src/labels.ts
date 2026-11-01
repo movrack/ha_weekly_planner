@@ -86,7 +86,16 @@ export function appliedAction(
   return action && compatible(hass, entityId, action, allowedOf(program, entityId)) ? action : undefined;
 }
 
-export const hasOverride = (program: Program, entityId: string, labelId: string): boolean =>
+/**
+ * Devices of the program (except `except`) that this label really acts on (`appliedAction`, never a domain test):
+ * the only ones "Also for: …" may offer. No label yet: none.
+ */
+export function compatibleDevices(hass: HomeAssistant, program: Program, label: Label | undefined, except = ""): string[] {
+  if (!label) return [];
+  return program.entities.map((e) => e.entity_id).filter((eid) => eid !== except && Boolean(appliedAction(hass, program, eid, label)));
+}
+
+export const hasOverride =(program: Program, entityId: string, labelId: string): boolean =>
   Boolean(program.entities.find((e) => e.entity_id === entityId)?.label_overrides?.[labelId]);
 
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);

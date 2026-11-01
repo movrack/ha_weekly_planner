@@ -63,6 +63,18 @@ function spansIn(v: any, out: any[] = []): any[] {
   }
   return out;
 }
+/** The value bound to a property (`.name=${…}`) somewhere in a template tree (undefined: not found). */
+function propOf(v: any, name: string): unknown {
+  if (Array.isArray(v)) { for (const x of v) { const r = propOf(x, name); if (r !== undefined) return r; } return undefined; }
+  if (v && v.strings) {
+    for (let i = 0; i < v.values.length; i++) {
+      if (v.strings[i].trimEnd().endsWith(`${name}=`)) return v.values[i];
+      const r = propOf(v.values[i], name);
+      if (r !== undefined) return r;
+    }
+  } else if (v && v._$litDirective$ && Array.isArray(v.values)) return propOf(v.values, name);
+  return undefined;
+}
 /** Every array of strings passed as a property in a template tree. */
 function stringArrays(v: any, out: string[][] = []): string[][] {
   if (Array.isArray(v)) {
@@ -124,6 +136,14 @@ describe("card: per-device bars (owner case)", () => {
     const roHtml = flat(ro._bySchedule([p]));
     expect(roHtml).not.toContain('class="create"');
   });
+  it("a device whose only slots do nothing to it (all-devices 15 °C on a cover) still gets Create a setting", () => {
+    const p = program();
+    p.profiles[0].days = days();
+    p.profiles[0].days[1] = [structuredClone(both)]; // no list: runs for both, but 15 °C does nothing to the cover
+    const c = card([p]);
+    expect(c._needsCreate(p, COVER)).toBe(true);
+    expect(c._needsCreate(p, CLIMATE)).toBe(false);
+  });
   it("names the device and the action of a skipped next change", () => {
     const p = program();
     const c = card([p], { status: { [p.id]: { skip_next: "2026-01-06T07:00:00Z", skip_next_targets: [{ entity_id: COVER, action: null, label: "close" }] } } });
@@ -181,12 +201,26 @@ describe("schedule screen: per device", () => {
     v._openRow(shared.key, shared.program, shared.group);
     expect(v._shared).toBe(true);
     const html = flat(v._renderEditor(p, shared.key));
-    expect(html).toContain("This device"); expect(html).toContain("All (2)");
+    expect(html).toContain("Only Thermostat"); expect(html).toContain("All devices (2)");
     expect(html.match(/btn primary/g)).toHaveLength(1); // one Save / Cancel pair
+    expect(propOf(v._renderEditor(p, shared.key), ".also")).toBe(false); // one choice: no "Also for" chips beside it
     const own = v._rows().find((r: any) => r.group.slot.id === "s1");
     v._openRow(own.key, own.program, own.group);
     expect(v._shared).toBe(false);
-    expect(flat(v._renderEditor(p, own.key))).not.toContain("This device");
+    expect(flat(v._renderEditor(p, own.key))).not.toContain("Only Thermostat");
+  });
+  it("D1 names the other devices when the slot runs for some of them only", () => {
+    const p = program({ entities: [
+      { entity_id: CLIMATE, default_label: null, label_overrides: {} },
+      { entity_id: COVER, default_label: null, label_overrides: {} },
+      { entity_id: "cover.hall", default_label: null, label_overrides: {} },
+    ] } as any);
+    p.profiles[0].days[1] = [{ ...structuredClone(both), entities: [CLIMATE, COVER] }];
+    const v = dialog(p, CLIMATE);
+    const row = v._rows().find((r: any) => r.group.slot.id === "s3");
+    v._openRow(row.key, row.program, row.group);
+    const html = flat(v._renderEditor(p, row.key));
+    expect(html).toContain("Only Thermostat"); expect(html).toContain("Thermostat and Volet"); expect(html).not.toContain("All devices");
   });
   it("D1 This device: splits the shared slot (kept part keeps its id, copy gets the seed)", async () => {
     const p = program();
@@ -195,7 +229,7 @@ describe("schedule screen: per device", () => {
     v._openRow(shared.key, shared.program, shared.group);
     v._group = { ...v._group, slot: { ...v._group.slot, end: { time: "13:00" } } };
     await v._saveRow();
-    expect(v._error).toBe("Choose: this device or all.");
+    expect(v._error).toBe("Choose which devices this change is for.");
     v._pickWho("one");
     await v._saveRow();
     expect(v._open).toBeNull();
@@ -218,6 +252,10 @@ describe("schedule screen: per device", () => {
     w._pickWho("one");
     await w._deleteRow();
     expect(sent(w).profiles[0].days[1]).toEqual([expect.objectContaining({ id: "s3", entities: [COVER] })]);
+  });
+  it("the rest of the time reads as a sentence when nothing is set", () => {
+    const v = dialog(program(), COVER);
+    expect(flat(v._renderRest())).toContain("The rest of the time: <b>leave as is</b>");
   });
   it("a new slot belongs to the device it is created from (D4)", () => {
     const p = program();
@@ -280,28 +318,55 @@ describe("schedule screen: per device", () => {
 /* ------------------------------------------------------------------ the slot form */
 
 describe("slot form: Also for", () => {
+  const COVER2 = "cover.hall";
+  const h3 = () => {
+    const h = hass();
+    h.states[COVER2] = { entity_id: COVER2, state: "open", attributes: { friendly_name: "Volet 2" } };
+    h.services.cover.open_cover = { name: "Open", target: { entity: { domain: "cover" } }, fields: {} };
+    return h;
+  };
+  const three = (over: any = {}) => program({ entities: [
+    { entity_id: CLIMATE, default_label: null, label_overrides: {} },
+    { entity_id: COVER, default_label: null, label_overrides: {} },
+    { entity_id: COVER2, default_label: null, label_overrides: {}, ...over },
+  ] } as any);
   function form(p: Program, slot: Slot, device: string) {
     const f = new WpSlotForm() as any;
-    f.hass = hass(); f.data = data([p]); f.program = p; f.device = device; f.also = true;
+    f.hass = h3(); f.data = data([p], { labels: [...labels, { id: "open", name: "Ouvrir", color: "#0c6", action: { kind: "service", service: "cover.open_cover" } }] });
+    f.program = p; f.device = device; f.also = true;
     f.group = { slot, days: [0], ids: { 0: slot.id } };
     const events: any[] = [];
     f.dispatchEvent = (e: any) => { events.push(e); return true; };
     return { f, events };
   }
-  it("adds and removes the other devices, normalised (all ticked = no list)", () => {
-    const p = program();
-    const { f, events } = form(p, structuredClone(t15), CLIMATE);
-    expect(flat(f.render())).toContain("Also for:");
-    expect(flat(f.render())).toContain("Volet");
-    f._toggleDevice(COVER);
-    expect(events[0].detail.slot.entities).toBeUndefined();
+  it("offers only the devices the setting acts on, normalised (all ticked = no list)", () => {
+    const p = three();
+    const { f, events } = form(p, structuredClone(close), COVER);
+    const html = flat(f.render());
+    expect(html).toContain("Also for:");
+    expect(html).toContain("Volet 2");
+    expect(html).not.toContain("Thermostat"); // "Fermer" does nothing to the thermostat: never offered
+    f._toggleDevice(COVER2);
+    expect(events[0].detail.slot.entities).toEqual([COVER, COVER2]);
     f.group = events[0].detail;
-    f._toggleDevice(COVER);
-    expect(events[1].detail.slot.entities).toEqual([CLIMATE]);
+    f._toggleDevice(COVER2);
+    expect(events[1].detail.slot.entities).toEqual([COVER]);
+  });
+  it("hides the whole line when no other device can take the setting", () => {
+    const p = three();
+    expect(flat(form(p, structuredClone(t15), CLIMATE).f.render())).not.toContain("Also for:"); // 15 °C: covers cannot
+  });
+  it("a new setting drops the ticked devices it cannot act on", () => {
+    const p = three({ restrict_services: true, allowed_services: ["cover.close_cover"] });
+    const { f, events } = form(p, { ...structuredClone(close), entities: [COVER, COVER2] }, COVER);
+    f._set({ label: "open" });
+    expect(events[0].detail.slot.entities).toEqual([COVER]);
+    f._set({ label: "close" });
+    expect(events[1].detail.slot.entities).toEqual([COVER, COVER2]); // still compatible: kept
   });
   it("is hidden while editing for this device only, and for a single device", () => {
-    const p = program();
-    const { f } = form(p, structuredClone(t15), CLIMATE);
+    const p = three();
+    const { f } = form(p, structuredClone(close), COVER);
     f.also = false;
     expect(flat(f.render())).not.toContain("Also for:");
     const one = program({ entities: [{ entity_id: CLIMATE, default_label: null, label_overrides: {} }] } as any);
@@ -350,12 +415,37 @@ describe("bar editor: per device", () => {
     sh.b._pickLabel("close");
     expect(sh.b._ask).not.toBeNull();
     expect(sh.b.hass.callWS).not.toHaveBeenCalled(); // never a silent split
-    expect(flat(sh.b._askBox())).toContain("All (2)");
+    const ask = flat(sh.b._askBox());
+    expect(ask).toContain("Only Thermostat"); expect(ask).toContain("All devices (2)");
+    expect(ask).toContain("Change nothing"); // a worded way back, not a lone ×
     sh.b._answer("one");
     await flush();
     const day1 = sh.live().profiles[0].days[1];
     expect(day1.find((s: Slot) => s.id === "s3")).toMatchObject({ entities: [COVER], label: "t15" });
     expect(day1.find((s: Slot) => s.id !== "s3")).toMatchObject({ entities: [CLIMATE], label: "close", seed: "s3" });
+  });
+  it("after 'Only this device', the selection follows the device's copy, never the other devices' slot", async () => {
+    const sh = bar(program(), CLIMATE, 1);
+    sh.b._selected = { kind: "slot", id: "s3" };
+    sh.b._pickLabel("close");
+    sh.b._answer("one");
+    await flush();
+    const copy = sh.live().profiles[0].days[1].find((s: Slot) => s.id !== "s3")!;
+    expect(sh.b._selected).toEqual({ kind: "slot", id: copy.id });
+    expect(sh.b._sel.slot.id).toBe(copy.id);
+    sh.b._selected = { kind: "slot", id: "s3" }; // the kept part now runs for the cover only
+    expect(sh.b._sel).toBeNull();
+  });
+  it("a device's copy edited back to match the other devices' slot is merged into one slot again (D1)", async () => {
+    const p = program();
+    p.profiles[0].days[1] = [{ ...structuredClone(both), entities: [COVER] }, { ...structuredClone(both), id: "c1", seed: "s3", label: "close", entities: [CLIMATE] }];
+    const own = bar(p, CLIMATE, 1);
+    own.b._selected = { kind: "slot", id: "c1" };
+    own.b._pickLabel("t15");
+    await flush();
+    expect(own.live().profiles[0].days[1]).toEqual([expect.objectContaining({ id: "s3", label: "t15" })]);
+    expect(own.live().profiles[0].days[1][0].entities).toBeUndefined(); // every device again: no list (D5)
+    expect(own.b._selected).toEqual({ kind: "slot", id: "s3" });
   });
   it("All (N) changes the shared slot; leaving the edit drops the pending change", async () => {
     const a = bar(program(), CLIMATE, 1);
@@ -492,6 +582,16 @@ describe("program editor: device confirmations", () => {
     find(e._renderEntity(e._p.entities[0], 0), "click", 'class="notice"').fn();
     expect(e._p.profiles[0].days[0].map((s: Slot) => s.id)).toEqual(["s2"]);
     expect(e._p.profiles[0].days[1]).toEqual([expect.objectContaining({ id: "s3", entities: [COVER] })]);
+  });
+  it("never counts slots whose setting the device could not take before the change", () => {
+    const p = program();
+    const e = editor(p);
+    e._setEntity(1, { allowed_services: [], restrict_services: true }); // the cover: 15 °C (s3, all devices) never applied
+    const html = flat(e._renderEntity(e._p.entities[1], 1));
+    expect(html).toContain("1 schedules of this device use a command"); // only "close" (s2)
+    find(e._renderEntity(e._p.entities[1], 1), "click", 'class="notice"').fn();
+    expect(e._p.profiles[0].days[1]).toEqual([expect.objectContaining({ id: "s3" })]);
+    expect(e._p.profiles[0].days[1][0].entities).toBeUndefined(); // the shared 15 °C slot is left alone
   });
   it("a mode copy keeps the device lists", () => {
     const p = program();

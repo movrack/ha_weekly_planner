@@ -143,7 +143,7 @@ export class WpDayBar extends LitElement {
           <wp-tip class="nowic" text=${nowTip(this.lang, now)}><ha-icon icon="mdi:clock-outline"></ha-icon></wp-tip></div>` : nothing}
       </div>
       ${this.showHours
-        ? html`<div class="hours">${[0, 6, 12, 18, 24].map((h) => html`<span style="left:${pct(h * 60)}">${fmtClock(this.lang, h * 60)}</span>`)}</div>`
+        ? html`<div class="hours">${[0, 6, 12, 18, 24].map((h) => html`<span style="left:${pct(h * 60)}">${h === 24 ? "24 h" : fmtClock(this.lang, h * 60)}</span>`)}</div>`
         : nothing}
     `;
   }

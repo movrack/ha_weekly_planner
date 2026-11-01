@@ -429,7 +429,10 @@ export class WpProgramEditor extends LitElement {
     for (const profile of this._p.profiles) {
       for (const slot of profile.days.flat()) {
         const label = labelOf(this.data, slot.label);
-        if (label && applies(slot, entityId) && !appliedAction(this.hass, this._p, entityId, label, slot)) {
+        // only slots this change broke: a setting the device could never take (e.g. a temperature on a cover) is left alone
+        const before = this._origin?.entities.some((e) => e.entity_id === entityId) ? this._origin : null;
+        if (label && applies(slot, entityId) && !appliedAction(this.hass, this._p, entityId, label, slot)
+          && (!before || appliedAction(this.hass, before, entityId, label, slot))) {
           out.push({ profileId: profile.id, slotId: slot.id });
         }
       }

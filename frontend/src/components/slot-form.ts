@@ -9,6 +9,7 @@ import { strings, t } from "../i18n";
 import { applicable, sunBoundsInvalid } from "../slots";
 import { devicesOf, forDevices } from "../device-edits";
 import { friendlyName } from "../planner";
+import { compatibleDevices, labelOf } from "../labels";
 import { DAY, clockToMinutes, localDateIso, localMinutes, minutesToClock } from "../time";
 import { editorStyles, langOf } from "../editors/shared";
 import type { HomeAssistant, PlannerData, Program, TimeSpec } from "../types";
@@ -109,7 +110,13 @@ export class WpSlotForm extends LitElement {
   private get _lang(): string { return langOf(this.hass); }
 
   private _set(patch: Partial<SlotGroup["slot"]>, days?: number[]): void {
-    const next: SlotGroup = { ...this.group, slot: { ...this.group.slot, ...patch }, days: days ?? this.group.days };
+    let slot = { ...this.group.slot, ...patch };
+    if (patch.label !== undefined && slot.entities && this.device) {
+      // a new setting: the devices it cannot act on leave the slot's list (they would do nothing with it)
+      const ok = compatibleDevices(this.hass, this.program, labelOf(this.data, slot.label), this.device);
+      slot = forDevices(slot, [this.device, ...slot.entities.filter((d) => ok.includes(d))], this.program) ?? slot;
+    }
+    const next: SlotGroup = { ...this.group, slot, days: days ?? this.group.days };
     this.dispatchEvent(new CustomEvent("group-change", { detail: next, bubbles: true, composed: true }));
   }
 
@@ -179,7 +186,7 @@ export class WpSlotForm extends LitElement {
         ${SUNS.map((sun) => {
           const on = "sun" in spec && spec.sun === sun;
           return html`<button class="chip ${on ? "on" : ""}" aria-pressed=${on} ?disabled=${dis}
-            @click=${() => this._toggleSun(which, sun)}><ha-icon icon=${sun === "sunrise" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down"}></ha-icon>${s[`sun_${sun}_short` as "sun_dawn"] ?? sun}</button>`;
+            @click=${() => this._toggleSun(which, sun)}><ha-icon icon=${sun === "sunrise" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down"}></ha-icon>${s[`sun_${sun}` as "sun_dawn"] ?? sun}</button>`;
         })}
       </div>
       ${"sun" in spec ? this._limits(which, spec, title) : nothing}
@@ -232,7 +239,8 @@ export class WpSlotForm extends LitElement {
   }
 
   private _alsoFor() {
-    const others = devicesOf(this.program).filter((d) => d !== this.device);
+    // only the devices the chosen setting really acts on (`appliedAction`); none: no line at all
+    const others = compatibleDevices(this.hass, this.program, labelOf(this.data, this.group.slot.label), this.device);
     if (!this.also || !this.device || !others.length) return nothing;
     const on = applicable(this.group.slot, devicesOf(this.program));
     return html`<section>
