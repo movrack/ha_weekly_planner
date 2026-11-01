@@ -78,8 +78,11 @@ export function stable(value: unknown): string {
   return JSON.stringify(value);
 }
 
+/** Content of a slot without its id; the device list is sorted (order never makes two slots different). */
 export function slotKey(slot: Slot): string {
   const { id: _id, ...rest } = slot;
+  if (rest.entities !== undefined) rest.entities = [...rest.entities].sort();
+  else delete rest.entities;
   return stable({ ...rest, conditions: slot.conditions ?? [], end: slot.end ?? null, color: slot.color ?? null });
 }
 
