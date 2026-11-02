@@ -31,7 +31,7 @@ function screen(viewMode?: string) {
 describe("schedule screen order", () => {
   it("is switch, mode, rest of the time, slots + add, 7 days, day chart, delete", () => {
     const html = flat(screen().render());
-    const at = ['class="switch"', 'class="mode-select"', "[REST]", 'class="list"', "row add", "[WEEK]", "[CHART]", "danger-line alone"].map((m) => html.indexOf(m));
+    const at = ['class="switch"', 'class="mode-select"', "[REST]", 'class="list"', "row add", "[WEEK]", "[CHART]", "wp-chart-options", "danger-line alone"].map((m) => html.indexOf(m));
     expect(at.every((i) => i >= 0)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
   });
@@ -83,4 +83,13 @@ describe("schedule screen order", () => {
     expect(html).not.toContain("danger-line alone");
     expect(html).not.toContain("row add");
   });
+});
+
+it("places the options in the left desktop grid while preserving the phone DOM order", () => {
+  const styles = WpSchedule.styles.map((style:any) => style.cssText).join("");
+  expect(styles).toContain('"options chart"');
+  expect(styles).toContain('.area-options { grid-area: options;');
+  const view=screen();view._open="new";expect(flat(view.render())).not.toContain("wp-chart-options");
+  view._open=null;view.chart=false;expect(flat(view.render())).not.toContain("wp-chart-options");
+  expect(flat(screen("away").render())).not.toContain("wp-chart-options");
 });

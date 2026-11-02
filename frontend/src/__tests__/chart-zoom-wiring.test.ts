@@ -1,13 +1,15 @@
 // Wiring of the zoom in the day chart: synthetic pointer events on the handlers of the rendered svg.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WpChart } from "../components/chart";
+import { timelineGeometry, timelineX } from "../timeline-geometry";
 import { find, flat } from "./helpers/tpl";
 
 const DAY = "2026-01-01";
 const T0 = Date.parse(`${DAY}T00:00:00Z`);
-// width 320, band chart (left pad 8, right pad 10): plot 302 px for 1440 min
-const PLOT = 302;
-const px = (m: number) => 8 + (m / 1440) * PLOT;
+// Band and curve plots share the schedule time geometry.
+const GEOMETRY = timelineGeometry(320);
+const PLOT = GEOMETRY.width;
+const px = (m: number) => timelineX(320, m, 0, 1440);
 
 function chart(entityId = "switch.lamp") {
   const c = new WpChart() as any;
@@ -42,7 +44,7 @@ describe("pinch (two fingers)", () => {
     expect(w.to - w.from).toBeCloseTo(1440 / 3, 0);
     expect(500).toBeGreaterThan(w.from); expect(500).toBeLessThan(w.to);
     // the minute under the centre of the fingers stays under it
-    expect(w.from + ((px(500) - 8) / PLOT) * (w.to - w.from)).toBeCloseTo(500, 0);
+    expect(w.from + ((px(500) - GEOMETRY.left) / PLOT) * (w.to - w.from)).toBeCloseTo(500, 0);
     c._move(ev(1, px(500) - 5)); c._move(ev(2, px(500) + 5));
     expect(win(c)).toBeNull(); // pinched out past the day = no zoom
   });

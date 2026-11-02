@@ -38,10 +38,11 @@ describe("two-column schedule modal (CSS only)", () => {
     expect(text.slice(at)).toMatch(/\.cols \{[^}]*display: grid/);
   });
   it("places parameters and Delete on the left, week then chart on the right", () => {
-    expect(text).toContain('grid-template-areas: "params week" "params chart" "delete chart"');
+    expect(text).toContain('grid-template-areas: "params week" "params chart" "options chart" "delete chart"');
     expect(text).toMatch(/\.params \{ grid-area: params/);
     expect(text).toMatch(/\.area-week \{ grid-area: week/);
     expect(text).toMatch(/\.area-chart \{ grid-area: chart/);
+    expect(text).toMatch(/\.area-options \{ grid-area: options/);
     expect(text).toMatch(/\.area-delete \{ grid-area: delete/);
   });
   it("widens only the schedule dialog, only from 768 px, and keeps the phone sheet", () => {
@@ -53,7 +54,7 @@ describe("two-column schedule modal (CSS only)", () => {
   });
   it("keeps the DOM in the phone order: switch, mode, rest, list, add, week, chart, delete", () => {
     const html = flat(screen().render());
-    const at = ['class="switch"', 'class="mode-select"', "[REST]", 'class="list"', "row add", "[WEEK]", "[CHART]", "danger-line alone"].map((m) => html.indexOf(m));
+    const at = ['class="switch"', 'class="mode-select"', "[REST]", 'class="list"', "row add", "[WEEK]", "[CHART]", "wp-chart-options", "danger-line alone"].map((m) => html.indexOf(m));
     expect(at.every((i) => i >= 0)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
     expect(html.indexOf('class="params"')).toBeLessThan(html.indexOf('class="switch"'));
@@ -102,7 +103,7 @@ describe("slot editor open in two columns", () => {
     vi.unstubAllGlobals();
   });
   it("renders no empty grid cell for the hidden chart and Delete", () => {
-    expect(css(WpSchedule)).toMatch(/\.area-chart:empty, \.area-delete:empty \{ display: none/);
+    expect(css(WpSchedule)).toMatch(/\.area-chart:empty, \.area-options:empty, \.area-delete:empty \{ display: none/);
     const view = screen() as any;
     view._open = "new";
     const html = flat(view.render());

@@ -1,4 +1,6 @@
 // Display-only chart sources: no scheduling or device-service knowledge.
+import { friendlyName } from "./planner";
+import { t } from "./i18n";
 import type { ChartSource, HomeAssistant } from "./types";
 
 export interface SourcePoint { t: number; s: string; a: Record<string, any> }
@@ -114,4 +116,28 @@ export function mergeSourceDays(days: readonly { start: number; end: number; his
     out.push(...sorted.filter(p => p.t > day.start && p.t < day.end));
   }
   return [...new Map(out.map(p => [p.t, p])).values()].sort((a,b) => a.t - b.t);
+}
+
+/** Display names never change source identity, history keys or colours. */
+export const sourceName = (hass: HomeAssistant, source: ChartSource): string =>
+  source.alias?.trim() || friendlyName(hass, source.entity_id);
+
+/** Name only the field actually plotted; a device class may describe a different attribute. */
+export function chartQuantity(hass: HomeAssistant, id: string, unit: string, field?: string): string {
+  const domain = id.split(".")[0];
+  const deviceClass = hass.states[id]?.attributes.device_class;
+  const keys = field ? [`component.${domain}.entity_component._.state_attributes.${field}.name`]
+    : typeof deviceClass === "string" ? [`component.${domain}.entity_component.${deviceClass}.name`] : [];
+  for (const key of keys) {
+    const name = hass.localize?.(key);
+    if (name && name !== key) return unit ? `${name} (${unit})` : name;
+  }
+  return "";
+}
+
+export function chartLegend(hass: HomeAssistant, id: string, unit: string, role: "planned" | "measured" | "set", field?: string): string {
+  const lang = hass.locale?.language ?? hass.language;
+  const quantity = chartQuantity(hass, id, unit, field);
+  return quantity ? t(lang, `chart_quantity_${role}`, { quantity })
+    : t(lang, role === "set" ? "chart_requested_value" : role);
 }
