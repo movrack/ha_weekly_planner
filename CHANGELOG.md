@@ -13,6 +13,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Removed the "Drag to browse · Pinch to zoom · Shift + drag to select" help line under the chart.
 - The chart-options panel (extra entities) is offered in the schedule window only; the dashboard card no longer shows the selector but still draws the chosen curves and bands (#37).
 
+### Fixed
+- Day chart (#40): one legend below the date navigation, with device curves before extra sources; percentage axes stay at 0–100, and numeric on/off sources explain their 100/0 mapping in English and French.
+- Day chart: show a filled marker at midnight for the setting already in effect, including a slot carried from the previous day; hollow markers still identify returns to the default setting.
+
 ## [0.26.0] - 2026-11-01
 
 ### Added
