@@ -28,7 +28,16 @@ from homeassistant.util import dt as dt_util
 
 from .actions import call_for, resolve_action
 from .conditions import ConditionTracker, condition_key
-from .const import CONF_REAPPLY_DEFAULT, DEFAULT_PRIORITY, DEFAULT_REAPPLY, DOMAIN
+from .const import (
+    CONF_REAPPLY_DEFAULT,
+    DEFAULT_PRIORITY,
+    DEFAULT_REAPPLY,
+    DOMAIN,
+    VERIFY_MAX_TRIES,
+    VERIFY_MIN_INTERVAL_S,
+    VERIFY_SETTLE_S,
+    VERIFY_TOLERANCE,
+)
 from .registry import async_check_missing, async_track_registry
 from .resolver import (
     OccurrenceCache,
@@ -57,6 +66,30 @@ SIGNAL_UPDATED = f"{DOMAIN}_updated"
 # A long recompute hands the event loop back at least this often (spec § 21): Home Assistant must
 # never be held by one of our callbacks for more than a few tens of milliseconds.
 YIELD_SLICE_S = 0.01
+
+
+def checked_values(data: dict[str, Any], state: State | None) -> dict[str, Any]:
+    """Keys of the service data that are also attributes of the entity: what a call can be checked on.
+
+    Generic on purpose (no domain or service list): ``preset_mode``, ``temperature``, ``brightness``...
+    Only scalar values are compared; anything else (lists, dicts, ``*_pct``) is left unchecked.
+    """
+    if state is None:
+        return {}
+    return {key: value for key, value in data.items()
+            if key in state.attributes and isinstance(value, (str, int, float))}
+
+
+def same_value(requested: Any, actual: Any) -> bool:
+    """Numbers are equal within ``VERIFY_TOLERANCE``; anything else must be the same text."""
+    if isinstance(requested, bool) or isinstance(actual, bool):
+        return requested == actual
+    try:
+        if isinstance(requested, (int, float)) or isinstance(actual, (int, float)):
+            return abs(float(requested) - float(actual)) <= VERIFY_TOLERANCE
+    except (TypeError, ValueError):
+        return False
+    return str(requested) == str(actual)
 
 
 class _Pass:
@@ -181,12 +214,20 @@ class PlannerEngine:
         self._stopped = False
         self._deferred_states: deque[tuple[Event, datetime]] = deque()  # arrived during a pass
         self._slice_start = 0.0  # perf_counter() when the recompute last took the loop
+        self._verify_timers: dict[str, CALLBACK_TYPE] = {}  # owner -> settle check of its last send
+        self._verifying: dict[str, set[str]] = {}  # watched entity -> owners with a pending verification
         self.descriptions: dict | None = None  # service descriptions, to know which entity a service suits
 
     # ------------------------------------------------------------------ lifecycle
 
     async def async_start(self) -> None:
         self.conditions.restore(self.store.runtime.get("conditions", {}))
+        for owner, rt in self.store.runtime["entities"].items():
+            verify = rt.get("verify")
+            if verify and not verify["checked"]:  # a restart cut the settle check short
+                rt.pop("verify")
+            elif verify:
+                self._verifying.setdefault(verify["entity_id"], set()).add(owner)
         self._subscribe()
         self._static_unsubs.append(async_track_registry(self.hass, self))
         if self.hass.is_running:
@@ -232,6 +273,9 @@ class PlannerEngine:
         for task in self._tasks.values():
             task.cancel()
         self._tasks.clear()
+        for cancel in self._verify_timers.values():
+            cancel()
+        self._verify_timers.clear()
         self._persist()
 
     def add_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
@@ -379,10 +423,13 @@ class PlannerEngine:
         nxt = next_transition([program], now, ctx.tz, ctx.sun, active_profiles=ctx.profiles, cache=ctx.occurrences)
         prt = self.store.runtime["programs"].get(program_id, {})
         skip_at = prt.get("skip_at")
+        verification = {entity["entity_id"]: v for entity in program["entities"]
+                        if (v := self.rt(entity["entity_id"]).get("verification"))}
         return {
             "program_id": program_id,
             "active_profile": active_profile(program, ctx.profiles)["id"],
             **self._mode_source_status(program),
+            **({"verification": verification} if verification else {}),
             "current_slots": current,
             "next_change": nxt.isoformat() if nxt else None,
             "skip_next": skip_at,
@@ -542,6 +589,9 @@ class PlannerEngine:
             yield partial(self._async_recompute, "condition")
         elif conditions and before_settle != self.conditions.next_settle():
             self._arm_timer()
+        if self._verifying and (owners := self._verifying.get(entity_id)):  # no cost without a pending check
+            for owner in sorted(owners):
+                yield partial(self._async_verify_event, owner, new, now)
         # Recover only pending owners whose actual target became commandable.
         # Ordinary state changes (including a button's last-press timestamp) never reapply.
         if new is None or (old is not None and old.state not in UNAVAILABLE):
@@ -672,6 +722,7 @@ class PlannerEngine:
         previous_key = rt.get("segment")
         if previous_key != key or rt.get("target") != seg.action:
             self._cancel_task(entity_id)
+            self._clear_verify(entity_id)
             # also journal a new target in the same segment (default or slot edited)
             self.store.record_segment({
                 "at": now.isoformat(), "entity_id": entity_id, "segment": key,
@@ -848,6 +899,9 @@ class PlannerEngine:
             applied_action = ({**{key: value for key, value in action.items() if key != "data_sources"},
                                "data": call.service_data()}
                               if action["kind"] == "service" and action.get("data_sources") else action)
+            before = None if oneshot or not call.target_entity_id else self.hass.states.get(call.target_entity_id)
+            requested = checked_values(call.service_data(), before)
+            seen = {key: before.attributes[key] for key in requested}
             await self.hass.services.async_call(
                 call.domain, call.service, call.service_data(), blocking=True,
                 target={"entity_id": call.target_entity_id} if call.as_target else None,
@@ -879,13 +933,118 @@ class PlannerEngine:
         rt.pop("notify_at", None)
         rt.pop("service_retry", None)
         persistent_notification.async_dismiss(self.hass, f"{DOMAIN}_{entity_id}_failed")
-        if reason != "retry":  # one logbook entry per decision, not per attempt
+        if reason not in ("retry", "verify_retry"):  # one logbook entry per decision, not per attempt
             self._log(entity_id, "applied", {"action": applied_action, "reason": reason})
         self.store.record_segment({
             "at": dt_util.utcnow().isoformat(), "entity_id": entity_id, "sent": True,
             "action": applied_action, "reason": reason,
         })
+        self._start_verify(entity_id, call.target_entity_id, action, segment, requested, seen, reason)
         self._persist()
+
+    # ------------------------------------------------------------------ verify and retry (spec § 5.8)
+
+    def _clear_verify(self, owner: str, status: str | None = None) -> None:
+        """Forget the pending check of an owner; ``status`` stays visible (ok after a recovery, manual)."""
+        if cancel := self._verify_timers.pop(owner, None):
+            cancel()
+        rt = self.rt(owner)
+        if verify := rt.pop("verify", None):
+            owners = self._verifying.get(verify["entity_id"])
+            if owners:
+                owners.discard(owner)
+                if not owners:
+                    del self._verifying[verify["entity_id"]]
+        if status:
+            rt["verification"] = status
+        else:
+            rt.pop("verification", None)
+
+    def _start_verify(self, owner: str, entity_id: str, action: dict, segment: Any, requested: dict,
+                      seen: dict, reason: str) -> None:
+        previous = self.rt(owner).get("verify")
+        tries = previous["tries"] if previous and reason == "verify_retry" else 0
+        last_try = previous["last_try"] if previous and reason == "verify_retry" else None
+        self._clear_verify(owner, "pending" if reason == "verify_retry" else None)
+        if not requested:
+            self._clear_verify(owner)
+            return  # nothing in the action can be read back (scene, open/close...): never verified
+        self.rt(owner)["verify"] = {
+            "entity_id": entity_id, "segment": segment, "action": action, "requested": requested,
+            "seen": seen, "tries": tries, "last_try": last_try, "checked": False,
+        }
+        self._verifying.setdefault(entity_id, set()).add(owner)
+        self._verify_timers[owner] = async_track_point_in_utc_time(
+            self.hass, partial(self._on_verify_settle, owner, segment),
+            dt_util.utcnow() + timedelta(seconds=VERIFY_SETTLE_S))
+
+    def _verify_outcome(self, owner: str, state: State | None) -> str | None:
+        """ok / manual / None (still not applied), or "stale" when the decision it checks is gone."""
+        rt = self.rt(owner)
+        verify = rt.get("verify")
+        if (not verify or rt.get("segment") != verify["segment"] or rt.get("target") != verify["action"]
+                or rt.get("suppressed")):
+            return "stale"
+        if state is None or state.state in UNAVAILABLE:
+            return None
+        attributes = state.attributes
+        if all(same_value(value, attributes.get(key)) for key, value in verify["requested"].items()):
+            return "ok"
+        if any(not same_value(value, attributes.get(key)) and not same_value(verify["seen"].get(key), attributes.get(key))
+               for key, value in verify["requested"].items()):
+            return "manual"  # it moved elsewhere by itself: someone else decided, do not force
+        return None
+
+    @callback
+    def _on_verify_settle(self, owner: str, segment: Any, _now: datetime) -> None:
+        """One check, a few seconds after a successful call."""
+        self._verify_timers.pop(owner, None)
+        rt = self.rt(owner)
+        verify = rt.get("verify")
+        if self._stopped or not verify or verify["segment"] != segment:
+            return
+        verify["checked"] = True
+        outcome = self._verify_outcome(owner, self.hass.states.get(verify["entity_id"]))
+        if outcome is None:
+            state = self.hass.states.get(verify["entity_id"])
+            if state is not None:
+                verify["seen"] = {key: state.attributes.get(key) for key in verify["requested"]}
+            rt["verification"] = "pending"
+            _LOGGER.warning("%s did not take %s (%s): will retry when it changes", owner, verify["requested"],
+                            verify["entity_id"])
+            self._log(owner, "unverified", {"requested": verify["requested"], "seen": verify["seen"]})
+            self._persist()
+            self._notify_listeners()
+        else:
+            self._finish_verify(owner, outcome, was_pending=rt.get("verification") == "pending")
+
+    def _finish_verify(self, owner: str, outcome: str, *, was_pending: bool) -> None:
+        if outcome == "stale":
+            self._clear_verify(owner)
+        elif outcome == "manual":
+            self._clear_verify(owner, "manual")
+        else:  # ok: only worth showing after a recovery
+            self._clear_verify(owner, "ok" if was_pending else None)
+        self._persist()
+        self._notify_listeners()
+
+    async def _async_verify_event(self, owner: str, state: State | None, now: datetime) -> None:
+        """A watched entity changed while its last call is unverified: finish, drop or re-send."""
+        rt = self.rt(owner)
+        verify = rt.get("verify")
+        if not verify or not verify["checked"]:
+            return  # the settle check has not run yet
+        outcome = self._verify_outcome(owner, state)
+        if outcome is not None:
+            self._finish_verify(owner, outcome, was_pending=True)
+            return
+        last_try = self.store.parse(verify["last_try"])
+        if (verify["tries"] >= VERIFY_MAX_TRIES
+                or (last_try and (now - last_try).total_seconds() < VERIFY_MIN_INTERVAL_S)):
+            return
+        verify["tries"] += 1
+        verify["last_try"] = now.isoformat()
+        await self._async_send(owner, rt["target"], "verify_retry")
 
     def _schedule_retry(self, entity_id: str, action: dict, reason: str, segment: Any, oneshot: bool) -> None:
         """A service call failed: try again after 1, 2, 5, 10, 15 min, then give up."""

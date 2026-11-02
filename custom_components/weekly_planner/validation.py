@@ -132,6 +132,7 @@ PROFILE = vol.Schema({
 CHART_SOURCE = vol.Schema({
     vol.Required("entity_id"): cv.entity_id,
     vol.Required("kind"): vol.In(("numeric", "states")),
+    vol.Optional("alias"): vol.All(str, str.strip, vol.Length(min=1, max=60)),
     vol.Optional("states", default=list): vol.All([vol.All(str, vol.Length(min=1, max=255))], vol.Length(max=100)),
 })
 

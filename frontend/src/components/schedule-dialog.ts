@@ -1,3 +1,4 @@
+import { TIMELINE } from "../timeline-geometry";
 // The one screen of a device or a schedule: its slots (one per row, expanded in place), the rest of
 // the time, the chart of the day, the pause switch and the delete button.
 
@@ -5,6 +6,8 @@ import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { keyed } from "lit/directives/keyed.js";
 import "./chart";
+import "./chart-options";
+import type { SourcePoint } from "../chart-sources";
 import "./day-bar";
 import { sunDir, type BarSpan } from "./day-bar";
 import "./dialog";
@@ -50,6 +53,21 @@ export class WpSchedule extends LitElement {
   @property({ attribute: false }) day: { weekday: number; offset: number } | null = null;
   /** Opened from the card's "Create a setting" button: straight to the first slot when there is none. */
   @property({ type: Boolean }) create = false;
+
+  @state() private _chartContext: { programId: string; entityId: string; mainUnit: string | null; histories: Record<string, SourcePoint[]> } | null = null;
+  @state() private _chartProgram: Program | null = null;
+  private _chartOwner(): Program | undefined {
+    const owner = this._programs[0];
+    return owner && this._chartProgram?.id === owner.id && this._chartProgram.revision > owner.revision ? this._chartProgram : owner;
+  }
+  private _renderChartOptions() {
+    const owner = this._chartOwner();
+    if (!this.chart || !owner || !this._eid || this._modeOnly || this._open !== null) return nothing;
+    const context = this._chartContext?.programId === owner.id && this._chartContext.entityId === this._eid ? this._chartContext : null;
+    return html`<wp-chart-options .hass=${this.hass} .data=${this.data} .program=${owner} .entityId=${this._eid}
+      .mainUnit=${context?.mainUnit ?? null} .histories=${context?.histories ?? {}}
+      @chart-sources-saved=${(e: CustomEvent<Program>) => { this._chartProgram = e.detail; }}></wp-chart-options>`;
+  }
 
   /** Row being edited: its key, "new", or "rest:<entity>". */
   @state() private _open: string | null = null;
@@ -930,7 +948,7 @@ export class WpSchedule extends LitElement {
 
   private _renderChart() {
     const lang = this._lang;
-    const owner = this._programs[0];
+    const owner = this._chartOwner();
     if (!this.chart || !owner || !this._eid || this._modeOnly) return nothing;
     const date = this._date;
     const label = new Intl.DateTimeFormat(lang, { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" })
@@ -941,8 +959,8 @@ export class WpSchedule extends LitElement {
         <span>${this._offset === 0 ? t(lang, "today") : label}</span>
         <button class="ibtn" ?disabled=${this._offset >= AHEAD} aria-label=${t(lang, "next_day")} @click=${() => this._go(1)}><ha-icon icon="mdi:chevron-right"></ha-icon></button>
       </div>
-      <wp-chart show-options .hass=${this.hass} .data=${this.data} .program=${owner} entity-id=${this._eid} date=${date}
-        .slots=${this._slots} @open-history=${(e: CustomEvent<string>) => this._openHistory(e.detail)}></wp-chart>
+      <wp-chart .hass=${this.hass} .data=${this.data} .program=${owner} entity-id=${this._eid} date=${date}
+        .slots=${this._slots} @chart-context=${(e: CustomEvent) => { this._chartContext = e.detail; }} @open-history=${(e: CustomEvent<string>) => this._openHistory(e.detail)}></wp-chart>
     </section>`;
   }
 
@@ -992,6 +1010,7 @@ export class WpSchedule extends LitElement {
         </div>
         <div class="area-week">${this._renderWeek()}</div>
         <div class="area-chart">${this._open !== null ? nothing : this._renderChart()}</div>
+        <div class="area-options">${this._renderChartOptions()}</div>
         <div class="area-delete">${this._open !== null || this._modeOnly ? nothing : html`<button class="btn danger-line alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteAll()}>
           <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete_schedule")}</button>`}</div>
         </div>
@@ -1006,16 +1025,17 @@ export class WpSchedule extends LitElement {
     @media (min-width: 768px) {
       .cols {
         display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 24px; row-gap: 0; align-items: start;
-        grid-template-rows: auto 1fr auto;
-        grid-template-areas: "params week" "params chart" "delete chart";
+        grid-template-rows: auto auto 1fr auto;
+        grid-template-areas: "params week" "params chart" "options chart" "delete chart";
       }
       .params { grid-area: params; min-width: 0; }
       .area-week { grid-area: week; min-width: 0; }
       .area-chart { grid-area: chart; min-width: 0; }
+      .area-options { grid-area: options; min-width: 0; }
       .area-delete { grid-area: delete; min-width: 0; }
       .area-delete .btn.alone { margin-top: 0; }
       /* Hidden while a slot editor is open (nothing rendered): no empty grid cell. */
-      .area-chart:empty, .area-delete:empty { display: none; }
+      .area-chart:empty, .area-options:empty, .area-delete:empty { display: none; }
     }
     .devices { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
     .devchip {
@@ -1040,7 +1060,7 @@ export class WpSchedule extends LitElement {
     .mode-select select { flex: 1; min-width: 0; min-height: 44px; }
     .schematic { margin-bottom: 16px; }
     .schematic h4 { margin: 8px 0; }
-    .schema-day { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 32px; }
+    .schema-day { display: grid; grid-template-columns: ${TIMELINE.label}px minmax(0, 1fr); gap: ${TIMELINE.gap}px; align-items: center; min-height: 32px; }
     .schema-day > span { font-size: 12px; color: var(--secondary-text-color); }
     .schema-day wp-day-bar { min-width: 0; }
     .list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }

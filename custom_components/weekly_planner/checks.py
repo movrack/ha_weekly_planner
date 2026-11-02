@@ -6,6 +6,7 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 
+from .const import VERIFY_MAX_TRIES
 from .slots import applies
 
 
@@ -47,6 +48,10 @@ def program_warnings(
                 if lid in labels and engine.resolve(program, eid, lid) is None)
             if skipped:
                 warnings.append({"entity_id": eid, "code": "incompatible_label", "detail": ", ".join(skipped)})
+        verify = engine.rt(eid).get("verify") if engine is not None else None
+        if verify and verify["tries"] >= VERIFY_MAX_TRIES and verify["checked"]:
+            warnings.append({"entity_id": eid, "code": "action_not_applied",
+                             "detail": ", ".join(f"{k}={v}" for k, v in verify["requested"].items())})
         state = hass.states.get(eid)
         if state is None:
             warnings.append({"entity_id": eid, "code": "missing", "detail": ""})
