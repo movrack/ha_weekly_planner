@@ -220,6 +220,8 @@ def _record(engine, log: CallLog, events: list) -> dict:
 async def _scenario(hass, hass_storage, freezer, monkeypatch, log: CallLog, engine_cls, slice_s: float) -> list[dict]:
     monkeypatch.setattr(integration, "PlannerEngine", engine_cls)
     monkeypatch.setattr(engine_module, "YIELD_SLICE_S", slice_s)
+    # verify and retry (spec § 5.8) is newer than the reference engine: it is tested in test_action_verification
+    monkeypatch.setattr(engine_module, "checked_values", lambda _data, _state: {})
     log.calls.clear()
     log.failures = 0
     _states(hass)
@@ -322,6 +324,7 @@ async def test_recompute_of_the_large_install_matches_reference(hass, hass_stora
     """A full recompute after condition changes sends the same calls, in the same order, as the reference."""
     log = CallLog(hass)
     monkeypatch.setattr(engine_module, "YIELD_SLICE_S", slice_s)
+    monkeypatch.setattr(engine_module, "checked_values", lambda _data, _state: {})  # newer than the reference
     await hass.config.async_update(latitude=50.85, longitude=4.35)
 
     async def run(engine_cls) -> tuple:
