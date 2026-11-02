@@ -36,9 +36,9 @@ describe("chart corrections #40", () => {
     expect(legend).toBeGreaterThan(out.indexOf('class="zoombar"'));
     const entries = flat(c._legend(c._model));
     expect(entries.indexOf("Schedule")).toBeLessThan(entries.indexOf("Measured"));
-    expect(entries).toContain("Requested from device");
-    expect(entries.indexOf("Measured")).toBeLessThan(entries.indexOf("Requested from device"));
-    expect(entries.indexOf("Requested from device")).toBeLessThan(entries.indexOf("Window"));
+    expect(entries).toContain("Requested value");
+    expect(entries.indexOf("Measured")).toBeLessThan(entries.indexOf("Requested value"));
+    expect(entries.indexOf("Requested value")).toBeLessThan(entries.indexOf("Window"));
     expect(entries.indexOf("Window")).toBeLessThan(entries.indexOf("Power"));
   });
   it("fixes any percent axis to 0–100 while preserving automatic bounds for other units", () => {

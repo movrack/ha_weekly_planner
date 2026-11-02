@@ -2,6 +2,7 @@
 // the device was active, wide enough to see, under the curve, and the legend must name them only when drawn.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SHADE_EDGE, SHADE_MIN, WpChart } from "../components/chart";
+import { timelineX } from "../timeline-geometry";
 
 const DAY = "2026-01-01";
 const T0 = Date.parse(`${DAY}T00:00:00Z`);
@@ -42,8 +43,8 @@ function draw(c: any, hist: { min: number; s: string; a?: Record<string, unknown
   return { svgText, legend, shades, edges };
 }
 
-// curve chart: width 320, padding left 38 right 10, top 22 bottom 22, height 150
-const xOf = (m: number, left = 38) => left + (m / 1440) * (320 - left - 10);
+// Curves and bands share schedule geometry; top/bottom 22, curve height 150.
+const xOf = (m: number) => timelineX(320, m, 0, 1440);
 
 describe("chart shading of the active periods", () => {
   beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(at(NOW_MIN)); });
@@ -90,15 +91,15 @@ describe("chart shading of the active periods", () => {
   it("band devices (switch, vacuum) get the same full-height band, drawn over the state bands", () => {
     const sw = draw(chart("switch.plug", { kind: "service", service: "switch.turn_off" }),
       [{ min: 0, s: "off" }, { min: 120, s: "on" }, { min: 180, s: "off" }]);
-    // band chart: left padding 8, height 84
+    // Band chart: shared horizontal geometry, height 84
     expect(sw.shades).toHaveLength(1);
-    expect(sw.shades[0].x).toBeCloseTo(xOf(120, 8), 1);
+    expect(sw.shades[0].x).toBeCloseTo(xOf(120), 1);
     expect(sw.shades[0].h).toBe(84 - 22 - 22);
     expect(sw.svgText.indexOf('class="band')).toBeLessThan(sw.svgText.indexOf('class="shade"'));
     const vac = draw(chart("vacuum.rocky", null),
       [{ min: 0, s: "docked" }, { min: 540, s: "cleaning" }, { min: 600, s: "returning" }, { min: 615, s: "docked" }]);
     expect(vac.shades).toHaveLength(1);
-    expect(vac.shades[0].w).toBeCloseTo(xOf(615, 8) - xOf(540, 8), 1);
+    expect(vac.shades[0].w).toBeCloseTo(xOf(615) - xOf(540), 1);
   });
 
   it("nothing active, or only unavailable/unknown: no band and no legend entry", () => {

@@ -325,13 +325,21 @@ et les dates s’affichent sous lui. Les flèches montrent la période précéde
 **Revenir au jour sélectionné** rétablit la journée entière. La fenêtre la plus étroite est de 30 minutes.
 La légende est sous les flèches et la date : d’abord les courbes de l’appareil, puis les sources ajoutées.
 
+Les valeurs chiffrées du programme forment une ligne en escalier. Les réglages sans valeur chiffrée
+(Comfort, Eco…) apparaissent dans une rangée **Programme** sous les courbes : chaque bande porte
+le nom et la couleur du réglage, y compris le « reste du temps » lorsqu’il agit sur cet appareil.
+Les noms trop longs sont raccourcis ; leur nom complet est disponible au survol. Les bandes suivent
+le zoom et le déplacement dans les jours voisins.
+
 Le point plein indique le début d’un palier du programme ; l’anneau creux indique le retour au « reste du temps ».
 Leur ligne pointillée repère l’heure. Par exemple, lundi : point plein Comfort à 08:45, anneau Eco à 17:00.
 À minuit, un point plein montre le réglage déjà en cours, y compris celui commencé la veille.
 
 ### Comparer avec une autre entité
 
-Dans la fenêtre des horaires d’un appareil, ouvrez **Options du graphique** sous le graphique (elles n’existent pas sur la carte du tableau de bord ; les courbes choisies y restent affichées), puis **Ajouter une entité** et recherchez son nom. Le panneau est replié au départ.
+Dans la fenêtre des horaires d’un appareil, ouvrez **Options du graphique** dans la colonne des paramètres à gauche sur ordinateur, ou sous le graphique sur téléphone (elles n’existent pas sur la carte du tableau de bord ; les courbes choisies y restent affichées), puis **Ajouter une entité** et recherchez son nom. Le panneau est replié au départ.
+Le champ **Nom affiché** permet de nommer chaque source (60 caractères au plus). Videz-le pour reprendre son nom Home Assistant. Ce nom est utilisé dans la légende, les bandes et les info-bulles.
+Les légendes précisent la grandeur et son unité quand Home Assistant fournit sa traduction ; sinon elles indiquent « Valeur mesurée » ou « Valeur demandée ». Pour un thermostat, la mesure est la température actuelle ; la demande et le programme correspondent à la température cible.
 Une mesure numérique apparaît en courbe : par exemple, comparez température et humidité. Chaque unité a son échelle colorée,
 avec trois unités différentes au plus. Des courbes de même unité partagent la même échelle.
 Une échelle en % va toujours de 0 à 100 ; les autres s’adaptent aux valeurs.

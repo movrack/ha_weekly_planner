@@ -185,6 +185,20 @@ service `override` ni `resume`. Seul l'**affichage** du graphique montre les cha
 - Notifications persistantes : `weekly_planner_<entity_id>_failed` (échec ou indisponibilité prolongée) et
   `weekly_planner_storage` (stockage illisible, § 8).
 
+### 5.9 Vérifier et réessayer (appareil qui ignore un ordre)
+- Après un appel réussi d'un segment (pas un one-shot), le moteur compare, **une seule fois**, `VERIFY_SETTLE_S` (8 s) plus
+  tard, chaque clé scalaire des `data` de l'action qui est aussi un attribut de l'entité visée (`preset_mode`,
+  `temperature`, `brightness`…). Générique : aucune liste de domaines ni de services ; sans clé commune (scène,
+  ouvrir/fermer…) il n'y a pas de vérification. Nombres égaux à `VERIFY_TOLERANCE` (0,05) près, texte identique sinon.
+- Écart : `verification: pending` (`rt["verify"]`, avec `seen` = valeur réellement lue). Tant que le segment et sa cible
+  ne changent pas, à chaque changement d'état de l'entité : attribut égal à `seen` (seuls d'autres attributs ont changé,
+  ex. `is_ready`) → l'action est renvoyée (raison `verify_retry`), au plus toutes les `VERIFY_MIN_INTERVAL_S` (60 s) et
+  `VERIFY_MAX_TRIES` (10) fois ; attribut devenu égal à la demande → `ok` ; attribut passé à une autre valeur → changement
+  **manuel**, `manual`, on ne force jamais (§ 5.3). Changement de segment ou de cible, programme désactivé : état oublié.
+- Complète `back_online` (entité `unavailable`, `pending`), sans le remplacer. Un programme sans réapplication ne renvoie
+  que ce qu'il avait envoyé. Avertissement `action_not_applied` après le maximum d'essais. Sans entité en attente, aucun
+  coût par événement. Statut du programme : `verification` (seulement si présent).
+
 ### 5.10 Modes du programme (semaines types)
 - Un programme a un ou plusieurs **modes** (Maison, Absent, Nuit, Vacances, Hiver…), chacun avec ses 7 jours d’horaires.
   Les entités, défauts, conditions et priorité restent communs. Les clés internes `profiles` et les identifiants HA restent compatibles.
@@ -482,7 +496,7 @@ SVG maison, un jour (précédent / suivant).
   les attributs (consigne d'un thermostat resté en « chauffe », luminosité d'une lampe déjà allumée) n'y figure pas :
   ils sont repérés seulement par l'écart avec les actions de Weekly Planner (± 1 min), sans pouvoir dire qui les a faits.
   **Le moteur n'est pas concerné.**
-- **Valeur prévue en escalier** : pour toute action numérique, ligne horizontale par palier dans la couleur de son réglage, raccords verticaux fins, retour à la valeur par défaut (aussi avant le premier horaire et jusqu'à la fin du jour) ; point plein + valeur au début de chaque horaire ; cercle creux seulement là où la valeur revient vraiment au défaut (fin d'une suite d'horaires contigus). Actions non numériques : repères seuls.
+- **Valeur prévue en escalier** : pour toute action numérique, ligne horizontale par palier dans la couleur de son réglage, raccords verticaux fins, retour à la valeur par défaut (aussi avant le premier horaire et jusqu'à la fin du jour) ; point plein + valeur au début de chaque horaire ; cercle creux seulement là où la valeur revient vraiment au défaut (fin d'une suite d'horaires contigus). Actions non numériques : bandes colorées nommées dans une rangée « Programme » sous les courbes, y compris le défaut actif, alignées au zoom et au déplacement multijours ; noms tronqués avec texte complet au survol. Les repères restent.
 - **Activité réelle** : pendant chaque période où l'appareil était actif d'après l'historique déjà chargé, et jusqu'à « maintenant », une bande translucide (28 %) sur toute la hauteur du tracé avec un liseré plein de 3 px le long de l'axe des heures, dans une seule couleur (`--wp-active-color`, sinon la couleur principale du thème), dessinée sous les courbes. Indépendante des réglages en vigueur (une activité hors de tout horaire est montrée aussi), au moins 3 px de large. Actif : climat = `hvac_action` (chauffe, refroidit, déshumidifie…) sinon consigne − mesure > 0,3 °C (< −0,3 °C en mode froid) ; lumière, prise, ventilateur, interrupteur = `on` ; volet = `open` / `opening` / `closing` (ouvert ou en mouvement) ; aspirateur = `cleaning` / `returning` ; lecteur = `playing` ; le reste = ni `off`, `idle`, `unavailable`, `unknown`, `docked`. Appareils à bandes : même bande, par-dessus les bandes d'état. Légende « En marche ou ouvert » (même pastille que la bande : bloc translucide + liseré) seulement si une bande est dessinée.
 - **Légende minimale** : « Mesuré », « Réglé » (courbes), « Prévu », et « Manuel » en rouge ; aucune couleur inexpliquée.
 
@@ -1100,3 +1114,23 @@ Plan détaillé : [PLAN_CHART_SOURCES.md](PLAN_CHART_SOURCES.md).
 - [x] Copie du guide pour le wiki préparée avec liens vérifiés ; publication en attente.
 - [x] Navigateur avec données simulées : 10 contrôles DOM, cadres 360 × 780 et 1400 px, clair/sombre ; repli du panneau et modification des états vérifiés.
 - [ ] Navigateur Home Assistant réel en 360 × 780 px et bureau, clair/sombre ; téléphone tactile physique (suivi détaillé dans le plan).
+
+- [x] Légendes précises (#41) : grandeur du champ réellement tracé ou classe HA traduite, unité du graphique, repli générique sans catalogue de types/unités.
+- [x] Alias facultatif `chart_sources[].alias` (#41), texte rogné de 1 à 60 caractères ; champ « Nom affiché », suppression par champ vide, légendes/bandes/info-bulles et tests du schéma.
+
+- [x] Retours #41 : options à gauche sur bureau (ordre mobile conservé), historique/unité partagés sans requêtes supplémentaires ; grandeur propre à chaque courbe ; tests alias sauvegarde/relecture et erreur détaillée.
+
+## 34. Bandes du programme non numérique (#42)
+
+- [x] Zones sans valeur numérique : nom/couleur du réglage, défaut actif inclus, rangée Programme sous les courbes.
+- [x] Escalier numérique conservé, légende adaptée aux bandes/paliers/mélanges, modèle générique.
+- [x] Alignement zoom et déplacement multijours, troncature mobile et couleurs des thèmes.
+- [x] Tests Vitest des zones, fenêtres, bords et programme vide ; guide et décision actualisés.
+
+## 35. Alignement du graphique et du schéma
+
+Plan détaillé : [PLAN_CHART_ALIGNMENT.md](PLAN_CHART_ALIGNMENT.md).
+
+- [x] Géométrie horizontale unique pour les barres, le tracé et les bandes, sur la carte et dans la fenêtre des horaires.
+- [x] Axes supplémentaires sans réduction du tracé ; zoom et déplacement conservés.
+- [x] Tests de géométrie mobile/bureau et contrôles frontend avec couverture.

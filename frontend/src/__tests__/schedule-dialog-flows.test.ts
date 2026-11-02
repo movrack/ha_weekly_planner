@@ -81,7 +81,8 @@ describe("schedule screen rendering", () => {
     const html = flat(view.render());
     expect(html).toContain("wp-chart");
     view._offset = 0; const r = view.render();
-    find(r, "click", "next_day".length ? "chevron-right" : "").fn();
+    find(r, "click", "Next day").fn();
+    expect(view._offset).toBe(1);
   });
   it("loads the preview once per key and keeps the newest answer", async () => {
     const { view } = make();

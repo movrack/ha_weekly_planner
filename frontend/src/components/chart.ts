@@ -1,3 +1,5 @@
+import { TIMELINE, timelineGeometry, timelineX } from "../timeline-geometry";
+import { sourceName, chartLegend } from "../chart-sources";
 // Continuous timeline chart of one device (spec § 10.4), the same for every device: the Home Assistant history of the day
 // (a curve for a number, else a band of states), the planned actions as markers (with their value), a "now"
 // line, and the manual changes in red. Tapping the chart opens the Home Assistant history. Hand-made SVG.
@@ -88,6 +90,8 @@ interface Model {
   lo: number;
   hi: number;
   unit: string;
+  quantityField?: string;
+  measuredField?: string;
 }
 
 const NEAR = 60_000; // a change within a minute of a decision or an action of Weekly Planner (its journal) is its own
@@ -158,8 +162,8 @@ const DRAG_PX = 6;
 const CLICK_GUARD_MS = 350;
 /** With a zoom, a click waits this long for a second one (double click = reset). */
 const DOUBLE_MS = 300;
-const PAD_CURVE = { l: 38, r: 10, t: 22, b: 22 };
-const PAD_BAND = { l: 8, r: 10, t: 22, b: 22 };
+const PAD_CURVE = { l: timelineGeometry(0).left, r: TIMELINE.right, t: 22, b: 22 };
+const PAD_BAND = PAD_CURVE;
 const ON_STATES = new Set(["on", "open", "heat", "home", "playing", "cleaning", "unlocked", "armed_home", "armed_away"]);
 
 @customElement("wp-chart")
@@ -217,7 +221,7 @@ export class WpChart extends LitElement {
     super.connectedCallback();
     this._stopRefresh = subscribeChartRefresh(this._refresh);
     this._observer = new ResizeObserver((entries) => {
-      const w = Math.floor(entries[0].contentRect.width);
+      const w = entries[0].contentRect.width;
       if (w > 120 && w !== this._width) this._width = w;
     });
   }
@@ -255,6 +259,16 @@ export class WpChart extends LitElement {
     if (changed.has("slots") || changed.has("data") || changed.has("program") || changed.has("entityId")
       || changed.has("date") || changed.has("_loaded")) {
       this._model = this._loaded ? this._buildVisible() : null;
+    }
+  }
+
+  /** Share already loaded chart metadata with a panel outside this shadow root. */
+  updated(changed: Map<string, unknown>): void {
+    if (!this.hass || !this.program) return;
+    if (["hass", "program", "entityId", "_loaded", "_sourceHistory"].some(key => changed.has(key))) {
+      this.dispatchEvent(new CustomEvent("chart-context", { bubbles: true, composed: true,
+        detail: { programId: this.program.id, entityId: this.entityId,
+          mainUnit: this._primaryUnit(), histories: this._sourceHistory } }));
     }
   }
 
@@ -352,15 +366,15 @@ export class WpChart extends LitElement {
   // ---- values ----
 
   /** What a history point says as numbers: the curves of the device. */
-  private _live(p: HistPoint): { measured: number | null; set: number | null; main: number | null } {
+  private _live(p: HistPoint): { measured: number | null; set: number | null; main: number | null; field?: string; measuredField?: string } {
     const none = { measured: null, set: null, main: null };
     if (isBad(p.s)) return none;
     switch (entityDomain(this.entityId)) {
-      case "climate": return { measured: num(p.a.current_temperature), set: p.s === "off" ? null : num(p.a.temperature), main: null };
-      case "cover": return { ...none, main: num(p.a.current_position) ?? (p.s === "open" ? 100 : p.s === "closed" ? 0 : null) };
+      case "climate": return { field: "temperature", measuredField: "current_temperature", measured: num(p.a.current_temperature), set: p.s === "off" ? null : num(p.a.temperature), main: null };
+      case "cover": return { ...none, field: "current_position", main: num(p.a.current_position) ?? (p.s === "open" ? 100 : p.s === "closed" ? 0 : null) };
       case "light": {
         const b = p.s === "on" ? num(p.a.brightness) : 0;
-        return { ...none, main: b === null ? (p.s === "on" ? 100 : 0) : (b / 255) * 100 };
+        return { ...none, field: "brightness", main: b === null ? (p.s === "on" ? 100 : 0) : (b / 255) * 100 };
       }
       default: {
         const n = Number(p.s);
@@ -437,9 +451,9 @@ export class WpChart extends LitElement {
       ranges.filter((r) => !r.ignored).flatMap((r) => {
         const label = labelOf(this.data, r.slot.label);
         return label && appliedAction(this.hass, this.program, this.entityId, label, r.slot)
-          ? [{ start: r.s, end: r.e, color: label.color, value: valueOf(label) }] : [];
+          ? [{ start: r.s, end: r.e, color: label.color, name: label.name, value: valueOf(label) }] : [];
       }),
-      defaultLabel ? { color: defaultLabel.color, value: valueOf(defaultLabel), active: Boolean(appliedAction(this.hass, this.program, this.entityId, defaultLabel)) } : null,
+      defaultLabel ? { color: defaultLabel.color, name: defaultLabel.name, value: valueOf(defaultLabel), active: Boolean(appliedAction(this.hass, this.program, this.entityId, defaultLabel)) } : null,
       span,
     );
     // Mark the setting already in force at midnight, without inventing a new action.
@@ -544,7 +558,9 @@ export class WpChart extends LitElement {
     const unit = String(this.hass.states[this.entityId]?.attributes.unit_of_measurement
       ?? (domain === "climate" ? this.hass.config?.unit_system?.temperature ?? "°C" : domain === "cover" || domain === "light" ? "%" : ""));
     return { span, pastEnd, isToday: startMs <= now && now < endMs, kind: numeric ? "curve" : "band",
-      lines, bands, markers, planned, shade, manual, lo, hi, unit };
+      lines, bands, markers, planned, shade, manual, lo, hi, unit,
+      measuredField: this._live({ t: 0, s: "on", a: {} }).measuredField,
+      quantityField: this._live({ t: 0, s: "on", a: {} }).field };
   }
 
   /** Build each local day independently before placing it on the continuous real-minute axis. */
@@ -615,7 +631,7 @@ export class WpChart extends LitElement {
       model.kind === "curve" ? { unit: model.unit, lo: model.lo, hi: model.hi } : null);
     if (model.kind === "curve" && groups.axes.length) groups.axes[0].color = model.lines[0]?.key === "measured" ? "var(--accent-color, #ff9800)" : model.lines[0]?.key === "set" ? "var(--primary-text-color)" : "var(--primary-color)";
     const curve = model.kind === "curve" || groups.axes.length > 0;
-    return { ...groups, curve, pad: { ...(curve ? PAD_CURVE : PAD_BAND), r: 10 + Math.max(0, groups.axes.length - 1) * 38 } };
+    return { ...groups, curve, pad: curve ? PAD_CURVE : PAD_BAND };
   }
   private get _span(): number { const b = dayBounds(this.date, this._tz); return (b.endMs - b.startMs) / 60_000; }
   private get _win(): ZoomWindow { return this._zoom ?? { from: 0, to: this._span }; }
@@ -842,11 +858,13 @@ export class WpChart extends LitElement {
     const lang = this._lang;
     const item = (cls: string, label: string, color?: string) =>
       html`<span class="key"><i class=${cls} style=${color ? `--k:${color}` : ""}></i>${label}</span>`;
+    const hasBands = model.planned.zones.some(z => z.value === null);
     const has = (key: string) => model.lines.some((l) => l.key === key);
     return html`<div class="legend">
-      ${model.markers.length || model.planned.steps.length ? item("planned", t(lang, "planned")) : nothing}
-      ${has("measured") ? item("measured", t(lang, "measured")) : nothing}
-      ${has("set") ? item("set", t(lang, "ch_set")) : nothing}
+      ${model.markers.length || model.planned.zones.length ? item(hasBands ? (model.planned.steps.length ? "planned-mixed" : "planned-band") : "planned", hasBands ? t(lang, model.planned.steps.length ? "chart_program_mixed" : "chart_program_bands") : chartLegend(this.hass, this.entityId, model.unit, "planned", model.quantityField)) : nothing}
+      ${has("measured") ? item("measured", chartLegend(this.hass, this.entityId, model.unit, "measured", model.measuredField)) : nothing}
+      ${has("main") ? item("main", chartLegend(this.hass, this.entityId, model.unit, "set", model.quantityField)) : nothing}
+      ${has("set") ? item("set", chartLegend(this.hass, this.entityId, model.unit, "set", model.quantityField)) : nothing}
       ${model.shade.length ? item("active", t(lang, "active_key")) : nothing}
       ${model.manual.length ? item("manual", t(lang, "manual")) : nothing}
       ${this._sources.map(source => this._sourceLegend(source))}
@@ -857,7 +875,7 @@ export class WpChart extends LitElement {
   private _sourceLegend(source: ChartSource) {
     const lang = this._lang, id = source.entity_id;
     const history = this._sourceHistory[id] ?? [];
-    const name = friendlyName(this.hass, id);
+    const name = sourceName(this.hass, source);
     if (source.kind === "numeric") return html`<span class="source-key">
       <i style=${`background:${sourceColor(id)}`}></i>${name} · ${sourceUnit(this.hass, id, history)}
       ${binarySource(this.hass, id, history) ? html`<small>${t(lang, "chart_source_binary")}</small>` : nothing}
@@ -884,7 +902,7 @@ export class WpChart extends LitElement {
     const PAD = config.pad;
     const win = this._zoom ?? { from: 0, to: model.span };
     const zoomed = Boolean(this._zoom);
-    const x = (m: number) => PAD.l + ((m - win.from) / (win.to - win.from)) * (W - PAD.l - PAD.r);
+    const x = (m: number) => timelineX(W, m, win.from, win.to);
     const primary = config.axes[0] ?? { lo: model.lo, hi: model.hi };
     const axisY = (v: number, axis: { lo: number; hi: number }) => PAD.t + (1 - (v - axis.lo) / (axis.hi - axis.lo || 1)) * (H - PAD.t - PAD.b);
     const y = (v: number) => axisY(v, primary);
@@ -902,7 +920,7 @@ export class WpChart extends LitElement {
     const ticksX = ticksIn(win, step);
     const inPlot = (m: number) => m >= win.from - 1e-6 && m <= win.to + 1e-6;
     const anchorOf = (m: number) => {
-      if (!zoomed) return m === 0 ? "start" : "middle";
+      if (!zoomed) return m === 0 ? "start" : m === model.span ? "end" : "middle";
       const px = x(m);
       return px - PAD.l < 16 ? "start" : W - PAD.r - px < 16 ? "end" : "middle";
     };
@@ -961,9 +979,9 @@ export class WpChart extends LitElement {
           <text class="ylab" style=${`fill:${config.axes[0]?.color ?? "var(--secondary-text-color)"}`} x=${PAD.l - 4} y=${y(v) + 3} text-anchor="end">${Number(v.toFixed(1))}</text>`)}
         ${curve ? svg`<text class="unit" x="2" y="10" style=${`fill:${config.axes[0]?.color ?? "var(--primary-text-color)"}`}>${config.axes[0]?.unit ?? model.unit}</text>` : nothing}
         ${config.axes.slice(1).map((axis, index) => {
-          const ax = W - PAD.r + 8 + index * 38;
+          const ax = W - PAD.r - 4 - index * 38;
           const labels = axisTicks(axis.lo, axis.hi);
-          return svg`<g class="source-axis" style=${`fill:${axis.color};color:${axis.color}`}>
+          return svg`<g class="source-axis" text-anchor="end" style=${`fill:${axis.color};color:${axis.color}`}>
             <text x=${ax} y="10" style="fill:inherit">${axis.unit}</text>
             ${labels.map(v => svg`<text x=${ax} y=${axisY(v, axis) + 3} style="fill:inherit">${Number(v.toFixed(1))}</text>`)}</g>`;
         })}
@@ -1001,7 +1019,7 @@ export class WpChart extends LitElement {
           const visible = [...(initial ? [{ ...initial, t: from }] : []), ...pts.filter(p => p.t > from && p.t <= to)];
           const points = visible.map(p => ({ m: (p.t - startMs) / 60000, v: sourceNumber(p.s) }));
           return svg`<path class="source-line" d=${this._path(points, { ...model, pastEnd: (to - startMs) / 60000 }, x, v => axisY(v, axis), binarySource(this.hass, source.entity_id, pts))}
-            style=${`stroke:${sourceColor(source.entity_id)}`}><title>${friendlyName(this.hass, source.entity_id)} · ${axis.unit}</title></path>`;
+            style=${`stroke:${sourceColor(source.entity_id)}`}><title>${sourceName(this.hass, source)} · ${axis.unit}</title></path>`;
         })}
         ${nowLine}
         </g>
@@ -1025,12 +1043,28 @@ export class WpChart extends LitElement {
     const from = startMs + win.from * 60000, end = startMs + win.to * 60000;
     const to = Math.min(Date.now(), end);
     const x = (ms: number) => pad.l + (ms - from) / (end - from) * (this._width - pad.l - pad.r);
+    const programBands = model.planned.zones.filter(z => z.value === null && z.to > win.from && z.from < win.to);
     return html`<div class="source-bands">
+      ${programBands.length ? html`<div class="source-row program-row">
+        <svg width=${this._width} height="24" viewBox="0 0 ${this._width} 24" tabindex="0" role="img" aria-label=${t(this._lang, "chart_program_bands")}
+          @pointerdown=${(e: PointerEvent) => this._down(e)} @pointermove=${(e: PointerEvent) => this._move(e)}
+          @pointerup=${(e: PointerEvent) => this._up(e)} @pointercancel=${(e: PointerEvent) => this._up(e)}
+          @wheel=${(e: WheelEvent) => this._wheel(e)} @keydown=${(e: KeyboardEvent) => this._zoomKey(e)}>
+          ${programBands.map(zone => {
+            const left = x(startMs + Math.max(zone.from, win.from) * 60000);
+            const width = x(startMs + Math.min(zone.to, win.to) * 60000) - left;
+            const name = zone.name ?? t(this._lang, "planned");
+            return svg`<g class="program-band"><title>${name}</title>
+              <rect x=${left} y="2" width=${width} height="20" fill=${zone.color}></rect>
+              ${fitText(name, width) ? svg`<text class="program-text" x=${left + width / 2} y="16" text-anchor="middle">${fitText(name, width)}</text>` : nothing}
+            </g>`;
+          })}
+        </svg></div>` : nothing}
       ${this._sources.filter(s => s.kind === "states").map(source => {
         const history = this._sourceHistory[source.entity_id] ?? [];
         const periods = stateIntervals(history, source.states ?? [], from, to);
-        return html`<div class="source-row"><div class="source-name">${friendlyName(this.hass, source.entity_id)}</div>
-          <svg width=${this._width} height="22" viewBox="0 0 ${this._width} 22" aria-label=${friendlyName(this.hass, source.entity_id)}
+        return html`<div class="source-row"><div class="source-name">${sourceName(this.hass, source)}</div>
+          <svg width=${this._width} height="22" viewBox="0 0 ${this._width} 22" aria-label=${sourceName(this.hass, source)}
             @pointerdown=${(e: PointerEvent) => this._down(e)} @pointermove=${(e: PointerEvent) => this._move(e)}
             @pointerup=${(e: PointerEvent) => this._up(e)} @pointercancel=${(e: PointerEvent) => this._up(e)} @wheel=${(e: WheelEvent) => this._wheel(e)}>
             <rect x=${pad.l} y="2" width=${Math.max(0, x(Math.max(from,to)) - pad.l)} height="16" fill="var(--divider-color)" opacity=".2"></rect>
@@ -1038,7 +1072,7 @@ export class WpChart extends LitElement {
               fill=${period.missing ? "var(--secondary-text-color)" : period.selected ? sourceColor(source.entity_id, period.state!) : "var(--divider-color)"}
               opacity=${period.missing ? ".16" : period.selected ? "1" : ".4"}
               stroke=${period.missing ? "var(--secondary-text-color)" : "none"} stroke-dasharray=${period.missing ? "2 3" : "none"}>
-              <title>${period.missing ? t(this._lang, "chart_source_gap") : stateName(this.hass, source.entity_id, period.state!)}</title></rect>`)}
+              <title>${sourceName(this.hass, source)} · ${period.missing ? t(this._lang, "chart_source_gap") : stateName(this.hass, source.entity_id, period.state!)}</title></rect>`)}
           </svg>
           </div>`;
       })}
@@ -1050,6 +1084,11 @@ export class WpChart extends LitElement {
 
   static styles = css`
     :host { display: block; }
+    .program-band rect { fill-opacity: .24; stroke: var(--card-background-color); stroke-width: 1; }
+    text.program-text { fill: var(--primary-text-color); font-size: 11px; font-weight: 600; }
+    .key i.planned-mixed { height: 10px; border-top: 3px solid var(--secondary-text-color); background: var(--divider-color); }
+    .key i.planned-band { height: 10px; border: 1px solid var(--secondary-text-color); background: var(--divider-color); }
+    .source-axis text { paint-order: stroke; stroke: var(--card-background-color, var(--ha-card-background)); stroke-width: 3px; stroke-linejoin: round; }
     .source-line { fill:none; stroke-width:2; stroke-linejoin:round; }
     .legend, .state-legend { display:flex; gap:4px 12px; flex-wrap:wrap; font-size:12px; color:var(--secondary-text-color); }
     .legend > span, .state-legend span { display:inline-flex; align-items:center; gap:5px; }
@@ -1113,6 +1152,7 @@ export class WpChart extends LitElement {
     .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 14px; color: var(--secondary-text-color); }
     .key { display: inline-flex; align-items: center; gap: 5px; }
     .key i { display: inline-block; width: 16px; height: 0; border-top: 3px solid var(--primary-color); }
+    .key i.main { border-top: 2px solid var(--primary-color); }
     .key i.measured { border-top: 2px solid var(--accent-color, #ff9800); }
     .key i.set { border-top: 2px dashed var(--primary-text-color); }
     /* a filled dot at the left, like the marker drawn at the start of each planned step (.mk, r=5), then the line */
