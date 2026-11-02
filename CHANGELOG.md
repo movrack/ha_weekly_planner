@@ -6,9 +6,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-11-02
+
+### Added
+- Day chart: nonnumeric schedule settings appear as named, setting-coloured bands in a separate Schedule row, including active defaults, aligned with zoom and multi-day panning; numeric settings keep their staircase (#42).
+- Optional display names for each extra chart source, shared across legends, state bands and tooltips; clear the name to use its Home Assistant name (#41).
+- `Release` workflow: after a merge into `main` it creates the tag and the GitHub release from the CHANGELOG (fails on version mismatch, skips an existing tag).
+
 ### Changed
+- The program bands row no longer repeats a small "Programme" label above the bands (the legend already names it).
+- Chart legends identify the plotted quantity using Home Assistant field/class translations and the plotted unit, with generic fallback labels (#41).
 - Removed the "Drag to browse · Pinch to zoom · Shift + drag to select" help line under the chart.
 - The chart-options panel (extra entities) is offered in the schedule window only; the dashboard card no longer shows the selector but still draws the chosen curves and bands (#37).
+
+### Fixed
+- Day chart: midnight and day-end align with schedule bars on the dashboard and in the schedule window; extra axes and program/source bands share the same horizontal geometry.
+- An action the device accepted but ignored (e.g. a virtual thermostat whose radiator is unavailable) is now verified once after 8 s and sent again when the entity changes, at most every 60 s and 10 times; a manual change is never forced and the program status reports `verification`.
+- Schedule window (#41): chart options sit in the left settings column on desktop and keep their phone order, sharing the chart’s loaded history and unit without extra requests.
+- Device legends distinguish the measured attribute from the requested and planned attribute, including current versus target temperature. Alias save errors identify schema refusals and expose other server error details; regression tests cover save and readback.
+- Day chart (#40): one legend below the date navigation, with device curves before extra sources; percentage axes stay at 0–100, and numeric on/off sources explain their 100/0 mapping in English and French.
+- Day chart: show a filled marker at midnight for the setting already in effect, including a slot carried from the previous day; hollow markers still identify returns to the default setting.
 
 ## [0.26.0] - 2026-11-01
 

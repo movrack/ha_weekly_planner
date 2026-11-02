@@ -3,7 +3,8 @@ import { sourceKind, sourceUnits, sourceColor, knownStates, stateIntervals, stat
 import { entityHistories } from "../chart-history";
 import { WpChartOptions } from "../components/chart-options";
 import { WpChart } from "../components/chart";
-import { flat } from "./helpers/tpl";
+import { WpSchedule } from "../components/schedule-dialog";
+import { flat, handlers } from "./helpers/tpl";
 const entity = (state: string, attributes: any = {}) => ({ state, attributes });
 const hass = (): any => ({ language: "en", config: { time_zone: "UTC" }, states: {
   "sensor.temp": entity("20", { unit_of_measurement: "°C" }), "sensor.humidity": entity("55", { unit_of_measurement: "%" }),
@@ -112,12 +113,12 @@ describe("rendered sources on a shared timeline", () => {
   it("uses separate bounds for Celsius, percent and watts, and aligns the source state row", () => {
     const c=chart(),conf=c._plotConfig(c._model);
     expect(conf.axes.map((a:any)=>a.unit)).toEqual(["°C","%","W"]);
-    expect(conf.axes[1].lo).toBe(44);expect(conf.axes[1].hi).toBe(61);expect(conf.axes[2].lo).toBe(299);
+    expect(conf.axes[1].lo).toBe(0);expect(conf.axes[1].hi).toBe(100);expect(conf.axes[2].lo).toBe(299);
     const output=flat(c._renderChart(c._model));
     expect(output.match(/class="source-axis"/g)).toHaveLength(2);
     expect(output.match(/class="source-line"/g)).toHaveLength(2);
     expect(output).toContain(sourceColor("binary_sensor.window","on"));
-    expect(output).toContain("Other states");expect(output).not.toContain("More than three units");
+    expect(flat(c._legend(c._model))).toContain("Other states");expect(output).not.toContain("More than three units");
   });
   it("does not carry prior-day values or states through an empty or failed next day", () => {
     const points=mergeSourceDays([{start:0,end:100,history:[{t:-1,s:"on",a:{}}]}, {start:100,end:200,history:[]}]);
@@ -129,5 +130,81 @@ describe("rendered sources on a shared timeline", () => {
     expect(flat(c._renderChart(c._model))).not.toContain('class="source-line"');
     c._sourceHistory={};delete c.hass.states["sensor.watts"];
     expect(c._plotConfig(c._model).axes.map((a:any)=>a.unit)).not.toContain("W");
+  });
+});
+
+describe("chart source aliases #41", () => {
+  it("saves a trimmed alias, removes a blank alias and respects readonly", async () => {
+    const o = options(), base = program();
+    base.entities[0].chart_sources = [source("sensor.humidity")]; o.program = base;
+    o.hass.callWS = vi.fn(async (m: any) => m.type === "weekly_planner/get"
+      ? { can_edit: true, programs: [base] } : { program: { ...m.program, revision: 2 } });
+    o._alias(o._sources[0], "  Office humidity  "); await o._queue;
+    expect(o._sources[0].alias).toBe("Office humidity");
+    expect(flat(o.render())).toContain("Display name");
+    o._alias(o._sources[0], " "); await o._queue;
+    expect(o._sources[0]).not.toHaveProperty("alias");
+    o.data.read_only = true; const count = o.hass.callWS.mock.calls.length;
+    o._alias(o._sources[0], "Blocked"); await o._queue;
+    expect(o.hass.callWS).toHaveBeenCalledTimes(count);
+  });
+  it("uses aliases in numeric and state legends, bands and titles with HA fallback", () => {
+    const c: any = new WpChart(); c.hass = hass(); c.date = "2026-11-01";
+    c.entityId = "sensor.temp"; c.data = { labels: [], status: {} }; c.program = program();
+    c.program.entities[0].chart_sources = [
+      { ...source("sensor.humidity"), alias: "Office humidity" },
+      { ...source("binary_sensor.window", "states", ["on"]), alias: "Office window" },
+    ];
+    c._sourceHistory = { "sensor.humidity": [{t:Date.parse(c.date+"T00:00:00Z"),s:"50",a:{}}],
+      "binary_sensor.window": [{t:Date.parse(c.date+"T00:00:00Z"),s:"on",a:{}}] };
+    c._model = c._build({hist:[], log:[], sent:[]});
+    expect(flat(c._legend(c._model))).toContain("Office humidity");
+    const out = flat(c._renderChart(c._model));
+    expect(out).toContain("Office humidity · %</title>");
+    expect(out).toContain("Office window · on</title>");
+    expect(out).toContain('aria-label=Office window');
+    delete c.program.entities[0].chart_sources[0].alias;
+    c.hass.states["sensor.humidity"].attributes.friendly_name = "HA humidity";
+    expect(flat(c._legend(c._model))).toContain("HA humidity");
+  });
+});
+
+
+describe("alias save through rendered options and websocket round trip #41", () => {
+  it("sends the input alias, rereads it and updates chart sources immediately", async () => {
+    const o = options(); let stored = program();
+    stored.entities[0].chart_sources = [source("sensor.humidity")]; o.program = stored;
+    o.hass.callWS = vi.fn(async (message: any) => {
+      if (message.type === "weekly_planner/get") return {can_edit:true, programs:[structuredClone(stored)]};
+      stored = {...message.program, revision:stored.revision + 1}; return {program:structuredClone(stored)};
+    });
+    const schedule: any = new WpSchedule(); schedule.hass=o.hass; schedule.scope={kind:"program",programId:stored.id};
+    schedule.data={programs:[stored],status:{},labels:[],can_edit:true};
+    o.dispatchEvent = (event: any) => { handlers(schedule._renderChartOptions()).find(h => h.event === "chart-sources-saved")!.fn(event); return true; };
+    handlers(o.render()).find(h => h.event === "change" && h.before.includes('maxlength="60"'))!.fn({target:{value:"  Office humidity  "}});
+    await o._queue;
+    const reread = await o.hass.callWS({type:"weekly_planner/get"});
+    expect(reread.programs[0].entities[0].chart_sources[0].alias).toBe("Office humidity");
+    expect(schedule._chartOwner().entities[0].chart_sources[0].alias).toBe("Office humidity");
+    expect(o.hass.callWS.mock.calls.map((call:any) => call[0].type)).toEqual(["weekly_planner/get","weekly_planner/program/save","weekly_planner/get"]);
+  });
+  it("explains an outdated alias schema while preserving other server errors", async () => {
+    const o=options();o.program.entities[0].chart_sources=[source("sensor.humidity")];
+    o.hass.callWS=vi.fn().mockResolvedValueOnce({can_edit:true,programs:[o.program]}).mockRejectedValueOnce({code:"invalid",message:"extra keys not allowed @ data['alias']"});
+    o._alias(o._sources[0],"Office");await o._queue;expect(o._error).toContain("Restart Home Assistant");
+    o.hass.callWS=vi.fn().mockRejectedValue({code:"unauthorized",message:"Administrator access required"});
+    o._alias(o._sources[0],"Office");await o._queue;expect(o._error).toContain("Administrator access required");expect(o._error).not.toContain("Restart");
+  });
+  it("shares existing histories and primary unit without a request", () => {
+    const c:any=new WpChart(); c.hass=hass();c.program=program();c.entityId="sensor.temp";
+    c.hass.callWS=vi.fn();
+    c._sourceHistory={"binary_sensor.window":[{t:0,s:"historic",a:{}}]}; c.dispatchEvent=vi.fn();
+    c.updated(new Map([["_sourceHistory",null]]));
+    const context=c.dispatchEvent.mock.calls[0][0].detail;
+    expect(context.histories).toBe(c._sourceHistory); expect(context.mainUnit).toBe("°C");
+    const s:any=new WpSchedule();s.hass=c.hass;s.data={programs:[c.program],status:{}};s.scope={kind:"program",programId:c.program.id};s._chartContext=context;
+    const template=s._renderChartOptions();expect(template.values).toContain(c._sourceHistory);
+    c.program.entities.push({entity_id:"sensor.other"});s.scope={kind:"device",entityId:"sensor.other"};expect(s._renderChartOptions().values).not.toContain(c._sourceHistory);
+    expect(c.hass.callWS).not.toHaveBeenCalled();
   });
 });

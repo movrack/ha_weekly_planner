@@ -1,9 +1,17 @@
 // Display-only chart sources: no scheduling or device-service knowledge.
+import { friendlyName } from "./planner";
+import { t } from "./i18n";
 import type { ChartSource, HomeAssistant } from "./types";
 
 export interface SourcePoint { t: number; s: string; a: Record<string, any> }
 export const badState = (value: string): boolean => value === "unknown" || value === "unavailable" || value.trim() === "";
 export const stateNumber = (value: string): number | null => !badState(value) && Number.isFinite(Number(value)) ? Number(value) : null;
+export const sourceNumber = (value: string): number | null => value === "on" ? 100 : value === "off" ? 0 : stateNumber(value);
+/** Only numeric sources use this mapping; ordinary state bands keep their raw states. */
+export function binarySource(hass: HomeAssistant, id: string, history: readonly SourcePoint[] = []): boolean {
+  const values = [...history.map(p => p.s), ...(hass.states[id] ? [hass.states[id].state] : [])].filter(s => !badState(s));
+  return values.some(s => s === "on" || s === "off");
+}
 export const sourceUnit = (hass: HomeAssistant, id: string, history: readonly SourcePoint[] = []): string =>
   String(hass.states[id]?.attributes.unit_of_measurement ?? history[history.length - 1]?.a.unit_of_measurement ?? "");
 
@@ -67,7 +75,7 @@ export function numericAxes(hass: HomeAssistant, sources: readonly ChartSource[]
   const axes: NumericAxis[] = primary ? [{ ...primary, color: "var(--primary-color)" }] : [];
   let overflow = false;
   for (const source of sources.filter(s => s.kind === "numeric")) {
-    if (!hass.states[source.entity_id] && !(history[source.entity_id] ?? []).some(p => stateNumber(p.s) !== null)) continue;
+    if (!hass.states[source.entity_id] && !(history[source.entity_id] ?? []).some(p => sourceNumber(p.s) !== null)) continue;
     const unit = sourceUnit(hass, source.entity_id, history[source.entity_id]);
     let axis = axes.find(a => a.unit === unit);
     if (!axis) {
@@ -75,12 +83,13 @@ export function numericAxes(hass: HomeAssistant, sources: readonly ChartSource[]
       axis = { unit, color: sourceColor(source.entity_id), lo: Infinity, hi: -Infinity }; axes.push(axis);
     }
     for (const point of history[source.entity_id] ?? []) {
-      const value = stateNumber(point.s);
+      const value = sourceNumber(point.s);
       if (value !== null) { axis.lo = Math.min(axis.lo, value - 1); axis.hi = Math.max(axis.hi, value + 1); }
     }
   }
   for (const axis of axes) {
-    if (!Number.isFinite(axis.lo)) { axis.lo = 0; axis.hi = 1; }
+    if (axis.unit === "%") { axis.lo = 0; axis.hi = 100; }
+    else if (!Number.isFinite(axis.lo)) { axis.lo = 0; axis.hi = 1; }
     else { axis.lo = Math.floor(axis.lo); axis.hi = Math.ceil(axis.hi); }
   }
   return { axes, overflow };
@@ -107,4 +116,28 @@ export function mergeSourceDays(days: readonly { start: number; end: number; his
     out.push(...sorted.filter(p => p.t > day.start && p.t < day.end));
   }
   return [...new Map(out.map(p => [p.t, p])).values()].sort((a,b) => a.t - b.t);
+}
+
+/** Display names never change source identity, history keys or colours. */
+export const sourceName = (hass: HomeAssistant, source: ChartSource): string =>
+  source.alias?.trim() || friendlyName(hass, source.entity_id);
+
+/** Name only the field actually plotted; a device class may describe a different attribute. */
+export function chartQuantity(hass: HomeAssistant, id: string, unit: string, field?: string): string {
+  const domain = id.split(".")[0];
+  const deviceClass = hass.states[id]?.attributes.device_class;
+  const keys = field ? [`component.${domain}.entity_component._.state_attributes.${field}.name`]
+    : typeof deviceClass === "string" ? [`component.${domain}.entity_component.${deviceClass}.name`] : [];
+  for (const key of keys) {
+    const name = hass.localize?.(key);
+    if (name && name !== key) return unit ? `${name} (${unit})` : name;
+  }
+  return "";
+}
+
+export function chartLegend(hass: HomeAssistant, id: string, unit: string, role: "planned" | "measured" | "set", field?: string): string {
+  const lang = hass.locale?.language ?? hass.language;
+  const quantity = chartQuantity(hass, id, unit, field);
+  return quantity ? t(lang, `chart_quantity_${role}`, { quantity })
+    : t(lang, role === "set" ? "chart_requested_value" : role);
 }

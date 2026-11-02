@@ -1,0 +1,53 @@
+name: Release
+
+# Creates the git tag and the GitHub release for the version found on `main`
+# (HACS installs from releases). Runs after a merge into `main`; it does nothing
+# when the tag already exists, so re-runs are harmless.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Read and check the version
+        id: version
+        run: |
+          v=$(python3 -c 'import json;print(json.load(open("custom_components/weekly_planner/manifest.json"))["version"])')
+          py=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)
+          node=$(python3 -c 'import json;print(json.load(open("frontend/package.json"))["version"])')
+          if [ "$v" != "$py" ] || [ "$v" != "$node" ]; then
+            echo "Versions differ: manifest=$v pyproject=$py package.json=$node" >&2
+            exit 1
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: Skip when the release already exists
+        id: exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Notes from CHANGELOG.md
+        if: steps.exists.outputs.exists == 'false'
+        run: |
+          awk -v v="${{ steps.version.outputs.version }}" '$0 ~ "^## \\[" v "\\]" {f=1; next} /^## \[/ {f=0} f' CHANGELOG.md > notes.md
+          test -s notes.md || { echo "No CHANGELOG section for ${{ steps.version.outputs.version }}" >&2; exit 1; }
+      - name: Create the release
+        if: steps.exists.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ steps.version.outputs.version }}" \
+            --target "$GITHUB_SHA" \
+            --title "v${{ steps.version.outputs.version }}" \
+            --notes-file notes.md --latest

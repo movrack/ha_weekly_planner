@@ -7,12 +7,14 @@ export interface PlannedRange {
   start: number;
   end: number | null;
   color: string;
+  name?: string;
   /** Number set by the action (null: not numeric). */
   value: number | null;
 }
 
 export interface PlannedDefault {
   color: string;
+  name?: string;
   value: number | null;
   /** Does the default label do something to the device at all? */
   active: boolean;
@@ -21,7 +23,7 @@ export interface PlannedDefault {
 export interface Step { from: number; to: number; value: number; color: string }
 export interface Riser { m: number; from: number; to: number; color: string }
 /** Who is in force for a stretch of the day: the colour of its label and its number (null: not numeric). */
-export interface Zone { from: number; to: number; value: number | null; color: string }
+export interface Zone { from: number; to: number; value: number | null; color: string; name?: string }
 export interface Planned {
   zones: Zone[];
   steps: Step[];
@@ -46,12 +48,12 @@ export function buildPlanned(ranges: PlannedRange[], dflt: PlannedDefault | null
   const zones: Zone[] = [];
   const returns: number[] = [];
   const gap = (from: number, to: number) => {
-    if (dflt?.active && to - from > EPS) zones.push({ from, to, value: dflt.value, color: dflt.color });
+    if (dflt?.active && to - from > EPS) zones.push({ from, to, value: dflt.value, color: dflt.color, name: dflt.name });
   };
   let cursor = 0;
   timed.forEach((r, i) => {
     gap(cursor, r.start);
-    zones.push({ from: r.start, to: r.end, value: r.value, color: r.color });
+    zones.push({ from: r.start, to: r.end, value: r.value, color: r.color, name: r.name });
     const next = timed[i + 1];
     const back = r.end < span - EPS && (!next || next.start - r.end > EPS);
     if (back && dflt?.active) returns.push(r.end);

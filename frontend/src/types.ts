@@ -77,6 +77,7 @@ export interface Profile {
 }
 
 export interface ChartSource {
+  alias?: string;
   entity_id: string;
   kind: "numeric" | "states";
   states?: string[];

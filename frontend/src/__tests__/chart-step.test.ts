@@ -1,6 +1,7 @@
 // Set values (cover, light, setpoint) are staircases; measured probe values stay a line through the points: horizontal at the old value, vertical at the change time, last value held to now.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WpChart } from "../components/chart";
+import { timelineX } from "../timeline-geometry";
 
 const DAY = "2026-01-01";
 const T0 = Date.parse(`${DAY}T00:00:00Z`);
@@ -14,8 +15,8 @@ const flat = (v: any): string => {
   if (v.strings) return v.strings.map((s: string, i: number) => s + (i < v.values.length ? flat(v.values[i]) : "")).join("");
   return "";
 };
-// width 320, left 38, right 10, top 22, bottom 22, height 150
-const xOf = (m: number) => 38 + (m / 1440) * (320 - 38 - 10);
+// Width 320, shared schedule geometry; top/bottom 22, height 150.
+const xOf = (m: number) => timelineX(320, m, 0, 1440);
 // climate axis: values 18..20 give an axis 17..21
 const yOf2 = (v: number) => (22 + (1 - (v - 17) / 4) * 106).toFixed(1);
 const yOf = (pct: number) => 22 + (1 - pct / 100) * (150 - 22 - 22);

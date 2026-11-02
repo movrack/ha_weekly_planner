@@ -42,6 +42,28 @@ def test_invalid_chart_sources_refused(sources):
         check_program(base, {x["id"]: x for x in labels()})
 
 
+@pytest.mark.parametrize("alias", ["Humidity office", "x", "x" * 60, "  Humidity office  "])
+def test_chart_source_alias_trimmed_and_preserved(alias):
+    base = program()
+    base["entities"][0]["chart_sources"] = [
+        {"entity_id": "sensor.humidity", "kind": "numeric", "alias": alias},
+    ]
+    known = {x["id"]: x for x in labels()}
+    checked = check_program(base, known)
+    assert checked["entities"][0]["chart_sources"][0]["alias"] == alias.strip()
+    assert _chart_metadata_only(check_program(program(), known), checked)
+
+
+@pytest.mark.parametrize("alias", ["", "   ", "x" * 61, 1, None, [], {}])
+def test_invalid_chart_source_alias_refused(alias):
+    base = program()
+    base["entities"][0]["chart_sources"] = [
+        {"entity_id": "sensor.humidity", "kind": "numeric", "alias": alias},
+    ]
+    with pytest.raises(vol.Invalid):
+        check_program(base, {x["id"]: x for x in labels()})
+
+
 def test_chart_sources_follow_entity_rename():
     base = program()
     base["entities"][0]["chart_sources"] = [{"entity_id": "sensor.old", "kind": "numeric"}]
@@ -55,7 +77,9 @@ async def test_chart_metadata_save_pushes_without_recompute_or_device_calls(hass
     ws = await hass_ws_client(hass)
     await ws.send_json_auto_id({"type": "weekly_planner/get"})
     base = (await ws.receive_json())["result"]["programs"][0]
-    base["entities"][0]["chart_sources"] = [{"entity_id": "sensor.missing", "kind": "numeric"}]
+    base["entities"][0]["chart_sources"] = [
+        {"entity_id": "sensor.missing", "kind": "numeric", "alias": "  Office humidity  "},
+    ]
     observer = await hass_ws_client(hass)
     await observer.send_json_auto_id({"type": "weekly_planner/subscribe"})
     assert (await observer.receive_json())["success"]
@@ -66,8 +90,15 @@ async def test_chart_metadata_save_pushes_without_recompute_or_device_calls(hass
         response = await ws.receive_json()
         assert response["success"]
         assert response["result"]["program"]["entities"][0]["chart_sources"][0]["entity_id"] == "sensor.missing"
+        assert response["result"]["program"]["entities"][0]["chart_sources"][0]["alias"] == "Office humidity"
         recompute.assert_not_called()
     pushed = (await observer.receive_json())["event"]["programs"][0]
     assert pushed["revision"] == base["revision"] + 1
     assert pushed["entities"][0]["chart_sources"][0]["entity_id"] == "sensor.missing"
+    assert pushed["entities"][0]["chart_sources"][0]["alias"] == "Office humidity"
     assert len(recorder.calls) == before
+
+    await ws.send_json_auto_id({"type": "weekly_planner/get"})
+    reread = (await ws.receive_json())["result"]["programs"][0]
+    assert reread["entities"][0]["chart_sources"][0]["alias"] == "Office humidity"
+    assert reread["revision"] == pushed["revision"]

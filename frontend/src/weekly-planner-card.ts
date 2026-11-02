@@ -1,3 +1,4 @@
+import { TIMELINE } from "./timeline-geometry";
 // The card: a planner. One compact line per device (or per schedule) with its day bar; every
 // change of the schedule happens in the schedule screen. No immediate controls.
 
@@ -600,18 +601,18 @@ export class WeeklyPlannerCard extends LitElement {
     .chartbtn .after { --mdc-icon-size: 20px; }
     .chartbox { padding: 4px 0 8px; }
     .week { display: flex; flex-direction: column; gap: 0; padding-bottom: 4px; }
-    .wday { display: flex; align-items: flex-start; gap: 8px; min-height: 48px; width: 100%; }
+    .wday { display: flex; align-items: flex-start; gap: ${TIMELINE.gap}px; min-height: 48px; width: 100%; }
     .wnamebtn {
-      flex: none; width: 44px; margin-right: -8px; height: 48px; padding: 0; border: none; border-radius: 8px; background: none; color: inherit;
+      flex: none; width: ${TIMELINE.label + TIMELINE.gap}px; margin-right: -${TIMELINE.gap}px; height: 48px; padding: 0; border: none; border-radius: 8px; background: none; color: inherit;
       font: inherit; cursor: pointer; text-align: left; display: flex; align-items: center;
     }
     .wday .wnamebtn { margin-top: 6px; }
     .wnamebtn:hover .wname { text-decoration: underline; }
     .wday wp-bar-editor { margin: 16px 0 10px; }
-    .wname { flex: none; width: 36px; font-size: 14px; color: var(--secondary-text-color); }
+    .wname { flex: none; width: ${TIMELINE.label}px; font-size: 14px; color: var(--secondary-text-color); }
     .wday wp-bar-editor, .today wp-bar-editor { flex: 1; min-width: 0; }
     .wname.today { color: var(--primary-text-color); font-weight: 600; }
-    .today { display: flex; align-items: flex-start; gap: 8px; padding-top: 20px; } /* room for the "now" clock above the bar */
+    .today { display: flex; align-items: flex-start; gap: ${TIMELINE.gap}px; padding-top: 20px; } /* room for the "now" clock above the bar */
     .today .wname { line-height: 28px; margin-top: 2px; }
     .prog { padding: 8px 0 4px; border-top: 1px solid var(--divider-color); }
     .prog:first-of-type, .head + .prog { border-top: none; }

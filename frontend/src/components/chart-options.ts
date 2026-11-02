@@ -65,8 +65,11 @@ export class WpChartOptions extends LitElement {
             if ((err as { code?: string }).code !== "conflict" || attempt) throw err;
           }
         }
-      } catch {
-        if (generation === this._generation && sequence === this._sequence) { this._draft = null; this._error = t(this._lang, "chart_sources_save_failed"); }
+      } catch (err) {
+        const error = err as { code?: string; message?: string };
+        const detail = error.message?.trim();
+        const aliasRejected = sources.some(source => source.alias) && ["invalid", "invalid_format"].includes(error.code ?? "") && /alias/.test(detail ?? "");
+        if (generation === this._generation && sequence === this._sequence) { this._draft = null; this._error = aliasRejected ? t(this._lang, "chart_alias_schema_failed") : `${t(this._lang, "chart_sources_save_failed")}${detail ? ` ${detail}` : ""}`; }
       } finally { if (generation === this._generation) this._saving--; }
     });
   }
@@ -79,6 +82,16 @@ export class WpChartOptions extends LitElement {
     const next = [...this._sources, source];
     if (sourceUnits(this.hass, next, this.mainUnit).length > 3) { this._error = t(this._lang, "chart_sources_axes_full"); return; }
     this._change(next);
+  }
+
+  private _alias(source: ChartSource, value: string): void {
+    const alias = value.trim();
+    if (alias.length > 60) return;
+    this._change(this._sources.map(s => {
+      if (s.entity_id !== source.entity_id) return s;
+      const { alias: previous, ...rest } = s;
+      return alias ? { ...rest, alias } : rest;
+    }));
   }
 
   private _toggle(source: ChartSource, state: string): void {
@@ -97,6 +110,11 @@ export class WpChartOptions extends LitElement {
           <button ?disabled=${!this._editable} aria-label=${t(lang, "chart_source_remove", { name: friendlyName(this.hass, source.entity_id) })}
             @click=${() => this._change(this._sources.filter(s => s.entity_id !== source.entity_id))}><ha-icon icon="mdi:close"></ha-icon></button>
         </div>
+        <label>${t(lang, "chart_source_alias")}
+          <input type="text" maxlength="60" .value=${source.alias ?? ""}
+            placeholder=${friendlyName(this.hass, source.entity_id)} ?disabled=${!this._editable}
+            @change=${(e: Event) => this._alias(source, (e.target as HTMLInputElement).value)}>
+        </label>
         ${!this.hass.states[source.entity_id] ? html`<small>${t(lang, "chart_source_missing")}</small>` : nothing}
         ${source.kind === "states" ? html`<div class="states" role="group" aria-label=${t(lang, "chart_source_states")}>
           ${knownStates(this.hass, source, this.histories[source.entity_id]).map(value => html`<label>
@@ -122,6 +140,7 @@ export class WpChartOptions extends LitElement {
     button { min-width:44px; min-height:44px; border:0; background:transparent; color:inherit; cursor:pointer; --mdc-icon-size:20px; }
     button:disabled { opacity:.4; } .states { display:flex; flex-wrap:wrap; gap:4px 12px; }
     label { display:flex; align-items:center; gap:6px; min-height:44px; font-size:14px; }
+    input[type="text"] { min-width:0; width:100%; box-sizing:border-box; min-height:44px; color:var(--primary-text-color); background:var(--card-background-color); border:1px solid var(--divider-color); border-radius:4px; padding:8px; }
     small, p { color:var(--secondary-text-color); font-size:12px; } p:empty { display:none; } .error { color:var(--error-color); }
   `;
 }
