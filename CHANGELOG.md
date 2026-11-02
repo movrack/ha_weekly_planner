@@ -6,8 +6,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
-### Changed
-- The program bands row no longer repeats a small "Programme" label above the bands (the legend already names it).
+## [0.27.0] - 2026-11-02
 
 ### Added
 - Day chart: nonnumeric schedule settings appear as named, setting-coloured bands in a separate Schedule row, including active defaults, aligned with zoom and multi-day panning; numeric settings keep their staircase (#42).
@@ -15,6 +14,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - `Release` workflow: after a merge into `main` it creates the tag and the GitHub release from the CHANGELOG (fails on version mismatch, skips an existing tag).
 
 ### Changed
+- The program bands row no longer repeats a small "Programme" label above the bands (the legend already names it).
 - Chart legends identify the plotted quantity using Home Assistant field/class translations and the plotted unit, with generic fallback labels (#41).
 - Removed the "Drag to browse · Pinch to zoom · Shift + drag to select" help line under the chart.
 - The chart-options panel (extra entities) is offered in the schedule window only; the dashboard card no longer shows the selector but still draws the chosen curves and bands (#37).
