@@ -19,11 +19,11 @@ import { nowTip, sunDir, sunTip } from "./day-bar";
 import "./tip";
 import "./chart-options";
 import { entityHistories } from "../chart-history";
-import { sourceColor, sourceUnit, numericAxes, axisTicks, mergeSourceDays, stateNumber, stateIntervals, stateName } from "../chart-sources";
+import { sourceColor, sourceUnit, numericAxes, axisTicks, mergeSourceDays, stateNumber, sourceNumber, binarySource, stateIntervals, stateName } from "../chart-sources";
 import type { SourcePoint } from "../chart-sources";
 import { minuteAt, slideTimeline, zoomTimeline, tickStep, ticksIn } from "../chart-zoom";
 import type { ZoomWindow } from "../chart-zoom";
-import type { HomeAssistant, Label, PlannerData, PreviewSlot, Program, Slot, TimeSpec } from "../types";
+import type { ChartSource, HomeAssistant, Label, PlannerData, PreviewSlot, Program, Slot, TimeSpec } from "../types";
 
 // ---- date helpers (server time zone) -------------------------------------------------------
 
@@ -428,8 +428,8 @@ export class WpChart extends LitElement {
       if (action) markers.push({ m, label, value: actionValue(action), end, ...extra });
     };
     for (const r of ranges) {
-      if (!r.spill) add(r.s, labelOf(this.data, r.slot.label), false,
-        { sun: sunDir(r.slot.start), spec: r.slot.start, ignored: r.ignored }, r.slot);
+      add(r.s, labelOf(this.data, r.slot.label), false,
+        { sun: r.spill ? null : sunDir(r.slot.start), spec: r.spill ? null : r.slot.start, ignored: r.ignored }, r.slot);
     }
     // the planned value as a staircase; the hollow circle only where the value really returns to the default
     const valueOf = (label: Label | undefined) => actionValue(appliedAction(this.hass, this.program, this.entityId, label));
@@ -442,6 +442,8 @@ export class WpChart extends LitElement {
       defaultLabel ? { color: defaultLabel.color, value: valueOf(defaultLabel), active: Boolean(appliedAction(this.hass, this.program, this.entityId, defaultLabel)) } : null,
       span,
     );
+    // Mark the setting already in force at midnight, without inventing a new action.
+    if (planned.zones[0]?.from === 0 && !markers.some(m => !m.ignored && m.m === 0)) add(0, defaultLabel, false);
     for (const m of planned.returns) add(m, defaultLabel, true);
     // real activity of the device (display only): one full-height band per active period, past only, whatever
     // setting was in force (a period outside every planned setting is shown too)
@@ -847,7 +849,30 @@ export class WpChart extends LitElement {
       ${has("set") ? item("set", t(lang, "ch_set")) : nothing}
       ${model.shade.length ? item("active", t(lang, "active_key")) : nothing}
       ${model.manual.length ? item("manual", t(lang, "manual")) : nothing}
+      ${this._sources.map(source => this._sourceLegend(source))}
     </div>`;
+  }
+
+
+  private _sourceLegend(source: ChartSource) {
+    const lang = this._lang, id = source.entity_id;
+    const history = this._sourceHistory[id] ?? [];
+    const name = friendlyName(this.hass, id);
+    if (source.kind === "numeric") return html`<span class="source-key">
+      <i style=${`background:${sourceColor(id)}`}></i>${name} · ${sourceUnit(this.hass, id, history)}
+      ${binarySource(this.hass, id, history) ? html`<small>${t(lang, "chart_source_binary")}</small>` : nothing}
+      ${this._sourceFailures.includes(id) ? html`<small>${t(lang, "chart_source_history_failed")}</small>`
+        : !history.some(p => sourceNumber(p.s) !== null) ? html`<small>${t(lang, "chart_source_no_history")}</small>` : nothing}
+    </span>`;
+    const start = dayBounds(this.date, this._tz).startMs;
+    const periods = stateIntervals(history, source.states ?? [], start + this._win.from * 60000,
+      Math.min(Date.now(), start + this._win.to * 60000));
+    return html`<span class="state-legend">${name}:
+      ${(source.states ?? []).map(state => html`<span><i style=${`background:${sourceColor(id, state)}`}></i>${stateName(this.hass, id, state)}</span>`)}
+      <span><i class="neutral"></i>${t(lang, "chart_source_other")}</span>
+      ${periods.some(p => p.missing) ? html`<span><i class="missing"></i>${t(lang, "chart_source_gap")}</span>` : nothing}
+      ${this._sourceFailures.includes(id) ? html`<span>${t(lang, "chart_source_history_failed")}</span>` : nothing}
+    </span>`;
   }
 
   private _renderChart(model: Model) {
@@ -974,8 +999,8 @@ export class WpChart extends LitElement {
           let initial: SourcePoint | undefined;
           for (const p of pts) { if (p.t <= from) initial = p; else break; }
           const visible = [...(initial ? [{ ...initial, t: from }] : []), ...pts.filter(p => p.t > from && p.t <= to)];
-          const points = visible.map(p => ({ m: (p.t - startMs) / 60000, v: stateNumber(p.s) }));
-          return svg`<path class="source-line" d=${this._path(points, { ...model, pastEnd: (to - startMs) / 60000 }, x, v => axisY(v, axis), false)}
+          const points = visible.map(p => ({ m: (p.t - startMs) / 60000, v: sourceNumber(p.s) }));
+          return svg`<path class="source-line" d=${this._path(points, { ...model, pastEnd: (to - startMs) / 60000 }, x, v => axisY(v, axis), binarySource(this.hass, source.entity_id, pts))}
             style=${`stroke:${sourceColor(source.entity_id)}`}><title>${friendlyName(this.hass, source.entity_id)} · ${axis.unit}</title></path>`;
         })}
         ${nowLine}
@@ -992,11 +1017,7 @@ export class WpChart extends LitElement {
     </div>
     ${config.overflow ? html`<p class="source-warning" role="status">${t(lang, "chart_sources_overflow")}</p>` : nothing}
     ${this._renderSourceRows(model, win, PAD)}
-    <div class="source-legend">${this._sources.filter(s => s.kind === "numeric").map(source => html`<span>
-      <i style=${`background:${sourceColor(source.entity_id)}`}></i>${friendlyName(this.hass, source.entity_id)} · ${sourceUnit(this.hass, source.entity_id, this._sourceHistory[source.entity_id])}
-      ${this._sourceFailures.includes(source.entity_id) ? html`<small>${t(lang, "chart_source_history_failed")}</small>`
-        : !(this._sourceHistory[source.entity_id] ?? []).some(p => stateNumber(p.s) !== null) ? html`<small>${t(lang, "chart_source_no_history")}</small>` : nothing}
-    </span>`)}</div>`;
+`;
   }
 
   private _renderSourceRows(model: Model, win: ZoomWindow, pad: { l: number; r: number }) {
@@ -1019,11 +1040,7 @@ export class WpChart extends LitElement {
               stroke=${period.missing ? "var(--secondary-text-color)" : "none"} stroke-dasharray=${period.missing ? "2 3" : "none"}>
               <title>${period.missing ? t(this._lang, "chart_source_gap") : stateName(this.hass, source.entity_id, period.state!)}</title></rect>`)}
           </svg>
-          <div class="state-legend">${(source.states ?? []).map(state => html`<span><i style=${`background:${sourceColor(source.entity_id, state)}`}></i>${stateName(this.hass, source.entity_id, state)}</span>`)}
-            <span><i class="neutral"></i>${t(this._lang, "chart_source_other")}</span>
-            ${periods.some(p => p.missing) ? html`<span><i class="missing"></i>${t(this._lang, "chart_source_gap")}</span>` : nothing}
-            ${this._sourceFailures.includes(source.entity_id) ? html`<span>${t(this._lang, "chart_source_history_failed")}</span>` : nothing}
-          </div></div>`;
+          </div>`;
       })}
       ${model.kind === "band" && this._sources.some(s => s.kind === "numeric") ? html`<div class="source-row"><div class="source-name">${this._shownName}</div><svg width=${this._width} height="22">
         ${model.bands.filter(b => b.e > win.from && b.s < win.to).map(b => svg`<rect x=${x(startMs + Math.max(b.s, win.from) * 60000)} y="2" width=${Math.max(0, x(startMs + Math.min(b.e, win.to) * 60000) - x(startMs + Math.max(b.s, win.from) * 60000))} height="16" fill=${b.on ? "var(--primary-color)" : "var(--divider-color)"}><title>${b.text}</title></rect>`)}
@@ -1034,10 +1051,11 @@ export class WpChart extends LitElement {
   static styles = css`
     :host { display: block; }
     .source-line { fill:none; stroke-width:2; stroke-linejoin:round; }
-    .source-legend, .state-legend { display:flex; gap:4px 12px; flex-wrap:wrap; font-size:12px; color:var(--secondary-text-color); }
-    .source-legend span, .state-legend span { display:inline-flex; align-items:center; gap:5px; }
-    .source-legend i, .state-legend i { display:inline-block; width:10px; height:10px; border-radius:50%; flex:none; }
-    .source-legend small { margin-left:4px; } .source-name { font-size:12px; margin-top:8px; overflow-wrap:anywhere; }
+    .legend, .state-legend { display:flex; gap:4px 12px; flex-wrap:wrap; font-size:12px; color:var(--secondary-text-color); }
+    .legend > span, .state-legend span { display:inline-flex; align-items:center; gap:5px; }
+    .legend > span:not(.key) i, .state-legend i { display:inline-block; width:10px; height:10px; border-radius:50%; flex:none; }
+    .source-key { flex-wrap:wrap; overflow-wrap:anywhere; max-width:100%; }
+    .legend small { margin-left:4px; } .source-name { font-size:12px; margin-top:8px; overflow-wrap:anywhere; }
     .neutral { background:var(--divider-color); } .missing { border:1px dashed var(--secondary-text-color); opacity:.5; }
     .source-warning { color:var(--error-color); font-size:13px; }
     .box { position: relative; width: 100%; min-height: 40px; }

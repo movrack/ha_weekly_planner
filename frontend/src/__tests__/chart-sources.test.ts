@@ -112,12 +112,12 @@ describe("rendered sources on a shared timeline", () => {
   it("uses separate bounds for Celsius, percent and watts, and aligns the source state row", () => {
     const c=chart(),conf=c._plotConfig(c._model);
     expect(conf.axes.map((a:any)=>a.unit)).toEqual(["°C","%","W"]);
-    expect(conf.axes[1].lo).toBe(44);expect(conf.axes[1].hi).toBe(61);expect(conf.axes[2].lo).toBe(299);
+    expect(conf.axes[1].lo).toBe(0);expect(conf.axes[1].hi).toBe(100);expect(conf.axes[2].lo).toBe(299);
     const output=flat(c._renderChart(c._model));
     expect(output.match(/class="source-axis"/g)).toHaveLength(2);
     expect(output.match(/class="source-line"/g)).toHaveLength(2);
     expect(output).toContain(sourceColor("binary_sensor.window","on"));
-    expect(output).toContain("Other states");expect(output).not.toContain("More than three units");
+    expect(flat(c._legend(c._model))).toContain("Other states");expect(output).not.toContain("More than three units");
   });
   it("does not carry prior-day values or states through an empty or failed next day", () => {
     const points=mergeSourceDays([{start:0,end:100,history:[{t:-1,s:"on",a:{}}]}, {start:100,end:200,history:[]}]);

@@ -323,12 +323,19 @@ et les dates s’affichent sous lui. Les flèches montrent la période précéde
 - **Clavier** : `+` et `-` zooment, les flèches déplacent, `0` ou le double clic revient au jour sélectionné.
 
 **Revenir au jour sélectionné** rétablit la journée entière. La fenêtre la plus étroite est de 30 minutes.
+La légende est sous les flèches et la date : d’abord les courbes de l’appareil, puis les sources ajoutées.
+
+Le point plein indique le début d’un palier du programme ; l’anneau creux indique le retour au « reste du temps ».
+Leur ligne pointillée repère l’heure. Par exemple, lundi : point plein Comfort à 08:45, anneau Eco à 17:00.
+À minuit, un point plein montre le réglage déjà en cours, y compris celui commencé la veille.
 
 ### Comparer avec une autre entité
 
 Dans la fenêtre des horaires d’un appareil, ouvrez **Options du graphique** sous le graphique (elles n’existent pas sur la carte du tableau de bord ; les courbes choisies y restent affichées), puis **Ajouter une entité** et recherchez son nom. Le panneau est replié au départ.
 Une mesure numérique apparaît en courbe : par exemple, comparez température et humidité. Chaque unité a son échelle colorée,
 avec trois unités différentes au plus. Des courbes de même unité partagent la même échelle.
+Une échelle en % va toujours de 0 à 100 ; les autres s’adaptent aux valeurs.
+Pour une courbe à états on/off, la légende précise **on = 100, off = 0**.
 
 Pour une entité à états, cochez les états qui vous intéressent : par exemple « Ouvert » pour une fenêtre.
 Vous pouvez en cocher plusieurs, chacun a sa couleur. Les autres états restent neutres ; les données manquantes
