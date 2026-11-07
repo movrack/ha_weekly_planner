@@ -72,6 +72,10 @@
     "missing_entities": {
       "title": "Weekly Planner: entities removed",
       "description": "Some programs use entities that no longer exist: {details}. Edit these programs in the Weekly Planner card."
+    },
+    "yaml_invalid": {
+      "title": "Weekly Planner: YAML file ignored",
+      "description": "The file weekly_planner.yml in /config/www was not imported and nothing was changed: {error}. Fix the file; it is read again within 30 seconds."
     }
   }
 }

@@ -77,6 +77,7 @@ class PlannerStore:
         self.runtime: dict[str, Any] = {"entities": {}, "programs": {}}
         self.journal: list[dict[str, Any]] = []
         self.read_only = False
+        self.on_config_saved: Callable[[], None] | None = None  # YAML mirror (yaml_file.py)
 
     async def _migrate_config(self, data: dict) -> dict:
         """Version 1 -> 2, label names of other actions taken from the translated service names."""
@@ -111,10 +112,13 @@ class PlannerStore:
         self.runtime = await self._runtime.async_load() or self.runtime
         self.journal = (await self._journal.async_load() or {}).get("segments", [])
 
-    def save_config(self) -> None:
+    def save_config(self, *, mirror: bool = True) -> None:
+        """Persist the configuration; ``mirror=False`` skips the YAML file (it was just imported)."""
         if self.read_only:
             raise ConfigStoreError("configuration is read-only")
         self._config.async_delay_save(lambda: self.config, 1)
+        if mirror and self.on_config_saved is not None:
+            self.on_config_saved()
 
     def save_runtime(self) -> None:
         self._runtime.async_delay_save(lambda: self.runtime, 1)

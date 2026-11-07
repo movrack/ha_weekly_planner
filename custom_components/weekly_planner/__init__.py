@@ -11,11 +11,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
-from . import services, websocket
+from . import services, websocket, yaml_file
 from .const import DOMAIN
 from .engine import PlannerEngine
 from .frontend import async_register_card, async_unregister_card
 from .store import ConfigStoreError, PlannerStore
+from .websocket import _descriptions
+from .yaml_file import YamlSync
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,9 +53,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: WeeklyPlannerConfigEntry
 
     engine = PlannerEngine(hass, store, dict(entry.options), entry.entry_id)
     entry.runtime_data = engine
+    yaml_sync = YamlSync(hass, engine, _descriptions)
+    await yaml_sync.async_start()  # a hand-edited file is imported before the entities exist
+    store.on_config_saved = yaml_sync.schedule_write
+    entry.async_on_unload(yaml_sync.async_stop)
     await async_register_card(hass)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await engine.async_start()
+    yaml_sync.async_go_live()
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     return True
 
@@ -73,3 +80,4 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     await async_unregister_card(hass)
     store = PlannerStore(hass)
     await store.async_remove()
+    await hass.async_add_executor_job(yaml_file.remove_files, yaml_file.yaml_path(hass))
