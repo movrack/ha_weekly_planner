@@ -123,6 +123,7 @@ export class WpSlotForm extends LitElement {
   /* ---- time ---- */
 
   private _update(which: Which, spec: TimeSpec | null): void {
+    if (!spec || "time" in spec) this._limitOpen = { ...this._limitOpen, [which]: false };
     if (spec && "time" in spec) this._last = { ...this._last, [which]: spec.time };
     this._set({ [which]: spec } as never);
   }
@@ -149,6 +150,18 @@ export class WpSlotForm extends LitElement {
   /** Drops absent optional keys so saved specs stay minimal. */
   private _clean(spec: TimeSpec): TimeSpec {
     return Object.fromEntries(Object.entries(spec).filter(([, value]) => value !== undefined)) as TimeSpec;
+  }
+
+  /** Keep each boundary open while its optional bounds are still empty. */
+  @state() private _limitOpen: Record<Which, boolean> = { start: false, end: false };
+
+  private _setLimitOption(which: Which, on: boolean): void {
+    const spec = this.group.slot[which];
+    if (!spec || !("sun" in spec)) return;
+    this._limitOpen = { ...this._limitOpen, [which]: on };
+    if (on) return;
+    const { earliest: _earliest, latest: _latest, ...rest } = spec;
+    this._update(which, rest);
   }
 
   /** Sets or clears (empty value) the "not before" / "not after" limit of a solar time. */
@@ -214,7 +227,12 @@ export class WpSlotForm extends LitElement {
     </div>`;
     const meaning = solarMeaningText(lang, spec);
     const today = solarTodayText(lang, this.hass, spec);
-    return html`<div class="limits" role="group">${field("earliest")}${field("latest")}</div>
+    const open = this._limitOpen[which] || Boolean(spec.earliest || spec.latest);
+    return html`<div class="random">
+        <label><input type="checkbox" id=${`sun-option-${which}`} .checked=${open} ?disabled=${this.disabled}
+          @change=${(e: Event) => this._setLimitOption(which, (e.target as HTMLInputElement).checked)} />${t(lang, "sun_limit_option")}</label>
+      </div>
+      ${open ? html`<div class="limits" role="group">${field("earliest")}${field("latest")}</div>` : nothing}
       ${meaning || today ? html`<small class="sun-help">${meaning}${meaning && today ? " " : ""}${today}</small>` : nothing}
       ${sunBoundsInvalid(spec) ? html`<small class="bad" role="alert">${t(lang, "err_sun_bounds")}</small>` : nothing}`;
   }

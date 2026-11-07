@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+- Schedule bars and circular arcs show setting names and complete times on hover and keyboard focus, selected or not. The now marker has a wider hover area and a live minute-updating time tooltip, without intercepting edit gestures.
+- Selected schedule bars and circular views show their start and end times, updating live while dragging, with resolved solar times, overnight and one-shot labels, matching tooltips and accessible labels.
+
+### Changed
+- Solar schedule times: an optional “Limit the time (not earlier / not later)” checkbox reveals the earliest/latest fields independently for start and end. Existing limits keep it selected; clearing it removes both limits (#39).
+
 ## [0.27.0] - 2026-11-02
 
 ### Added
