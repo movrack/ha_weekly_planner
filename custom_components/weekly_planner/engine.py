@@ -183,6 +183,9 @@ class _Pass:
             return action
 
 
+PAUSE_DAYS = (1, 2, 7, 14)  # lengths of a timed pause, in days
+
+
 class PlannerEngine:
     """Owns timers, listeners and per-entity runtime state."""
 
@@ -214,6 +217,7 @@ class PlannerEngine:
         self._stopped = False
         self._deferred_states: deque[tuple[Event, datetime]] = deque()  # arrived during a pass
         self._slice_start = 0.0  # perf_counter() when the recompute last took the loop
+        self._pause_timers: dict[str, tuple[str, CALLBACK_TYPE]] = {}  # program -> (paused_until, resume timer)
         self._verify_timers: dict[str, CALLBACK_TYPE] = {}  # owner -> settle check of its last send
         self._verifying: dict[str, set[str]] = {}  # watched entity -> owners with a pending verification
         self.descriptions: dict | None = None  # service descriptions, to know which entity a service suits
@@ -229,6 +233,7 @@ class PlannerEngine:
             elif verify:
                 self._verifying.setdefault(verify["entity_id"], set()).add(owner)
         self._subscribe()
+        self._sync_pauses()
         self._static_unsubs.append(async_track_registry(self.hass, self))
         if self.hass.is_running:
             async_check_missing(self.hass, self)  # also covers weekly_planner.reload
@@ -276,6 +281,9 @@ class PlannerEngine:
         for cancel in self._verify_timers.values():
             cancel()
         self._verify_timers.clear()
+        for _until, cancel in self._pause_timers.values():
+            cancel()
+        self._pause_timers.clear()
         self._persist()
 
     def add_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
@@ -430,6 +438,7 @@ class PlannerEngine:
             "active_profile": active_profile(program, ctx.profiles)["id"],
             **self._mode_source_status(program),
             **({"verification": verification} if verification else {}),
+            **({"paused_until": program["paused_until"]} if program.get("paused_until") else {}),
             "current_slots": current,
             "next_change": nxt.isoformat() if nxt else None,
             "skip_next": skip_at,
@@ -1128,14 +1137,25 @@ class PlannerEngine:
         async with self._lock:
             await self._async_set_enabled(program_id, enabled)
 
-    async def _async_set_enabled(self, program_id: str, enabled: bool) -> None:
+    async def _async_set_enabled(self, program_id: str, enabled: bool, *, keep_pause: bool = False) -> None:
+        """Enable or suspend one program; a manual change ends any timed pause (``keep_pause``: it starts one)."""
         program = self.store.program(program_id)
-        if not program or program.get("enabled", True) == enabled:
+        if not program:
+            return
+        paused = program.get("paused_until") is not None
+        if not keep_pause:
+            program.pop("paused_until", None)
+        if program.get("enabled", True) == enabled:
+            if paused and not keep_pause:
+                self.store.save_config()
+                self._sync_pauses()
+                self._notify_listeners()
             return
         entities = [e["entity_id"] for e in program["entities"]]
         defaults = {eid: self.resolve(program, eid, default_label(program, eid)) for eid in entities}
         program["enabled"] = enabled
         self.store.save_config()
+        self._sync_pauses()
         if not self._ready:
             # Publish configuration immediately, but keep device actions behind startup stabilization.
             self._notify_listeners()
@@ -1154,6 +1174,50 @@ class PlannerEngine:
                     await self.async_apply(eid, "disable")
                     self.rt(eid)["target"] = None
         await self._async_recompute("disable")
+
+    async def async_pause(self, program_id: str, days: int | None) -> None:
+        """Suspend one program for ``days`` x 24 h from now (``None``: cancel its pause and resume it now)."""
+        if days is not None and days not in PAUSE_DAYS:
+            raise ServiceValidationError(f"A pause lasts {', '.join(map(str, PAUSE_DAYS))} days")
+        async with self._lock:
+            program = self.store.program(program_id)
+            if not program:
+                raise ServiceValidationError("Unknown program")
+            if days is None:
+                if program.get("paused_until"):  # only a pause is cancelled; a plain suspension stays
+                    await self._async_set_enabled(program_id, True)
+                return
+            program["paused_until"] = (dt_util.utcnow() + timedelta(days=days)).isoformat()
+            if program.get("enabled", True):
+                await self._async_set_enabled(program_id, False, keep_pause=True)  # default applied once
+            else:
+                self.store.save_config()
+                self._sync_pauses()
+                self._notify_listeners()
+
+    @callback
+    def _sync_pauses(self) -> None:
+        """One timer per paused program, at its stored resume time (a past time fires at once)."""
+        wanted = {p["id"]: p["paused_until"] for p in self.store.programs if p.get("paused_until")}
+        for pid in [pid for pid, (until, _) in self._pause_timers.items() if wanted.get(pid) != until]:
+            self._pause_timers.pop(pid)[1]()
+        if self._stopped:
+            return
+        for pid, until in wanted.items():
+            if pid not in self._pause_timers:
+                self._pause_timers[pid] = (until, async_track_point_in_utc_time(
+                    self.hass, partial(self._on_pause_end, pid, until), dt_util.parse_datetime(until)))
+
+    @callback
+    def _on_pause_end(self, program_id: str, until: str, _now: datetime) -> None:
+        self._pause_timers.pop(program_id, None)
+        self.hass.async_create_task(self._async_end_pause(program_id, until))
+
+    async def _async_end_pause(self, program_id: str, until: str) -> None:
+        async with self._lock:
+            program = self.store.program(program_id)
+            if program and program.get("paused_until") == until:  # not changed or cancelled meanwhile
+                await self._async_set_enabled(program_id, True)
 
     async def async_set_vacation(self, on: bool) -> None:
         async with self._lock:
@@ -1257,6 +1321,7 @@ class PlannerEngine:
         self._release_removed()
         await self.async_load_descriptions()
         self._subscribe()
+        self._sync_pauses()
         self._observe_all_conditions()
         if self._ready:
             async_check_missing(self.hass, self)  # programs/entities edited: refresh the repair issue

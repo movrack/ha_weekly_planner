@@ -19,6 +19,7 @@ target entity accepts.
 3. **Actions** (`weekly_planner.*`, fields in `services.yaml` in this folder):
    - `apply_now` (`program_id`) — reapply the program's desired state now;
    - `skip_next` (`program_id`, `cancel`) — skip the next change once;
+   - `pause` (`program_id`, `days`: 1, 2, 7 or 14) — suspend a program, it resumes by itself; `resume` (`program_id`) — resume now;
    - `reload` — reload the integration and re-read the YAML file.
 4. **Why did something (not) happen?** Program switch attributes, Repairs (missing entities, invalid
    YAML), the logbook and the Home Assistant log (`custom_components.weekly_planner`).

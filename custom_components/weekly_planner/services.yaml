@@ -16,4 +16,28 @@ skip_next:
       selector:
         boolean:
 
+pause:
+  fields:
+    program_id:
+      required: true
+      selector:
+        text:
+    days:
+      required: true
+      default: "1"
+      selector:
+        select:
+          options:
+            - "1"
+            - "2"
+            - "7"
+            - "14"
+
+resume:
+  fields:
+    program_id:
+      required: true
+      selector:
+        text:
+
 reload:

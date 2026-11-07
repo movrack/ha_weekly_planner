@@ -63,6 +63,30 @@
         }
       }
     },
+    "pause": {
+      "name": "Mettre en pause",
+      "description": "Suspend un programme pendant quelques jours, puis le reprend automatiquement.",
+      "fields": {
+        "program_id": {
+          "name": "Programme",
+          "description": "Programme à mettre en pause."
+        },
+        "days": {
+          "name": "Jours",
+          "description": "Durée de la pause, en jours."
+        }
+      }
+    },
+    "resume": {
+      "name": "Reprendre",
+      "description": "Reprend tout de suite un programme en pause.",
+      "fields": {
+        "program_id": {
+          "name": "Programme",
+          "description": "Programme à reprendre."
+        }
+      }
+    },
     "reload": {
       "name": "Recharger",
       "description": "Recharge Weekly Planner."

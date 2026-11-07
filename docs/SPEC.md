@@ -742,13 +742,14 @@ Plan détaillé : [PLAN_CHART_ALIGNMENT.md](PLAN_CHART_ALIGNMENT.md).
 Ces trois demandes sont **non implémentées**. Chaque point ci-dessous reste une question ouverte : ne rien coder avant la réponse du propriétaire, puis enregistrer la décision dans `docs/DECISIONS.md`.
 
 ### 37.1 Mettre un programme en pause (1 jour, 2 jours, 1 semaine, 2 semaines)
-- [ ] Bouton « Mettre en pause » avec quatre durées : 1 jour, 2 jours, 1 semaine, 2 semaines.
-- Questions :
-  - Portée : un programme, un appareil, ou toute la maison ? Quel rapport avec l’interrupteur de pause global existant et avec le mode Vacances ?
-  - Début et fin : depuis maintenant, ou jusqu’à minuit ? « 1 jour » = 24 h ou jusqu’à la fin de la journée ? Reprise automatique à l’échéance, avec ou sans réapplication de l’état voulu (§ 5.5) ?
-  - Pendant la pause : les appareils restent tels quels, ou une action est appliquée au début ?
-  - Annulation anticipée, décompte visible (« reprend le … »), survie à un redémarrage de Home Assistant (échéance stockée, pas un minuteur).
-  - Emplacement du bouton (carte, mode simple « mamy », fenêtre du programme) et droits des non-administrateurs.
+- [ ] Bouton « Mettre en pause » avec quatre durées : 1 jour, 2 jours, 1 semaine, 2 semaines (backend fait, interface de la carte à faire).
+- Comportement décidé (2026-11-07, `engine.async_pause`) :
+  - Portée : un seul programme ; la pause est l’état « suspendu » existant (`enabled: false`, défaut appliqué une fois aux appareils libérés) plus `paused_until` (UTC ISO, dans la configuration, miroir YAML compris). Les autres programmes, le mode Vacances et l’interrupteur global ne sont pas touchés.
+  - Début : maintenant ; fin : exactement 1, 2, 7 ou 14 × 24 h plus tard ; toute autre durée est refusée. Pauser un programme déjà suspendu change seulement l’échéance.
+  - Reprise automatique à l’échéance (un minuteur par programme), même après un redémarrage (échéance passée : reprise à la fin de la stabilisation) ; chemin identique à une activation manuelle, l’état voulu est réappliqué.
+  - Activer ou désactiver à la main (interrupteur, carte, `set_enabled`) efface l’échéance ; annuler = activer. Une désactivation manuelle est une pause sans fin.
+  - API : `weekly_planner/program/pause` `{program_id, days: 1|2|7|14|null}` (`null` = reprendre), services `weekly_planner.pause` et `weekly_planner.resume` ; `paused_until` dans chaque programme et dans `status[id]` du snapshot et les attributs de l’interrupteur.
+  - Reste à faire : bouton, décompte « reprend le … », droits dans la carte (mode simple « mamy »).
 
 ### 37.2 Sélecteur de mode / saison
 - [ ] Sélecteur permettant de choisir le mode (semaine type) ou la saison depuis la carte.

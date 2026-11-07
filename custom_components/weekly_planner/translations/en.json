@@ -63,6 +63,30 @@
         }
       }
     },
+    "pause": {
+      "name": "Pause",
+      "description": "Suspend a program for a number of days, then resume it automatically.",
+      "fields": {
+        "program_id": {
+          "name": "Program",
+          "description": "Program to pause."
+        },
+        "days": {
+          "name": "Days",
+          "description": "How long the pause lasts, in days."
+        }
+      }
+    },
+    "resume": {
+      "name": "Resume",
+      "description": "Resume a paused program now.",
+      "fields": {
+        "program_id": {
+          "name": "Program",
+          "description": "Program to resume."
+        }
+      }
+    },
     "reload": {
       "name": "Reload",
       "description": "Reload Weekly Planner."

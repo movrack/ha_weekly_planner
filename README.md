@@ -286,6 +286,21 @@ data:
 ```
 
 ```yaml
+# Pause a program for 1, 2, 7 or 14 days; it resumes by itself (even after a restart).
+action: weekly_planner.pause
+data:
+  program_id: YOUR_PROGRAM_ID
+  days: 7
+```
+
+```yaml
+# Resume a paused program now.
+action: weekly_planner.resume
+data:
+  program_id: YOUR_PROGRAM_ID
+```
+
+```yaml
 # Reload this integration and register the current card bundle.
 action: weekly_planner.reload
 ```

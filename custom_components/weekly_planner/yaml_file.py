@@ -27,7 +27,7 @@ from homeassistant.util import dt as dt_util
 from .const import DOMAIN
 from .slots import normalise_slot_entities, remove_device_from_slots
 from .store import PlannerStore, new_id
-from .validation import check_label, check_program
+from .validation import check_label, check_program, keep_pause
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -286,7 +286,8 @@ class YamlSync:
             if program["id"] in seen:
                 raise ValueError(f"duplicate program id {program['id']}")
             seen.add(program["id"])
-            program = self._clean_slot_entities(self.store.program(program["id"]), program)
+            existing = self.store.program(program["id"])
+            program = keep_pause(existing, self._clean_slot_entities(existing, program), keep_enabled=False)
             programs.append(check_program(program, labels, self.hass, descriptions,
                                           self.engine.reapply_default))
         return list(labels.values()), programs, raw.get("vacation", False)

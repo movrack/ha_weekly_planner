@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -155,6 +155,20 @@ ENTITY = vol.Schema({
     vol.Optional("chart_sources"): _chart_sources,
 })
 
+def _utc_datetime(value: str | datetime) -> str:
+    """An ISO date-time with an offset, normalised to UTC (a timer needs an unambiguous moment).
+
+    A hand-edited YAML file may hold an unquoted date-time, which the parser turns into a datetime.
+    """
+    try:
+        moment = value if isinstance(value, datetime) else datetime.fromisoformat(value)
+    except (ValueError, TypeError) as err:
+        raise vol.Invalid("invalid_paused_until") from err
+    if moment.tzinfo is None:
+        raise vol.Invalid("invalid_paused_until")
+    return moment.astimezone(UTC).isoformat()
+
+
 PROGRAM = vol.Schema({
     vol.Required("id"): str,
     vol.Optional("revision", default=0): int,
@@ -164,6 +178,7 @@ PROGRAM = vol.Schema({
     vol.Optional("area"): vol.Any(None, str),
     vol.Optional("priority", default=DEFAULT_PRIORITY): vol.All(int, vol.Range(min=1, max=100)),
     vol.Optional("enabled", default=True): bool,
+    vol.Optional("paused_until"): vol.Any(None, _utc_datetime),
     vol.Optional("reapply", default=True): bool,
     vol.Optional("conditions", default=list): [CONDITION],
     vol.Required("entities"): vol.All([ENTITY], vol.Length(min=1, max=100)),
@@ -233,6 +248,17 @@ def with_defaults(program: dict, reapply_default: bool = DEFAULT_REAPPLY) -> dic
     return {"reapply": reapply_default, **program}
 
 
+def keep_pause(existing: dict | None, program: dict, *, keep_enabled: bool) -> dict:
+    """Editing a paused program never ends its pause: carry over ``paused_until`` unless the new data names one.
+
+    ``keep_enabled``: also keep the program suspended (the card saves whole programs, possibly stale).
+    """
+    if existing and existing.get("paused_until") and "paused_until" not in program and (
+            keep_enabled or program.get("enabled") is False):
+        program = {**program, "paused_until": existing["paused_until"], "enabled": False}
+    return program
+
+
 def check_program(program: dict, labels: dict[str, dict], hass: Any = None, descriptions: dict | None = None,
                   reapply_default: bool = DEFAULT_REAPPLY) -> dict:
     """Schema + semantic rules: unique profile names, known labels, valid overrides, no overlap on a day.
@@ -240,6 +266,8 @@ def check_program(program: dict, labels: dict[str, dict], hass: Any = None, desc
     A program saved without ``reapply`` takes ``reapply_default`` (the integration option).
     """
     program = PROGRAM(with_defaults(program, reapply_default))
+    if program.get("enabled", True) or program.get("paused_until") is None:
+        program.pop("paused_until", None)  # only a suspended program can wait for a resume time
     source = program.get("mode_source")
     if source:
         profile_ids = {p["id"] for p in program["profiles"]}

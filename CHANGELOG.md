@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [Unreleased]
 
 ### Added
+- Timed pause of a program (backend): `weekly_planner/program/pause` (1, 2, 7 or 14 days, or `null` to resume), services `weekly_planner.pause` and `weekly_planner.resume`, `paused_until` on the program, its status and its switch attributes; the program resumes by itself, even after a restart (card button to come).
 - Agent documentation shipped with the integration: `AI_GUIDE.md`, a validated annotated `example.yml` and a root `llms.txt`, so an AI agent can discover, configure (YAML file) and verify an installed release.
 - Programs are mirrored in `/config/www/weekly_planner.yml`: written after every save in the card, re-imported when edited by hand (validated like the card; an invalid file changes nothing and raises a repair issue). The file is public at `/local/weekly_planner.yml`.
 - Schedule bars and circular arcs show setting names and complete times on hover and keyboard focus, selected or not. The now marker has a wider hover area and a live minute-updating time tooltip, without intercepting edit gestures.

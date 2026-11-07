@@ -275,6 +275,21 @@ data:
 ```
 
 ```yaml
+# Mettre un programme en pause 1, 2, 7 ou 14 jours ; il reprend tout seul (même après un redémarrage)
+action: weekly_planner.pause
+data:
+  program_id: YOUR_PROGRAM_ID
+  days: 7
+```
+
+```yaml
+# Reprendre tout de suite un programme en pause
+action: weekly_planner.resume
+data:
+  program_id: YOUR_PROGRAM_ID
+```
+
+```yaml
 # Recharger l’intégration et enregistrer le bundle courant
 action: weekly_planner.reload
 ```

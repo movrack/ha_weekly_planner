@@ -15,13 +15,13 @@ from homeassistant.util import dt as dt_util
 
 from .const import CONF_ADMIN_ONLY, DEFAULT_PRIORITY, DOMAIN
 from .checks import program_warnings
-from .engine import PlannerEngine
+from .engine import PAUSE_DAYS, PlannerEngine
 from .frontend import CARD_VERSION_KEY
 from .resolver import OccurrenceCache, active_profile, occurrences_around
 from .slots import normalise_slot_entities, remove_device_from_slots
 from .store import new_id
 from .actions import needs_admin
-from .validation import PROGRAM, ProgramError, admin_required, check_label, check_program, label_users, with_defaults
+from .validation import PROGRAM, ProgramError, admin_required, check_label, check_program, keep_pause, label_users, with_defaults
 
 
 async def _descriptions(hass: HomeAssistant) -> dict | None:
@@ -56,7 +56,7 @@ def _editor_engine(hass: HomeAssistant, connection, msg) -> PlannerEngine | None
 @callback
 def async_register(hass: HomeAssistant) -> None:
     for handler in (ws_get, ws_subscribe, ws_program_save, ws_program_delete, ws_label_save,
-                    ws_label_delete, ws_preview, ws_journal, ws_set_enabled, ws_set_profile):
+                    ws_label_delete, ws_preview, ws_journal, ws_set_enabled, ws_pause, ws_set_profile):
         websocket_api.async_register_command(hass, handler)
 
 
@@ -214,6 +214,7 @@ async def ws_program_save(hass, connection, msg) -> None:
     if existing and existing.get("revision", 0) != program.get("revision", 0):
         connection.send_error(msg["id"], "conflict", "Modified elsewhere, reload")
         return
+    program = keep_pause(existing, program, keep_enabled=True)  # an edit never ends a pause
     chart_metadata_only = _chart_metadata_only(existing, program, engine.reapply_default)
     inactive_mode_edit = bool(existing) and _is_inactive_mode_edit(engine, existing, program)
     program["revision"] = program.get("revision", 0) + 1
@@ -388,6 +389,22 @@ async def ws_set_enabled(hass, connection, msg) -> None:
         connection.send_error(msg["id"], "not_found", "Unknown program")
         return
     await engine.async_set_enabled(msg["program_id"], msg["enabled"])
+    connection.send_result(msg["id"])
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/program/pause",
+    vol.Required("program_id"): str,
+    vol.Required("days"): vol.Any(None, vol.In(PAUSE_DAYS)),
+})
+@websocket_api.async_response
+async def ws_pause(hass, connection, msg) -> None:
+    """Suspend a program for 1, 2, 7 or 14 days (``days`` null: resume now); open to everyone like set_enabled."""
+    engine = _engine(hass)
+    if engine is None or engine.store.program(msg["program_id"]) is None:
+        connection.send_error(msg["id"], "not_found", "Unknown program")
+        return
+    await engine.async_pause(msg["program_id"], msg["days"])
     connection.send_result(msg["id"])
 
 
