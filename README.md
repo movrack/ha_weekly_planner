@@ -11,10 +11,10 @@ settings, with optional end times and a per-entity default action. Discovery use
 Home Assistant metadata, without a device-brand catalogue.
 
 This README is for Home Assistant integrators. For household users, use the
-[illustrated French guide](docs/GUIDE.fr.md) and [screen atlas](docs/SCREENS.fr.md).
+[illustrated French guide](wiki/GUIDE.fr.md) and [screen atlas](wiki/SCREENS.fr.md).
 
-<a href="docs/SCREENS.fr.md#s01"><img src="docs/images/guide/s01-overview.png" width="300" alt="Weekly Planner overview" /></a>
-<a href="docs/SCREENS.fr.md#s03"><img src="docs/images/guide/s03-radial.png" width="300" alt="Single-program 24-hour dial" /></a>
+<a href="wiki/SCREENS.fr.md#s01"><img src="wiki/images/guide/s01-overview.png" width="300" alt="Weekly Planner overview" /></a>
+<a href="wiki/SCREENS.fr.md#s03"><img src="wiki/images/guide/s03-radial.png" width="300" alt="Single-program 24-hour dial" /></a>
 
 This project was developed with the assistance of AI agents.
 
@@ -39,7 +39,7 @@ mechanism. The served module is
 `/weekly_planner_static/weekly-planner-card.js?v=<content-hash>`.
 
 Do not add another integration entry to create another program. Use **Program
-settings → New program** in the card editor. See [S36](docs/SCREENS.fr.md#s36).
+settings → New program** in the card editor. See [S36](wiki/SCREENS.fr.md#s36).
 
 ## Additional chart sources
 
@@ -257,7 +257,7 @@ calendar date unless an external automation changes their source.
 The per-program HA profile `select` remains available for manual selection using
 `select.select_option`. The global switch is a separate **Suspension of all
 programs** control. See the
-[mode reference](docs/MODES.md) and [native-action examples](docs/GENERIC_ACTIONS.md).
+[mode reference](wiki/MODES.md) and [native-action examples](wiki/GENERIC_ACTIONS.md).
 
 ## Created entities and HA actions
 

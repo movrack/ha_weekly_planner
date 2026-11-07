@@ -39,7 +39,9 @@ montrent le lever et le coucher.
 [Double cadran actuel S44](SCREENS.fr.md#s44).
 
 Toucher une ligne compacte déplie sa barre. Toucher le calendrier ouvre les
-horaires. Toucher un cadran ouvre aussi les horaires ; ses arcs ne se déplacent pas.
+horaires. Un clic ou un appui long sur un cadran permet de modifier ses arcs avec les poignées.
+
+Quand un réglage est sélectionné, ses heures restent visibles au-dessus de la barre, au centre du cadran simple ou sous le cercle pour le double cadran et les textes longs, même sur téléphone. Elles se mettent à jour pendant le déplacement ou le glissé d’une poignée. Pour un horaire solaire, l’heure calculée est précisée avec le lever ou le coucher du soleil. « Dès » indique une action sans fin ; « lendemain » indique une fin après minuit. Au survol ou au focus clavier, chaque réglage affiche son nom et ses heures, sélectionné ou non, dans les barres comme sur les cercles. Le trait « maintenant » affiche l’heure actuelle au survol ou au focus, actualisée chaque minute. Sa zone de survol dépasse le trait pour le rendre facile à viser, sans gêner les poignées. Les mêmes informations sont accessibles aux lecteurs d’écran.
 
 ## Je veux du confort le matin et le soir
 
@@ -212,7 +214,9 @@ dans **Le reste du temps**, choisir le réglage d’ouverture.
 
 L’heure du coucher suit le soleil du lieu enregistré dans Home Assistant.
 L’action part à la minute exacte calculée (par exemple 17 h 17), décalage compris.
-**Au plus tôt à** et **Au plus tard à** (facultatifs) l’empêchent de sortir d’une plage.
+Pour garder l’action dans une plage horaire, cocher **Limiter l’heure (au plus tôt / au plus tard)**,
+puis renseigner **Au plus tôt à**, **Au plus tard à**, ou les deux. Cette option se règle
+séparément pour le début et la fin solaires. Décocher la case retire les deux limites.
 Voir [l’écran solaire S09](SCREENS.fr.md#s09).
 
 **Sans fin** sert à lancer une action une seule fois à son début, sans action de
@@ -389,4 +393,4 @@ droits de modification avec la personne qui a installé la carte.
   de test, dont **Profil Bureau**. S21 utilise un enregistrement simulé en mémoire,
   sans écriture de programme ni commande d’appareil. Ce n’est pas un essai physique.
 
-[Voir tous les écrans dans l’atlas](SCREENS.fr.md) · [Inventaire](SCREEN_INVENTORY.md)
+[Voir tous les écrans dans l’atlas](SCREENS.fr.md)

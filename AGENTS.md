@@ -9,7 +9,7 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
 - Home Assistant integration (domain `weekly_planner`) that ships its own Lovelace card; distributed
   through HACS.
 - Read `docs/SPEC.md` (specification and task lists) and `docs/DECISIONS.md` (decisions already made)
-  before any change. Deferred ideas: `docs/IDEES.md`. Tick the tasks in the spec as they are done.
+  before any change. Official user documentation lives in `wiki/`. Tick the tasks in the spec as they are done.
 
 ## Model
 - **Keep discovery generic**: never hardcode a catalogue/allowlist of supported device types, brands,
@@ -87,15 +87,15 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
   (Keep a Changelog).
 - **Branches**: work on `develop`; `main` only receives releases approved by the maintainer. Changes go
   through an issue (`bug` or `change request`) and a pull request that references it.
-  When the owner approves a plan for implementation, save it in `docs/` and create or update its GitHub
+  When the owner approves a plan for implementation, save it in `docs/PLAN_<name>.md` and create or update its GitHub
   tracking issue with the task checklist at implementation start, without waiting for completion.
 - **No secrets** in the repository: no tokens, passwords, addresses or personal data. The local test
   instance under `dev/` stays untracked.
 - Code, commits, README and CHANGELOG in English; `README.fr.md` in French.
-- Before the v1.0.0 release, ALL screenshots (docs/images/guide, wiki images) must be redone from the final UI; until then screenshots may lag but are never labelled with versions.
+- Before the v1.0.0 release, ALL screenshots (`wiki/images/guide`) must be redone from the final UI; until then screenshots may lag but are never labelled with versions.
 - Renumber the screen atlas at the v1.0.0 release (gaps allowed until then).
 - User-facing docs (wiki, guide, READMEs) describe only the current product: no history, no "old/former/replaced" wording, no version-dated captions; history lives in CHANGELOG/DECISIONS.
-- Documentation: `docs/` stays the source (French only for the wiki; README.md English, README.fr.md French, kept in sync). The GitHub wiki (https://github.com/movrack/ha_weekly_planner/wiki) is a published copy, first published on 2026-10-31. Pages: Home, _Sidebar, Guide-utilisateur (docs/GUIDE.fr.md), Atlas-des-ecrans (docs/SCREENS.fr.md + images/guide/), Actions-generiques (docs/GENERIC_ACTIONS.md, translated), Modes (docs/MODES.md, translated), Configuration-YAML-de-la-carte (README.fr.md "Configuration de la carte"), Integrateurs (README.fr.md model to storage/limits). Never publish SPEC, DECISIONS, quick_todo, controle-visuel*, MAMY_REVIEW*, SCREEN_INVENTORY. Resync by hand: clone `https://github.com/movrack/ha_weekly_planner.wiki.git` into a new dir (the existing `~/Dev/wp-wiki` clone may be reused after `git pull`) under `~/Dev/`, regenerate each page from its source (HTML thumbnails become `![alt](images/guide/x.png)`, links to `SCREENS.fr.md#sNN` become `Atlas-des-ecrans`, repo file links become absolute GitHub URLs), copy the images, check every link resolves, then commit (Conventional Commits, no trailers, outside Mon-Fri 08:00-17:00) and push to `master`. Update the wiki in the same session as any change to these sources.
+- Documentation: `wiki/` is the official source of the user docs (French only; `docs/` holds only internal project files: SPEC, DECISIONS, quick_todo, SCREEN_INVENTORY and the plan of work in progress; delete a plan when its work is done, the decision stays in DECISIONS; README.md English, README.fr.md French, kept in sync). The GitHub wiki (https://github.com/movrack/ha_weekly_planner/wiki) is a published copy, first published on 2026-10-31. Pages: Home, _Sidebar, Guide-utilisateur (wiki/GUIDE.fr.md), Atlas-des-ecrans (wiki/SCREENS.fr.md + images/guide/), Actions-generiques (wiki/GENERIC_ACTIONS.md, translated), Modes (wiki/MODES.md, translated), Configuration-YAML-de-la-carte (README.fr.md "Configuration de la carte"), Integrateurs (README.fr.md model to storage/limits). Never publish anything from `docs/`. Resync by hand: clone `https://github.com/movrack/ha_weekly_planner.wiki.git` into a new dir (the existing `~/Dev/wp-wiki` clone may be reused after `git pull`) under `~/Dev/`, regenerate each page from its source (HTML thumbnails become `![alt](images/guide/x.png)`, links to `SCREENS.fr.md#sNN` become `Atlas-des-ecrans`, repo file links become absolute GitHub URLs), copy the images, check every link resolves, then commit (Conventional Commits, no trailers, outside Mon-Fri 08:00-17:00) and push to `master`. Update the wiki in the same session as any change to these sources.
 
 ## User interface
 - Reference screen: 360 × 780 px CSS (a common phone), then ≥ 1400 px; light and dark themes.

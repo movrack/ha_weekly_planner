@@ -3,7 +3,7 @@
 Inventory date: 2026-10-29. Current target: Weekly Planner 0.16.2. S01–S36 are historical 0.10.0 captures.
 
 This source-derived checklist tracks the canonical captures under
-`docs/images/guide/`; see the completion record below for actual capture status. Use synthetic local
+`wiki/images/guide/`; see the completion record below for actual capture status. Use synthetic local
 test programs and friendly device names. Do not expose production addresses,
 tokens, personal names or configuration secrets.
 

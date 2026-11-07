@@ -11,10 +11,10 @@ facultative et une action par défaut par entité. La découverte repose sur les
 métadonnées Home Assistant, sans catalogue de marques ou d’appareils.
 
 Ce README s’adresse aux intégrateurs Home Assistant. Pour les utilisateurs de la
-maison : [guide illustré pas à pas](docs/GUIDE.fr.md) et
-[atlas des écrans](docs/SCREENS.fr.md).
+maison : [guide illustré pas à pas](wiki/GUIDE.fr.md) et
+[atlas des écrans](wiki/SCREENS.fr.md).
 
-<a href="docs/GUIDE.fr.md"><img src="docs/images/guide/s01-overview.png" width="300" alt="Vue d’ensemble de Weekly Planner" /></a>
+<a href="wiki/GUIDE.fr.md"><img src="wiki/images/guide/s01-overview.png" width="300" alt="Vue d’ensemble de Weekly Planner" /></a>
 
 Ce projet a été réalisé avec l’aide d’agents d’intelligence artificielle.
 
@@ -245,8 +245,8 @@ n’est implicite : une automatisation externe peut changer la source.
 Le `select` de profil HA reste disponible en sélection manuelle via
 `select.select_option`. L’interrupteur global **Suspension de tous les programmes** est une
 commande distincte.
-Voir la [référence des modes](docs/MODES.md) et les
-[exemples d’actions natives](docs/GENERIC_ACTIONS.md).
+Voir la [référence des modes](wiki/MODES.md) et les
+[exemples d’actions natives](wiki/GENERIC_ACTIONS.md).
 
 ## Entités et services HA
 
