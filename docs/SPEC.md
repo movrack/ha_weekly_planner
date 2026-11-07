@@ -759,12 +759,22 @@ Ces trois demandes sont **non implémentées**. Chaque point ci-dessous reste un
   - Changement manuel ou automatique (calendrier de saisons) ; que se passe-t-il à la prochaine bascule automatique ?
 
 ### 37.3 Configuration des programmes par un fichier YAML
-- [ ] Les programmes se configurent facilement dans un fichier YAML situé dans `/config/www/weekly_planner.yml`.
-- [ ] Toute modification faite dans l’interface enregistre ou met à jour ce fichier.
-- Points d’attention et questions :
-  - **Confidentialité** : `/config/www/` est servi sans authentification à l’adresse `/local/weekly_planner.yml`. Ce fichier révélerait les horaires de présence et d’absence (volets, chauffage, vacances) à quiconque connaît l’adresse. Garder ce chemin, ou utiliser `/config/weekly_planner.yml` (non exposé) ?
-  - Source de vérité : le fichier ou le stockage interne ? Modification du fichier à la main : relecture automatique, ou service `weekly_planner.reload` ? Que fait l’interface si le fichier a changé entre-temps (conflit) ?
-  - Écriture : les commentaires et l’ordre du fichier écrit à la main sont perdus à la réécriture ; accepter, ou fichier généré seulement ?
-  - Contenu : programmes, réglages (étiquettes), horaires, modes/saisons, conditions ; identifiants stables ; fichier de départ créé à partir des données existantes.
-  - Erreurs : fichier invalide, entité inconnue → afficher l’erreur sans écraser l’état courant, ne jamais appliquer un fichier à moitié lu.
-  - Droits et sécurité : écriture dans `/config` par l’intégration, pas de secrets dans le fichier, utilisation sans accès disque (HAOS, conteneur).
+- [x] Les programmes se configurent facilement dans un fichier YAML situé dans `/config/www/weekly_planner.yml`.
+- [x] Toute modification faite dans l’interface enregistre ou met à jour ce fichier.
+- Comportement décidé (2026-11-07, `yaml_file.py`) :
+  - Le stockage `.storage` reste la référence ; le fichier est un miroir généré (version, vacances, réglages, programmes ; ni état d’exécution ni journal), réécrit ~2 s après chaque enregistrement de l’interface (commentaires et ordre non conservés), créé au démarrage s’il manque.
+  - Modification à la main : relue toutes les 30 s, au démarrage et par `weekly_planner.reload` ; validée avec les règles des commandes websocket avant tout changement, puis importée sans réécriture (hash dans `runtime.yaml_hash`).
+  - Fichier vide, non mappé ou invalide : rien ne change, fichier non touché, problème de réparation `yaml_invalid` effacé dès que le fichier est valide ; un enregistrement de l’interface le copie d’abord en `weekly_planner.yml.invalid`.
+  - Confidentialité : `/config/www` est public sans authentification (`/local/weekly_planner.yml`) ; avertissement dans l’en-tête du fichier et les README. Supprimer l’intégration supprime le fichier.
+
+## 38. Échelle de qualité Home Assistant — niveau Bronze (2026-11-07)
+
+Objectif du propriétaire : suivre l’échelle de qualité des intégrations de Home Assistant et atteindre le premier niveau, **Bronze** (auto-déclaré : intégration HACS, pas de badge officiel). Recherche complète, état règle par règle et étude Silver / Gold (non visés) : `docs/PLAN_QUALITY_SCALE.md`.
+
+- [ ] Créer `quality_scale.yaml` (règles Bronze `done` ou `exempt` motivé ; Silver et Gold en `todo`).
+- [ ] Extraire un socle d’entité commun (`entity.py`) pour `switch.py` et `select.py` (règle `common-modules`), sans changer les identifiants ni les noms.
+- [ ] Documenter la désinstallation (README anglais et français) (règle `docs-removal-instructions`).
+- [ ] Relire la documentation des actions (champs et exemple de chaque action).
+- [ ] Test automatique de cohérence de `quality_scale.yaml` ; `hassfest` et HACS restent verts en CI.
+- [ ] Noter le niveau visé et les exemptions dans `docs/DECISIONS.md` et une ligne dans le README.
+- Silver et Gold : étudiés seulement, non planifiés.

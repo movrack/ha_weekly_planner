@@ -348,6 +348,50 @@ once. Shared-setting saves merge against their original draft base to preserve
 unrelated concurrent schedule changes. A conflict in the same setting is reported
 rather than overwriting it. There is no public `weekly_planner.set_profile` action.
 
+## YAML file
+
+Programs can also be edited as text. Weekly Planner keeps a mirror of its configuration (global
+vacation flag, settings and programs, not the runtime state) in `/config/www/weekly_planner.yml`.
+The `.storage` data stays the source of truth while Home Assistant runs; the file is a readable copy
+that you may edit.
+
+```yaml
+version: 1
+vacation: false
+labels:
+  - id: comfort
+    name: Comfort
+    color: "#ff9800"
+    action: {kind: service, service: climate.set_temperature, data: {temperature: 21}}
+programs:
+  - id: living
+    name: Living room
+    entities: [{entity_id: climate.living, default_label: eco, label_overrides: {}}]
+    profiles: [...]   # same structure as the card saves
+```
+
+- **Edit in the card**: the file is written about 2 seconds after the save (and created at startup
+  when missing). Comments and ordering are rewritten each time. Deleting the file recreates it.
+- **Edit by hand**: a changed file is read within 30 seconds, at startup and by the
+  `weekly_planner.reload` action. It is validated with the same rules as the card; only a fully valid
+  file replaces the programs, labels and vacation flag (programs missing from the file are removed).
+- **Invalid file** (syntax, unknown setting, overlap, empty file...): nothing changes, the file is
+  left as is and a repair issue shows the error. It disappears once the file is valid. If you save in
+  the card meanwhile, the invalid file is first kept as `weekly_planner.yml.invalid`.
+- Removing the integration deletes the file.
+
+> **Warning:** `/config/www` is served **without authentication** at
+> `http://<your-ha>/local/weekly_planner.yml`. The schedules reveal when the house is occupied or
+> empty. Do not expose this address to the internet (reverse proxy, port forwarding).
+
+## For AI agents
+
+An installed release ships its own agent documentation in `custom_components/weekly_planner/`:
+[`AI_GUIDE.md`](custom_components/weekly_planner/AI_GUIDE.md) (discover, configure through the YAML file,
+verify, cautions), [`example.yml`](custom_components/weekly_planner/example.yml) (annotated, validated by
+the tests) and `services.yaml`. [`llms.txt`](llms.txt) indexes them for agents that browse the web.
+Agents working on this repository read [`AGENTS.md`](AGENTS.md).
+
 ## Known UI limits and diagnostics
 
 - The area filter matches program metadata, not HA entity areas.

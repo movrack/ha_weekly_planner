@@ -336,6 +336,53 @@ une fois. Les réglages sont fusionnés avec leur base de brouillon pour préser
 les horaires modifiés ailleurs. Un conflit sur le même réglage est signalé plutôt
 qu’écrasé. Il n’existe pas de service public `weekly_planner.set_profile`.
 
+## Fichier YAML
+
+Les programmes peuvent aussi se modifier comme du texte. Weekly Planner garde une copie de sa
+configuration (vacances, réglages et programmes, sans l'état d'exécution) dans
+`/config/www/weekly_planner.yml`. Les données `.storage` restent la référence pendant que Home
+Assistant tourne ; le fichier est une copie lisible que vous pouvez modifier.
+
+```yaml
+version: 1
+vacation: false
+labels:
+  - id: comfort
+    name: Confort
+    color: "#ff9800"
+    action: {kind: service, service: climate.set_temperature, data: {temperature: 21}}
+programs:
+  - id: living
+    name: Salon
+    entities: [{entity_id: climate.living, default_label: eco, label_overrides: {}}]
+    profiles: [...]   # même structure que celle enregistrée par la carte
+```
+
+- **Modification dans la carte** : le fichier est écrit environ 2 secondes après l'enregistrement
+  (et créé au démarrage s'il manque). Commentaires et ordre sont réécrits à chaque fois. Supprimer le
+  fichier le recrée.
+- **Modification à la main** : un fichier modifié est relu dans les 30 secondes, au démarrage et par
+  l'action `weekly_planner.reload`. Il est validé avec les mêmes règles que la carte ; seul un fichier
+  entièrement valide remplace les programmes, réglages et l'état vacances (un programme absent du
+  fichier est supprimé).
+- **Fichier invalide** (syntaxe, réglage inconnu, chevauchement, fichier vide...) : rien ne change, le
+  fichier n'est pas touché et un problème de réparation affiche l'erreur ; il disparaît quand le
+  fichier redevient valide. Si vous enregistrez dans la carte entre-temps, le fichier invalide est
+  d'abord conservé sous `weekly_planner.yml.invalid`.
+- La suppression de l'intégration supprime le fichier.
+
+> **Attention :** `/config/www` est servi **sans authentification** à l'adresse
+> `http://<votre-ha>/local/weekly_planner.yml`. Les horaires révèlent quand la maison est occupée ou
+> vide. N'exposez pas cette adresse sur Internet (reverse proxy, redirection de port).
+
+## Pour les agents IA
+
+Une version installée contient sa propre documentation pour agents dans `custom_components/weekly_planner/` :
+[`AI_GUIDE.md`](custom_components/weekly_planner/AI_GUIDE.md) (découvrir, configurer par le fichier YAML,
+vérifier, précautions), [`example.yml`](custom_components/weekly_planner/example.yml) (annoté, validé par
+les tests) et `services.yaml`. [`llms.txt`](llms.txt) les indexe pour les agents qui parcourent le web.
+Les agents qui travaillent sur ce dépôt lisent [`AGENTS.md`](AGENTS.md).
+
 ## Limites et diagnostic
 
 - Le filtre Pièce vise les métadonnées du programme, pas les pièces HA.

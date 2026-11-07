@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [Unreleased]
 
 ### Added
+- Agent documentation shipped with the integration: `AI_GUIDE.md`, a validated annotated `example.yml` and a root `llms.txt`, so an AI agent can discover, configure (YAML file) and verify an installed release.
+- Programs are mirrored in `/config/www/weekly_planner.yml`: written after every save in the card, re-imported when edited by hand (validated like the card; an invalid file changes nothing and raises a repair issue). The file is public at `/local/weekly_planner.yml`.
 - Schedule bars and circular arcs show setting names and complete times on hover and keyboard focus, selected or not. The now marker has a wider hover area and a live minute-updating time tooltip, without intercepting edit gestures.
 - Selected schedule bars and circular views show their start and end times, updating live while dragging, with resolved solar times, overnight and one-shot labels, matching tooltips and accessible labels.
 
