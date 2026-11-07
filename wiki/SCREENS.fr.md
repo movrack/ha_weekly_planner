@@ -423,4 +423,4 @@ Ces états complètent les mêmes écrans sans ajouter une nouvelle façon de pr
 
 <a href="images/guide/s32-validation.png"><img src="images/guide/s32-validation.png" width="320" alt="Validation d’un nom de mode" /></a>
 
-[Retour au guide pas à pas](GUIDE.fr.md) · [Inventaire des captures](SCREEN_INVENTORY.md)
+[Retour au guide pas à pas](GUIDE.fr.md)
