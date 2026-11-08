@@ -6,7 +6,7 @@ import { localDateIso, formatWhen } from "../time";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 const makeProgram = () => ({ id: "qa-program", revision: 1, name: "QA", priority: 10, enabled: true,
-  entities: [], active_profile: "a", profiles: ["a", "b"].map((id) => ({ id, name: id,
+  entities: [], profiles: ["a", "b"].map((id) => ({ id, name: id,
     days: [[{ id, start: { time: id === "a" ? "08:00" : "18:00" }, end: { time: "23:00" }, label: "l" }], [], [], [], [], [], []] })) });
 
 it("undo retains the original mode after the active mode changes", async () => {
@@ -14,7 +14,7 @@ it("undo retains the original mode after the active mode changes", async () => {
   const bar = new WpBarEditor() as any;
   let program = makeProgram();
   bar.program = program;
-  bar.data = { programs: [program], status: { [program.id]: { active_profile: "a" } }, labels: [] };
+  bar.data = { programs: [program], status: {}, mode: { selector: "input_select.m", default: "a", active: "a", options: ["a", "b"], available: true }, labels: [] };
   bar.entityId = "switch.demo"; bar.weekday = 0;
   bar.hass = { states: {}, services: {}, callWS: async (message: any) => {
     program = { ...structuredClone(message.program), revision: message.program.revision + 1 };
@@ -23,7 +23,7 @@ it("undo retains the original mode after the active mode changes", async () => {
   let undo!: () => Promise<boolean>;
   bar._emit = (_: string, detail: any) => { undo = detail.undo; };
   await bar._commit((days: any[]) => days.map((day, i) => i ? day : [{ ...day[0], start: { time: "09:00" } }]), [0]);
-  bar.data.status[program.id].active_profile = "b";
+  bar.data.mode.active = "b";
   await undo();
   expect(program.profiles[0].days[0][0].start.time).toBe("08:00");
   expect(program.profiles[1].days[0][0].start.time).toBe("18:00");
@@ -34,7 +34,7 @@ it("recalculates preview for runtime mode changes and recovers a failed load", a
   const program = makeProgram();
   card.hass = { config: { time_zone: "UTC" }, callWS: vi.fn().mockResolvedValue({ slots: [] }) };
   card._config = { program: program.id };
-  card._data = { programs: [program], labels: [], status: { [program.id]: { active_profile: "a" } } };
+  card._data = { programs: [program], labels: [], status: {}, mode: { selector: "input_select.m", default: "a", active: "a", options: ["a", "b"], available: true } };
   card._now = new Date("2026-01-02T12:00:00Z");
   await card._loadPreviews();
   expect(card.hass.callWS.mock.calls.map(([message]: any[]) => message.date)).toEqual([
@@ -42,7 +42,7 @@ it("recalculates preview for runtime mode changes and recovers a failed load", a
   ]);
   await card._loadPreviews();
   expect(card.hass.callWS).toHaveBeenCalledTimes(8);
-  card._data.status[program.id].active_profile = "b";
+  card._data.mode.active = "b";
   await card._loadPreviews();
   expect(card.hass.callWS).toHaveBeenCalledTimes(16);
   card._previewKey = "";
@@ -70,14 +70,14 @@ function gestureBar(id: string) {
   const bar = new WpBarEditor() as any;
   let program = { ...makeProgram(), id };
   bar.program = program;
-  bar.data = { programs: [program], status: { [id]: { active_profile: "a" } }, labels: [] };
+  bar.data = { programs: [program], status: {}, mode: { selector: "input_select.m", default: "a", active: "a", options: ["a", "b"], available: true }, labels: [] };
   bar.entityId = "switch.demo"; bar.weekday = 0;
   bar._emit = vi.fn();
   bar.hass = { states: {}, services: {}, callWS: vi.fn(async (message: any) => {
     program = { ...structuredClone(message.program), revision: message.program.revision + 1 };
     bar.program = program; return { program };
   }) };
-  return { bar, result: () => program, switchMode: () => { bar.data.status[id].active_profile = "b"; } };
+  return { bar, result: () => program, switchMode: () => { bar.data.mode.active = "b"; } };
 }
 
 it("keeps a keyboard gesture in its starting mode until its delayed commit", async () => {

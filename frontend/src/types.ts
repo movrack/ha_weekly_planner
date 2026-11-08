@@ -110,16 +110,13 @@ export interface Program {
   reapply: boolean;
   conditions: Condition[];
   entities: ProgramEntity[];
-  active_profile?: string | null;
-  mode_source?: { entity_id: string; mappings: Record<string, string> };
   profiles: Profile[];
 }
 
 export interface ProgramStatus {
   program_id: string;
-  active_profile: string | null;
-  mode_source_state?: string | null;
-  mode_source_status?: "matched" | "unmapped" | "unavailable";
+  /** The program has no schedule for the active mode. */
+  no_schedule_for_mode?: boolean;
   current_slots: Record<string, string>;
   next_change: string | null;
   skip_next: string | null;
@@ -128,7 +125,18 @@ export interface ProgramStatus {
   next_actions?: Record<string, { at: string; action: Action; label: string | null }>;
 }
 
+/** The global mode (one for the whole house), read from an external selector. */
+export interface ModeInfo {
+  /** Entity read for the mode; null when there is a single mode. */
+  selector: string | null;
+  default: string | null;
+  active: string | null;
+  options: string[];
+  available: boolean;
+}
+
 export interface PlannerData {
+  mode?: ModeInfo;
   vacation: boolean;
   labels: Label[];
   programs: Program[];

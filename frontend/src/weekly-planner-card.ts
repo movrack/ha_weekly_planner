@@ -45,6 +45,8 @@ export class WeeklyPlannerCard extends LitElement {
   @state() private _now = new Date();
   @state() private _week = new Set<string>();
   @state() private _expandedProgram: string | null = null;
+  /** Device shown for each program that has several (program id -> entity id); lives as long as the card. */
+  @state() private _deviceOf = new Map<string, string>();
   /** Day charts shown on the card (key: card|scope|entity). Initial state from `chart_collapsed` (default collapsed); the choice is remembered per device. */
   @state() private _charts = loadChartChoices();
   /** Bar being edited in place (null: none), and the "Changed · Undo" bar. */
@@ -349,9 +351,49 @@ export class WeeklyPlannerCard extends LitElement {
       <ha-icon icon=${program.enabled ? "mdi:toggle-switch" : "mdi:toggle-switch-off-outline"}></ha-icon></button>`;
   }
 
-  private _modeName(program: Program) {
-    const mode = this._data ? activeProfile(program, this._data) : undefined;
-    return mode && (program.profiles.length > 1 || program.mode_source) ? html`<span class="mode-name">${t(this._lang, "profile")}: ${mode.name}</span>` : nothing;
+  /** The active mode, once, as plain text above the programs; nothing when there is a single mode. */
+  private _modeLine() {
+    const mode = this._data?.mode;
+    return mode?.selector && mode.options.length && mode.active
+      ? html`<p class="mode-line">${t(this._lang, "mode_shown", { name: mode.active })}</p>` : nothing;
+  }
+
+  /** A program with no schedule for the active mode: only "the rest of the time" applies to its devices. */
+  private _noSchedule(program: Program) {
+    return this._data?.status[program.id]?.no_schedule_for_mode
+      ? html`<span class="no-schedule">${t(this._lang, "no_schedule_for_mode")}</span>` : nothing;
+  }
+
+  /** The device a program with several devices shows now: the chosen one, else the first. */
+  private _shownDevice(program: Program): string {
+    const chosen = this._deviceOf.get(program.id);
+    return program.entities.some((e) => e.entity_id === chosen) ? chosen! : program.entities[0].entity_id;
+  }
+
+  private _pickDevice(program: Program, entityId: string): void {
+    this._deviceOf = new Map(this._deviceOf).set(program.id, entityId);
+  }
+
+  /** One tab per device, the chosen one marked; nothing for a program with a single device. */
+  private _deviceTabs(program: Program) {
+    if (program.entities.length < 2) return nothing;
+    const shown = this._shownDevice(program);
+    const ids = program.entities.map((e) => e.entity_id);
+    const key = (e: KeyboardEvent) => {
+      const at = ids.indexOf(shown);
+      const next = e.key === "ArrowRight" || e.key === "ArrowDown" ? (at + 1) % ids.length
+        : e.key === "ArrowLeft" || e.key === "ArrowUp" ? (at + ids.length - 1) % ids.length
+        : e.key === "Home" ? 0 : e.key === "End" ? ids.length - 1 : -1;
+      if (next < 0) return;
+      e.preventDefault();
+      this._pickDevice(program, ids[next]);
+      void this.updateComplete.then(() => Array.from(this.renderRoot.querySelectorAll<HTMLElement>('.devtab[aria-selected="true"]')).find((el) => el.dataset.tab === program.id)?.focus());
+    };
+    return html`<div class="devtabs" role="tablist" aria-label=${t(this._lang, "devices_of", { name: program.name })} @keydown=${key}>
+      ${ids.map((id) => html`<button class="devtab" role="tab" data-tab=${program.id} aria-selected=${id === shown}
+        tabindex=${id === shown ? 0 : -1} @click=${() => this._pickDevice(program, id)}>
+        ${id === shown ? html`<ha-icon icon="mdi:check"></ha-icon>` : nothing}<span>${friendlyName(this.hass, id)}</span></button>`)}
+    </div>`;
   }
 
   private _disabledBadge(disabled: boolean, programs: Program[] = []) {
@@ -397,7 +439,7 @@ export class WeeklyPlannerCard extends LitElement {
             : html`<ha-icon class="dev" icon=${icon}></ha-icon>`}
           <div class="info">
             ${opts.name ? html`<span class="name">${opts.name}</span>` : nothing}
-            ${opts.button && programs.length === 1 ? this._modeName(programs[0]) : nothing}
+            ${opts.button && programs.length === 1 ? this._noSchedule(programs[0]) : nothing}
             ${opts.button ? this._disabledBadge(paused, programs) : nothing}
             <span class="now">
               <span class="nw">${stateObj ? (this.hass.formatEntityState?.(stateObj) ?? stateObj.state) : "—"}</span>
@@ -482,12 +524,13 @@ export class WeeklyPlannerCard extends LitElement {
       <section class="prog">
         <div class="phead">
           <ha-icon icon=${p.icon ?? "mdi:calendar-clock"}></ha-icon>
-          <h2>${p.name}${this._modeName(p)}${this._disabledBadge(!p.enabled, [p])}</h2>
+          <h2>${p.name}${this._noSchedule(p)}${this._disabledBadge(!p.enabled, [p])}</h2>
           <div class="header-actions"><div class="header-icons">${this._programToggle(p)}
             <button class="hours" aria-label=${t(lang, "hours")} title=${t(lang, "hours")} @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
           </div></div>
         </div>
-        ${p.entities.map((e) => this._line(e.entity_id, [p], { name: friendlyName(this.hass, e.entity_id), button: null, open: { ...scope, entityId: e.entity_id } }))}
+        ${this._deviceTabs(p)}
+        ${this._line(this._shownDevice(p), [p], { name: null, button: null, open: { ...scope, entityId: this._shownDevice(p) } })}
       </section>`;
     });
   }
@@ -502,16 +545,16 @@ export class WeeklyPlannerCard extends LitElement {
         <ha-icon icon=${p.icon ?? "mdi:calendar-clock"}></ha-icon>
         <button class="summary" aria-expanded=${expanded} aria-controls=${`compact-${p.id}`}
           @click=${() => { this._expandedProgram = expanded ? null : p.id; this._edit = null; }}>
-          <strong>${p.name}<ha-icon icon=${expanded ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></strong>${this._modeName(p)}${this._disabledBadge(!p.enabled, [p])}
+          <strong>${p.name}<ha-icon icon=${expanded ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></strong>${this._noSchedule(p)}${this._disabledBadge(!p.enabled, [p])}
           ${next.length ? html`<span>${(() => { const l = labelOf(this._data!, next[0].next!.label); return l ? labelName(this.hass, l) : actionText(this.hass, this._lang, next[0].next!.action); })()} · ${nb(formatWhen(next[0].next!.at, this._tz, this._lang, this._now))}</span>` : html`${p.enabled ? html`<span>${t(this._lang, "hours")}</span>` : nothing}`}
         </button><div class="header-actions"><div class="header-icons">${this._programToggle(p)}
         ${expanded ? html`<button class="hours" aria-label=${t(this._lang, "hours")} title=${t(this._lang, "hours")}
           @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>` : nothing}</div></div></div>
         ${expanded ? html`<div id=${`compact-${p.id}`} class="compact-details" role="region" aria-label=${p.name}>
-          ${p.entities.map((e) => {
+          ${this._deviceTabs(p)}
+          ${p.entities.filter((e) => p.entities.length < 2 || e.entity_id === this._shownDevice(p)).map((e) => {
             const own: Scope = p.entities.length > 1 ? { ...scope, entityId: e.entity_id } : scope;
             return html`
-            ${p.entities.length > 1 ? html`<strong class="compact-device">${friendlyName(this.hass, e.entity_id)}</strong>` : nothing}
             ${this._needsCreate(p, e.entity_id) ? this._createButton(own) : html`<div class="today"><span class="wname" title=${t(this._lang, "today")}>${t(this._lang, "today_short")}</span>
               ${this._bar(e.entity_id, p, 0, "today", () => this._open(own))}</div>
             ${this._extras(own, e.entity_id, [p])}`}`;
@@ -534,6 +577,7 @@ export class WeeklyPlannerCard extends LitElement {
               ${data?.vacation ? html`<span class="chip"><ha-icon icon="mdi:pause-circle-outline"></ha-icon> ${t(lang, "vacation")}</span>` : nothing}
             </div>`
           : nothing}
+        ${this._modeLine()}
         ${this._error ? html`<div class="error">${t(lang, "error", { message: this._error })}</div>` : nothing}
         ${data?.read_only ? html`<div class="error">${t(lang, "read_only")}</div>` : nothing}
         ${!data ? html`<div class="empty">…</div>` : nothing}
@@ -563,7 +607,15 @@ export class WeeklyPlannerCard extends LitElement {
     .summary strong { display: flex; align-items: center; gap: 4px; overflow-wrap: anywhere; }
     .summary ha-icon { --mdc-icon-size: 18px; flex: none; }
     .compact-details { padding-bottom: 8px; }
-    .compact-device { display: block; margin-top: 12px; }
+    .devtabs { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0 8px; }
+    .devtab {
+      display: inline-flex; align-items: center; gap: 4px; min-height: 48px; max-width: 100%; padding: 0 16px; border-radius: 24px;
+      border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); font: inherit; font-size: 15px;
+      text-align: left; cursor: pointer; --mdc-icon-size: 20px;
+    }
+    .devtab span { min-width: 0; overflow-wrap: anywhere; }
+    .devtab[aria-selected="true"] { background: var(--primary-color); border-color: var(--primary-color); color: var(--text-primary-color, #fff); font-weight: 600; }
+    .devtab:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
     .summary { flex: 1; min-width: 0; min-height: 56px; display: flex; flex-direction: column; justify-content: center; gap: 4px; text-align: left; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
     .summary span { font-size: 14px; color: var(--secondary-text-color); overflow-wrap: anywhere; }
     button:disabled { opacity: .5; cursor: default; }
@@ -576,7 +628,8 @@ export class WeeklyPlannerCard extends LitElement {
     .line { display: flex; align-items: flex-start; gap: 10px; min-height: 28px; }
     .dev { --mdc-icon-size: 26px; flex: none; color: var(--secondary-text-color); margin-top: -1px; }
     .info { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 0; }
-    .mode-name { display: block; flex-basis: 100%; font-size: 13px; font-weight: 400; color: var(--secondary-text-color); line-height: 20px; }
+    .mode-line { margin: 0; padding: 4px 0 8px; font-size: 14px; line-height: 20px; color: var(--secondary-text-color); }
+    .no-schedule { display: block; flex-basis: 100%; font-size: 13px; font-weight: 400; color: var(--secondary-text-color); line-height: 20px; }
     .name { font-size: 17px; font-weight: 600; }
     .skip { flex-basis: 100%; display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--secondary-text-color); --mdc-icon-size: 16px; }
     .now { font-size: 15px; display: flex; flex-wrap: wrap; column-gap: 6px; color: var(--primary-text-color); }

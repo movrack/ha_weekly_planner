@@ -53,7 +53,7 @@ it("draws actual previous-day delayed tails and next-day one-shots from previews
   card._now = new Date("2026-01-02T12:00:00Z");
   const overnight: Slot = { id: "overnight", label: "a", start: { time: "23:00", random_minutes: 15 }, end: { time: "00:10", random_minutes: 15 } };
   const shot: Slot = { id: "shot", label: "a", start: { time: "23:55", random_minutes: 15 } };
-  const program = { id: "p", enabled: true, active_profile: "home", entities: [{ entity_id: "switch.x", label_overrides: {} }],
+  const program = { id: "p", enabled: true, entities: [{ entity_id: "switch.x", label_overrides: {} }],
     profiles: [{ id: "home", days: [[], [], [], [overnight, shot], [], [], []] }] };
   card._data = { labels: [{ id: "a", name: "On", color: "red", action: { kind: "service", service: "switch.turn_on" } }], status: {}, programs: [program] };
   card._preview = { "2026-01-01": { p: { slots: [
@@ -134,7 +134,7 @@ it("memoizes card spans until the data, previews, clock or config are replaced",
   const card = new WeeklyPlannerCard() as any;
   card.hass = { language: "en", config: { time_zone: "UTC" } };
   card._now = new Date("2026-01-02T12:00:00Z");
-  const program = { id: "p", enabled: true, active_profile: "home", entities: [{ entity_id: "switch.x", label_overrides: {} }],
+  const program = { id: "p", enabled: true, entities: [{ entity_id: "switch.x", label_overrides: {} }],
     profiles: [{ id: "home", days: [[], [], [], [], [], [], []] }] };
   card._data = { labels: [], status: {}, programs: [program] };
   const first = card._spans("switch.x", [program]);

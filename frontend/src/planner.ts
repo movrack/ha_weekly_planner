@@ -1,7 +1,7 @@
 // Shared data access: one subscription per page, helpers to read programs and labels.
 
 import { syncPreviewCache } from "./preview-cache";
-import type { HomeAssistant, PlannerData, Program } from "./types";
+import type { HomeAssistant, PlannerData, Profile, Program } from "./types";
 
 type Listener = (data: PlannerData) => void;
 
@@ -55,9 +55,17 @@ export function subscribePlanner(hass: HomeAssistant, listener: Listener): () =>
 
 export const entityDomain = (entityId: string): string => entityId.split(".")[0];
 
-export function activeProfile(program: Program, data: PlannerData) {
-  const wanted = data.status[program.id]?.active_profile ?? program.active_profile;
-  return program.profiles.find((p) => p.id === wanted) ?? program.profiles[0];
+/** Stand-in for a program with no schedule for the active mode (only "the rest of the time" applies). */
+const NO_SCHEDULE = { id: "", name: "", days: [[], [], [], [], [], [], []] } as Profile;
+
+/**
+ * The schedules a program follows now. The mode is global: the schedules named after the active mode,
+ * the first ones when there is no mode, none (an empty week) when the program has none for that mode.
+ */
+export function activeProfile(program: Program, data: PlannerData): Profile {
+  const mode = data.mode?.selector ? data.mode.active : null;
+  if (mode == null) return program.profiles[0];
+  return program.profiles.find((p) => p.name === mode) ?? NO_SCHEDULE;
 }
 
 export function friendlyName(hass: HomeAssistant, entityId: string): string {

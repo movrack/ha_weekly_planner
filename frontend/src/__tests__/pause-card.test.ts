@@ -7,7 +7,7 @@ import { flat } from "./helpers/tpl";
 vi.mock("../components/confirm", () => ({ confirmAction: vi.fn(async () => true), pauseChoice: vi.fn() }));
 
 const program = (over: Record<string, unknown> = {}) => ({
-  id: "p", name: "Office", revision: 1, priority: 10, enabled: true, reapply: true, conditions: [], active_profile: "a",
+  id: "p", name: "Office", revision: 1, priority: 10, enabled: true, reapply: true, conditions: [],
   entities: [{ entity_id: "switch.a", default_label: null, label_overrides: {} }],
   profiles: [{ id: "a", name: "A", days: [[], [], [], [], [], [], []] }], ...over,
 });

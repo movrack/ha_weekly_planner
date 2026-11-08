@@ -18,12 +18,32 @@
           "admin_only": "Only administrators can edit programs",
           "reapply_default": "Send the current action again after a restart or a change (default for new programs)",
           "notify_delay_min": "Notify when a device is still unavailable after (minutes)",
-          "debounce_min": "Minimum time a condition must hold before it starts or ends a slot (minutes)"
+          "debounce_min": "Minimum time a condition must hold before it starts or ends a slot (minutes)",
+          "mode_selector": "Mode selector (optional)"
+        },
+        "data_description": {
+          "mode_selector": "A Home Assistant selector (input_select or select) whose current choice is the active Mode of the house, for example Home, Away or Vacation. Weekly Planner only reads it and never changes it. Leave empty to have a single Mode."
+        }
+      },
+      "default_mode": {
+        "title": "Default Mode",
+        "description": "Choose the Mode used when the selector has no usable choice.",
+        "data": {
+          "default_mode": "Default Mode"
+        },
+        "data_description": {
+          "default_mode": "The Mode used when the selector has no usable choice. Pick it among the options of the selector. Weekly Planner only reads the selector and never changes it."
         }
       }
     },
     "abort": {
       "not_loaded": "Weekly Planner is not loaded."
+    },
+    "error": {
+      "invalid_mode_selector_domain": "Choose an input_select or a select.",
+      "circular_mode_selector": "This entity belongs to Weekly Planner. Choose another one.",
+      "invalid_default_mode": "Enter a Mode name of 1 to 40 characters.",
+      "unknown_default_mode": "This Mode is not an option of the selector. Choose one from the list."
     }
   },
   "entity": {

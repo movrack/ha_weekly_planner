@@ -4,7 +4,6 @@ import type { PlannerData, Program } from "../types";
 
 const program = (): Program => ({
   id: "p", revision: 1, name: "Office", priority: 10, enabled: true, reapply: true, conditions: [], entities: [],
-  active_profile: "day",
   profiles: ["day", "night"].map((id) => ({ id, name: id, days: [[], [], [], [], [], [], []] })),
 });
 
@@ -23,7 +22,6 @@ describe("schedule mode isolation", () => {
     const { view, p } = screen();
     view._viewProfileId = "night";
     expect(view._modeProfile(p).id).toBe("night");
-    expect(p.active_profile).toBe("day");
     expect(view._modeOnly).toBe(true);
   });
 
@@ -32,7 +30,7 @@ describe("schedule mode isolation", () => {
     view._open = "new";
     view._programId = p.id;
     view._editProfileId = "day";
-    view.data.status[p.id] = { active_profile: "night" };
+    view.data.mode = { selector: "input_select.m", default: "day", active: "night", options: ["day", "night"], available: true };
     expect(view._modeProfile(p).id).toBe("day");
     expect(view._editProfile(p).id).toBe("day");
   });

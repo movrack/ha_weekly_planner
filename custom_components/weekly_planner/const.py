@@ -29,5 +29,7 @@ VERIFY_MIN_INTERVAL_S: Final = 60  # at least this long between two re-sends of 
 VERIFY_MAX_TRIES: Final = 10  # re-sends per segment, then the planner gives up (warning)
 
 # Global mode (docs/adr/0001): the selector entity and the option used when no valid mode is known.
+CONF_MODE_SELECTOR: Final = "mode_selector"
+CONF_DEFAULT_MODE: Final = "default_mode"
 MODE_SELECTOR_DOMAINS: Final = ("input_select", "select")
 MODE_NAME_MAX: Final = 40

@@ -15,7 +15,7 @@ function screen() {
   const days = () => Array.from({ length: 7 }, () => [] as any[]);
   const program: Program = {
     id: "p", name: "Office", revision: 1, priority: 10, enabled: true, reapply: true, conditions: [],
-    entities: [{ entity_id: "switch.demo", default_label: null, label_overrides: {} }], active_profile: "home",
+    entities: [{ entity_id: "switch.demo", default_label: null, label_overrides: {} }],
     profiles: [{ id: "home", name: "Home", days: days() }],
   };
   const view = new WpSchedule() as any;

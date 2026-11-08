@@ -15,7 +15,7 @@ const mkProgram = (over: Partial<Program> = {}): Program => {
   const home = emptyDays(); home[0] = [slot("m")]; home[1] = [slot("t")];
   return { id: "p", name: "Office", revision: 1, priority: 10, enabled: true, reapply: true, conditions: [],
     entities: [{ entity_id: "switch.demo", default_label: "comfort", label_overrides: {} }, { entity_id: "switch.two", default_label: null, label_overrides: {} }],
-    active_profile: "home", profiles: [{ id: "home", name: "Home", days: home }, { id: "away", name: "Away", days: emptyDays() }], ...over } as any;
+    profiles: [{ id: "home", name: "Home", days: home }, { id: "away", name: "Away", days: emptyDays() }], ...over } as any;
 };
 
 function make(scope: any = { kind: "program", programId: "p" }, program = mkProgram(), extra: any = {}) {

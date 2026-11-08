@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [Unreleased]
 
 ### Added
+- Card: a program with several devices shows one device at a time, chosen with tabs (one per device, the chosen one checked, arrow keys); the choice is kept per program while the card is open.
 - Self-declared Bronze level on the Home Assistant Integration Quality Scale: `quality_scale.yaml` with a consistency test, an uninstall section and an action field table in both READMEs.
 - Timed pause of a program (backend): `weekly_planner/program/pause` (1 to 365 days, or `null` to resume), services `weekly_planner.pause` and `weekly_planner.resume`, `paused_until` on the program, its status and its switch attributes; the program resumes by itself, even after a restart.
 - Card: pausing a program (switch on the card or in the schedule screen) asks for the length with big buttons (1 day, 7 days, a number of days of your own, no limit); a paused program shows “Paused until <date, time>” instead of “Disabled”, and the switch resumes it without confirmation.

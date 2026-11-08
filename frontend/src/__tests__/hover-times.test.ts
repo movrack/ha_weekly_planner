@@ -9,7 +9,7 @@ const editor = (): any => {
   el.lang = "fr"; el.tz = "UTC"; el.editing = false;
   el.hass = { states: {}, services: {}, config: { time_zone: "UTC" } };
   const slot = { id: "slot", label: "comfort", start: { time: "08:45" }, end: { time: "17:00" } };
-  el.program = { id: "hover", revision: 1, entities: [], active_profile: "home", profiles: [{ id: "home", days: [[slot], [], [], [], [], [], []] }] };
+  el.program = { id: "hover", revision: 1, entities: [], profiles: [{ id: "home", days: [[slot], [], [], [], [], [], []] }] };
   el.data = { programs: [el.program], labels: [], status: {} };
   el.spans = [{ start: 525, end: 1020, label: "Comfort", color: "#e80", slotId: "slot" }];
   return el;

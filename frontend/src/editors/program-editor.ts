@@ -16,7 +16,7 @@ import "../components/schedule-dialog";
 import { confirmAction } from "../components/confirm";
 import { displayName, scrollHintCss, trackScrollHints } from "../components/gestures";
 import { slotDeviceError, t } from "../i18n";
-import { ensureHaSelector, newId } from "../planner";
+import { activeProfile, ensureHaSelector, newId } from "../planner";
 import { loadServiceNames, serviceDomains, serviceDescription, serviceLabel, servicesFor } from "../services";
 import type { Condition, HomeAssistant, PlannerData, Profile, Program, ProgramEntity, Slot } from "../types";
 import "./shared";
@@ -61,8 +61,6 @@ export class WpProgramEditor extends LitElement {
   @state() private _nameError = "";
   @state() private _entitiesError = "";
   @state() private _saving = false;
-  @state() private _changingMode = false;
-  @state() private _associationsOpen = false;
   @state() private _scheduleProfileId: string | null = null;
   private _hoursRevision = 0;
   @state() private _picker = Boolean(customElements.get("ha-selector"));
@@ -169,7 +167,7 @@ export class WpProgramEditor extends LitElement {
       this._p = {
         id: "", revision: 0, name: "", icon: "mdi:calendar-clock", priority: this.data.defaults?.priority ?? 10, enabled: true,
         reapply: this.data.defaults?.reapply ?? true,
-        conditions: [], entities: [], active_profile: pid,
+        conditions: [], entities: [],
         profiles: [{ id: pid, name: this._tr("profile_default"), days: EMPTY_DAYS() }],
       };
       this._isNew = true;
@@ -180,9 +178,8 @@ export class WpProgramEditor extends LitElement {
   }
 
   private _activeId(): string {
-    const p = this._p;
-    const wanted = (!this._isNew && this.data.status[p.id]?.active_profile) || p.active_profile;
-    return p.profiles.find((x) => x.id === wanted)?.id ?? p.profiles[0].id;
+    // The mode is global: the schedules named after the active mode (the first ones without a mode).
+    return activeProfile(this._p, this.data).id || this._p.profiles[0].id;
   }
 
   private get _profile(): Profile {
@@ -255,8 +252,7 @@ export class WpProgramEditor extends LitElement {
     this._edit(() => {
       const profile = this._profile;
       const profiles = this._p.profiles.filter((x) => x.id !== profile.id);
-      const source = this._p.mode_source;
-      this._patch({ profiles, ...(source ? { mode_source: { ...source, mappings: Object.fromEntries(Object.entries(source.mappings).filter(([, id]) => id !== profile.id)) } } : {}) });
+      this._patch({ profiles });
       this._profileId = this._activeId();
       if (!profiles.some((x) => x.id === this._profileId)) this._profileId = profiles[0].id;
     });
@@ -292,7 +288,6 @@ export class WpProgramEditor extends LitElement {
 
   private _validateRest(): string {
     const p = this._p;
-    if (p.mode_source && (!p.mode_source.entity_id || !Object.keys(p.mode_source.mappings).length || Object.entries(p.mode_source.mappings).some(([state, id]) => !state.trim() || !p.profiles.some((mode) => mode.id === id)))) return this._tr("mode_incomplete");
     if (p.conditions.some((c) => !c.entity_id)) return this._tr("err_incomplete");
     const names = p.profiles.map((x) => x.name.trim());
     if (new Set(names).size !== names.length) return this._tr("err_profile_name");
@@ -317,9 +312,6 @@ export class WpProgramEditor extends LitElement {
     const device = slotDeviceError(this._lang, message, (eid) => displayName(this.hass, eid));
     if (device) return device;
     if (message.includes("overlapping_slots")) return this._tr("err_overlap_server");
-    if (message.includes("circular_mode_source")) return this._tr("mode_source_loop");
-    if (message.includes("controlled by an external")) return this._tr("mode_source_locked");
-    if (message.includes("unknown_mode_profile")) return this._tr("mode_incomplete");
     if (message.includes("duplicate_profile_name")) return this._tr("err_profile_name");
     return this._tr("error", { message });
   }
@@ -349,7 +341,6 @@ export class WpProgramEditor extends LitElement {
     if (!this._submitProfileForm()) return;
     const problem = this._problem();
     if (problem) {
-      if (this._p.mode_source) this._associationsOpen = true;
       this._error = ""; this._nameError = ""; this._entitiesError = "";
       if (problem.field === "name") this._nameError = problem.message;
       else if (problem.field === "entities") this._entitiesError = problem.message;
@@ -467,23 +458,20 @@ export class WpProgramEditor extends LitElement {
     this._edit(() => {
       const pid = newId();
       const source = this._p;
-      const ids = new Map<string, string>();
       const profiles = source.profiles.map((profile) => {
         const id = profile.id === this._activeId() ? pid : newId();
-        ids.set(profile.id, id);
         return { ...structuredClone(profile), id, days: profile.days.map(cloneSlots) };
       });
       this._p = {
         ...structuredClone(source), id: "", revision: 0, created_at: undefined,
         name: `${source.name} ${this._tr("copy_suffix")}`.slice(0, 60),
-        profiles, active_profile: ids.get(this._activeId()) ?? profiles[0].id,
-        ...(source.mode_source ? { mode_source: { ...source.mode_source, mappings: Object.fromEntries(Object.entries(source.mode_source.mappings).map(([state, id]) => [state, ids.get(id) ?? id])) } } : {}),
+        profiles,
       };
       delete this._p.created_at;
       this._isNew = true;
       this._origin = undefined;
       this._applied = false;
-      this._profileId = this._p.active_profile ?? profiles[0].id;
+      this._profileId = profiles.find((x) => x.id === pid)?.id ?? profiles[0].id;
       this._error = "";
     });
   }
@@ -635,17 +623,7 @@ export class WpProgramEditor extends LitElement {
   }
 
   private get _seasonsUnapplied(): boolean {
-    return Boolean(this._profileForm) || !this._origin || JSON.stringify(this._p.profiles) !== JSON.stringify(this._origin.profiles) || JSON.stringify(this._p.mode_source) !== JSON.stringify(this._origin.mode_source);
-  }
-
-  private async _changeActiveMode(profileId: string, input?: HTMLSelectElement): Promise<void> {
-    if (this._changingMode || this._seasonsUnapplied || this._origin?.mode_source) return;
-    this._changingMode = true;
-    this._error = "";
-    try {
-      await this.hass.callWS({ type: "weekly_planner/program/set_profile", program_id: this._p.id, profile_id: profileId });
-    } catch (err) { this._error = this._errorText(err); }
-    finally { this._changingMode = false; if (input) input.value = this._activeId(); }
+    return Boolean(this._profileForm) || !this._origin || JSON.stringify(this._p.profiles) !== JSON.stringify(this._origin.profiles);
   }
 
   private _closeModeSchedule(): void {
@@ -662,62 +640,6 @@ export class WpProgramEditor extends LitElement {
     if (this._origin) this._origin = { ...this._origin, profiles: structuredClone(program.profiles) };
   }
 
-  private _sourceState(old: string, state: string): void {
-    const source = this._p.mode_source;
-    if (!source || old === state) return;
-    if (Object.prototype.hasOwnProperty.call(source.mappings, state)) { this._error = this._tr("mode_duplicate_state"); return; }
-    const mappings = Object.fromEntries(Object.entries(source.mappings).map(([key, value]) => [key === old ? state : key, value]));
-    this._patch({ mode_source: { ...source, mappings } });
-  }
-
-  private _renderModeSource() {
-    const source = this._p.mode_source;
-    const state = source ? this.hass.states[source.entity_id] : undefined;
-    const live = this.data.status[this._p.id];
-    const activeName = this._p.profiles.find((p) => p.id === this._activeId())?.name ?? "";
-    const options = [...new Set([...(Array.isArray(state?.attributes.options) ? state.attributes.options as string[] : []),
-      ...(state && !["unknown", "unavailable"].includes(state.state) ? [state.state] : []), ...Object.keys(source?.mappings ?? {})])];
-    return html`<div class="field"><label for="mode-control">${this._tr("mode_control")}</label>
-      <select id="mode-control" .value=${source ? "external" : "manual"}
-        @change=${(e: Event) => { this._associationsOpen = true; this._patch({ mode_source: (e.target as HTMLSelectElement).value === "external" ? { entity_id: "", mappings: {} } : undefined }); }}>
-        <option value="manual">${this._tr("mode_manual")}</option><option value="external">${this._tr("mode_external")}</option>
-      </select></div>
-      ${source ? html`<wp-entity-picker .hass=${this.hass} .value=${source.entity_id} .label=${this._tr("mode_source_entity")}
-        @wp-change=${(e: CustomEvent<string>) => { e.stopPropagation(); if (e.detail !== source.entity_id) { this._associationsOpen = true; this._patch({ mode_source: { entity_id: e.detail, mappings: {} } }); } }}></wp-entity-picker>
-        <p class="hint">${this._tr("mode_source_hint")}</p>
-        ${source.entity_id ? html`
-          <p class="hint">${this._tr("mode_source_current", { state: state ? (this.hass.formatEntityState?.(state) ?? state.state) : this._tr("value_unavailable") })}</p>
-          <details class="mode-associations" .open=${this._associationsOpen}
-            @toggle=${(e: Event) => { this._associationsOpen = (e.currentTarget as HTMLDetailsElement).open; }}>
-            <summary>${this._tr("mode_association_count", { n: String(Object.keys(source.mappings).length) })}</summary>
-          ${Object.entries(source.mappings).map(([key, profileId], index) => html`<div class="card mode-mapping">
-            ${this._picker ? html`<ha-selector .hass=${this.hass} .selector=${{ state: { entity_id: source.entity_id } }}
-              .value=${key || undefined} .label=${this._tr("mode_source_state")}
-              @value-changed=${(e: CustomEvent<{ value?: string }>) => { e.stopPropagation(); this._sourceState(key, e.detail.value ?? ""); }}></ha-selector>`
-              : html`<div class="field"><label for=${`mode-state-${index}`}>${this._tr("mode_source_state")}</label>
-                <input id=${`mode-state-${index}`} list="mode-state-values" .value=${key}
-                  @change=${(e: Event) => this._sourceState(key, (e.target as HTMLInputElement).value)} /></div>`}
-            <div class="field"><label for=${`mode-target-${index}`}>${this._tr("mode_source_target")}</label>
-              <select id=${`mode-target-${index}`} data-value=${profileId} @change=${(e: Event) => this._patch({ mode_source: { ...source, mappings: { ...source.mappings, [key]: (e.target as HTMLSelectElement).value } } })}>
-                ${!this._p.profiles.some((p) => p.id === profileId) ? html`<option value=${profileId}>${this._tr("mode_removed")}</option>` : nothing}
-                ${this._p.profiles.map((p) => html`<option value=${p.id}>${p.name}</option>`)}
-              </select></div>
-            <button class="btn danger" aria-label=${this._tr("mode_remove_mapping")} @click=${() => this._patch({ mode_source: { ...source, mappings: Object.fromEntries(Object.entries(source.mappings).filter(([k]) => k !== key)) } })}>
-              <ha-icon icon="mdi:delete"></ha-icon>${this._tr("delete")}</button>
-          </div>`)}
-          <datalist id="mode-state-values">${options.map((value) => html`<option value=${value}></option>`)}</datalist>
-          <button class="btn" ?disabled=${Object.prototype.hasOwnProperty.call(source.mappings, "")} @click=${() => this._patch({ mode_source: { ...source, mappings: { ...source.mappings, "": this._profileId } } })}>
-            <ha-icon icon="mdi:plus"></ha-icon>${this._tr("mode_add_mapping")}</button>
-          </details>
-        ` : nothing}
-        ${!this._seasonsUnapplied && live?.mode_source_status && live.mode_source_status !== "matched" ? html`<p class="hint" role="status">${this._tr("mode_source_kept", { name: activeName })}</p>` : nothing}
-      ` : !this._isNew ? html`<section class="mode-live"><div class="field"><label for="mode-active">${this._tr("mode_active_immediate")}</label>
-        <select id="mode-active" data-value=${this._activeId()} aria-describedby="mode-live-help" ?disabled=${this._seasonsUnapplied || this._changingMode}
-          @change=${(e: Event) => void this._changeActiveMode((e.target as HTMLSelectElement).value, e.target as HTMLSelectElement)}>
-          ${this._p.profiles.map((p) => html`<option value=${p.id}>${p.name}</option>`)}
-        </select></div><p id="mode-live-help" class="hint">${this._tr("mode_active_immediate_hint")}</p></section>` : nothing}`;
-  }
-
   private _renderSeasons() {
     const p = this._p;
     const profile = this._profile;
@@ -727,7 +649,6 @@ export class WpProgramEditor extends LitElement {
       <p class="hint">${this._tr("profile_explanation")}</p>
       ${!this._isNew ? html`<p class="active-profile" role="status"><ha-icon icon="mdi:star"></ha-icon>
         ${this._tr("profile_current", { name: this._origin?.profiles.find((x) => x.id === active)?.name ?? profile.name })}</p>` : nothing}
-      ${this._renderModeSource()}
       ${this._seasonsUnapplied ? html`<p class="hint">${this._tr("profile_apply_first")}</p>` : nothing}
       <div class="row profile-bar">
         <div class="field" style="flex:1 1 160px"><label for="f-profile">${this._tr("profile_manage")}</label>

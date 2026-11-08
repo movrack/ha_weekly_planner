@@ -753,12 +753,12 @@ Ces trois demandes sont **non implémentées**. Chaque point ci-dessous reste un
 
 ### 37.2 Mode global choisi par un sélecteur externe (décidé le 2026-11-08, `docs/adr/0001-mode-global-par-selecteur-externe.md`)
 Vocabulaire : voir `GLOSSARY.md` (« mode » seulement ; « profil » et « saison » sont à éviter partout).
-- [ ] **Réglages de l'intégration** : un sélecteur de mode global facultatif (entité `input_select` ou `select`) et une option par défaut parmi ses options. Vide = un seul mode, le mode par défaut, que l'interface n'affiche pas.
+- [x] **Réglages de l'intégration** : un sélecteur de mode global facultatif (entité `input_select` ou `select`) et une option par défaut parmi ses options. Vide = un seul mode, le mode par défaut, que l'interface n'affiche pas.
 - [x] **Moteur** : le mode actif de tous les programmes est l'état du sélecteur ; les modes sont ses options. Indisponible ou inconnu : dernier mode valide gardé (un message au journal à la perte, un au retour) ; sans mode valide connu : option par défaut. Un programme sans horaires pour le mode actif applique « le reste du temps ». La suspension globale prime sur le mode.
 - [ ] **Migration** : un mode se rattache à une option par son nom ; sans correspondance il est conservé, inactif (« sans option ») ; sans sélecteur le premier mode de chaque programme devient le mode par défaut. Les horaires du mode par défaut passent sous l'option par défaut choisie. `mode_source` par programme retiré.
 - [ ] **Entités** : suppression de l'entité `select` de chaque programme, avec une réparation qui nomme les programmes concernés et une note dans le CHANGELOG.
 - [ ] **Renommage** : détecté seulement sans ambiguïté (même nombre d'options, même ordre, une seule différente) → horaires reportés sous le nouveau nom dans tous les programmes, journal, mention « Renommé depuis … » et bouton pour défaire. Sinon : ancien mode « sans option » et correspondance proposée (réparation et boutons dans l'écran des horaires, un par nouvelle option, plus « Non, le supprimer »). Rien n'est modifié sans réponse ; jamais d'effacement automatique.
-- [ ] **Carte** : le mode actif s'affiche **une seule fois en haut**, en texte non touchable (une fois aussi dans une liste) ; rien s'il n'y a qu'un mode. « Aucun horaire pour ce mode » sous un programme concerné. Plus de choix de mode sur la carte.
+- [x] **Carte** : le mode actif s'affiche **une seule fois en haut**, en texte non touchable (une fois aussi dans une liste) ; rien s'il n'y a qu'un mode. « Aucun horaire pour ce mode » sous un programme concerné. Plus de choix de mode sur la carte.
 - [ ] **Écran des horaires** : ouvre sur le mode actif ; choix de mode en haut ; « Ce mode n'est pas actif » pour un autre mode ; « Copier depuis un autre mode » (confirmation si le mode ouvert a déjà des horaires). Plus d'ajout, copie ni renommage de mode dans les réglages du programme.
 - [ ] **Fichier de configuration** : `mode_selector` (global) et option par défaut ; par programme `modes: {nom: [...]}`. Mettre à jour `AI_GUIDE.md`, `example.yml`, `llms.txt`, les README et le wiki (MODES.md, GUIDE.fr.md).
 - [ ] Mêmes droits que l'interrupteur de programme (tous, sauf option `admin_only`).
@@ -772,6 +772,9 @@ Vocabulaire : voir `GLOSSARY.md` (« mode » seulement ; « profil » et « sais
   - Modification à la main : relue toutes les 30 s, au démarrage et par `weekly_planner.reload` ; validée avec les règles des commandes websocket avant tout changement, puis importée sans réécriture (hash dans `runtime.yaml_hash`).
   - Fichier vide, non mappé ou invalide : rien ne change, fichier non touché, problème de réparation `yaml_invalid` effacé dès que le fichier est valide ; un enregistrement de l’interface le copie d’abord en `weekly_planner.yml.invalid`.
   - Confidentialité : `/config/www` est public sans authentification (`/local/weekly_planner.yml`) ; avertissement dans l’en-tête du fichier et les README. Supprimer l’intégration supprime le fichier.
+
+### 37.4 Un appareil à la fois dans un programme
+- [x] **Un appareil à la fois dans un programme** : un programme de 2 appareils ou plus montre un seul appareil, choisi par des onglets (un par appareil, nom de l'appareil, case cochée sur l'actif, flèches du clavier) ; le premier par défaut ; le choix est gardé par programme tant que la carte vit ; sans onglets pour un seul appareil. Vues par programme et liste.
 
 ## 38. Échelle de qualité Home Assistant — niveau Bronze (2026-11-07)
 

@@ -7,7 +7,7 @@ const empty = () => ({ hist: [], log: [], sent: [] });
 const chart = (date = "2026-01-03", tz = "UTC"): any => {
   const c: any = new WpChart();
   c.date = date; c.entityId = "sensor.test";
-  c.program = { id: "pan", revision: 1, name: "Test", entities: [{ entity_id: c.entityId }], active_profile: "home", profiles: [{ id: "home", days: Array.from({ length: 7 }, () => []) }] };
+  c.program = { id: "pan", revision: 1, name: "Test", entities: [{ entity_id: c.entityId }], profiles: [{ id: "home", days: Array.from({ length: 7 }, () => []) }] };
   c.data = { programs: [c.program], labels: [], status: {} };
   c.hass = { config: { time_zone: tz }, language: "en", states: {}, callWS: vi.fn(async (m: any) => m.type === "weekly_planner/preview" ? { slots: [] } : m.type === "weekly_planner/journal" ? { segments: [] } : {}) };
   c._loaded = empty(); c._model = c._build(c._loaded); c.requestUpdate = () => {};

@@ -9,7 +9,7 @@ const editor = (): any => {
   el.lang = "fr";
   el.editing = true;
   el.hass = { states: {}, services: {}, config: { time_zone: "UTC" } };
-  el.program = { id: "selected-times", revision: 1, entities: [], active_profile: "home", profiles: [{ id: "home", days: [[
+  el.program = { id: "selected-times", revision: 1, entities: [], profiles: [{ id: "home", days: [[
     { id: "a", label: "x", start: { time: "08:45" }, end: { time: "17:00" } },
   ]] }] };
   el.data = { programs: [el.program], labels: [], status: {} };

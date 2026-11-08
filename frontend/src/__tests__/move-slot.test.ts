@@ -94,7 +94,7 @@ describe("slot action bar wording", () => {
 });
 
 describe("bar gesture", () => {
-  const program: any = { id: "p", revision: 1, entities: [{ entity_id: "climate.a" }], active_profile: "m", profiles: [{ id: "m", name: "M", days: [[slot("1", "08:00", "10:00")], [], [], [], [], [], []] }] };
+  const program: any = { id: "p", revision: 1, entities: [{ entity_id: "climate.a" }], profiles: [{ id: "m", name: "M", days: [[slot("1", "08:00", "10:00")], [], [], [], [], [], []] }] };
   const make = () => {
     const el = new WpBarEditor() as any;
     Object.assign(el, { hass, data: { profiles: [], programs: [program], labels: [], status: {}, can_edit: true }, program, entityId: "climate.a", weekday: 0, editing: true });

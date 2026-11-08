@@ -33,7 +33,7 @@ const show = (slots: Slot[]) => slots.map((s) => `${"time" in s.start ? s.start.
 const ent = (entity_id: string) => ({ entity_id, default_label: null, label_overrides: {} });
 const week = (day: Slot[]): Slot[][] => Array.from({ length: 7 }, (_, i) => (i === 0 ? day : []));
 const program = (days: Slot[][], devices = DEVICES, extraProfiles: Profile[] = []): Program => ({
-  id: "p", name: "P", revision: 1, priority: 10, enabled: true, reapply: true, conditions: [], active_profile: "m",
+  id: "p", name: "P", revision: 1, priority: 10, enabled: true, reapply: true, conditions: [],
   entities: devices.map(ent), profiles: [{ id: "m", name: "M", days }, ...extraProfiles],
 });
 

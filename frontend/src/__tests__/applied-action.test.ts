@@ -14,7 +14,7 @@ const mixed = { id: "m", name: "Mixed", color: "#f00", action: temp.action };
 const slot = (label: string) => ({ id: "s" + label, start: { time: "08:00" }, end: { time: "09:00" }, label });
 
 function setup(entities: any[], labels: any[], slots: any[]) {
-  const program = { id: "p", name: "p", revision: 1, priority: 10, enabled: true, reapply: true, conditions: [], active_profile: "a", entities,
+  const program = { id: "p", name: "p", revision: 1, priority: 10, enabled: true, reapply: true, conditions: [], entities,
     profiles: [{ id: "a", name: "A", days: Array.from({ length: 7 }, () => slots) }] };
   const c = new WeeklyPlannerCard() as any;
   c.hass = hass;
