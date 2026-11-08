@@ -6,7 +6,7 @@ les détails et questions ouvertes sont dans `docs/SPEC.md` § 37 et le travail 
 ## À clarifier avec le propriétaire (2026-11-07), voir SPEC § 37
 
 - [x] Bouton « Mettre en pause » d’un programme : 1 jour, 7 jours, x jours (§ 37.1) (done).
-- [ ] Sélecteur de mode / saison (§ 37.2).
+- [ ] Mode global choisi par un sélecteur externe (§ 37.2, ADR 0001) : conception décidée le 2026-11-08, à implémenter.
 - [x] Programmes configurables par un fichier YAML `/config/www/weekly_planner.yml`, mis à jour à chaque modification dans l’interface (§ 37.3). Attention : `/config/www` est public.
 
 ## Échelle de qualité Home Assistant (SPEC § 38, `docs/PLAN_QUALITY_SCALE.md`)

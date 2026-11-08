@@ -751,13 +751,18 @@ Ces trois demandes sont **non implémentées**. Chaque point ci-dessous reste un
   - API : `weekly_planner/program/pause` `{program_id, days: 1..365|null}` (`null` = reprendre), services `weekly_planner.pause` et `weekly_planner.resume` ; `paused_until` dans chaque programme et dans `status[id]` du snapshot et les attributs de l’interrupteur.
   - Carte (fait) : l’interrupteur ouvre un choix de durée (1 jour, 7 jours, x jours, Sans limite) ; « Pause jusqu'au <jour date, heure> » remplace « Désactivé » / « À l’arrêt » ; reprendre = remettre l’interrupteur, sans confirmation ; mêmes droits que l’interrupteur.
 
-### 37.2 Sélecteur de mode / saison
-- [ ] Sélecteur permettant de choisir le mode (semaine type) ou la saison depuis la carte.
-- Questions :
-  - Différence entre « mode » et « saison » pour l’utilisateur : un seul sélecteur ou deux ? Libellés pour le mode simple.
-  - Que fait-il de plus que le sélecteur de saison/mode déjà proposé (`mode_source`, entité sélecteur) ? Remplace-t-il quelque chose ?
-  - Emplacement (en-tête de la carte, tableau de bord, fenêtre du programme), portée (tous les programmes ou un seul), droits des non-administrateurs.
-  - Changement manuel ou automatique (calendrier de saisons) ; que se passe-t-il à la prochaine bascule automatique ?
+### 37.2 Mode global choisi par un sélecteur externe (décidé le 2026-11-08, `docs/adr/0001-mode-global-par-selecteur-externe.md`)
+Vocabulaire : voir `GLOSSARY.md` (« mode » seulement ; « profil » et « saison » sont à éviter partout).
+- [ ] **Réglages de l'intégration** : un sélecteur de mode global facultatif (entité `input_select` ou `select`) et une option par défaut parmi ses options. Vide = un seul mode, le mode par défaut, que l'interface n'affiche pas.
+- [ ] **Moteur** : le mode actif de tous les programmes est l'état du sélecteur ; les modes sont ses options. Indisponible ou inconnu : dernier mode valide gardé (un message au journal à la perte, un au retour) ; sans mode valide connu : option par défaut. Un programme sans horaires pour le mode actif applique « le reste du temps ». La suspension globale prime sur le mode.
+- [ ] **Migration** : un mode se rattache à une option par son nom ; sans correspondance il est conservé, inactif (« sans option ») ; sans sélecteur le premier mode de chaque programme devient le mode par défaut. Les horaires du mode par défaut passent sous l'option par défaut choisie. `mode_source` par programme retiré.
+- [ ] **Entités** : suppression de l'entité `select` de chaque programme, avec une réparation qui nomme les programmes concernés et une note dans le CHANGELOG.
+- [ ] **Renommage** : détecté seulement sans ambiguïté (même nombre d'options, même ordre, une seule différente) → horaires reportés sous le nouveau nom dans tous les programmes, journal, mention « Renommé depuis … » et bouton pour défaire. Sinon : ancien mode « sans option » et correspondance proposée (réparation et boutons dans l'écran des horaires, un par nouvelle option, plus « Non, le supprimer »). Rien n'est modifié sans réponse ; jamais d'effacement automatique.
+- [ ] **Carte** : le mode actif s'affiche **une seule fois en haut**, en texte non touchable (une fois aussi dans une liste) ; rien s'il n'y a qu'un mode. « Aucun horaire pour ce mode » sous un programme concerné. Plus de choix de mode sur la carte.
+- [ ] **Écran des horaires** : ouvre sur le mode actif ; choix de mode en haut ; « Ce mode n'est pas actif » pour un autre mode ; « Copier depuis un autre mode » (confirmation si le mode ouvert a déjà des horaires). Plus d'ajout, copie ni renommage de mode dans les réglages du programme.
+- [ ] **Fichier de configuration** : `mode_selector` (global) et option par défaut ; par programme `modes: {nom: [...]}`. Mettre à jour `AI_GUIDE.md`, `example.yml`, `llms.txt`, les README et le wiki (MODES.md, GUIDE.fr.md).
+- [ ] Mêmes droits que l'interrupteur de programme (tous, sauf option `admin_only`).
+- Hors périmètre : calendrier automatique de saisons (une bascule automatique passe par une automatisation sur le sélecteur).
 
 ### 37.3 Configuration des programmes par un fichier YAML
 - [x] Les programmes se configurent facilement dans un fichier YAML situé dans `/config/www/weekly_planner.yml`.

@@ -1,0 +1,69 @@
+# Weekly Planner
+
+Planifier la semaine des appareils d'une maison : quand ils changent d'état, et pour quoi faire. Ce vocabulaire est celui de l'interface (carte, guides, wiki) ; il sert aussi aux humains et aux IA qui travaillent sur le projet.
+
+## Language
+
+**Programme**:
+Un ensemble d'appareils avec leurs réglages et leurs horaires par mode. C'est ce que l'on active, met en pause ou règle sur la carte.
+_Avoid_: planning, scénario, automatisation
+
+**Appareil**:
+Ce qu'un programme commande : un chauffage, un volet, une prise… Un programme peut en réunir plusieurs.
+_Avoid_: entité (dans l'interface), device
+
+**Mode**:
+Un état global de la maison (Maison, Absent, Vacances, Hiver, Été…), commun à tous les programmes et choisi en dehors de Weekly Planner. Chaque programme a ses propres horaires pour chaque mode.
+_Avoid_: profil, saison, semaine type (dans l'interface)
+
+**Mode actif**:
+Le mode en vigueur dans toute la maison en ce moment ; chaque programme applique alors ses horaires de ce mode.
+_Avoid_: profil actif, saison en cours
+
+**Sélecteur de mode**:
+L'entité externe de Home Assistant dont l'état est le mode actif. Facultatif : sans sélecteur, il n'existe qu'un seul mode, le mode par défaut. Weekly Planner le lit ; il ne le modifie jamais. Les modes disponibles sont ses options.
+_Avoid_: source de mode, entité source
+
+**Horaire**:
+Une règle « de telle heure à telle heure, tels jours, tel réglage » d'un programme pour un mode. Sans heure de fin, c'est une action unique.
+_Avoid_: créneau, plage, slot, planning
+
+**Réglage**:
+Ce que les appareils doivent faire, avec un nom et une couleur : par exemple « Confort = 20 °C ». Partagé par tous les modes et tous les programmes ; une valeur propre peut être donnée à un appareil.
+_Avoid_: label, étiquette, preset, action (pour le nom donné par l'utilisateur)
+
+**Le reste du temps**:
+Le réglage appliqué à un appareil quand aucun horaire ne s'applique ou qu'un horaire se termine.
+_Avoid_: réglage par défaut, état de repos
+
+**Condition**:
+Une règle qui doit être vraie pour qu'un programme agisse (par exemple « quelqu'un est présent »).
+_Avoid_: garde, filtre
+
+**Priorité**:
+Quand plusieurs programmes pilotent le même appareil, le programme au numéro le plus bas l'emporte. Les modes n'ajoutent pas de priorité.
+_Avoid_: ordre, importance
+
+## Marche et arrêt
+
+**Pause**:
+Un programme arrêté pour une durée choisie (1 jour, 7 jours, x jours) : il reprend tout seul à la fin. Elle n'éteint pas les appareils.
+_Avoid_: suspension, mise en veille
+
+**Désactivé**:
+Un programme arrêté sans limite de durée, jusqu'à ce qu'on le réactive.
+_Avoid_: inactif, éteint, suspendu
+
+**Suspension de tous les programmes**:
+Un interrupteur global qui arrête tous les programmes à la fois, quel que soit le mode, et remet les appareils à leur réglage de repos. Elle prime sur le mode et n'est pas le mode « Vacances ».
+_Avoid_: mode vacances, pause générale
+
+**Reprise**:
+Le retour d'un programme en marche, à la main (on remet l'interrupteur) ou automatiquement à la fin d'une pause. Elle recalcule l'action du moment sans rejouer le passé.
+_Avoid_: réactivation (à la fin d'une pause)
+
+## Source de vérité
+
+**Fichier de configuration**:
+Le fichier `weekly_planner.yml` qui reflète les programmes et se relit quand on le modifie à la main.
+_Avoid_: fichier YAML (pour l'utilisateur), export
