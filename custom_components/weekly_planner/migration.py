@@ -237,7 +237,7 @@ def migrate_config_v1(data: dict, language: str = "en", names: dict[str, str] | 
     return data
 
 
-def migrate_config_v2(data: dict) -> dict:
+def migrate_config_v2(data: dict, active_profiles: dict[str, str] | None = None) -> dict:
     """Configuration of version 2 -> version 3: the mode becomes global (docs/adr/0001).
 
     1. ``mode_source`` and ``active_profile`` are dropped from every program.
@@ -246,7 +246,9 @@ def migrate_config_v2(data: dict) -> dict:
     3. The FIRST profile of each program is its default profile; the other profiles are kept untouched
        and are matched to the selector options by name from now on.
     4. With a selector and no ``default_mode``, ``default_mode`` becomes the name of the active profile of
-       the first program (its first profile when none is recorded). Then each default profile is renamed
+       the first program (its first profile when none is recorded). The real active profile of a program lives
+    in the runtime (``active_profiles``: program id -> profile id); the ``active_profile`` kept in the
+    configuration is only the fallback. Then each default profile is renamed
        to ``default_mode`` unless a profile already has that name, so the existing schedules move under
        the default option.
 
@@ -263,7 +265,8 @@ def migrate_config_v2(data: dict) -> dict:
     concerned: list[dict] = []
     for index, program in enumerate(programs):
         source = program.pop("mode_source", None)
-        active_id = program.pop("active_profile", None)
+        active_id = (active_profiles or {}).get(program["id"]) or program.pop("active_profile", None)
+        program.pop("active_profile", None)
         profiles = program["profiles"]
         if index == 0:
             active_name = next((p["name"] for p in profiles if p["id"] == active_id), profiles[0]["name"])

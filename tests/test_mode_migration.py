@@ -137,3 +137,22 @@ async def test_no_issue_when_nothing_changes_for_the_user(hass, hass_storage, fr
     assert ir.async_get(hass).async_get_issue(DOMAIN, "modes_now_global") is None
     assert er.async_get(hass).async_get(stale[0].entity_id) is None  # the select is removed all the same
     assert entry.runtime_data.active_mode is None
+
+
+def test_runtime_active_profile_wins_over_the_config_one():
+    old = v2(old_program("a", "input_select.house", modes=("Base", "Away", "Eco"), active="away"))
+    assert migrate_config_v2(old, {"a": "eco"})["default_mode"] == "Eco"
+    assert migrate_config_v2(old, {"other": "eco"})["default_mode"] == "Away"  # no runtime entry: config
+
+
+async def test_real_stored_v2_uses_the_runtime_active_profile(hass, hass_storage, freezer):
+    Recorder(hass)
+    hass.states.async_set("input_select.house", "Eco", {"options": ["Base", "Away", "Eco"]})
+    hass_storage[f"{DOMAIN}.runtime"] = {"version": 2, "minor_version": 1, "key": f"{DOMAIN}.runtime",
+                                         "data": {"entities": {}, "programs": {"salon": {"active_profile": "eco"}}}}
+    prog = old_program("salon", "input_select.house", modes=("Base", "Away", "Eco"), active="away")
+    entry, _stale = await _setup_v2(hass, hass_storage, freezer, [prog])
+    config = entry.runtime_data.store.config
+    assert config["default_mode"] == "Eco" and config["mode_selector"] == "input_select.house"
+    assert "active_profile" not in config["programs"][0]
+    assert "active_profile" not in entry.runtime_data.store.runtime["programs"].get("salon", {})

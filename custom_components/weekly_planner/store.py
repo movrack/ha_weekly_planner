@@ -49,6 +49,7 @@ class _VersionedStore(Store):
         super().__init__(*args, **kwargs)
         self._migrate = migrate
         self.old_major = 0  # major version of the file being migrated
+        self.active_profiles: dict[str, str] = {}  # runtime: program id -> active profile id (migration 2 -> 3)
 
     async def _async_migrate_func(self, old_major: int, old_minor: int, old_data: dict) -> dict:
         _LOGGER.info("Migrating %s from %s.%s", self.key, old_major, old_minor)
@@ -84,7 +85,7 @@ class PlannerStore:
     async def _migrate_config(self, data: dict) -> dict:
         """Version 1 -> 2 (label names of other actions taken from the translated service names), then 2 -> 3."""
         if self._config.old_major >= 2:
-            return migrate_config_v2(data)
+            return migrate_config_v2(data, self._config.active_profiles)
         language = self.hass.config.language
         try:
             texts = await async_get_translations(self.hass, language, "services")
@@ -95,7 +96,7 @@ class PlannerStore:
             for key, value in texts.items()
             if key.startswith("component.") and key.count(".") == 4 and key.endswith(".name")
         }
-        return migrate_config_v2(migrate_config_v1(data, language, names))
+        return migrate_config_v2(migrate_config_v1(data, language, names), self._config.active_profiles)
 
     @property
     def _config_path(self) -> Path:
@@ -103,6 +104,11 @@ class PlannerStore:
 
     async def async_load(self) -> None:
         existed = await self.hass.async_add_executor_job(self._config_path.exists)
+        # The runtime is read first: the configuration migration needs the real active profiles.
+        self.runtime = await self._runtime.async_load() or self.runtime
+        self._config.active_profiles = {
+            pid: rt["active_profile"] for pid, rt in (self.runtime.get("programs") or {}).items()
+            if rt.get("active_profile")}
         try:
             data = await self._config.async_load()
         except Exception as err:  # noqa: BLE001 - unsupported version, invalid JSON…
@@ -113,7 +119,6 @@ class PlannerStore:
             self.read_only = True
             raise ConfigStoreError("configuration file unreadable")
         self.config = data if data is not None else empty_config()
-        self.runtime = await self._runtime.async_load() or self.runtime
         self.journal = (await self._journal.async_load() or {}).get("segments", [])
 
     def save_config(self, *, mirror: bool = True) -> None:
