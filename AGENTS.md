@@ -146,9 +146,7 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
 - A deployment does not need a commit. When the owner requests deployment, deploy the tested working
   tree even if changes are uncommitted; never require a commit or another approval solely for that reason.
   Report uncommitted changes and the deployed bundle checksum.
-- `scripts/deploy_prod.sh` (dry run by default, `--apply` to copy; it runs the tests first).
-- Deploy command: `WP_HOST=<ssh alias of the owner's HA> scripts/deploy_prod.sh --apply`. The alias is in the
-  owner's `~/.ssh/config` and local AI memory, not in the repo. When the owner says "deploy", the AI runs
+- The deploy script `scripts/deploy_prod.sh` is specific to the owner's installation: it is git-ignored and never committed (not in the repository nor its history); it exists only on the owner's machine (dry run by default, `--apply` to copy; it runs the tests first). Deploy command: `WP_HOST=<ssh alias of the owner's HA> scripts/deploy_prod.sh --apply`; the alias is in the owner's `~/.ssh/config` and local AI memory, never in the repo. When the owner says "deploy", the AI runs
   the script itself (never hands the command back to the owner), then reloads and verifies the remote
   bundle hash and version.
   Other scripts: `scripts/dev_ha.sh` (local test HA, port 8124), `scripts/dev_onboard.py`, `scripts/bench.py`.
@@ -157,7 +155,6 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
 - Release: once the maintainer has merged the release PR into `main`, the `Release` workflow (`.github/workflows/release.yml`) creates the tag and the GitHub release from the CHANGELOG section of the version on `main` (it fails if manifest, pyproject and package.json versions differ, and skips an existing tag). `scripts/release.sh` (dry run; `--apply`) is the manual fallback. Releases are never created from `develop`.
 - Reports and plans never give effort estimates in human days or weeks (the work is done by AI agents); list the steps, dependencies and risks instead.
 - Token discipline: sub-agents default to a light/medium model (strong model only for architecture or a real adversarial review); at most 2 heavy agents in parallel; reuse finished agents with SendMessage instead of re-reading the same code with new ones; briefs name exact files and cap the report (≤ 25 lines); browser passes follow a short checklist; run the full suites once per merge batch.
-- Codex runs go through `scripts/codex_run.sh <name> "<prompt>" [read-only|workspace-write]`: it closes stdin and streams everything into `/tmp/codex-<name>-<date>.log` (symlink `/tmp/codex-latest.log`) so the owner can follow it with `tail -f /tmp/codex-latest.log`. Codex never deploys, pushes or touches production.
 
 ## Feedback loop and verification before a deploy (retrospective 2026-11-02)
 - Unit tests are not proof for a UI change. Before deploying a card change, look at it rendered in a real browser on a local instance or harness with data shaped like the owner's real case (presets without numbers, extra sources, two-column modal, 360 px and desktop, light and dark) and keep a screenshot or measured numbers (bounding boxes) as evidence. On 2026-11-02 the owner found six defects after deploy that this would have caught (alias refused by an older server, wrong legend quantity, options in the wrong column, no program line for presets, chart not aligned with the bar, stray label).

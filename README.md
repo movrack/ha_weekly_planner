@@ -471,15 +471,6 @@ its sources. Run `scripts/dev_ha.sh` for the local HA instance on port 8124, the
 `scripts/dev_onboard.py` to initialize it. The onboarding helper prints a development
 token: keep its output and `dev/` runtime data out of Git and published logs.
 
-```bash
-WP_HOST=YOUR_SSH_ALIAS scripts/deploy_prod.sh           # inspect the diff
-WP_HOST=YOUR_SSH_ALIAS scripts/deploy_prod.sh --apply   # test, build, copy
-```
-
-The deploy script accepts a tested uncommitted working tree, prints its base
-revision/dirty status and the card SHA-256, and never restarts HA. For card-only
-updates call `weekly_planner.reload`. For Python changes, take an HA backup and
-restart only with the owner's approval. A deployment does not need a commit.
 
 Further references: [specification](docs/SPEC.md), [decisions](docs/DECISIONS.md),
 [screen inventory](docs/SCREEN_INVENTORY.md), [changelog](CHANGELOG.md).

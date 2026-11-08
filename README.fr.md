@@ -460,16 +460,6 @@ local sur le port 8124, puis `scripts/dev_onboard.py` pour l’initialiser. Ce d
 affiche un jeton de développement : garder sa sortie et les données `dev/` hors de
 Git et des journaux publiés.
 
-```bash
-WP_HOST=YOUR_SSH_ALIAS scripts/deploy_prod.sh           # aperçu
-WP_HOST=YOUR_SSH_ALIAS scripts/deploy_prod.sh --apply   # tests, build, copie
-```
-
-Le script accepte un arbre testé non commité, affiche sa révision/son état et le
-SHA-256 du bundle, sans redémarrer HA. Carte seule : `weekly_planner.reload`.
-Changement Python : sauvegarde HA puis redémarrage autorisé par le propriétaire.
-La règle de commit du lundi au vendredi entre 08 h et 17 h n’interdit pas les
-déploiements ; les garde-fous de commit restent actifs.
 
 Références : [spécification](docs/SPEC.md), [décisions](docs/DECISIONS.md),
 [inventaire des captures](docs/SCREEN_INVENTORY.md),

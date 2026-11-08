@@ -101,7 +101,7 @@ Agents en parallèle qui modifient des fichiers : chacun dans son worktree git, 
 Ne pas les recopier : appliquer les sections de `AGENTS.md` — découverte générique (aucun catalogue
 d'appareils codé en dur), un seul modèle pour tous les appareils, étiquettes et modes, pas de secrets,
 interface (écran 360 × 780, thèmes clair et sombre, peu de texte, icônes `mdi:`, une seule paire
-Enregistrer / Annuler), et déploiement (`scripts/deploy_prod.sh`, simulation par défaut).
+Enregistrer / Annuler), et déploiement (script local propre à l’installation du propriétaire, hors dépôt).
 
 ## Mise à jour des règles
 Automatique : dès que le propriétaire donne une règle, une préférence ou une correction, l'enregistrer
