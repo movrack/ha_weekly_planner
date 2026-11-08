@@ -39,3 +39,5 @@ programs:
         # Solar times: start: {sun: sunset, offset: -30, earliest: "17:00", latest: "21:00"}
       Away:               # a day left out (or []) has no schedule
         mon: [{id: away-day, start: {time: "09:00"}, end: {time: "17:00"}, label: eco}]
+      Holiday:            # a mode can follow another one instead of having schedules of its own
+        follows: Home     # always the schedules of Home (a change in Home shows here at once); Home must follow nobody

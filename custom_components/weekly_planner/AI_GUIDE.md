@@ -18,7 +18,7 @@ target entity accepts.
    - there is **no** `select` entity of Weekly Planner: the mode is the state of one external selector
      (`mode_selector` in the YAML file).
 3. **Mode**: `mode_selector` (an `input_select` or `select` entity, or `null` = a single mode) and
-   `default_mode` (one of its options) are set once for the whole house, in the YAML file or in
+   `default_mode` (one of its options)   `default_mode` (one of its options) are set once for the whole house, in the YAML file or in
    **Settings → Devices & services → Weekly Planner → Configure**. The options of the selector are the modes.
    **To switch mode, change that external selector** (`input_select.select_option` or
    `select.select_option`): Weekly Planner has no service or command for it and only reads the selector.
@@ -34,7 +34,7 @@ target entity accepts.
 ## 2. Configure by editing the YAML file (recommended for agents)
 1. Copy `example.yml` (this folder) as a starting point; it is validated by the test suite.
 2. Edit `/config/www/weekly_planner.yml`: add a **label** (name, colour, action), then a **program**
-   (devices, `modes:` keyed by mode name, each with 7 day lists of slots). Keep existing `id` values and the exact mode names (a mode is matched to a selector option by its name; the first mode of a program is the one used when there is no selector); programs missing from the file
+   (devices, `modes:` keyed by mode name, each with 7 day lists of slots). Keep existing `id` values and the exact mode names (a mode is matched to a selector option by its name; the first mode of a program is the one used when there is no selector); a mode may instead be `{follows: <other mode>}` (same schedules as that mode, no schedules of its own; the source follows nobody; no chain, loop or self); programs missing from the file
    are **removed**, so never rewrite the file from a partial view.
 3. Save. The change is read within 30 seconds, or call `weekly_planner.reload`.
 4. **Verify**: no repair issue `yaml_invalid`; the program switch exists with the expected attributes;

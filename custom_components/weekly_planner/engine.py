@@ -40,8 +40,8 @@ from .const import (
     VERIFY_TOLERANCE,
 )
 from .modes import (
-    MAX_RENAMES, NO_PROFILE, apply_default_mode, delete_profile, mode_proposals, orphan_modes, profile_for_mode,
-    rename_profile, unambiguous_rename,
+    MAX_RENAMES, NO_PROFILE, apply_default_mode, delete_profile, detach_followers, mode_proposals, orphan_modes,
+    profile_for_mode, rename_profile, set_follow, unambiguous_rename,
 )
 from .registry import async_check_missing, async_track_registry
 from .resolver import (
@@ -1299,7 +1299,7 @@ class PlannerEngine:
         selector = config.get("mode_selector")
         if not selector:
             self._mode, self._mode_lost = None, False
-            if [runtime.pop(key, None) for key in ("last_mode", "mode_options_seen", "mode_renames")] != [None] * 3:
+            if [runtime.pop(key, None) for key in ("last_mode", "mode_options_seen", "mode_renames", "mode_follow_lost")] != [None] * 4:
                 self.store.save_runtime()
         else:
             state = self.hass.states.get(selector)
@@ -1379,6 +1379,28 @@ class PlannerEngine:
     def mode_renames(self) -> list[dict]:
         return list(self.store.runtime.get("mode_renames", []))
 
+    def mode_follow_lost(self) -> list[dict]:
+        """Modes that stopped following a mode that went away (they kept a copy of its last schedules)."""
+        return list(self.store.runtime.get("mode_follow_lost", []))
+
+    async def async_set_mode_follow(self, program_id: str, mode: str, follows: str | None) -> dict | None:
+        """Make ``mode`` follow ``follows`` in a program, or (``None``) stop following with a copy of the schedules
+        of the source (docs/adr/0002). Returns the saved program, None for an unknown program; ``ValueError`` when refused."""
+        async with self._lock:
+            program = self.store.program(program_id)
+            if program is None:
+                return None
+            options = self.mode_options()
+            if options and mode not in options and not any(p["name"] == mode for p in program["profiles"]):
+                raise ValueError(f"'{mode}' is not a mode of the selector")
+            saved = set_follow(program, mode, follows)
+            saved["revision"] = program.get("revision", 0) + 1
+            self.store.programs[self.store.programs.index(program)] = saved
+            self.store.save_config()
+            # Only the active mode's own effective schedules can change what the devices must do now.
+            await self._async_config_changed(reapply=mode == self._mode)
+            return saved
+
     def _sync_orphan_issue(self) -> None:
         """Repair issue ``mode_option_missing``: created or updated only when the orphan list changes."""
         orphans = self.mode_orphans()
@@ -1403,7 +1425,16 @@ class PlannerEngine:
         """
         async with self._lock:
             if new is None:
+                lost = detach_followers(self.store.programs, old)  # the modes that followed it keep a copy
+                if lost:
+                    records = self.store.runtime.setdefault("mode_follow_lost", [])
+                    records.append({"source": old, "modes": sorted({item["mode"] for item in lost}),
+                                    "programs": sorted({item["program_id"] for item in lost}),
+                                    "at": dt_util.utcnow().isoformat()})
+                    del records[:-MAX_RENAMES]
+                    self.store.save_runtime()
                 done, skipped = delete_profile(self.store.programs, old)
+                done = sorted(set(done) | {item["program_id"] for item in lost})
             else:
                 done, skipped = rename_profile(self.store.programs, old, new)
                 if done:
@@ -1431,6 +1462,18 @@ class PlannerEngine:
             await self._async_config_changed(reapply=False)
             return record
 
+    async def async_dismiss_mode_rename(self, new: str) -> bool:
+        """Forget the rename records to ``new`` (the notice goes away for everybody, the rename stays); False when none."""
+        async with self._lock:
+            records = self.store.runtime.get("mode_renames", [])
+            kept = [r for r in records if r["new"] != new]
+            if len(kept) == len(records):
+                return False
+            self.store.runtime["mode_renames"] = kept
+            self.store.save_runtime()
+            self._notify_listeners()
+            return True
+
     async def _async_mode_changed_locked(self) -> None:
         """The selector changed state or options; the caller holds the engine lock."""
         changed = self._sync_mode()
@@ -1452,7 +1495,7 @@ class PlannerEngine:
         async with self._lock:
             config = self.store.config
             if config.get("mode_selector") != selector:
-                for key in ("last_mode", "mode_options_seen", "mode_renames"):
+                for key in ("last_mode", "mode_options_seen", "mode_renames", "mode_follow_lost"):
                     self.store.runtime.pop(key, None)  # remembered for the former selector
                 self.store.save_runtime()
             config["mode_selector"], config["default_mode"] = selector, default_mode

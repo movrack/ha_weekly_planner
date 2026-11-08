@@ -63,9 +63,27 @@ const NO_SCHEDULE = { id: "", name: "", days: [[], [], [], [], [], [], []] } as 
  * the first ones when there is no mode, none (an empty week) when the program has none for that mode.
  */
 export function activeProfile(program: Program, data: PlannerData): Profile {
+  const own = ownProfile(program, data);
+  return own ? effectiveProfile(program, own) : NO_SCHEDULE;
+}
+
+/** The schedules named after the active mode (the first ones without a mode), whatever they follow. */
+function ownProfile(program: Program, data: PlannerData): Profile | undefined {
   const mode = data.mode?.selector ? data.mode.active : null;
-  if (mode == null) return program.profiles[0];
-  return program.profiles.find((p) => p.name === mode) ?? NO_SCHEDULE;
+  return mode == null ? program.profiles[0] : program.profiles.find((p) => p.name === mode);
+}
+
+/** The schedules that apply for `profile`: those of the mode it follows (one step), else its own. */
+export function effectiveProfile(program: Program, profile: Profile): Profile {
+  if (!profile.follows) return profile;
+  const source = program.profiles.find((p) => p.name === profile.follows);
+  return source && source !== profile && !source.follows ? source : profile;
+}
+
+/** Name of the mode the active mode of the program follows; null when it follows none. */
+export function activeFollow(program: Program, data: PlannerData): string | null {
+  const own = ownProfile(program, data);
+  return own && effectiveProfile(program, own) !== own ? own.follows ?? null : null;
 }
 
 export function friendlyName(hass: HomeAssistant, entityId: string): string {

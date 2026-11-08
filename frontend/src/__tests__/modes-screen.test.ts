@@ -55,7 +55,8 @@ describe("mode choice in the schedules screen", () => {
     const html = flat(view.render());
     expect(html).toContain('role="tablist"');
     expect(html.match(/role="tab"/g)).toHaveLength(4);
-    expect(html.match(/mdi:check/g)).toHaveLength(1);
+    expect(html).not.toContain("mdi:check");
+    expect(html.match(/class="live"/g)).toHaveLength(1); // only the active mode carries the badge
     expect(html).toContain("no option");
     expect(html).toContain("modechip on ");
     expect(html).toContain("modechip  orphan");
@@ -73,6 +74,8 @@ describe("mode choice in the schedules screen", () => {
     view._pickMode("Old");
     const html = flat(view.render());
     expect(html).toContain("This mode is not active");
+    expect(html).toContain('class="inactive"');
+    expect(flat(view._renderInactive())).toContain("The active mode is Home. These schedules will apply when input_select.m changes to Old.");
     expect(view._modeOnly).toBe(true);
     expect(view._rows()[0].group.slot.id).toBe("c");
     expect(html).not.toContain('class="switch"');
@@ -242,9 +245,17 @@ describe("mode notices", () => {
   it("shows the last recent rename with an undo button", async () => {
     const n = notice({ renamed: [{ old: "A", new: "B", at: recent() }, { old: "Hiver", new: "Winter", at: recent() }] });
     const html = flat(n.render());
-    expect(html).toContain("Renamed from Hiver"); expect(html).not.toContain("Renamed from A");
+    expect(html).toContain("The mode Hiver was renamed"); expect(html).not.toContain("The mode A was renamed");
     await handlers(n.render()).filter((h) => h.event === "click")[0].fn();
     expect(n.hass.callWS).toHaveBeenCalledWith({ type: "weekly_planner/mode/undo_rename", new: "Winter" });
+  });
+  it("dismisses the rename notice with OK", async () => {
+    const n = notice({ renamed: [{ old: "Hiver", new: "Winter", at: recent() }] });
+    const clicks = handlers(n.render()).filter((h) => h.event === "click");
+    expect(clicks).toHaveLength(2);
+    expect(flat(n.render())).toContain("mdi:check");
+    await clicks[1].fn();
+    expect(n.hass.callWS).toHaveBeenCalledWith({ type: "weekly_planner/mode/dismiss_rename", new: "Winter" });
   });
   it("shows a failure and keeps working", async () => {
     const n = notice({ proposals: [{ old: "W", candidates: ["C"] }] });

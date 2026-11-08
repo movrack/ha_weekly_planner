@@ -12,6 +12,7 @@ from homeassistant.helpers import config_validation as cv
 
 from .actions import needs_admin
 from .const import DEFAULT_PRIORITY, DEFAULT_REAPPLY, DOMAIN, MODE_NAME_MAX, MODE_SELECTOR_DOMAINS
+from .modes import check_follows
 from .slots import applicable_ids
 from .timeline import SUN_EVENTS, day_occurrences, parse_clock
 
@@ -127,6 +128,8 @@ PROFILE = vol.Schema({
     vol.Required("id"): str,
     vol.Required("name"): vol.All(str, vol.Length(min=1, max=40)),
     vol.Required("days"): vol.All([vol.All([SLOT], vol.Length(max=50))], vol.Length(min=7, max=7)),
+    # The mode follows another mode of the program (docs/adr/0002): its schedules are those of that mode.
+    vol.Optional("follows"): vol.Any(None, vol.All(str, vol.Length(min=1, max=40))),
 })
 
 CHART_SOURCE = vol.Schema({
@@ -295,6 +298,13 @@ def check_program(program: dict, labels: dict[str, dict], hass: Any = None, desc
     names = [p["name"] for p in program["profiles"]]
     if len(set(names)) != len(names):
         raise ProgramError("duplicate_profile_name")
+    for profile in program["profiles"]:
+        if profile.get("follows") is None:
+            profile.pop("follows", None)
+    try:
+        check_follows(program["profiles"])
+    except ValueError as err:
+        raise ProgramError(str(err)) from err
     for entity in program["entities"]:
         label_id = entity["default_label"]
         if label_id is not None and label_id not in labels:

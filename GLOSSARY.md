@@ -16,7 +16,11 @@ _Avoid_: entité (dans l'interface), device
 Un état global de la maison (Maison, Absent, Vacances, Hiver, Été…), commun à tous les programmes et choisi en dehors de Weekly Planner. Chaque programme a ses propres horaires pour chaque mode.
 _Avoid_: profil, saison, semaine type (dans l'interface)
 
-**Mode actif**:
+**Mode qui suit un autre** / **Mode source**:
+Pour un programme, un mode peut « suivre » un autre mode (son mode source) : ses horaires sont alors ceux du mode source, en permanence (ce qu'on ajoute ou change dans la source se voit aussitôt dans le mode qui suit). Il n'a pas d'horaires propres. Le lien se règle par programme et par mode ; on ne suit qu'un mode source qui ne suit personne (ni chaîne, ni boucle, pas soi-même). Arrêter de suivre donne au mode une copie des horaires de la source.
+_Avoid_: copie, lien, héritage, profil parent
+
+**Mode actif**:**Mode actif**:
 Le mode en vigueur dans toute la maison en ce moment ; chaque programme applique alors ses horaires de ce mode.
 _Avoid_: profil actif, saison en cours
 

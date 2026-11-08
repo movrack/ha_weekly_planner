@@ -63,7 +63,9 @@ def program_to_file(program: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for key, value in program.items():
         if key == "profiles":
-            out["modes"] = {p["name"]: dict(zip(DAYS, p["days"], strict=True)) for p in value}
+            out["modes"] = {
+                p["name"]: {"follows": p["follows"]} if p.get("follows") else dict(zip(DAYS, p["days"], strict=True))
+                for p in value}
         else:
             out[key] = value
     return out
@@ -90,10 +92,14 @@ def program_from_file(item: dict[str, Any], existing: dict[str, Any] | None) -> 
             raise TypeError(f"mode name {name!r} must be text")
         if days is None:
             days = {}
-        if not isinstance(days, dict) or set(days) - set(DAYS):
-            raise TypeError(f"mode {name}: expected the days {', '.join(DAYS)}")
-        profiles.append({"id": ids.get(name) or new_id(), "name": name,
-                         "days": [days.get(day) or [] for day in DAYS]})
+        if not isinstance(days, dict) or set(days) - set(DAYS) - {"follows"}:
+            raise TypeError(f"mode {name}: expected the days {', '.join(DAYS)}, or follows: <mode>")
+        profile = {"id": ids.get(name) or new_id(), "name": name, "days": [days.get(day) or [] for day in DAYS]}
+        if days.get("follows") is not None:
+            if not isinstance(days["follows"], str):
+                raise TypeError(f"mode {name}: 'follows' must be the name of a mode")
+            profile["follows"] = days["follows"]  # check_program refuses it next to schedules, a chain, a loop...
+        profiles.append(profile)
     if not profiles and existing:
         return {**program, "profiles": existing["profiles"]}
     return {**program, "profiles": profiles}
@@ -389,7 +395,7 @@ class YamlSync:
         store.config["vacation"] = vacation
         if mode is not None:
             if store.config.get("mode_selector") != mode["mode_selector"]:
-                for key in ("last_mode", "mode_options_seen", "mode_renames"):
+                for key in ("last_mode", "mode_options_seen", "mode_renames", "mode_follow_lost"):
                     store.runtime.pop(key, None)  # remembered for the former selector
                 store.save_runtime()
             store.config.update(mode)

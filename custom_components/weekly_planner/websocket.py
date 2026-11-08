@@ -59,7 +59,7 @@ def _editor_engine(hass: HomeAssistant, connection, msg) -> PlannerEngine | None
 def async_register(hass: HomeAssistant) -> None:
     for handler in (ws_get, ws_subscribe, ws_program_save, ws_program_delete, ws_label_save,
                     ws_label_delete, ws_preview, ws_journal, ws_set_enabled, ws_pause, ws_set_mode,
-                    ws_resolve_mode, ws_undo_mode_rename):
+                    ws_resolve_mode, ws_undo_mode_rename, ws_mode_follow, ws_dismiss_mode_rename):
         websocket_api.async_register_command(hass, handler)
 
 
@@ -105,6 +105,7 @@ def _snapshot_data(engine: PlannerEngine) -> dict[str, Any]:
             "orphans": engine.mode_orphans(),
             "proposals": engine.mode_proposals(),
             "renamed": engine.mode_renames(),
+            "follow_lost": engine.mode_follow_lost(),
         },
         "programs": engine.store.programs,
         "status": {p["id"]: engine.program_status(p["id"]) for p in engine.store.programs},
@@ -491,3 +492,47 @@ async def ws_undo_mode_rename(hass, connection, msg) -> None:
         connection.send_error(msg["id"], "not_found", "No rename to undo for this mode")
         return
     connection.send_result(msg["id"], {"old": record["old"], "new": record["new"]})
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/program/mode_follow",
+    vol.Required("program_id"): str,
+    vol.Required("mode"): vol.All(str, vol.Length(min=1, max=40)),
+    vol.Required("follows"): vol.Any(None, vol.All(str, vol.Length(min=1, max=40))),
+})
+@websocket_api.async_response
+async def ws_mode_follow(hass, connection, msg) -> None:
+    """In a program, make a mode follow another one (its schedules are those of the source), or (``follows`` null)
+    stop following: the mode keeps a copy of the schedules of the source. Same rights as saving a program."""
+    engine = _editor_engine(hass, connection, msg)
+    if engine is None:
+        return
+    if not engine.store.config.get("mode_selector"):
+        connection.send_error(msg["id"], "invalid", "Modes need a mode selector")
+        return
+    try:
+        program = await engine.async_set_mode_follow(msg["program_id"], msg["mode"], msg["follows"])
+    except ValueError as err:
+        connection.send_error(msg["id"], "invalid", str(err))
+        return
+    if program is None:
+        connection.send_error(msg["id"], "not_found", "Unknown program")
+        return
+    connection.send_result(msg["id"], {"program": program})
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/mode/dismiss_rename",
+    vol.Required("new"): str,
+})
+@websocket_api.async_response
+async def ws_dismiss_mode_rename(hass, connection, msg) -> None:
+    """Hide the "Renamed from ..." notice of mode ``new`` for everybody (administrators only, like undo_rename)."""
+    engine = _engine(hass)
+    if engine is None or not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Mode settings are reserved to administrators")
+        return
+    if not await engine.async_dismiss_mode_rename(msg["new"]):
+        connection.send_error(msg["id"], "not_found", "No rename to dismiss for this mode")
+        return
+    connection.send_result(msg["id"])

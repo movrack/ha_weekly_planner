@@ -16,6 +16,7 @@ def test_example_passes_the_import_rules() -> None:
     assert settings["default_mode"] == "Home"
     for item in raw["programs"]:
         program = check_program(program_from_file(dict(item), None), labels)
-        assert [p["name"] for p in program["profiles"]] == ["Home", "Away"]
+        assert [p["name"] for p in program["profiles"]] == ["Home", "Away", "Holiday"]
+        assert program["profiles"][2]["follows"] == "Home"
         assert len(program["profiles"][0]["days"]) == 7
         assert program["profiles"][1]["days"][1] == []

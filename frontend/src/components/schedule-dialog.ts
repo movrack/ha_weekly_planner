@@ -23,10 +23,10 @@ import type { RowEdit } from "../edits";
 import { appliedAction, labelName, labelOf, labelsFor } from "../labels";
 import type { LabelDraft } from "./label-picker";
 import { addDaysIso } from "./chart";
-import { confirmAction, pauseChoice } from "./confirm";
+import { chooseAction, confirmAction, pauseChoice } from "./confirm";
 import { slotDeviceError, strings, t } from "../i18n";
 import { loadServiceNames } from "../services";
-import { cloneSlots, friendlyName, newId } from "../planner";
+import { cloneSlots, effectiveProfile, friendlyName, newId } from "../planner";
 import { deviceDays, fetchPreviewResponse } from "../preview-cache";
 import { DAY, formatPauseEnd, localDateIso, minutesToClock, pauseEnd } from "../time";
 import { applicable, applies, normaliseEntities, shiftTimeSpec, specMinutes, sunBoundsInvalid } from "../slots";
@@ -158,10 +158,25 @@ export class WpSchedule extends LitElement {
     return mode.active ?? mode.default ?? mode.options[0] ?? null;
   }
 
-  /** The schedules of the opened mode in a program (none yet: undefined; they are created on the first save). */
-  private _modeProfile(program: Program): Profile | undefined {
+  /** The schedules named after the opened mode in a program, whatever they follow. */
+  private _ownProfile(program: Program): Profile | undefined {
     const mode = this._openMode;
     return mode === null ? program.profiles[0] : program.profiles.find((p) => p.name === mode);
+  }
+
+  /**
+   * The schedules shown and edited for the opened mode in a program (none yet: undefined; they are created on the
+   * first save). A mode that follows another one shows, and edits, the schedules of its source.
+   */
+  private _modeProfile(program: Program): Profile | undefined {
+    const own = this._ownProfile(program);
+    return own ? effectiveProfile(program, own) : undefined;
+  }
+
+  /** The mode the opened mode follows in a program; null when it follows none. */
+  private _followOf(program: Program): string | null {
+    const own = this._ownProfile(program);
+    return own && effectiveProfile(program, own) !== own ? own.follows ?? null : null;
   }
 
   /** The opened mode is not the active one: its schedules are edited, nothing else of the program. */
@@ -342,6 +357,11 @@ export class WpSchedule extends LitElement {
 
   /** Opens a slot row: the whole group, or only the focused day of it. */
   private _openRow(key: string, program: Program, group: SlotGroup): void {
+    if (this._followOf(program)) { void this._askFollow(program, () => this._openRowNow(key, program, group)); return; }
+    this._openRowNow(key, program, group);
+  }
+
+  private _openRowNow(key: string, program: Program, group: SlotGroup): void {
     const openId = groupId(group) ?? null;
     if (this._focus !== null && group.days.includes(this._focus)) {
       const { draft, rest } = dayView(group, this._focus);
@@ -389,6 +409,12 @@ export class WpSchedule extends LitElement {
 
   /** A new slot: all days from the full screen, one day when focused (starting after that day's last slot). */
   private _add(days: number[] = this._focus === null ? ALL_DAYS : [this._focus]): void {
+    const owner = this._programs[0];
+    if (owner && this._followOf(owner)) { void this._askFollow(owner, () => this._addNow(days)); return; }
+    this._addNow(days);
+  }
+
+  private _addNow(days: number[]): void {
     const program = this._programs[0];
     const eid = this._eid;
     if (!program || !eid) return;
@@ -946,6 +972,104 @@ export class WpSchedule extends LitElement {
 
   /* ---- modes ---- */
 
+  /**
+   * The opened mode follows another one: nothing is changed silently. Edit the source (it applies to this mode too:
+   * `go` runs), or stop following (this mode gets a copy of the schedules and the user taps again to edit them).
+   */
+  private async _askFollow(program: Program, go: () => void): Promise<void> {
+    const source = this._followOf(program);
+    const mode = this._openMode;
+    if (!source || mode === null) { go(); return; }
+    const lang = this._lang;
+    const choice = await chooseAction(this, t(lang, "mode_follows_edit_ask", { mode, source }), [
+      { id: "source", label: t(lang, "mode_follows_edit", { source }) },
+      { id: "stop", label: t(lang, "mode_follows_stop") },
+    ]);
+    if (choice === "source") go();
+    else if (choice === "stop" && (await this._setFollow(program, mode, null))) this._note = t(lang, "mode_follows_stopped", { mode, source });
+  }
+
+  /** Makes `mode` follow `follows` in a program, or (null) stop following with a copy of the schedules of the source. */
+  private async _setFollow(program: Program, mode: string, follows: string | null): Promise<boolean> {
+    if (this._saving) return false;
+    this._saving = true;
+    try {
+      const res = await this.hass.callWS<{ program?: Program }>({ type: "weekly_planner/program/mode_follow", program_id: program.id, mode, follows });
+      if (res?.program) this._saved[program.id] = res.program;
+      this._error = "";
+      return true;
+    } catch (err) {
+      this._error = t(this._lang, "error", { message: (err as { message?: string })?.message ?? String(err) });
+      return false;
+    } finally {
+      this._saving = false;
+    }
+  }
+
+  /** Modes the opened mode may follow in a program: offered by the selector, with schedules of their own (they follow nobody). */
+  private _followSources(program: Program): string[] {
+    const open = this._openMode;
+    if (open === null || program.profiles.some((p) => p.follows === open)) return [];
+    return this._modes().filter((m) => !m.orphan && m.name !== open && program.profiles.some((p) => p.name === m.name && !p.follows)).map((m) => m.name);
+  }
+
+  private async _onFollowChange(program: Program, event: Event): Promise<void> {
+    const select = event.target as HTMLSelectElement;
+    const mode = this._openMode;
+    const own = this._ownProfile(program);
+    const current = own?.follows ?? "";
+    const value = select.value;
+    if (mode === null || value === current) return;
+    const lang = this._lang;
+    if (value === "") {
+      if (await this._setFollow(program, mode, null)) this._note = t(lang, "mode_follows_stopped", { mode, source: current });
+      else select.value = current;
+      return;
+    }
+    if (own?.days.some((d) => d.length)
+      && !(await confirmAction(this, t(lang, "mode_follows_confirm", { mode, source: value }), t(lang, "mode_follows_yes", { source: value }), t(lang, "no")))) {
+      select.value = current;
+      return;
+    }
+    if (await this._setFollow(program, mode, value)) this._note = "";
+    else select.value = current;
+  }
+
+  /** "This mode follows: (none / a mode)" for each program of the screen; the list of followers when others follow this mode. */
+  private _renderFollow() {
+    const open = this._openMode;
+    if (open === null || this._open !== null) return nothing;
+    const lang = this._lang;
+    const many = this._programs.length > 1;
+    return this._programs.map((program) => {
+      const current = this._ownProfile(program)?.follows ?? "";
+      const followers = program.profiles.filter((p) => p.follows === open).map((p) => p.name);
+      const name = many ? ` (${program.name})` : "";
+      if (followers.length) return html`<p class="muted note">${t(lang, "mode_followed_by", { modes: followers.join(", ") })}${name}</p>`;
+      if (!this._canEdit) return current ? html`<p class="muted note">${t(lang, "mode_follows_info", { source: current })}${name}</p>` : nothing;
+      const sources = this._followSources(program);
+      if (!sources.length && !current) return nothing;
+      const list = current && !sources.includes(current) ? [current, ...sources] : sources;
+      return html`<label class="follow"><span>${t(lang, "mode_follows_label")}${name}</span>
+        <select ?disabled=${this._saving} @change=${(e: Event) => void this._onFollowChange(program, e)}>
+          <option value="" ?selected=${current === ""}>${t(lang, "mode_follows_none")}</option>
+          ${list.map((m) => html`<option value=${m} ?selected=${m === current}>${m}</option>`)}
+        </select></label>`;
+    });
+  }
+
+  /** Warning shown when the opened mode is not the active one: what it means and when it will apply. */
+  private _renderInactive() {
+    const lang = this._lang;
+    const mode = this.data.mode!;
+    const open = this._openMode ?? "";
+    const why = mode.active
+      ? t(lang, "mode_not_active_why", { active: mode.active, selector: friendlyName(this.hass, mode.selector ?? ""), mode: open })
+      : t(lang, "mode_not_active_why_none", { selector: friendlyName(this.hass, mode.selector ?? ""), mode: open });
+    return html`<div class="inactive" role="status"><ha-icon icon="mdi:alert-outline"></ha-icon>
+      <div><b>${t(lang, "mode_not_active")}</b><p>${why}</p></div></div>`;
+  }
+
   private _pickMode(name: string): void {
     if (this._open !== null || name === this._openMode) return;
     this._viewMode = name;
@@ -976,11 +1100,14 @@ export class WpSchedule extends LitElement {
     return html`<div class="modes" role="tablist" aria-label=${t(lang, "profile")}>
       ${modes.map((m) => {
         const on = m.name === open;
+        const follows = this._programs.map((p) => p.profiles.find((x) => x.name === m.name)?.follows).find(Boolean);
         return html`<button class="modechip ${on ? "on" : ""} ${m.orphan ? "orphan" : ""}" role="tab" aria-selected=${on}
           tabindex=${on ? 0 : -1} ?disabled=${this._open !== null && !on}
           @keydown=${(e: KeyboardEvent) => this._modeKey(e, modes)} @click=${() => this._pickMode(m.name)}>
-          ${on ? html`<ha-icon icon="mdi:check"></ha-icon>` : nothing}<span>${m.name}</span>
-          ${m.orphan ? html`<small>${t(lang, "mode_no_option")}</small>` : nothing}</button>`;
+          <span>${m.name}</span>
+          ${m.name === this.data.mode?.active ? html`<small class="live"><span class="dot"></span>${t(lang, "mode_active_badge")}</small>` : nothing}
+          ${m.orphan ? html`<small>${t(lang, "mode_no_option")}</small>` : nothing}
+          ${follows ? html`<small><ha-icon icon="mdi:link-variant"></ha-icon>${t(lang, "mode_follows_short", { source: follows })}</small>` : nothing}</button>`;
       })}
     </div>`;
   }
@@ -995,7 +1122,7 @@ export class WpSchedule extends LitElement {
 
   private _renderCopy() {
     const sources = this._copySources();
-    if (this._open !== null || !sources.length || !this._canEdit) return nothing;
+    if (this._open !== null || !sources.length || !this._canEdit || this._programs.some((p) => this._followOf(p))) return nothing;
     const lang = this._lang;
     return html`<button class="row copy" aria-expanded=${this._copyOpen} ?disabled=${this._saving}
         @click=${() => { this._copyOpen = !this._copyOpen; }}>
@@ -1106,7 +1233,8 @@ export class WpSchedule extends LitElement {
         <div class="cols">
         <div class="params">
         ${this._renderModes()}
-        ${this._modeOnly ? html`<p class="muted note" role="status">${t(lang, "mode_not_active")}</p>` : nothing}
+        ${this._renderFollow()}
+        ${this._modeOnly ? this._renderInactive() : nothing}
         <wp-mode-notice .hass=${this.hass} .data=${this.data}></wp-mode-notice>
         ${!this._canEdit ? html`<p class="err" role="alert">${t(lang, "read_only")}</p>` : nothing}
         ${this._error && !this._open ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
@@ -1187,9 +1315,22 @@ export class WpSchedule extends LitElement {
       --mdc-icon-size: 20px;
     }
     .modechip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .modechip.on { border: 2px solid var(--primary-color); background: color-mix(in srgb, var(--primary-color) 14%, transparent); font-weight: 600; }
+    .modechip.on { border: 1px solid var(--divider-color); border-bottom: 4px solid var(--primary-color); border-radius: 12px 12px 6px 6px; background: color-mix(in srgb, var(--primary-color) 14%, transparent); font-weight: 600; }
+    .modechip .live { display: inline-flex; align-items: center; gap: 4px; color: var(--success-color, #2e7d32); font-weight: 600; }
+    .modechip .live .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success-color, #2e7d32); }
+    .inactive { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--warning-color, #ff9800);
+      background: color-mix(in srgb, var(--warning-color, #ff9800) 16%, transparent); color: var(--primary-text-color); --mdc-icon-size: 24px; }
+    .inactive ha-icon { color: var(--warning-color, #ff9800); flex: none; }
+    .inactive b { font-size: 16px; }
+    .inactive p { margin: 2px 0 0; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
     .modechip.orphan { color: var(--secondary-text-color); border-style: dashed; }
-    .modechip small { font-size: 12px; color: var(--secondary-text-color); }
+    .modechip small { font-size: 12px; color: var(--secondary-text-color); display: inline-flex; align-items: center; gap: 2px; --mdc-icon-size: 14px; }
+    .follow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 15px; }
+    .follow select {
+      min-height: 48px; max-width: 100%; padding: 0 12px; border-radius: 24px; font: inherit; font-size: 15px;
+      border: 1px solid var(--divider-color); background: var(--card-background-color, transparent); color: var(--primary-text-color);
+    }
+    .follow select:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
     .modechip:disabled:not(.on) { opacity: 0.5; cursor: default; }
     .modechip:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
     .copy-from { align-items: center; margin: 0; }

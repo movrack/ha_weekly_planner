@@ -74,6 +74,68 @@ export function confirmAction(host: HTMLElement, message: string, confirmLabel: 
   });
 }
 
+/** One of several actions, each a big button; Cancel, Escape or a tap outside choose nothing (null). */
+@customElement("wp-choice")
+export class WpChoice extends LitElement {
+  @property() message = "";
+  @property({ attribute: false }) options: { id: string; label: string }[] = [];
+  @property() lang = document.documentElement.lang || "en";
+
+  private _result: string | null = null;
+
+  private _choose(value: string | null): void {
+    this._result = value;
+    this.renderRoot.querySelector<HTMLElement & { close(): void }>("wp-dialog")?.close();
+  }
+
+  private _closed = (ev: Event): void => {
+    ev.stopPropagation();
+    this.dispatchEvent(new CustomEvent("choice", { detail: this._result }));
+  };
+
+  render() {
+    const s = strings(this.lang);
+    return html`
+      <wp-dialog open heading=${s.cf_choose} @closed=${this._closed}>
+        <p class="msg">${this.message}</p>
+        <div class="choices">
+          ${this.options.map((o) => html`<button class="choice" @click=${() => this._choose(o.id)}>${o.label}</button>`)}
+        </div>
+        <div slot="footer" class="foot">
+          <button class="cancel" @click=${() => this._choose(null)}>${s.cancel}</button>
+        </div>
+      </wp-dialog>
+    `;
+  }
+
+  static styles = css`
+    .msg { font-size: 16px; line-height: 1.4; margin: 8px 0 12px; overflow-wrap: anywhere; }
+    .choices { display: grid; gap: 12px; }
+    .foot { display: flex; width: 100%; justify-content: flex-end; }
+    button {
+      min-height: 56px; padding: 8px 16px; border-radius: 28px; font: inherit; font-size: 16px; cursor: pointer; overflow-wrap: anywhere;
+      border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color);
+    }
+    button.choice { background: var(--primary-color); border-color: var(--primary-color); color: var(--text-primary-color, #fff); font-weight: 600; }
+    button:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+  `;
+}
+
+export function chooseAction(host: HTMLElement, message: string, options: { id: string; label: string }[]): Promise<string | null> {
+  return new Promise((resolve) => {
+    const el = document.createElement("wp-choice") as WpChoice;
+    el.message = message;
+    el.options = options;
+    const hass = (host as { hass?: { locale?: { language?: string }; language?: string } }).hass;
+    el.lang = hass?.locale?.language ?? hass?.language ?? (document.documentElement.lang || "en");
+    el.addEventListener("choice", (ev) => {
+      el.remove();
+      resolve((ev as CustomEvent<string | null>).detail ?? null);
+    });
+    (host.shadowRoot ?? host).appendChild(el);
+  });
+}
+
 /** Pause length choice: big buttons for 1 day, 7 days, a number of days of your own, or no limit. */
 export type PauseChoice = number | "none" | null;
 const MAX_PAUSE_DAYS = 365;

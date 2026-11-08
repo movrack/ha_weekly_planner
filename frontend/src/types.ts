@@ -74,6 +74,8 @@ export interface Profile {
   id: string;
   name: string;
   days: Slot[][]; // 0 = Monday … 6 = Sunday
+  /** Name of the mode this one follows: its schedules are those of that mode (this one has none of its own). */
+  follows?: string;
 }
 
 export interface ChartSource {
@@ -139,6 +141,8 @@ export interface ModeInfo {
   proposals?: { old: string; candidates: string[] }[];
   /** Renames applied automatically, oldest first (`at`: ISO date-time). */
   renamed?: { old: string; new: string; at: string }[];
+  /** Modes that stopped following a mode that went away (they kept a copy of its last schedules), oldest first. */
+  follow_lost?: { source: string; modes: string[]; programs: string[]; at: string }[];
 }
 
 export interface PlannerData {

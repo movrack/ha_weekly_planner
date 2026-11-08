@@ -51,6 +51,14 @@ export class WpModeNotice extends LitElement {
     return Number.isFinite(at) && Date.now() - at <= WEEK_MS ? last : undefined;
   }
 
+  /** Modes that stopped following a mode that went away, while the news is recent. */
+  private _followLost() {
+    return (this.data.mode?.follow_lost ?? []).filter((r) => {
+      const at = Date.parse(r.at);
+      return Number.isFinite(at) && Date.now() - at <= WEEK_MS;
+    });
+  }
+
   render() {
     const mode = this.data?.mode;
     if (!this.hass || !mode?.selector) return nothing;
@@ -59,8 +67,11 @@ export class WpModeNotice extends LitElement {
     const proposed = new Set(proposals.map((p) => p.old));
     const asks = [...proposals, ...(mode.orphans ?? []).filter((o) => !proposed.has(o)).map((old) => ({ old, candidates: [] as string[] }))];
     const renamed = this._lastRename();
-    if (!asks.length && !renamed) return nothing;
+    const lost = this._followLost();
+    if (!asks.length && !renamed && !lost.length) return nothing;
     return html`
+      ${lost.map((r) => html`<div class="notice" role="status">
+        <p>${t(lang, "mode_follow_lost", { modes: r.modes.join(", "), source: r.source })}</p></div>`)}
       ${asks.map((a) => html`<div class="notice" role="group" aria-label=${t(lang, "mode_gone", { old: a.old })}>
         <p>${t(lang, "mode_gone", { old: a.old })}${a.candidates.length ? html` ${t(lang, "mode_gone_ask")}` : nothing}</p>
         <div class="btns">
@@ -71,10 +82,13 @@ export class WpModeNotice extends LitElement {
         </div>
       </div>`)}
       ${renamed ? html`<div class="notice" role="status">
-        <p>${t(lang, "mode_renamed", { old: renamed.old })}</p>
+        <p>${t(lang, "mode_renamed", { old: renamed.old, new: renamed.new })}</p>
         <div class="btns"><button class="btn" ?disabled=${this._busy}
           @click=${() => void this._call({ type: "weekly_planner/mode/undo_rename", new: renamed.new })}>
-          <ha-icon icon="mdi:undo"></ha-icon>${t(lang, "mode_undo")}</button></div>
+          <ha-icon icon="mdi:undo"></ha-icon>${t(lang, "mode_undo")}</button>
+          <button class="btn" ?disabled=${this._busy}
+          @click=${() => void this._call({ type: "weekly_planner/mode/dismiss_rename", new: renamed.new })}>
+          <ha-icon icon="mdi:check"></ha-icon>${t(lang, "ok")}</button></div>
       </div>` : nothing}
       ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}`;
   }

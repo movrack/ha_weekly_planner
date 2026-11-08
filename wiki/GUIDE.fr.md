@@ -270,7 +270,7 @@ mode ; l’écran s’ouvre sur le mode actif.
 ### Si une option du sélecteur change de nom
 
 Si une seule option est renommée, les horaires suivent le nouveau nom dans tous
-les programmes ; **Renommé depuis …** s’affiche avec un bouton **Annuler** pendant
+les programmes ; **Le mode X a été renommé en Y** s’affiche avec un bouton **Annuler** pendant
 une semaine. Dans les autres cas, Weekly Planner ne devine pas : l’ancien mode
 garde ses horaires, marqué **sans option**, et rien n’est effacé. Un message
 propose chaque nouvelle option (**Est-ce devenu… ?**) ou **Non, le supprimer**.

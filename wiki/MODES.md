@@ -28,6 +28,17 @@ no mode.
 - A program that has no schedule for the active mode shows **No schedule for
   this mode**. Its devices then follow "The rest of the time".
 
+## A mode that follows another mode
+
+In the schedules screen, **This mode follows** lets a mode use, for this program, the schedules of another mode (for
+example "House leave" follows "Home"). It is not a copy: a change made in "Home" is seen at once in "House leave".
+Only a mode that follows nobody can be followed, and a followed mode cannot follow. A mode that follows has no
+schedules of its own; choosing one asks for confirmation when the mode already has some.
+
+To change a mode that follows, the screen asks: **Edit <source>** (it applies to this mode too) or **Stop following**
+(the mode gets a copy of the schedules and becomes independent). If the followed mode is deleted, the modes that
+followed it keep a copy of its last schedules and a notice says so. In the file: `modes: {House leave: {follows: Home}}`.
+
 ## How a mode is matched to its schedules
 
 A program's schedules belong to the mode that has **the same name** as an option
@@ -55,7 +66,7 @@ opens on the active mode.
 
 - **One option renamed**: if the selector has the same number of options in the
   same order and exactly one name changed, the schedules follow the new name in
-  every program. The card says **Renamed from …**, with an **Undo** button for a
+  every program. The card says **The mode X was renamed to Y**, with an **Undo** button for a
   week.
 - **Anything else**: Weekly Planner does not guess. The old mode stays with its
   schedules, marked **no option** (it is never used), and nothing is erased. A

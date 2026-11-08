@@ -272,3 +272,23 @@ async def test_selector_change_forgets_renames_and_options(hass, hass_storage, f
     assert engine.store.runtime["mode_renames"]
     await engine.async_set_mode_config(None, None)
     assert "mode_options_seen" not in engine.store.runtime and "mode_renames" not in engine.store.runtime
+
+
+async def test_dismiss_rename_hides_the_notice_for_everybody_and_keeps_the_rename(hass, hass_storage, freezer, hass_ws_client):
+    engine, ws, _rec = await _start(hass, hass_storage, freezer, hass_ws_client)
+    await _options(hass, ["Home", "Elsewhere", "Night"], "Home")
+    assert len((await snapshot(ws))["mode"]["renamed"]) == 1
+    await ws.send_json_auto_id({"type": f"{DOMAIN}/mode/dismiss_rename", "new": "Elsewhere"})
+    assert (await ws.receive_json())["success"]
+    assert (await snapshot(ws))["mode"]["renamed"] == [] and _names(engine) == ["Home", "Elsewhere"]
+    await ws.send_json_auto_id({"type": f"{DOMAIN}/mode/dismiss_rename", "new": "Elsewhere"})
+    assert (await ws.receive_json())["error"]["code"] == "not_found"
+
+
+async def test_dismiss_rename_is_for_administrators(hass, hass_storage, freezer, hass_ws_client, hass_read_only_access_token):
+    Recorder(hass)
+    choose(hass, "Home", ["Home", "Night"])
+    await setup(hass, hass_storage, freezer, [moded()], None, config=CONFIG)
+    ws = await hass_ws_client(hass, hass_read_only_access_token)
+    await ws.send_json_auto_id({"type": f"{DOMAIN}/mode/dismiss_rename", "new": "Night"})
+    assert (await ws.receive_json())["error"]["code"] == "unauthorized"

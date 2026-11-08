@@ -8,7 +8,9 @@ The first profile of a program is its default profile: it applies when there is 
 from __future__ import annotations
 
 from collections.abc import Iterable
+from copy import deepcopy
 from typing import Any
+import uuid
 
 # Value of ``active_profiles[program_id]`` when the program has no profile for the active mode.
 NO_PROFILE = ""
@@ -16,13 +18,116 @@ NO_PROFILE = ""
 EMPTY_PROFILE: dict[str, Any] = {"id": NO_PROFILE, "name": "", "days": [[] for _ in range(7)]}
 
 
+def profile_named(program: dict, name: str) -> dict | None:
+    return next((p for p in program["profiles"] if p["name"] == name), None)
+
+
+def effective_profile(program: dict, profile: dict) -> dict:
+    """The profile whose schedules apply for ``profile``: its source when it follows another mode
+    (docs/adr/0002, one step only), else itself. A source that is missing or itself follows is ignored."""
+    target = profile.get("follows")
+    if not target:
+        return profile
+    source = profile_named(program, target)
+    if source is None or source is profile or source.get("follows"):
+        return profile
+    return source
+
+
 def profile_for_mode(program: dict, mode: str | None) -> str:
     """Profile id a program uses for ``mode``: its default (first) profile when there is no mode,
-    the profile named ``mode``, else ``NO_PROFILE``."""
+    the profile named ``mode``, else ``NO_PROFILE``. A mode that follows another one uses the profile of
+    its source (the schedules are not copied)."""
     profiles = program["profiles"]
     if mode is None:
-        return profiles[0]["id"]
-    return next((p["id"] for p in profiles if p["name"] == mode), NO_PROFILE)
+        return effective_profile(program, profiles[0])["id"]
+    own = profile_named(program, mode)
+    return NO_PROFILE if own is None else effective_profile(program, own)["id"]
+
+
+def check_follows(profiles: list[dict]) -> None:
+    """Rules of ``follows`` (docs/adr/0002); raises ``ValueError`` with a readable message.
+
+    A mode follows an existing other mode (its source). A source follows nobody and a mode that is followed
+    follows nobody: no chain, no loop, not itself. A mode that follows has no schedule of its own.
+    """
+    by_name = {p["name"]: p for p in profiles}
+    sources = {p["follows"] for p in profiles if p.get("follows")}
+    for profile in profiles:
+        target = profile.get("follows")
+        if not target:
+            continue
+        name = profile["name"]
+        if target == name:
+            raise ValueError(f"Mode '{name}' cannot follow itself")
+        source = by_name.get(target)
+        if source is None:
+            raise ValueError(f"Mode '{name}' follows '{target}', which does not exist in this program")
+        if source.get("follows"):
+            raise ValueError(f"Mode '{name}' cannot follow '{target}': '{target}' already follows another mode")
+        if name in sources:
+            raise ValueError(f"Mode '{name}' cannot follow '{target}': another mode already follows '{name}'")
+        if any(day for day in profile["days"]):
+            raise ValueError(f"Mode '{name}' follows '{target}' and has its own schedules: it can have only one of the two")
+
+
+def copy_days(days: list[list[dict]]) -> list[list[dict]]:
+    """Independent copy of the seven days: new slot ids, the random-time seed of each slot kept."""
+    out = []
+    for day in days:
+        copies = []
+        for slot in deepcopy(day):
+            slot.setdefault("seed", slot["id"])
+            slot["id"] = uuid.uuid4().hex[:12]
+            copies.append(slot)
+        out.append(copies)
+    return out
+
+
+def set_follow(program: dict, mode: str, follows: str | None) -> dict:
+    """The program with mode ``mode`` following ``follows``, or (``None``) stopped following with a copy of
+    the schedules of its source. The mode gets a profile when it has none. Raises ``ValueError``; the
+    revision is left to the caller."""
+    profiles = deepcopy(program["profiles"])
+    own = next((p for p in profiles if p["name"] == mode), None)
+    if follows is None:
+        if own is not None and own.get("follows"):
+            source = next((p for p in profiles if p["name"] == own["follows"]), None)
+            own["days"] = copy_days(source["days"]) if source else [[] for _ in range(7)]
+            del own["follows"]
+    else:
+        if own is None:
+            own = {"id": uuid.uuid4().hex[:12], "name": mode, "days": [[] for _ in range(7)]}
+            profiles.append(own)
+        own["follows"] = follows
+        own["days"] = [[] for _ in range(7)]
+        check_follows(profiles)
+    return {**program, "profiles": profiles}
+
+
+def retarget_follows(program: dict, old: str, new: str) -> None:
+    """Modes that followed ``old`` follow ``new`` (the source was renamed)."""
+    for profile in program["profiles"]:
+        if profile.get("follows") == old:
+            profile["follows"] = new
+
+
+def detach_followers(programs: Iterable[dict], name: str) -> list[dict]:
+    """The source mode ``name`` is going away: each mode that followed it keeps a copy of its schedules and
+    stops following. Returns ``[{"program_id", "mode"}]`` for each such mode (revision bumped)."""
+    lost = []
+    for program in programs:
+        source = profile_named(program, name)
+        if source is None:
+            continue
+        for profile in program["profiles"]:
+            if profile.get("follows") == name:
+                profile["days"] = copy_days(source["days"])
+                del profile["follows"]
+                lost.append({"program_id": program["id"], "mode": profile["name"]})
+        if any(item["program_id"] == program["id"] for item in lost):
+            program["revision"] = program.get("revision", 0) + 1
+    return lost
 
 
 def apply_default_mode(programs: Iterable[dict], default_mode: str | None,
@@ -41,6 +146,7 @@ def apply_default_mode(programs: Iterable[dict], default_mode: str | None,
         profiles = program["profiles"]
         if any(p["name"] == default_mode for p in profiles) or profiles[0]["name"] in known:
             continue
+        retarget_follows(program, profiles[0]["name"], default_mode)
         profiles[0]["name"] = default_mode
         program["revision"] = program.get("revision", 0) + 1
         renamed.append(program["id"])
@@ -92,6 +198,7 @@ def rename_profile(programs: Iterable[dict], old: str, new: str) -> tuple[list[s
         if any(p["name"] == new for p in profiles):
             skipped.append(program["id"])
             continue
+        retarget_follows(program, old, new)
         source["name"] = new
         program["revision"] = program.get("revision", 0) + 1
         renamed.append(program["id"])
@@ -111,7 +218,8 @@ def delete_profile(programs: Iterable[dict], name: str) -> tuple[list[str], list
         if len(profiles) < 2:
             skipped.append(program["id"])
             continue
-        program["profiles"] = [p for p in profiles if p["name"] != name]
+        detach_followers([program], name)  # the modes that followed it keep a copy
+        program["profiles"] = [p for p in program["profiles"] if p["name"] != name]
         program["revision"] = program.get("revision", 0) + 1
         done.append(program["id"])
     return done, skipped
