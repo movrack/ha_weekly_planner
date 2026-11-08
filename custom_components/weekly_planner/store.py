@@ -23,7 +23,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, STORAGE_MINOR_VERSION, STORAGE_VERSION
 
-from .migration import migrate_config_v1, migrate_runtime_v1
+from .migration import migrate_config_v1, migrate_config_v2, migrate_runtime_v1
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ def new_id() -> str:
 
 def empty_config() -> dict[str, Any]:
     """Fresh configuration."""
-    return {"vacation": False, "labels": [], "programs": []}
+    return {"vacation": False, "mode_selector": None, "default_mode": None, "labels": [], "programs": []}
 
 
 class ConfigStoreError(Exception):
@@ -48,6 +48,7 @@ class _VersionedStore(Store):
     def __init__(self, *args: Any, migrate: Callable[[dict], dict] | None = None, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._migrate = migrate
+        self.old_major = 0  # major version of the file being migrated
 
     async def _async_migrate_func(self, old_major: int, old_minor: int, old_data: dict) -> dict:
         _LOGGER.info("Migrating %s from %s.%s", self.key, old_major, old_minor)
@@ -57,6 +58,7 @@ class _VersionedStore(Store):
             if await self.hass.async_add_executor_job(path.exists):
                 await self.hass.async_add_executor_job(
                     shutil.copy2, path, path.with_name(f"{path.name}.v{old_major}-backup-{stamp}"))
+            self.old_major = old_major
             result = self._migrate(old_data)
             return await result if inspect.isawaitable(result) else result
         return old_data
@@ -80,7 +82,9 @@ class PlannerStore:
         self.on_config_saved: Callable[[], None] | None = None  # YAML mirror (yaml_file.py)
 
     async def _migrate_config(self, data: dict) -> dict:
-        """Version 1 -> 2, label names of other actions taken from the translated service names."""
+        """Version 1 -> 2 (label names of other actions taken from the translated service names), then 2 -> 3."""
+        if self._config.old_major >= 2:
+            return migrate_config_v2(data)
         language = self.hass.config.language
         try:
             texts = await async_get_translations(self.hass, language, "services")
@@ -91,7 +95,7 @@ class PlannerStore:
             for key, value in texts.items()
             if key.startswith("component.") and key.count(".") == 4 and key.endswith(".name")
         }
-        return migrate_config_v1(data, language, names)
+        return migrate_config_v2(migrate_config_v1(data, language, names))
 
     @property
     def _config_path(self) -> Path:

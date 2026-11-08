@@ -11,6 +11,8 @@ import logging
 from typing import Any
 import uuid
 
+from .modes import apply_default_mode
+
 _LOGGER = logging.getLogger(__name__)
 
 RUNTIME_DROPPED = (
@@ -232,6 +234,52 @@ def migrate_config_v1(data: dict, language: str = "en", names: dict[str, str] | 
             "these entities now have no default: %s", "; ".join(previous))
     if dropped:
         _LOGGER.warning("Weekly Planner 0.6: slots without any convertible action were removed: %s", "; ".join(dropped))
+    return data
+
+
+def migrate_config_v2(data: dict) -> dict:
+    """Configuration of version 2 -> version 3: the mode becomes global (docs/adr/0001).
+
+    1. ``mode_source`` and ``active_profile`` are dropped from every program.
+    2. When every program that had a ``mode_source`` used the SAME entity, that entity becomes the global
+       ``mode_selector``; otherwise it stays null and the repair issue names those programs.
+    3. The FIRST profile of each program is its default profile; the other profiles are kept untouched
+       and are matched to the selector options by name from now on.
+    4. With a selector and no ``default_mode``, ``default_mode`` becomes the name of the active profile of
+       the first program (its first profile when none is recorded). Then each default profile is renamed
+       to ``default_mode`` unless a profile already has that name, so the existing schedules move under
+       the default option.
+
+    Programs that had a mode source, or several profiles (so a ``select`` entity with a real choice), are
+    listed in ``data["mode_migration"]`` as ``{"programs": [{"name", "mode_source"}]}``: the integration turns
+    it into ONE repair issue at setup and then removes the key. Pure function.
+    """
+    data = deepcopy(data)
+    programs = data.get("programs", [])
+    data.setdefault("mode_selector", None)
+    data.setdefault("default_mode", None)
+    sources: list[str] = []
+    active_name: str | None = None
+    concerned: list[dict] = []
+    for index, program in enumerate(programs):
+        source = program.pop("mode_source", None)
+        active_id = program.pop("active_profile", None)
+        profiles = program["profiles"]
+        if index == 0:
+            active_name = next((p["name"] for p in profiles if p["id"] == active_id), profiles[0]["name"])
+        entity = source.get("entity_id") if isinstance(source, dict) else None
+        if entity:
+            sources.append(entity)
+        if entity or len(profiles) > 1:
+            concerned.append({"name": program["name"], "mode_source": entity})
+    if sources and len(set(sources)) == 1 and not data["mode_selector"]:
+        data["mode_selector"] = sources[0]
+    if data["mode_selector"]:
+        if not data["default_mode"] and active_name:
+            data["default_mode"] = active_name
+        apply_default_mode(programs, data["default_mode"])
+    if concerned:
+        data["mode_migration"] = {"programs": concerned}
     return data
 
 

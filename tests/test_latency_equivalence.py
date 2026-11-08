@@ -1,5 +1,9 @@
 """The faster, yielding engine decides exactly like the 0.19.0 engine (``tests/legacy_engine.py``).
 
+Modes: the reference engine still follows one ``mode_source`` per program; here every program gets the same
+source (``input_select.house``, states "Base"/"Away" mapped to its two profiles), and the current engine reads
+the same entity as the global mode selector. Both must switch every program at the same moment.
+
 The same varied install and the same sequence of times, state changes and commands run through the
 reference engine and through the current one (also forced to yield between every entity); the
 service calls (with their targets, in order), logbook events, journal, runtime state, segments,
@@ -55,9 +59,10 @@ class CallLog:
 
 def _prog(pid: str, entities: list[tuple[str, str | None]], base: list[dict], *, away: list[dict] | None = None,
           priority: int = 10, reapply: bool = True, conditions: list | None = None, enabled: bool = True,
-          tuesday: list[dict] | None = None, mode_source: dict | None = None) -> dict:
+          tuesday: list[dict] | None = None) -> dict:
     days = [list(tuesday if (tuesday is not None and weekday == 1) else base) for weekday in range(7)]
     profiles = [{"id": "base", "name": "Base", "days": days}]
+    away = away if away is not None else base
     if away is not None:
         profiles.append({"id": "away", "name": "Away", "days": [list(away) for _ in range(7)]})
     program = {
@@ -67,8 +72,7 @@ def _prog(pid: str, entities: list[tuple[str, str | None]], base: list[dict], *,
         "entities": [{"entity_id": eid, "default_label": default, "label_overrides": {}} for eid, default in entities],
         "profiles": profiles,
     }
-    if mode_source:
-        program["mode_source"] = mode_source
+    program["mode_source"] = {"entity_id": "input_select.house", "mappings": {"Base": "base", "Away": "away"}}
     return program
 
 
@@ -93,8 +97,7 @@ def varied_programs() -> list[dict]:
               slot("b2", "19:00", None, "t25"), sunset], priority=5, reapply=False, conditions=[PRESENCE]),
         _prog("cover", [("cover.office", "close"), ("cover.kitchen", None)],
               [slot("c1", "08:00", None, "open"), slot("c2", "20:00", None, "close"), sunrise],
-              away=[slot("c4", "09:00", "17:00", "close")],
-              mode_source={"entity_id": "input_select.house", "mappings": {"home": "base", "away": "away"}}),
+              away=[slot("c4", "09:00", "17:00", "close")]),
         _prog("lights", [("light.a", None), ("light.b", None)],
               [slot("l1", "17:00", "23:00", "light50"), slot("l2", "23:30", "00:30", "light50")], priority=20),
         _prog("vacuum", [("vacuum.robot", None)], [slot("v1", "10:00", None, "start")], reapply=False),
@@ -108,7 +111,7 @@ def _states(hass: HomeAssistant) -> None:
         hass.states.async_set(eid, "on", {"temperature": 10})
     hass.states.async_set("binary_sensor.presence", "on")
     hass.states.async_set("binary_sensor.window", "off")
-    hass.states.async_set("input_select.house", "home")
+    hass.states.async_set("input_select.house", "Base")
 
 
 def _edit_heat(engine) -> None:
@@ -137,7 +140,7 @@ async def _burst(hass: HomeAssistant, engine) -> None:
     """Several changes in one go: conditions, a mode source and an entity going unavailable."""
     hass.states.async_set("binary_sensor.presence", "off")
     hass.states.async_set("binary_sensor.window", "on")
-    hass.states.async_set("input_select.house", "away")
+    hass.states.async_set("input_select.house", "Away")
     hass.states.async_set("cover.kitchen", "unavailable")
     hass.states.async_set("binary_sensor.presence", "on")
 
@@ -146,7 +149,7 @@ async def _ordered_burst(hass: HomeAssistant, engine) -> None:
     """Three changes in one go whose effects must stay in arrival order: a condition that changes
     nothing, a mode source (covers), then a slot condition (climate.*, sorted before cover)."""
     hass.states.async_set("binary_sensor.presence", "off")
-    hass.states.async_set("input_select.house", "away")
+    hass.states.async_set("input_select.house", "Away")
     hass.states.async_set("binary_sensor.window", "on")
 
 
@@ -178,9 +181,9 @@ EVENTS = {  # (day, hour, minute) -> what happens then, before the step is recor
     (26, 6, 30): [_set("binary_sensor.presence", "off")],
     (26, 7, 0): [_set("binary_sensor.presence", "on")],
     (26, 9, 0): [_set("binary_sensor.window", "on")],
-    (26, 9, 10): [_call("async_set_profile", "heat", "away")],
+    (26, 9, 10): [_set("input_select.house", "Away")],
     (26, 11, 0): [_set("cover.kitchen", "unavailable")],
-    (26, 11, 30): [_set("binary_sensor.window", "off"), _call("async_set_profile", "heat", "base")],
+    (26, 11, 30): [_set("binary_sensor.window", "off"), _set("input_select.house", "Base")],
     (26, 12, 30): [_set("cover.kitchen", "open")],
     (26, 13, 30): [_call("skip_next", "heat")],
     (26, 15, 0): [_call("async_set_enabled", "lights", False)],
@@ -190,19 +193,34 @@ EVENTS = {  # (day, hour, minute) -> what happens then, before the step is recor
     (26, 21, 0): [_call("async_set_vacation", True)],
     (26, 22, 30): [_call("async_set_vacation", False)],
     (27, 7, 10): [_burst],
-    (27, 7, 40): [_set("input_select.house", "home"), _set("cover.kitchen", "closed"),
+    (27, 7, 40): [_set("input_select.house", "Base"), _set("cover.kitchen", "closed"),
                   _set("binary_sensor.window", "off")],
     (27, 10, 20): [_call("async_set_enabled", "off", True)],
     (27, 11, 50): [_call("async_set_enabled", "off", False)],
     (27, 12, 10): [_ordered_burst],
     (27, 12, 40): [_set("binary_sensor.presence", "on"), _set("binary_sensor.window", "off"),
-                   _set("input_select.house", "home")],
+                   _set("input_select.house", "Base")],
 }
+
+
+MODE_CONFIG = {"mode_selector": "input_select.house", "default_mode": "Base"}  # read by the current engine only
 
 
 def _status(engine, program_id: str) -> dict:
     """Program status without ``skip_next_targets``: added with per-device schedules (#34), not in the reference."""
-    return {k: v for k, v in engine.program_status(program_id).items() if k != "skip_next_targets"}
+    dropped = {"skip_next_targets", "active_profile", "mode_source_state", "mode_source_status", "no_schedule_for_mode"}
+    return {k: v for k, v in engine.program_status(program_id).items() if k not in dropped}
+
+
+def _runtime(engine) -> dict:
+    """Runtime without the mode bookkeeping that differs by design (per-program profile vs ``last_mode``)."""
+    runtime = deepcopy(engine.store.runtime)
+    runtime.pop("last_mode", None)
+    for program_id, state in list(runtime["programs"].items()):
+        state.pop("active_profile", None)
+        if not state:
+            del runtime["programs"][program_id]
+    return runtime
 
 
 def _record(engine, log: CallLog, events: list) -> dict:
@@ -212,7 +230,7 @@ def _record(engine, log: CallLog, events: list) -> dict:
         "status": {p["id"]: _status(engine, p["id"]) for p in engine.store.programs},
         "next": {eid: engine.next_action(eid) for eid in ENTITIES},
         "segments": {eid: engine.segment(eid) for eid in ENTITIES},
-        "runtime": deepcopy(engine.store.runtime),
+        "runtime": _runtime(engine),
         "journal": deepcopy(engine.store.journal),
     }
 
@@ -235,7 +253,8 @@ async def _scenario(hass, hass_storage, freezer, monkeypatch, log: CallLog, engi
 
     unlisten = hass.bus.async_listen(f"{DOMAIN}_event", record)
     # No debounce: every condition change takes effect at once and starts its own recompute.
-    engine = await setup(hass, hass_storage, freezer, varied_programs(), local(26, 5, 50), debounce_min=0)
+    engine = await setup(hass, hass_storage, freezer, varied_programs(), local(26, 5, 50), debounce_min=0,
+                         config=MODE_CONFIG)
     assert type(engine) is engine_cls
     trace = [_record(engine, log, events)]
     moment = local(26, 6, 0)
@@ -279,7 +298,8 @@ async def test_engine_matches_reference_on_a_varied_install(hass, hass_storage, 
     assert sum(name == "vacuum.start" for name, _, _ in calls) >= 3  # two failures, then the retry succeeds
     assert any("waiting_unavailable" in event for event in reference[-1]["events"])
     burst = reference[EVENT_STEP]["calls"][len(reference[EVENT_STEP - 1]["calls"]):]
-    assert [target for _, target, _ in burst] == ["cover.kitchen", "cover.office", "climate.bedroom"], burst
+    # The mode change (every program follows it) is handled first, then the slot condition.
+    assert [target for _, target, _ in burst] == ["climate.bedroom", "cover.kitchen", "cover.office"], burst
 
 
 EVENT_STEP = 1 + (24 + 12 - 6) * 6 + 1  # index of the step recorded at 27 Oct 12:10
@@ -300,8 +320,9 @@ async def test_lookups_match_reference_on_the_large_install(hass, hass_storage, 
         hass.states.async_set(f"binary_sensor.late{index}", "on")
     await hass.config.async_update(latitude=50.85, longitude=4.35)
     engine = await setup(hass, hass_storage, freezer, programs, local(26, 9, 0))
-    engine.store.runtime["programs"].setdefault("p3", {})["active_profile"] = "away"
-    engine.store.runtime["programs"].setdefault("p4", {})["active_profile"] = "vacation"
+    engine._mode = "Away"  # noqa: SLF001 - the current engine follows one global mode
+    for program in engine.store.programs:  # the reference one profile per program
+        engine.store.runtime["programs"].setdefault(program["id"], {})["active_profile"] = "away"
     reference = LegacyEngine(hass, engine.store, engine.options, engine.entry_id)
     reference.descriptions = engine.descriptions
     reference.conditions = engine.conditions
@@ -312,7 +333,7 @@ async def test_lookups_match_reference_on_the_large_install(hass, hass_storage, 
         assert [engine.segment(e, now) for e in eids] == [reference.segment(e, now) for e in eids]
         assert [engine.next_action(e, now) for e in eids] == [reference.next_action(e, now) for e in eids]
         statuses = [_status(engine, p["id"]) for p in engine.store.programs]
-        assert statuses == [reference.program_status(p["id"]) for p in engine.store.programs]
+        assert statuses == [_status(reference, p["id"]) for p in engine.store.programs]
         assert any(status["next_actions"] for status in statuses)
 
 

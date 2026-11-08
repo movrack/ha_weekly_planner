@@ -17,13 +17,15 @@ from .helpers import CLIMATE, Recorder, go_to, local, program, setup, slot, temp
 VACUUM = "vacuum.rocky"
 
 
-async def test_profile_change_mid_slot(hass, hass_storage, freezer):  # S36
+async def test_mode_change_mid_slot(hass, hass_storage, freezer):  # S36
     rec = Recorder(hass)
     prog = program()
     prog["profiles"].append({"id": "summer", "name": "Été",
                              "days": [[slot("x", "08:00", "12:00", "t25")] for _ in range(7)]})
-    engine = await setup(hass, hass_storage, freezer, [prog], local(26, 9, 0))
-    await engine.async_set_profile("office", "summer")
+    hass.states.async_set("input_select.house", "Base", {"options": ["Base", "Été"]})
+    await setup(hass, hass_storage, freezer, [prog], local(26, 9, 0),
+                config={"mode_selector": "input_select.house", "default_mode": "Base"})
+    hass.states.async_set("input_select.house", "Été", {"options": ["Base", "Été"]})
     await hass.async_block_till_done()
     assert rec.calls[-1][1] == {"temperature": 25}
 
@@ -153,9 +155,9 @@ async def test_journal_records_decisions_and_sent_actions(hass, hass_storage, fr
     assert any(e.get("sent") and e["action"]["data"] == {"temperature": 21} for e in entries)
 
 
-async def test_storage_version_two(hass, hass_storage, freezer):  # S20
+async def test_storage_version_three(hass, hass_storage, freezer):  # S20
     engine = await setup(hass, hass_storage, freezer, [program()], local(26, 7, 0))
-    assert hass_storage[DOMAIN]["version"] == 2
+    assert hass_storage[DOMAIN]["version"] == 3
     store = PlannerStore(hass)
     await store.async_load()
     assert store.programs[0]["id"] == "office" and "modes" not in store.config and store.config["labels"]

@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, tzinfo
 
 from .const import DEFAULT_PRIORITY
+from .modes import EMPTY_PROFILE, NO_PROFILE
 from .slots import applies
 from .timeline import Occurrence, SunProvider, place_day, trim
 
@@ -46,8 +47,11 @@ class Segment:
 
 
 def active_profile(program: dict, active_profiles: dict[str, str]) -> dict:
+    """Profile the program follows now: ``active_profiles[id]`` (a profile id, ``NO_PROFILE`` for none), else its default."""
     profiles = program["profiles"]
-    wanted = active_profiles.get(program["id"], program.get("active_profile"))
+    wanted = active_profiles.get(program["id"])
+    if wanted == NO_PROFILE:
+        return EMPTY_PROFILE
     return next((p for p in profiles if p["id"] == wanted), profiles[0])
 
 

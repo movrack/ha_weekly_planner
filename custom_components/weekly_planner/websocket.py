@@ -9,7 +9,6 @@ import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.util import dt as dt_util
 
@@ -21,7 +20,10 @@ from .resolver import OccurrenceCache, active_profile, occurrences_around
 from .slots import normalise_slot_entities, remove_device_from_slots
 from .store import new_id
 from .actions import needs_admin
-from .validation import PROGRAM, ProgramError, admin_required, check_label, check_program, keep_pause, label_users, with_defaults
+from .modes import apply_default_mode
+from .validation import (
+    PROGRAM, ProgramError, admin_required, check_label, check_mode_config, check_program, keep_pause, label_users, with_defaults,
+)
 
 
 async def _descriptions(hass: HomeAssistant) -> dict | None:
@@ -56,7 +58,7 @@ def _editor_engine(hass: HomeAssistant, connection, msg) -> PlannerEngine | None
 @callback
 def async_register(hass: HomeAssistant) -> None:
     for handler in (ws_get, ws_subscribe, ws_program_save, ws_program_delete, ws_label_save,
-                    ws_label_delete, ws_preview, ws_journal, ws_set_enabled, ws_pause, ws_set_profile):
+                    ws_label_delete, ws_preview, ws_journal, ws_set_enabled, ws_pause, ws_set_mode):
         websocket_api.async_register_command(hass, handler)
 
 
@@ -72,7 +74,7 @@ def _is_inactive_mode_edit(engine: PlannerEngine, existing: dict, program: dict)
     old_mode = next((p for p in old["profiles"] if p["id"] == active_id), None)
     new_mode = next((p for p in program["profiles"] if p["id"] == active_id), None)
     return (old["profiles"] != program["profiles"] and metadata(old) == metadata(program)
-            and old_mode is not None and old_mode == new_mode)
+            and old_mode == new_mode)
 
 
 def _snapshot(engine: PlannerEngine) -> dict[str, Any]:
@@ -93,6 +95,13 @@ def _snapshot_data(engine: PlannerEngine) -> dict[str, Any]:
     return {
         "vacation": engine.store.config.get("vacation", False),
         "labels": engine.store.config.get("labels", []),
+        "mode": {
+            "selector": engine.store.config.get("mode_selector"),
+            "default": engine.store.config.get("default_mode"),
+            "active": engine.active_mode,
+            "options": engine.mode_options(),
+            "available": engine.mode_available,
+        },
         "programs": engine.store.programs,
         "status": {p["id"]: engine.program_status(p["id"]) for p in engine.store.programs},
         "warnings": {p["id"]: program_warnings(engine.hass, engine.store.programs, p, engine)
@@ -222,6 +231,9 @@ async def ws_program_save(hass, connection, msg) -> None:
     if existing:
         engine.store.programs[engine.store.programs.index(existing)] = program
     else:
+        config = engine.store.config
+        if config.get("mode_selector"):  # a new program starts under the default mode
+            apply_default_mode([program], config.get("default_mode"), engine.mode_options())
         engine.store.programs.append(program)
     engine.store.save_config()
     await engine.async_config_changed(reapply=not inactive_mode_edit, metadata_only=chart_metadata_only)
@@ -409,20 +421,24 @@ async def ws_pause(hass, connection, msg) -> None:
 
 
 @websocket_api.websocket_command({
-    vol.Required("type"): f"{DOMAIN}/program/set_profile",
-    vol.Required("program_id"): str,
-    vol.Required("profile_id"): str,
+    vol.Required("type"): f"{DOMAIN}/mode/set",
+    vol.Required("mode_selector"): vol.Any(None, str),
+    vol.Required("default_mode"): vol.Any(None, str),
 })
 @websocket_api.async_response
-async def ws_set_profile(hass, connection, msg) -> None:
-    """Select a manual mode with the same access as the native select."""
+async def ws_set_mode(hass, connection, msg) -> None:
+    """Set the global mode selector and the default mode (administrators only)."""
     engine = _engine(hass)
-    if engine is None or engine.store.program(msg["program_id"]) is None:
-        connection.send_error(msg["id"], "not_found", "Unknown program")
+    if engine is None or not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Mode settings are reserved to administrators")
         return
     try:
-        await engine.async_set_profile(msg["program_id"], msg["profile_id"])
-    except ServiceValidationError as err:
+        selector = msg["mode_selector"] or None
+        state = hass.states.get(selector) if selector else None
+        options = [o for o in state.attributes.get("options") or [] if isinstance(o, str)] if state else None
+        settings = check_mode_config(selector, msg["default_mode"], hass, options)
+    except vol.Invalid as err:
         connection.send_error(msg["id"], "invalid", str(err))
         return
-    connection.send_result(msg["id"])
+    renamed = await engine.async_set_mode_config(settings["mode_selector"], settings["default_mode"])
+    connection.send_result(msg["id"], {**settings, "renamed_programs": renamed})

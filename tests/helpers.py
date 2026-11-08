@@ -101,12 +101,13 @@ class Recorder:
 
 
 async def setup(hass: HomeAssistant, hass_storage, freezer, programs, start: datetime | None,
-                extra_labels: list | None = None, **options):
+                extra_labels: list | None = None, config: dict | None = None, **options):
     await hass.config.async_update(time_zone="Europe/Brussels")
     if start is not None:
         freezer.move_to(start)
-    hass_storage[DOMAIN] = {"version": 2, "minor_version": 1, "key": DOMAIN,
-                            "data": {"vacation": False, "labels": extra_labels or labels(), "programs": programs}}
+    hass_storage[DOMAIN] = {"version": 3, "minor_version": 1, "key": DOMAIN,
+                            "data": {"vacation": False, "labels": extra_labels or labels(), "programs": programs,
+                                     **(config or {})}}
     entry = MockConfigEntry(domain=DOMAIN, data={}, options=options)
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)

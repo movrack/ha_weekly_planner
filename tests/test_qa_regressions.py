@@ -19,12 +19,11 @@ def test_rename_explicit_references_preserves_literal_data():
               "data_sources": {"value": {"entity_id": "sensor.old", "type": "native"}},
               "data": {"literal": {"entity_id": "sensor.old"}}}
     prog = program()
-    prog["mode_source"] = {"entity_id": "sensor.old", "mappings": {}}
     prog["entities"][0]["label_overrides"] = {"t21": deepcopy(action)}
-    config = {"programs": [prog], "labels": [{"id": "x", "action": action}]}
+    config = {"programs": [prog], "labels": [{"id": "x", "action": action}], "mode_selector": "sensor.old"}
     assert rename_entity(config, "sensor.old", "sensor.new")
     assert prog["revision"] == 2
-    assert prog["mode_source"]["entity_id"] == "sensor.new"
+    assert config["mode_selector"] == "sensor.new"
     for updated in (action, prog["entities"][0]["label_overrides"]["t21"]):
         assert updated["target_entity_id"] == "sensor.new"
         assert updated["data_sources"]["value"]["entity_id"] == "sensor.new"

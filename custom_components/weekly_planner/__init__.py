@@ -15,13 +15,14 @@ from . import services, websocket, yaml_file
 from .const import DOMAIN
 from .engine import PlannerEngine
 from .frontend import async_register_card, async_unregister_card
+from .registry import async_finish_mode_migration
 from .store import ConfigStoreError, PlannerStore
 from .websocket import _descriptions
 from .yaml_file import YamlSync
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.SWITCH, Platform.SELECT]
+PLATFORMS: list[Platform] = [Platform.SWITCH]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 type WeeklyPlannerConfigEntry = ConfigEntry[PlannerEngine]
@@ -51,6 +52,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: WeeklyPlannerConfigEntry
         )
         return False
 
+    async_finish_mode_migration(hass, entry, store)  # old per-program selects and their repair issue
     engine = PlannerEngine(hass, store, dict(entry.options), entry.entry_id)
     entry.runtime_data = engine
     yaml_sync = YamlSync(hass, engine, _descriptions)

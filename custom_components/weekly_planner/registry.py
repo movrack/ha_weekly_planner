@@ -40,10 +40,9 @@ def rename_entity(config: dict[str, Any], old: str, new: str) -> bool:
     labels_changed = False
     for label in config.get("labels", []):
         labels_changed |= swap_action(label["action"])
-    changed = labels_changed
+    changed = labels_changed | swap(config, "mode_selector")
     for program in config["programs"]:
         program_changed = labels_changed
-        program_changed |= swap(program.get("mode_source") or {})
         for condition in program.get("conditions", []):
             program_changed |= swap(condition)
         for entity in program["entities"]:
@@ -111,3 +110,27 @@ def async_check_missing(hass: HomeAssistant, engine) -> None:
         )
     else:
         ir.async_delete_issue(hass, DOMAIN, "missing_entities")
+
+
+@callback
+def async_finish_mode_migration(hass: HomeAssistant, entry, store) -> None:
+    """After the move to a global mode (docs/adr/0001): drop the old per-program ``select`` entities from
+    the registry and raise ONE repair issue naming the programs the change concerns.
+
+    The migration leaves ``mode_migration`` in the configuration; it is removed here, once handled.
+    """
+    registry = er.async_get(hass)
+    for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if entity.domain == "select":
+            registry.async_remove(entity.entity_id)
+    note = store.config.pop("mode_migration", None)
+    if not note:
+        return
+    programs = "; ".join(
+        f"{p['name']} ({p['mode_source']})" if p.get("mode_source") else p["name"] for p in note["programs"])
+    ir.async_create_issue(
+        hass, DOMAIN, "modes_now_global", is_fixable=False, severity=ir.IssueSeverity.WARNING,
+        translation_key="modes_now_global", translation_placeholders={"programs": programs},
+    )
+    if not store.read_only:
+        store.save_config()

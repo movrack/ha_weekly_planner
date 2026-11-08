@@ -31,11 +31,6 @@
       "vacation": {
         "name": "All programs paused"
       }
-    },
-    "select": {
-      "profile": {
-        "name": "{program} mode"
-      }
     }
   },
   "services": {
@@ -100,6 +95,10 @@
     "yaml_invalid": {
       "title": "Weekly Planner: YAML file ignored",
       "description": "The file weekly_planner.yml in /config/www was not imported and nothing was changed: {error}. Fix the file; it is read again within 30 seconds."
+    },
+    "modes_now_global": {
+      "title": "Weekly Planner: modes are now global",
+      "description": "The mode is now the same for all programs and chosen by one selector (an input_select or select entity) set in the Weekly Planner settings. The per-program mode choice and its select entity were removed. Programs concerned: {programs}. Each program keeps its first mode as the default mode and its other modes are matched to the selector options by name."
     }
   }
 }

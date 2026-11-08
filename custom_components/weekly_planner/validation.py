@@ -11,7 +11,7 @@ import voluptuous as vol
 from homeassistant.helpers import config_validation as cv
 
 from .actions import needs_admin
-from .const import DEFAULT_PRIORITY, DEFAULT_REAPPLY
+from .const import DEFAULT_PRIORITY, DEFAULT_REAPPLY, DOMAIN, MODE_NAME_MAX, MODE_SELECTOR_DOMAINS
 from .slots import applicable_ids
 from .timeline import SUN_EVENTS, day_occurrences, parse_clock
 
@@ -182,11 +182,10 @@ PROGRAM = vol.Schema({
     vol.Optional("reapply", default=True): bool,
     vol.Optional("conditions", default=list): [CONDITION],
     vol.Required("entities"): vol.All([ENTITY], vol.Length(min=1, max=100)),
-    vol.Optional("active_profile"): vol.Any(None, str),
-    vol.Optional("mode_source"): vol.Schema({
-        vol.Required("entity_id"): cv.entity_id,
-        vol.Required("mappings"): vol.All({vol.All(str, vol.Length(min=1)): vol.All(str, vol.Length(min=1))}, vol.Length(min=1)),
-    }),
+    # Per-program modes are gone (docs/adr/0001). The previous card still sends these two keys: they are
+    # accepted and dropped by check_program.
+    vol.Optional("active_profile"): object,
+    vol.Optional("mode_source"): object,
     vol.Required("profiles"): vol.All([PROFILE], vol.Length(min=1, max=20)),
 })
 
@@ -259,6 +258,29 @@ def keep_pause(existing: dict | None, program: dict, *, keep_enabled: bool) -> d
     return program
 
 
+def check_mode_config(selector: Any, default_mode: Any, hass: Any = None, options: list[str] | None = None) -> dict:
+    """Global mode settings: ``mode_selector`` (an input_select or select entity, or None) and ``default_mode``.
+
+    Weekly Planner's own entities are refused (circular selection). ``default_mode`` is a nonempty string
+    of at most 40 characters; when the selector options are known (``options``) it must be one of them.
+    """
+    if selector is not None:
+        selector = cv.entity_id(selector)
+        if selector.split(".", 1)[0] not in MODE_SELECTOR_DOMAINS:
+            raise ProgramError("invalid_mode_selector_domain")
+        if hass is not None:
+            from homeassistant.helpers import entity_registry as er
+            entry = er.async_get(hass).async_get(selector)
+            if entry and entry.platform == DOMAIN:
+                raise ProgramError("circular_mode_selector")
+    if default_mode is not None:
+        if not isinstance(default_mode, str) or not default_mode.strip() or len(default_mode) > MODE_NAME_MAX:
+            raise ProgramError("invalid_default_mode")
+        if options and default_mode not in options:
+            raise ProgramError("unknown_default_mode")
+    return {"mode_selector": selector, "default_mode": default_mode}
+
+
 def check_program(program: dict, labels: dict[str, dict], hass: Any = None, descriptions: dict | None = None,
                   reapply_default: bool = DEFAULT_REAPPLY) -> dict:
     """Schema + semantic rules: unique profile names, known labels, valid overrides, no overlap on a day.
@@ -268,19 +290,8 @@ def check_program(program: dict, labels: dict[str, dict], hass: Any = None, desc
     program = PROGRAM(with_defaults(program, reapply_default))
     if program.get("enabled", True) or program.get("paused_until") is None:
         program.pop("paused_until", None)  # only a suspended program can wait for a resume time
-    source = program.get("mode_source")
-    if source:
-        profile_ids = {p["id"] for p in program["profiles"]}
-        if any(pid not in profile_ids for pid in source["mappings"].values()):
-            raise ProgramError("unknown_mode_profile")
-        if any(not state.strip() for state in source["mappings"]):
-            raise ProgramError("empty_mode_state")
-        if hass is not None:
-            from homeassistant.helpers import entity_registry as er
-            from .const import DOMAIN
-            entry = er.async_get(hass).async_get(source["entity_id"])
-            if entry and entry.platform == DOMAIN:
-                raise ProgramError("circular_mode_source")
+    program.pop("active_profile", None)
+    program.pop("mode_source", None)
     names = [p["name"] for p in program["profiles"]]
     if len(set(names)) != len(names):
         raise ProgramError("duplicate_profile_name")

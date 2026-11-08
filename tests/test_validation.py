@@ -232,35 +232,36 @@ def test_program_entity_and_profile_count_limits():
 # -- semantic rules ---------------------------------------------------------------
 
 
-def _mode_program(mappings, entity_id="input_select.mode"):
+def test_legacy_mode_keys_are_accepted_and_dropped():
+    """The previous card still sends ``active_profile`` and ``mode_source``: ignored, never stored."""
     prog = program()
-    prog["profiles"].append({**prog["profiles"][0], "id": "eco", "name": "Eco"})
-    prog["mode_source"] = {"entity_id": entity_id, "mappings": mappings}
-    return prog
+    prog["active_profile"] = "base"
+    prog["mode_source"] = {"entity_id": "input_select.mode", "mappings": {"home": "base"}}
+    checked = _check(prog)
+    assert "active_profile" not in checked and "mode_source" not in checked
 
 
-def test_mode_source_rules():
-    assert _check(_mode_program({"home": "base", "away": "eco"}))
-    assert _error(_check, _mode_program({"home": "missing"})) == "unknown_mode_profile"
-    assert _error(_check, _mode_program({"home": "base", "away": "ghost"})) == "unknown_mode_profile"
-    assert _error(_check, _mode_program({" ": "base"})) == "empty_mode_state"
-    with pytest.raises(vol.Invalid):
-        _check(_mode_program({}))
-    with pytest.raises(vol.Invalid):
-        _check(_mode_program({"": "base"}))
-
-
-def test_circular_mode_source_only_for_our_own_entities(hass):
+def test_mode_config_rules(hass):
     from homeassistant.helpers import entity_registry as er
 
     from custom_components.weekly_planner.const import DOMAIN
 
+    assert v.check_mode_config(None, None) == {"mode_selector": None, "default_mode": None}
+    assert v.check_mode_config("input_select.house", "Home") == {"mode_selector": "input_select.house", "default_mode": "Home"}
+    assert v.check_mode_config("select.house", "x" * 40)["default_mode"] == "x" * 40
+    assert _error(v.check_mode_config, "switch.house", None) == "invalid_mode_selector_domain"
+    with pytest.raises(vol.Invalid):
+        v.check_mode_config("not an entity", None)
+    for bad in ("", "  ", "x" * 41, 3):
+        assert _error(v.check_mode_config, "input_select.house", bad) == "invalid_default_mode"
+    assert _error(v.check_mode_config, "input_select.house", "Away", None, ["Home"]) == "unknown_default_mode"
+    assert v.check_mode_config("input_select.house", "Home", None, ["Home"])
     registry = er.async_get(hass)
-    registry.async_get_or_create("switch", DOMAIN, "own", suggested_object_id="own")
-    registry.async_get_or_create("switch", "other", "foreign", suggested_object_id="foreign")
-    assert _error(_check, _mode_program({"a": "base"}, "switch.own"), hass=hass) == "circular_mode_source"
-    assert _check(_mode_program({"a": "base"}, "switch.foreign"), hass=hass)
-    assert _check(_mode_program({"a": "base"}, "switch.unknown"), hass=hass)
+    registry.async_get_or_create("select", DOMAIN, "own", suggested_object_id="own")
+    registry.async_get_or_create("select", "other", "foreign", suggested_object_id="foreign")
+    assert _error(v.check_mode_config, "select.own", None, hass) == "circular_mode_selector"
+    assert v.check_mode_config("select.foreign", None, hass)
+    assert v.check_mode_config("select.unknown", None, hass)
 
 
 def test_duplicate_profile_names():

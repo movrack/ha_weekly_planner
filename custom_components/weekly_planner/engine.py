@@ -38,6 +38,7 @@ from .const import (
     VERIFY_SETTLE_S,
     VERIFY_TOLERANCE,
 )
+from .modes import NO_PROFILE, apply_default_mode, profile_for_mode
 from .registry import async_check_missing, async_track_registry
 from .resolver import (
     OccurrenceCache,
@@ -205,7 +206,10 @@ class PlannerEngine:
         self._ready = False
         self._listeners: list[Callable[[], None]] = []
         self._conditions_by_entity: dict[str, list[dict]] = {}
-        self._mode_source_entities: set[str] = set()
+        self._mode: str | None = None  # active global mode (selector option name); None: no selector or none known
+        self._mode_lost = False  # the selector is unusable now (logged once per loss)
+        self._mode_changed: set[str] = set()  # programs whose profile changed since the last recompute
+        self._last_profiles: dict[str, str] = {}
         self._notification_view: dict | None = None
         self._status_memo: dict[str, dict] = {}  # program_status, valid during one notification only
         self._notifying = False
@@ -232,6 +236,10 @@ class PlannerEngine:
                 rt.pop("verify")
             elif verify:
                 self._verifying.setdefault(verify["entity_id"], set()).add(owner)
+        for prt in self.store.runtime["programs"].values():
+            prt.pop("active_profile", None)  # per-program modes no longer exist
+        self._mode = self._remembered_mode()  # until the selector is read: last valid mode, else default
+        self._last_profiles = self._profiles()
         self._subscribe()
         self._sync_pauses()
         self._static_unsubs.append(async_track_registry(self.hass, self))
@@ -263,7 +271,7 @@ class PlannerEngine:
             await self.async_load_descriptions()
             async_check_missing(self.hass, self)
             self._observe_all_conditions()
-            self._sync_mode_sources()
+            self._sync_mode()
             await self._async_recompute("startup")
 
     async def async_stop(self) -> None:
@@ -372,8 +380,9 @@ class PlannerEngine:
         return {e["entity_id"] for p in self.store.programs for e in p["entities"]}
 
     def _profiles(self) -> dict[str, str]:
-        return {pid: r["active_profile"] for pid, r in self.store.runtime["programs"].items()
-                if r.get("active_profile")}
+        """Profile id each program follows now (``NO_PROFILE`` when it has none for the active mode)."""
+        mode = self._mode
+        return {p["id"]: profile_for_mode(p, mode) for p in self.store.programs}
 
     def segment(self, entity_id: str, at: datetime | None = None) -> Segment:
         at = at or dt_util.utcnow()
@@ -400,10 +409,11 @@ class PlannerEngine:
         self.store.save_runtime()
 
     def active_profile_id(self, program_id: str) -> str | None:
+        """Id of the profile the program follows now; None without program or without schedules for the mode."""
         program = self.store.program(program_id)
         if not program:
             return None
-        return active_profile(program, self._profiles())["id"]
+        return active_profile(program, self._profiles())["id"] or None
 
     def program_status(self, program_id: str) -> dict[str, Any]:
         """What a program does now (switch attributes, card summary)."""
@@ -435,8 +445,7 @@ class PlannerEngine:
                         if (v := self.rt(entity["entity_id"]).get("verification"))}
         return {
             "program_id": program_id,
-            "active_profile": active_profile(program, ctx.profiles)["id"],
-            **self._mode_source_status(program),
+            "no_schedule_for_mode": ctx.profiles.get(program_id) == NO_PROFILE,
             **({"verification": verification} if verification else {}),
             **({"paused_until": program["paused_until"]} if program.get("paused_until") else {}),
             "current_slots": current,
@@ -522,16 +531,14 @@ class PlannerEngine:
         self._conditions_by_entity = {}
         for condition in self._all_conditions():
             self._conditions_by_entity.setdefault(condition["entity_id"], []).append(condition)
-        self._mode_source_entities = {
-            p["mode_source"]["entity_id"] for p in self.store.programs if p.get("mode_source")
-        }
         watched = set(self.managed_entities())
         actions = [label["action"] for label in self.labels.values()]
         actions += [action for program in self.store.programs for entity in program["entities"]
                     for action in entity.get("label_overrides", {}).values()]
         watched |= {action["target_entity_id"] for action in actions if action.get("target_entity_id")}
         watched |= self._conditions_by_entity.keys()
-        watched |= self._mode_source_entities
+        if selector := self.store.config.get("mode_selector"):
+            watched.add(selector)
         if watched:
             self._unsubs.append(async_track_state_change_event(self.hass, sorted(watched), self._on_state))
 
@@ -587,8 +594,10 @@ class PlannerEngine:
         entity_id = event.data["entity_id"]
         new: State | None = event.data.get("new_state")
         old: State | None = event.data.get("old_state")
-        if entity_id in self._mode_source_entities and (old is None or new is None or old.state != new.state):
-            yield self._async_mode_source_changed_locked
+        if entity_id == self.store.config.get("mode_selector") and (
+                old is None or new is None or old.state != new.state
+                or old.attributes.get("options") != new.attributes.get("options")):
+            yield self._async_mode_changed_locked
         cond_changed = False
         conditions = self._conditions_by_entity.get(entity_id, [])
         before_settle = self.conditions.next_settle() if conditions else None
@@ -641,10 +650,10 @@ class PlannerEngine:
         now = dt_util.utcnow()
         self.conditions.settle(now)
         affected = profile_program_ids if profile_program_ids is not None else ({program_id} if program_id else set())
-        excluded = set(affected) if reason == "profile" else set()
+        # A mode change never replays the one-shots of the programs it switched (see _sync_mode).
+        excluded = set(affected) | self._mode_changed if reason == "profile" else set(self._mode_changed)
+        self._mode_changed = set()
         ctx = _Pass(self)
-        if reason in {"startup", "modification"}:
-            excluded |= {p["id"] for p in ctx.programs if p.get("mode_source")}
         entities = sorted(ctx.owners)  # every managed entity
         segments: dict[str, Segment] = {}
         for entity_id in entities:
@@ -701,7 +710,7 @@ class PlannerEngine:
             return
 
         if reason == "profile" and profile_program_ids and not changed and seg.program_id not in profile_program_ids:
-            return
+            return  # a mode change only re-applies the programs it switched
         if programs is None:
             program = self.store.program(seg.program_id) if seg.program_id else None
         else:
@@ -1249,65 +1258,98 @@ class PlannerEngine:
             self.store.save_config()
             await self._async_recompute("vacation_off")
 
-    def _mode_source_status(self, program: dict) -> dict:
-        source = program.get("mode_source")
-        if not source:
-            return {}
-        state = self.hass.states.get(source["entity_id"])
-        raw = state.state if state else None
-        status = "unavailable" if raw is None or raw in UNAVAILABLE else (
-            "matched" if source["mappings"].get(raw) in {p["id"] for p in program["profiles"]} else "unmapped")
-        return {"mode_source_state": raw, "mode_source_status": status}
+    # ------------------------------------------------------------------ global mode
 
-    def _sync_mode_sources(self, only: str | None = None) -> list[str]:
-        changed = []
-        for program in self.store.programs:
-            source = program.get("mode_source")
-            if not source or (only is not None and program["id"] != only):
-                continue
-            status = self._mode_source_status(program)
-            if status["mode_source_status"] != "matched":
-                continue
-            wanted = source["mappings"][status["mode_source_state"]]
-            if self.active_profile_id(program["id"]) != wanted:
-                self.store.runtime["programs"].setdefault(program["id"], {})["active_profile"] = wanted
-                changed.append(program["id"])
+    def mode_options(self) -> list[str]:
+        """Options of the selector (its ``options`` attribute); empty without selector or state."""
+        selector = self.store.config.get("mode_selector")
+        state = self.hass.states.get(selector) if selector else None
+        options = state.attributes.get("options") if state else None
+        return [o for o in options if isinstance(o, str)] if isinstance(options, list) else []
+
+    @property
+    def active_mode(self) -> str | None:
+        """Name of the active global mode; None without selector, or when no mode is known and no default is set."""
+        return self._mode
+
+    @property
+    def mode_available(self) -> bool:
+        """A selector is configured and its state is usable now."""
+        return bool(self.store.config.get("mode_selector")) and not self._mode_lost
+
+    def _remembered_mode(self) -> str | None:
+        config = self.store.config
+        if not config.get("mode_selector"):
+            return None
+        return self.store.runtime.get("last_mode") or config.get("default_mode")
+
+    def _sync_mode(self) -> set[str]:
+        """Read the selector and set the active mode; returns the programs whose profile changed.
+
+        Selector state -> mode name. An unavailable, unknown or unmapped state (not one of the selector
+        options) keeps the last valid mode (``last_mode`` in the runtime, so it survives a restart); with
+        none known the ``default_mode`` is used. One log line when the selector is lost, one when it returns.
+        """
+        config, runtime = self.store.config, self.store.runtime
+        selector = config.get("mode_selector")
+        if not selector:
+            self._mode, self._mode_lost = None, False
+            if runtime.pop("last_mode", None) is not None:
+                self.store.save_runtime()
+        else:
+            state = self.hass.states.get(selector)
+            raw = state.state if state else None
+            options = state.attributes.get("options") if state else None
+            valid = (raw is not None and raw not in UNAVAILABLE
+                     and (not isinstance(options, list) or raw in options))
+            if valid:
+                if self._mode_lost:
+                    _LOGGER.info("Mode selector %s is back, mode %s", selector, raw)
+                    self._mode_lost = False
+                if runtime.get("last_mode") != raw:
+                    runtime["last_mode"] = raw
+                    self.store.save_runtime()
+                self._mode = raw
+            else:
+                if not self._mode_lost:
+                    self._mode_lost = True
+                    _LOGGER.warning("Mode selector %s has no usable state (%s), keeping mode %s",
+                                    selector, raw, self._remembered_mode())
+                self._mode = self._remembered_mode()
+        new = self._profiles()
+        changed = {pid for pid, profile in new.items() if pid in self._last_profiles and self._last_profiles[pid] != profile}
+        self._last_profiles = new
+        self._mode_changed |= changed
         return changed
 
-    async def _async_mode_source_changed_locked(self) -> None:
-        """A mode source entity changed state; the caller holds the engine lock."""
-        # Update every association first: one source can drive several programs atomically.
-        changed = self._sync_mode_sources()
+    async def _async_mode_changed_locked(self) -> None:
+        """The selector changed state or options; the caller holds the engine lock."""
+        changed = self._sync_mode()
         if changed:
             if self._ready:
-                await self._async_recompute("profile", profile_program_ids=set(changed))
+                await self._async_recompute("profile", profile_program_ids=changed)
             else:
                 self._persist()
                 self._notify_listeners()
         else:
             self._notify_listeners()
 
-    async def async_set_profile(self, program_id: str, profile_id: str) -> None:
-        async with self._lock:
-            await self._async_set_profile(program_id, profile_id)
+    async def async_set_mode_config(self, selector: str | None, default_mode: str | None) -> list[str]:
+        """Set the selector and the default mode; returns the programs whose default profile was renamed.
 
-    async def _async_set_profile(self, program_id: str, profile_id: str) -> None:
-        program = self.store.program(program_id)
-        if program is None:
-            raise ServiceValidationError("Unknown program")
-        if profile_id not in {p["id"] for p in program["profiles"]}:
-            raise ServiceValidationError("Unknown mode")
-        if program.get("mode_source"):
-            raise ServiceValidationError("Mode is controlled by an external entity")
-        prt = self.store.runtime["programs"].setdefault(program_id, {})
-        if self.active_profile_id(program_id) == profile_id:
-            return
-        prt["active_profile"] = profile_id
-        if not self._ready:
-            self._persist()
-            self._notify_listeners()
-            return
-        await self._async_recompute("profile", program_id)
+        With both set, each program's default profile takes the default mode name unless a profile
+        already has it (``apply_default_mode``). The mode change is applied like any mode change.
+        """
+        async with self._lock:
+            config = self.store.config
+            if config.get("mode_selector") != selector:
+                self.store.runtime.pop("last_mode", None)  # remembered for the former selector
+                self.store.save_runtime()
+            config["mode_selector"], config["default_mode"] = selector, default_mode
+            renamed = apply_default_mode(self.store.programs, default_mode, self.mode_options()) if selector else []
+            self.store.save_config()
+            await self._async_config_changed(reapply=False)
+            return renamed
 
     async def async_config_changed(self, *, reapply: bool = True, metadata_only: bool = False) -> None:
         async with self._lock:
@@ -1325,7 +1367,7 @@ class PlannerEngine:
         self._observe_all_conditions()
         if self._ready:
             async_check_missing(self.hass, self)  # programs/entities edited: refresh the repair issue
-        changed = self._sync_mode_sources()
+        changed = self._sync_mode()
         if not reapply and changed:
             await self._async_recompute("profile", profile_program_ids=set(changed))
         else:
@@ -1339,13 +1381,11 @@ class PlannerEngine:
             self._cancel_task(entity_id)
 
     async def async_remove_program_entities(self, program: dict) -> None:
-        """Remove the switch and select of a deleted program from the registry."""
+        """Remove the switch of a deleted program from the registry."""
         registry = er.async_get(self.hass)
-        for suffix in (f"program_{program['id']}", f"profile_{program['id']}"):
-            for domain in ("switch", "select"):
-                entity_id = registry.async_get_entity_id(domain, DOMAIN, f"{self.entry_id}_{suffix}")
-                if entity_id:
-                    registry.async_remove(entity_id)
+        entity_id = registry.async_get_entity_id("switch", DOMAIN, f"{self.entry_id}_program_{program['id']}")
+        if entity_id:
+            registry.async_remove(entity_id)
 
     # ------------------------------------------------------------------ logbook
 

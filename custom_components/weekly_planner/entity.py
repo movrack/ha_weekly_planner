@@ -1,4 +1,4 @@
-"""Common entity base: device, naming and engine subscription (shared by switch and select)."""
+"""Common entity base: device, naming and engine subscription."""
 
 from __future__ import annotations
 

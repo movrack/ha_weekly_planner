@@ -31,11 +31,6 @@
       "vacation": {
         "name": "Suspension de tous les programmes"
       }
-    },
-    "select": {
-      "profile": {
-        "name": "Mode {program}"
-      }
     }
   },
   "services": {
@@ -100,6 +95,10 @@
     "yaml_invalid": {
       "title": "Weekly Planner : fichier YAML ignoré",
       "description": "Le fichier weekly_planner.yml de /config/www n'a pas été importé et rien n'a été modifié : {error}. Corrigez le fichier ; il est relu dans les 30 secondes."
+    },
+    "modes_now_global": {
+      "title": "Weekly Planner : les modes sont maintenant globaux",
+      "description": "Le mode est maintenant le même pour tous les programmes et choisi par un seul sélecteur (une entité input_select ou select) indiqué dans les réglages de Weekly Planner. Le choix du mode par programme et son entité select ont été supprimés. Programmes concernés : {programs}. Chaque programme garde son premier mode comme mode par défaut et ses autres modes sont rattachés aux options du sélecteur par leur nom."
     }
   }
 }
