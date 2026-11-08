@@ -18,6 +18,8 @@ maison : [guide illustré pas à pas](wiki/GUIDE.fr.md) et
 
 Ce projet a été réalisé avec l’aide d’agents d’intelligence artificielle.
 
+Niveau de qualité : Bronze auto-déclaré sur l’échelle de qualité des intégrations Home Assistant (intégration personnalisée, sans badge officiel) ; voir `custom_components/weekly_planner/quality_scale.yaml`.
+
 ## Installation
 
 - Home Assistant **2026.10.0 ou ultérieur**, conformément à `hacs.json`.
@@ -260,6 +262,16 @@ un identifiant anglais généré sur une autre installation.
 | Interrupteur global | Suspend les programmes et applique une fois les défauts éligibles. |
 | Sélecteur de profil | Choisit le mode actif par son nom exact en sélection manuelle. |
 
+| Action | Champs | Qui peut l’appeler |
+|---|---|---|
+| `weekly_planner.apply_now` | `program_id` (obligatoire) | Tout le monde ; administrateurs seulement si `admin_only` est actif |
+| `weekly_planner.skip_next` | `program_id` (obligatoire), `cancel` (facultatif, `false` par défaut) | Comme `apply_now` |
+| `weekly_planner.pause` | `program_id` (obligatoire), `days` (obligatoire, entier de 1 à 365) | Comme `apply_now` |
+| `weekly_planner.resume` | `program_id` (obligatoire) | Comme `apply_now` |
+| `weekly_planner.reload` | aucun | Administrateurs |
+
+`program_id` est l’attribut `program_id` de l’interrupteur du programme.
+
 ```yaml
 # Réappliquer l’action voulue maintenant
 action: weekly_planner.apply_now
@@ -275,7 +287,7 @@ data:
 ```
 
 ```yaml
-# Mettre un programme en pause 1, 2, 7 ou 14 jours ; il reprend tout seul (même après un redémarrage)
+# Mettre un programme en pause de 1 à 365 jours ; il reprend tout seul (même après un redémarrage)
 action: weekly_planner.pause
 data:
   program_id: YOUR_PROGRAM_ID
@@ -397,6 +409,20 @@ Une version installée contient sa propre documentation pour agents dans `custom
 vérifier, précautions), [`example.yml`](custom_components/weekly_planner/example.yml) (annoté, validé par
 les tests) et `services.yaml`. [`llms.txt`](llms.txt) les indexe pour les agents qui parcourent le web.
 Les agents qui travaillent sur ce dépôt lisent [`AGENTS.md`](AGENTS.md).
+
+## Désinstallation
+
+1. Ouvrir **Paramètres → Appareils et services → Weekly Planner**, puis le menu à trois points → **Supprimer**.
+   Cela retire les interrupteurs et les sélecteurs, et efface les programmes enregistrés ainsi que le
+   fichier `/config/www/weekly_planner.yml` (et ses restes `.invalid` et `.tmp`).
+2. Retirer la carte **Weekly Planner** de chaque tableau de bord (modifier le tableau de bord, ouvrir la carte, la supprimer).
+   Sans l’intégration, la carte n’affiche plus rien d’utile.
+3. Dans **HACS → Intégrations → Weekly Planner → ⋮ → Supprimer**, puis redémarrer Home Assistant.
+
+Où sont les données, pour vérifier ou nettoyer à la main (Home Assistant arrêté, ou intégration retirée du
+disque avant son entrée) : les programmes sont dans `/config/.storage/weekly_planner` (avec `weekly_planner.runtime` et `weekly_planner.journal`) et le miroir YAML dans
+`/config/www/weekly_planner.yml`. Supprimer ces fichiers ne laisse rien. Les sauvegarder d’abord si une
+réinstallation est possible : les remettre en place rétablit les programmes.
 
 ## Limites et diagnostic
 

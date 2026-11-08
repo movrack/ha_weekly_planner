@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WpActionPicker } from "../components/action-picker";
 import { WpDialog } from "../components/dialog";
-import { WpConfirm, confirmAction } from "../components/confirm";
+import { WpConfirm, WpPauseChoice, confirmAction, pauseChoice } from "../components/confirm";
 import { flat, handlers, find } from "./helpers/tpl";
 
 beforeEach(() => {
@@ -220,5 +220,47 @@ describe("wp-confirm", () => {
     expect(await no).toBe(false);
     void confirmAction({ appendChild: append } as any, "m", "ok");
     expect(created.lang).toBe("en");
+  });
+});
+
+describe("wp-pause-choice", () => {
+  it("offers 1 day, 7 days, a number of days, no limit and a cancel, and reports the choice", () => {
+    const el = new WpPauseChoice() as any;
+    Object.assign(el, { message: "Office", lang: "fr" });
+    el.renderRoot = { querySelector: () => ({ close: vi.fn() }) };
+    const seen: any[] = []; el.dispatchEvent = (e: any) => { seen.push(e.detail); return true; };
+    const r = el.render(); const out = flat(r);
+    for (const w of ["1 jour", "7 jours", "jours", "Pause", "Sans limite", "Annuler"]) expect(out).toContain(w);
+    const clicks = handlers(r).filter((h) => h.event === "click");
+    expect(clicks).toHaveLength(5);
+    clicks.forEach((h) => { h.fn(); find(r, "closed", "wp-dialog").fn({ stopPropagation() {} }); });
+    expect(seen).toEqual([1, 7, 3, "none", null]);
+  });
+  it("takes any whole number of days from 1 to 365 and refuses the rest", () => {
+    const el = new WpPauseChoice() as any;
+    Object.assign(el, { lang: "fr" });
+    for (const [v, ok] of [["10", true], ["365", true], ["0", false], ["366", false], ["2.5", false], ["", false]] as const) {
+      el._custom = v;
+      expect(el._customDays()).toBe(ok ? Number(v) : null);
+    }
+    const r = (el._custom = "12", el.render());
+    const input = handlers(r).find((h) => h.event === "input")!;
+    input.fn({ target: { value: "21" } });
+    expect(el._custom).toBe("21");
+    const key = handlers(r).find((h) => h.event === "keydown")!;
+    el.renderRoot = { querySelector: () => ({ close: vi.fn() }) };
+    const seen: any[] = []; el.dispatchEvent = (e: any) => { seen.push(e.detail); return true; };
+    key.fn({ key: "Enter" });
+    find(r, "closed", "wp-dialog").fn({ stopPropagation() {} });
+    expect(seen).toEqual([12]);
+  });
+  it("pauseChoice resolves with the choice", async () => {
+    const listeners: Record<string, (e: any) => void> = {};
+    const created: any = { addEventListener: (n: string, f: any) => { listeners[n] = f; }, remove: vi.fn() };
+    (document as any).createElement = () => created;
+    const p = pauseChoice({ appendChild: vi.fn(), hass: { language: "fr" } } as any, "Office");
+    expect(created).toMatchObject({ message: "Office", lang: "fr" });
+    listeners.choice({ detail: 14 });
+    expect(await p).toBe(14);
   });
 });

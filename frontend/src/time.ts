@@ -100,3 +100,16 @@ export function formatWhen(iso: string, timeZone: string, language: string, now 
   const opts: Intl.DateTimeFormatOptions = far ? { timeZone, weekday: "short", day: "numeric", month: "short" } : { timeZone, weekday: "short" };
   return `${dateFormat(language, opts).format(date)} ${clock}`;
 }
+
+/** End of a timed pause: "lun. 9 nov., 22 h" (server zone). */
+export function formatPauseEnd(iso: string, timeZone: string, language: string): string {
+  const date = new Date(iso);
+  const day = dateFormat(language, { timeZone, weekday: "short", day: "numeric", month: "short" }).format(date);
+  return `${day}, ${fmtClock(language, localMinutes(date, timeZone))}`;
+}
+
+/** Earliest end among the paused programs, or null when none has a timed pause. */
+export function pauseEnd(programs: { enabled: boolean; paused_until?: string }[]): string | null {
+  const ends = programs.filter((p) => !p.enabled && p.paused_until).map((p) => p.paused_until as string).sort();
+  return ends[0] ?? null;
+}

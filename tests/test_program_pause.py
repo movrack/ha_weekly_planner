@@ -52,7 +52,7 @@ async def test_pause_suspends_stores_until_and_applies_default_once(hass, hass_s
     assert rec.calls == [("climate.set_temperature", {"temperature": 15})]  # nothing more while paused
 
 
-@pytest.mark.parametrize("days", [1, 2, 7, 14])
+@pytest.mark.parametrize("days", [1, 3, 7, 30, 365])
 async def test_auto_resume_reapplies_desired_state(hass, hass_storage, freezer, days):
     rec, engine = await _start(hass, hass_storage, freezer)
     await engine.async_pause("office", days)
@@ -116,7 +116,7 @@ async def test_cancel_resumes_now(hass, hass_storage, freezer):
     await engine.async_pause("office", None)  # nothing to cancel: harmless
 
 
-@pytest.mark.parametrize("days", [0, 3, 30, -1])
+@pytest.mark.parametrize("days", [0, -1, 366, True])
 async def test_invalid_days_are_rejected(hass, hass_storage, freezer, days):
     _rec, engine = await _start(hass, hass_storage, freezer)
     with pytest.raises(ServiceValidationError):
@@ -210,7 +210,7 @@ async def test_websocket_pause_and_cancel(hass, hass_storage, freezer, hass_ws_c
 async def test_websocket_errors(hass, hass_storage, freezer, hass_ws_client):
     _rec, engine = await _start(hass, hass_storage, freezer, start=None)
     ws = await hass_ws_client(hass)
-    await ws.send_json_auto_id({"type": f"{DOMAIN}/program/pause", "program_id": "office", "days": 3})
+    await ws.send_json_auto_id({"type": f"{DOMAIN}/program/pause", "program_id": "office", "days": 0})
     assert not (await ws.receive_json())["success"]
     await ws.send_json_auto_id({"type": f"{DOMAIN}/program/pause", "program_id": "nope", "days": 1})
     assert (await ws.receive_json())["error"]["code"] == "not_found"
@@ -233,7 +233,7 @@ async def test_services_pause_and_resume(hass, hass_storage, freezer):
     await hass.services.async_call(DOMAIN, "resume", {"program_id": "office"}, blocking=True)
     assert engine.store.program("office")["enabled"] is True and _until(engine) is None
     with pytest.raises(vol.Invalid):
-        await hass.services.async_call(DOMAIN, "pause", {"program_id": "office", "days": 5}, blocking=True)
+        await hass.services.async_call(DOMAIN, "pause", {"program_id": "office", "days": 366}, blocking=True)
 
 
 async def test_services_need_edit_rights_when_admin_only(hass, hass_storage, freezer, hass_read_only_user):

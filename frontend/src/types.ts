@@ -106,6 +106,7 @@ export interface Program {
   area?: string | null;
   priority: number;
   enabled: boolean;
+  paused_until?: string;
   reapply: boolean;
   conditions: Condition[];
   entities: ProgramEntity[];

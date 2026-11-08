@@ -15,7 +15,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import CONF_ADMIN_ONLY, DEFAULT_PRIORITY, DOMAIN
 from .checks import program_warnings
-from .engine import PAUSE_DAYS, PlannerEngine
+from .engine import MAX_PAUSE_DAYS, PlannerEngine
 from .frontend import CARD_VERSION_KEY
 from .resolver import OccurrenceCache, active_profile, occurrences_around
 from .slots import normalise_slot_entities, remove_device_from_slots
@@ -395,7 +395,7 @@ async def ws_set_enabled(hass, connection, msg) -> None:
 @websocket_api.websocket_command({
     vol.Required("type"): f"{DOMAIN}/program/pause",
     vol.Required("program_id"): str,
-    vol.Required("days"): vol.Any(None, vol.In(PAUSE_DAYS)),
+    vol.Required("days"): vol.Any(None, vol.All(int, vol.Range(min=1, max=MAX_PAUSE_DAYS))),
 })
 @websocket_api.async_response
 async def ws_pause(hass, connection, msg) -> None:

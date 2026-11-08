@@ -741,15 +741,15 @@ Plan détaillé : [PLAN_CHART_ALIGNMENT.md](PLAN_CHART_ALIGNMENT.md).
 
 Ces trois demandes sont **non implémentées**. Chaque point ci-dessous reste une question ouverte : ne rien coder avant la réponse du propriétaire, puis enregistrer la décision dans `docs/DECISIONS.md`.
 
-### 37.1 Mettre un programme en pause (1 jour, 2 jours, 1 semaine, 2 semaines)
-- [ ] Bouton « Mettre en pause » avec quatre durées : 1 jour, 2 jours, 1 semaine, 2 semaines (backend fait, interface de la carte à faire).
+### 37.1 Mettre un programme en pause (1 jour, 7 jours, x jours)
+- [x] Bouton « Mettre en pause » avec trois durées : 1 jour, 7 jours, un nombre de jours libre (1 à 365), plus « Sans limite » (backend et interface de la carte faits).
 - Comportement décidé (2026-11-07, `engine.async_pause`) :
   - Portée : un seul programme ; la pause est l’état « suspendu » existant (`enabled: false`, défaut appliqué une fois aux appareils libérés) plus `paused_until` (UTC ISO, dans la configuration, miroir YAML compris). Les autres programmes, le mode Vacances et l’interrupteur global ne sont pas touchés.
   - Début : maintenant ; fin : exactement 1, 2, 7 ou 14 × 24 h plus tard ; toute autre durée est refusée. Pauser un programme déjà suspendu change seulement l’échéance.
   - Reprise automatique à l’échéance (un minuteur par programme), même après un redémarrage (échéance passée : reprise à la fin de la stabilisation) ; chemin identique à une activation manuelle, l’état voulu est réappliqué.
   - Activer ou désactiver à la main (interrupteur, carte, `set_enabled`) efface l’échéance ; annuler = activer. Une désactivation manuelle est une pause sans fin.
-  - API : `weekly_planner/program/pause` `{program_id, days: 1|2|7|14|null}` (`null` = reprendre), services `weekly_planner.pause` et `weekly_planner.resume` ; `paused_until` dans chaque programme et dans `status[id]` du snapshot et les attributs de l’interrupteur.
-  - Reste à faire : bouton, décompte « reprend le … », droits dans la carte (mode simple « mamy »).
+  - API : `weekly_planner/program/pause` `{program_id, days: 1..365|null}` (`null` = reprendre), services `weekly_planner.pause` et `weekly_planner.resume` ; `paused_until` dans chaque programme et dans `status[id]` du snapshot et les attributs de l’interrupteur.
+  - Carte (fait) : l’interrupteur ouvre un choix de durée (1 jour, 7 jours, x jours, Sans limite) ; « Pause jusqu'au <jour date, heure> » remplace « Désactivé » / « À l’arrêt » ; reprendre = remettre l’interrupteur, sans confirmation ; mêmes droits que l’interrupteur.
 
 ### 37.2 Sélecteur de mode / saison
 - [ ] Sélecteur permettant de choisir le mode (semaine type) ou la saison depuis la carte.
@@ -772,10 +772,10 @@ Ces trois demandes sont **non implémentées**. Chaque point ci-dessous reste un
 
 Objectif du propriétaire : suivre l’échelle de qualité des intégrations de Home Assistant et atteindre le premier niveau, **Bronze** (auto-déclaré : intégration HACS, pas de badge officiel). Recherche complète, état règle par règle et étude Silver / Gold (non visés) : `docs/PLAN_QUALITY_SCALE.md`.
 
-- [ ] Créer `quality_scale.yaml` (règles Bronze `done` ou `exempt` motivé ; Silver et Gold en `todo`).
-- [ ] Extraire un socle d’entité commun (`entity.py`) pour `switch.py` et `select.py` (règle `common-modules`), sans changer les identifiants ni les noms.
-- [ ] Documenter la désinstallation (README anglais et français) (règle `docs-removal-instructions`).
-- [ ] Relire la documentation des actions (champs et exemple de chaque action).
-- [ ] Test automatique de cohérence de `quality_scale.yaml` ; `hassfest` et HACS restent verts en CI.
-- [ ] Noter le niveau visé et les exemptions dans `docs/DECISIONS.md` et une ligne dans le README.
+- [x] Créer `quality_scale.yaml` (règles Bronze `done` ou `exempt` motivé ; Silver et Gold en `todo`).
+- [x] Extraire un socle d’entité commun (`entity.py`) pour `switch.py` et `select.py` (règle `common-modules`), sans changer les identifiants ni les noms.
+- [x] Documenter la désinstallation (README anglais et français) (règle `docs-removal-instructions`).
+- [x] Relire la documentation des actions (champs et exemple de chaque action).
+- [x] Test automatique de cohérence de `quality_scale.yaml` ; `hassfest` et HACS restent verts en CI.
+- [x] Noter le niveau visé et les exemptions dans `docs/DECISIONS.md` et une ligne dans le README.
 - Silver et Gold : étudiés seulement, non planifiés.

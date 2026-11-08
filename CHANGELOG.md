@@ -7,13 +7,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [Unreleased]
 
 ### Added
-- Timed pause of a program (backend): `weekly_planner/program/pause` (1, 2, 7 or 14 days, or `null` to resume), services `weekly_planner.pause` and `weekly_planner.resume`, `paused_until` on the program, its status and its switch attributes; the program resumes by itself, even after a restart (card button to come).
+- Self-declared Bronze level on the Home Assistant Integration Quality Scale: `quality_scale.yaml` with a consistency test, an uninstall section and an action field table in both READMEs.
+- Timed pause of a program (backend): `weekly_planner/program/pause` (1 to 365 days, or `null` to resume), services `weekly_planner.pause` and `weekly_planner.resume`, `paused_until` on the program, its status and its switch attributes; the program resumes by itself, even after a restart.
+- Card: pausing a program (switch on the card or in the schedule screen) asks for the length with big buttons (1 day, 7 days, a number of days of your own, no limit); a paused program shows “Paused until <date, time>” instead of “Disabled”, and the switch resumes it without confirmation.
 - Agent documentation shipped with the integration: `AI_GUIDE.md`, a validated annotated `example.yml` and a root `llms.txt`, so an AI agent can discover, configure (YAML file) and verify an installed release.
 - Programs are mirrored in `/config/www/weekly_planner.yml`: written after every save in the card, re-imported when edited by hand (validated like the card; an invalid file changes nothing and raises a repair issue). The file is public at `/local/weekly_planner.yml`.
 - Schedule bars and circular arcs show setting names and complete times on hover and keyboard focus, selected or not. The now marker has a wider hover area and a live minute-updating time tooltip, without intercepting edit gestures.
 - Selected schedule bars and circular views show their start and end times, updating live while dragging, with resolved solar times, overnight and one-shot labels, matching tooltips and accessible labels.
 
 ### Changed
+- `switch.py` and `select.py` share one entity base in `entity.py` (no change to unique IDs, names or entity IDs).
 - Solar schedule times: an optional “Limit the time (not earlier / not later)” checkbox reveals the earliest/latest fields independently for start and end. Existing limits keep it selected; clearing it removes both limits (#39).
 
 ## [0.27.0] - 2026-11-02

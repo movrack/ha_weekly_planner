@@ -18,6 +18,8 @@ This README is for Home Assistant integrators. For household users, use the
 
 This project was developed with the assistance of AI agents.
 
+Quality level: self-declared Bronze on the Home Assistant Integration Quality Scale (custom integration, no official badge); see `custom_components/weekly_planner/quality_scale.yaml`.
+
 ## Requirements and installation
 
 - Home Assistant **2026.10.0 or later**, as declared in `hacs.json`.
@@ -271,6 +273,16 @@ do not assume a generated English entity ID on another installation.
 | Global pause `switch` | Suspend programs globally and apply the applicable defaults once. |
 | Program profile `select` | Select the active mode by its exact visible name when manually controlled. |
 
+| Action | Fields | Who can call it |
+|---|---|---|
+| `weekly_planner.apply_now` | `program_id` (required) | Anyone; administrators only if `admin_only` is on |
+| `weekly_planner.skip_next` | `program_id` (required), `cancel` (optional, default `false`) | Same as `apply_now` |
+| `weekly_planner.pause` | `program_id` (required), `days` (required, whole number 1 to 365) | Same as `apply_now` |
+| `weekly_planner.resume` | `program_id` (required) | Same as `apply_now` |
+| `weekly_planner.reload` | none | Administrators |
+
+`program_id` is the `program_id` attribute of the program switch.
+
 ```yaml
 # Reapply the program's current desired action now.
 action: weekly_planner.apply_now
@@ -286,7 +298,7 @@ data:
 ```
 
 ```yaml
-# Pause a program for 1, 2, 7 or 14 days; it resumes by itself (even after a restart).
+# Pause a program for 1 to 365 days; it resumes by itself (even after a restart).
 action: weekly_planner.pause
 data:
   program_id: YOUR_PROGRAM_ID
@@ -406,6 +418,20 @@ An installed release ships its own agent documentation in `custom_components/wee
 verify, cautions), [`example.yml`](custom_components/weekly_planner/example.yml) (annotated, validated by
 the tests) and `services.yaml`. [`llms.txt`](llms.txt) indexes them for agents that browse the web.
 Agents working on this repository read [`AGENTS.md`](AGENTS.md).
+
+## Uninstalling
+
+1. Open **Settings → Devices & services → Weekly Planner**, then the three-dot menu → **Delete**.
+   This removes the switches and selects, and deletes the stored programs and the
+   `/config/www/weekly_planner.yml` file (with its `.invalid` and `.tmp` leftovers).
+2. Remove the **Weekly Planner** card from every dashboard (edit the dashboard, open the card, delete it).
+   Without the integration the card shows nothing useful.
+3. In **HACS → Integrations → Weekly Planner → ⋮ → Remove**, then restart Home Assistant.
+
+Data location, if you need to check or clean up by hand (Home Assistant stopped, or the integration was
+removed from disk before its entry): the programs are in `/config/.storage/weekly_planner` (with `weekly_planner.runtime` and `weekly_planner.journal`) and the YAML
+mirror in `/config/www/weekly_planner.yml`. Delete these files to leave nothing behind. Back them up
+first if you may reinstall: restoring them brings the programs back.
 
 ## Known UI limits and diagnostics
 

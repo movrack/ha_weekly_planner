@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WpSchedule, scopeKey } from "../components/schedule-dialog";
-import { confirmAction } from "../components/confirm";
+import { confirmAction, pauseChoice } from "../components/confirm";
 import { fetchPreviewResponse } from "../preview-cache";
 import { flat, handlers, find } from "./helpers/tpl";
 import type { Program } from "../types";
 
-vi.mock("../components/confirm", () => ({ confirmAction: vi.fn(async () => true) }));
+vi.mock("../components/confirm", () => ({ confirmAction: vi.fn(async () => true), pauseChoice: vi.fn(async () => "none") }));
 vi.mock("../preview-cache", async (orig) => ({ ...(await orig<typeof import("../preview-cache")>()),
   fetchPreviewResponse: vi.fn(async () => ({ slots: [{ slot_id: "m", start: "2026-01-01T08:00:00", end: "2026-01-01T09:00:00", ignored: null, sun: false }] })) }));
 
@@ -37,6 +37,7 @@ beforeEach(() => {
   (globalThis as any).CustomEvent ??= class { type: string; detail: unknown; constructor(t: string, i: any) { this.type = t; this.detail = i?.detail; } };
   vi.stubGlobal("requestAnimationFrame", (f: () => void) => f());
   vi.mocked(confirmAction).mockReset(); vi.mocked(confirmAction).mockResolvedValue(true);
+  vi.mocked(pauseChoice).mockReset(); vi.mocked(pauseChoice).mockResolvedValue("none");
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -293,7 +294,7 @@ describe("schedule screen editing", () => {
     await view._setEnabled(false, input);
     expect(view.hass.callWS).toHaveBeenCalledWith({ type: "weekly_planner/program/set_enabled", program_id: "p", enabled: false });
     expect(input.checked).toBe(true);
-    vi.mocked(confirmAction).mockResolvedValueOnce(false);
+    vi.mocked(pauseChoice).mockResolvedValueOnce(null);
     const calls = view.hass.callWS.mock.calls.length;
     await view._setEnabled(false, input); expect(view.hass.callWS.mock.calls.length).toBe(calls);
     await view._setEnabled(true, input); expect(view.hass.callWS.mock.calls.length).toBe(calls + 1);
@@ -303,6 +304,24 @@ describe("schedule screen editing", () => {
     view.hass.callWS.mockRejectedValueOnce("str"); await view._setEnabled(true, input);
     const sw = handlers(view.render()).find((h) => h.event === "change" && h.before.includes("checkbox"))!;
     await sw.fn({ target: input });
+  });
+  it("pauses for the chosen number of days, shows the end and resumes without asking", async () => {
+    const { view } = make();
+    const input: any = { checked: false };
+    vi.mocked(pauseChoice).mockResolvedValueOnce(7);
+    await view._setEnabled(false, input);
+    expect(view.hass.callWS).toHaveBeenCalledWith({ type: "weekly_planner/program/pause", program_id: "p", days: 7 });
+    const paused = mkProgram({ enabled: false, paused_until: "2026-11-09T21:30:00+00:00" });
+    view.data = { ...view.data, programs: [paused] };
+    expect(view._stateText()).toBe("Paused until Mon, Nov 9, 9:30 pm");
+    expect(flat(view.render())).toContain("Paused until");
+    view.data = { ...view.data, programs: [mkProgram({ enabled: false })] };
+    expect(view._stateText()).toBe("Off");
+    view.data = { ...view.data, programs: [paused] };
+    vi.mocked(pauseChoice).mockClear(); view.hass.callWS.mockClear();
+    await view._setEnabled(true, input);
+    expect(pauseChoice).not.toHaveBeenCalled();
+    expect(view.hass.callWS).toHaveBeenCalledWith({ type: "weekly_planner/program/set_enabled", program_id: "p", enabled: true });
   });
   it("opens the history and closes the dialog", () => {
     const { view } = make();

@@ -183,7 +183,7 @@ class _Pass:
             return action
 
 
-PAUSE_DAYS = (1, 2, 7, 14)  # lengths of a timed pause, in days
+MAX_PAUSE_DAYS = 365  # a timed pause lasts 1 to 365 whole days
 
 
 class PlannerEngine:
@@ -1177,8 +1177,8 @@ class PlannerEngine:
 
     async def async_pause(self, program_id: str, days: int | None) -> None:
         """Suspend one program for ``days`` x 24 h from now (``None``: cancel its pause and resume it now)."""
-        if days is not None and days not in PAUSE_DAYS:
-            raise ServiceValidationError(f"A pause lasts {', '.join(map(str, PAUSE_DAYS))} days")
+        if days is not None and (isinstance(days, bool) or not isinstance(days, int) or not 1 <= days <= MAX_PAUSE_DAYS):
+            raise ServiceValidationError(f"A pause lasts 1 to {MAX_PAUSE_DAYS} days")
         async with self._lock:
             program = self.store.program(program_id)
             if not program:

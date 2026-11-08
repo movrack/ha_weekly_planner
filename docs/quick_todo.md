@@ -5,13 +5,13 @@ les détails et questions ouvertes sont dans `docs/SPEC.md` § 37 et le travail 
 
 ## À clarifier avec le propriétaire (2026-11-07), voir SPEC § 37
 
-- [ ] Bouton « Mettre en pause » d’un programme : 1 jour, 2 jours, 1 semaine, 2 semaines (§ 37.1) (backend done, card UI pending).
+- [x] Bouton « Mettre en pause » d’un programme : 1 jour, 7 jours, x jours (§ 37.1) (done).
 - [ ] Sélecteur de mode / saison (§ 37.2).
 - [x] Programmes configurables par un fichier YAML `/config/www/weekly_planner.yml`, mis à jour à chaque modification dans l’interface (§ 37.3). Attention : `/config/www` est public.
 
 ## Échelle de qualité Home Assistant (SPEC § 38, `docs/PLAN_QUALITY_SCALE.md`)
 
-- [ ] Atteindre le niveau Bronze (auto-déclaré) : `quality_scale.yaml`, socle d’entité commun, désinstallation documentée, actions documentées, test de cohérence.
+- [x] Atteindre le niveau Bronze (auto-déclaré) : `quality_scale.yaml`, socle d’entité commun, désinstallation documentée, actions documentées, test de cohérence.
 - Silver et Gold : étudiés dans le plan, pas un objectif.
 
 ## À finir avant la v1.0.0

@@ -22,9 +22,13 @@ petit trait avec une horloge indique maintenant.
 
 L’interrupteur ne commande pas directement l’appareil. Mettre un programme en
 pause arrête ses horaires ; cela ne veut pas forcément dire éteindre l’appareil.
-Une confirmation s’affiche avant la pause : [S34](SCREENS.fr.md#s34).
-Quand le programme est arrêté, un badge rouge **Désactivé** apparaît sous les
-icônes, en haut à droite. Son interrupteur se met à jour sur les autres cartes.
+Pour mettre en pause, on choisit la durée : **1 jour**, **7 jours**, **un nombre de jours
+de votre choix** (1 à 365) ou **Sans limite**. Le programme reprend tout seul à la fin ; on peut
+aussi remettre l’interrupteur en marche à tout moment, sans confirmation. Modifier
+les horaires pendant une pause ne l’interrompt pas.
+Quand le programme est arrêté, un badge rouge apparaît sous les icônes, en haut à
+droite : **Désactivé** (sans limite) ou **Pause jusqu'au** suivi de la date et de
+l’heure de reprise. L’écran des horaires affiche le même texte à côté de l’interrupteur. Son interrupteur se met à jour sur les autres cartes.
 
 **Semaine** déplie les sept jours. Toucher le nom d’un jour permet de regarder ses
 horaires. **Toute la semaine** revient ensuite à l’ensemble.

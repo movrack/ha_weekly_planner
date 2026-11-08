@@ -8,14 +8,14 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError, Unauthorized
 
 from .const import CONF_ADMIN_ONLY, DOMAIN
-from .engine import PAUSE_DAYS, PlannerEngine
+from .engine import MAX_PAUSE_DAYS, PlannerEngine
 
 PROGRAM = vol.Schema({vol.Required("program_id"): str, vol.Optional("cancel", default=False): bool})
 
 
 PAUSE = vol.Schema({
     vol.Required("program_id"): str,
-    vol.Required("days"): vol.All(vol.Coerce(int), vol.In(PAUSE_DAYS)),
+    vol.Required("days"): vol.All(vol.Coerce(int), vol.Range(min=1, max=MAX_PAUSE_DAYS)),
 })
 RESUME = vol.Schema({vol.Required("program_id"): str})
 

@@ -22,12 +22,12 @@ import type { RowEdit } from "../edits";
 import { appliedAction, labelName, labelOf, labelsFor } from "../labels";
 import type { LabelDraft } from "./label-picker";
 import { addDaysIso } from "./chart";
-import { confirmAction } from "./confirm";
+import { confirmAction, pauseChoice } from "./confirm";
 import { slotDeviceError, strings, t } from "../i18n";
 import { loadServiceNames } from "../services";
 import { activeProfile, friendlyName, newId } from "../planner";
 import { deviceDays, fetchPreviewResponse } from "../preview-cache";
-import { DAY, localDateIso, minutesToClock } from "../time";
+import { DAY, formatPauseEnd, localDateIso, minutesToClock, pauseEnd } from "../time";
 import { applicable, applies, normaliseEntities, shiftTimeSpec, specMinutes, sunBoundsInvalid } from "../slots";
 import { editorStyles, langOf } from "../editors/shared";
 import type { Action, HomeAssistant, PlannerData, PreviewResponse, PreviewSlot, Profile, Program, Slot, TimeSpec } from "../types";
@@ -732,16 +732,24 @@ export class WpSchedule extends LitElement {
     return this._programs.some((p) => p.enabled);
   }
 
+  private _stateText(): string {
+    if (this._enabled) return t(this._lang, "running");
+    const until = pauseEnd(this._programs);
+    return until ? t(this._lang, "paused_until", { when: formatPauseEnd(until, this._tz, this._lang) }) : t(this._lang, "stopped");
+  }
+
   private async _setEnabled(enabled: boolean, input: HTMLInputElement): Promise<void> {
     if (this._toggling) { input.checked = this._enabled; return; }
     this._toggling = true;
     try {
-      if (!enabled && !(await confirmAction(this, t(this._lang, "confirm_pause", { name: this._title }), t(this._lang, "yes"), t(this._lang, "no")))) {
+      const choice = enabled ? "none" : await pauseChoice(this, this._title);
+      if (choice === null) {
         input.checked = true;
         return;
       }
       for (const p of this._programs) {
-        await this.hass.callWS({ type: "weekly_planner/program/set_enabled", program_id: p.id, enabled });
+        if (typeof choice === "number") await this.hass.callWS({ type: "weekly_planner/program/pause", program_id: p.id, days: choice });
+        else await this.hass.callWS({ type: "weekly_planner/program/set_enabled", program_id: p.id, enabled });
       }
     } catch (err) {
       this._error = t(this._lang, "error", { message: (err as { message?: string })?.message ?? String(err) });
@@ -982,7 +990,7 @@ export class WpSchedule extends LitElement {
         ${this._error && !this._open ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
         ${this._open !== null || this._modeOnly ? nothing : html`<label class="switch">
           <span class="grow">${t(lang, "schedule_on")}</span>
-          <span class="state">${this._enabled ? t(lang, "running") : t(lang, "stopped")}</span>
+          <span class="state">${this._stateText()}</span>
           <input type="checkbox" .checked=${this._enabled} ?disabled=${!this._canEdit || this._toggling}
             @change=${(e: Event) => void this._setEnabled((e.target as HTMLInputElement).checked, e.target as HTMLInputElement)} />
           <span class="track"></span>
@@ -1103,7 +1111,8 @@ export class WpSchedule extends LitElement {
     .chart .nav { display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 500; }
     .chart select { margin-bottom: 4px; }
     .switch { position: relative; min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; margin-bottom: 8px; font-size: 16px; }
-    .switch .state { font-size: 14px; color: var(--secondary-text-color); }
+    .switch .grow { flex: 0 0 auto; margin-right: auto; }
+    .switch .state { flex: 0 1 auto; min-width: 0; text-align: right; overflow-wrap: anywhere; font-size: 14px; color: var(--secondary-text-color); }
     .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
     .switch .track { position: relative; width: 44px; height: 24px; border-radius: 12px; background: var(--disabled-color, #bdbdbd); transition: background 0.2s; flex: none; }
     .switch .track::before { content: ""; position: absolute; width: 20px; height: 20px; left: 2px; top: 2px; border-radius: 50%; background: #fff; transition: transform 0.2s; }
