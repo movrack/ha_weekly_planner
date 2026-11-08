@@ -16,22 +16,19 @@ import "../components/schedule-dialog";
 import { confirmAction } from "../components/confirm";
 import { displayName, scrollHintCss, trackScrollHints } from "../components/gestures";
 import { slotDeviceError, t } from "../i18n";
-import { activeProfile, ensureHaSelector, newId } from "../planner";
+import { ensureHaSelector, newId } from "../planner";
 import { loadServiceNames, serviceDomains, serviceDescription, serviceLabel, servicesFor } from "../services";
-import type { Condition, HomeAssistant, PlannerData, Profile, Program, ProgramEntity, Slot } from "../types";
+import type { Condition, HomeAssistant, PlannerData, Program, ProgramEntity, Slot } from "../types";
 import "./shared";
 import { editorStyles, langOf } from "./shared";
 import type { K } from "./shared";
 
 type Tab = "general" | "entities" | "seasons";
-type ProfileForm = { mode: "add" | "rename" | "copy"; name: string };
 interface EditorSnapshot {
   program: Program;
   origin?: Program;
   isNew: boolean;
   iconCustomized: boolean;
-  profileId: string;
-  profileForm?: ProfileForm;
 }
 type Closable = HTMLElement & { close(): void };
 
@@ -55,13 +52,12 @@ export class WpProgramEditor extends LitElement {
   @state() private _p!: Program;
   @state() private _isNew = true;
   @state() private _tab: Tab = "general";
-  @state() private _profileId = "";
   @state() private _error = "";
   /** Field errors sit beside the field they are about; `_error` is the global one, above the action buttons. */
   @state() private _nameError = "";
   @state() private _entitiesError = "";
   @state() private _saving = false;
-  @state() private _scheduleProfileId: string | null = null;
+  @state() private _scheduleOpen = false;
   private _hoursRevision = 0;
   @state() private _picker = Boolean(customElements.get("ha-selector"));
 
@@ -70,7 +66,6 @@ export class WpProgramEditor extends LitElement {
     this.addEventListener("keydown", this._historyKey);
     if (!this._picker) void ensureHaSelector().then((ok) => (this._picker = ok));
   }
-  @state() private _profileForm?: { mode: "add" | "rename" | "copy"; name: string };
   private _ready = false;
   private _history = new DraftHistory<EditorSnapshot>();
   private _editingHistory = false;
@@ -84,7 +79,7 @@ export class WpProgramEditor extends LitElement {
 
   private _snapshot(): EditorSnapshot {
     return structuredClone({ program: this._p, origin: this._origin, isNew: this._isNew,
-      iconCustomized: this._iconCustomized, profileId: this._profileId, profileForm: this._profileForm });
+      iconCustomized: this._iconCustomized });
   }
 
   /** One semantic edit can update several fields without creating partial undo steps. */
@@ -102,8 +97,6 @@ export class WpProgramEditor extends LitElement {
     this._origin = snapshot.origin;
     this._isNew = snapshot.isNew;
     this._iconCustomized = snapshot.iconCustomized;
-    this._profileId = snapshot.profileId;
-    this._profileForm = snapshot.profileForm;
     this._error = ""; this._nameError = ""; this._entitiesError = "";
     this._applied = false;
     this._refreshIcon();
@@ -133,10 +126,6 @@ export class WpProgramEditor extends LitElement {
     event.stopPropagation();
     if (redo) this._redoDraft(); else this._undoDraft();
   };
-
-  private _changeProfileForm(form: ProfileForm | undefined, group?: string): void {
-    this._edit(() => { this._profileForm = form; this._applied = false; this._error = ""; }, group);
-  }
 
   private _refreshIcon(): void {
     const epoch = ++this._iconEpoch;
@@ -168,22 +157,12 @@ export class WpProgramEditor extends LitElement {
         id: "", revision: 0, name: "", icon: "mdi:calendar-clock", priority: this.data.defaults?.priority ?? 10, enabled: true,
         reapply: this.data.defaults?.reapply ?? true,
         conditions: [], entities: [],
-        profiles: [{ id: pid, name: this._tr("profile_default"), days: EMPTY_DAYS() }],
+        profiles: [{ id: pid, name: this.data.mode?.selector ? this.data.mode.default ?? this.data.mode.active ?? this._tr("profile_default") : this._tr("profile_default"), days: EMPTY_DAYS() }],
       };
       this._isNew = true;
     }
     this._iconCustomized = Boolean(this.program?.icon && this.program.icon !== this._deviceIcon(this.program.entities[0]?.entity_id));
-    this._profileId = this._activeId();
     this._tab = "general";
-  }
-
-  private _activeId(): string {
-    // The mode is global: the schedules named after the active mode (the first ones without a mode).
-    return activeProfile(this._p, this.data).id || this._p.profiles[0].id;
-  }
-
-  private get _profile(): Profile {
-    return this._p.profiles.find((x) => x.id === this._profileId) ?? this._p.profiles[0];
   }
 
   private _deviceIcon(entityId?: string): string {
@@ -213,49 +192,6 @@ export class WpProgramEditor extends LitElement {
 
   private _canEdit(): boolean {
     return this.data.can_edit && !this.data.read_only;
-  }
-
-  /* ---- profile / days ---- */
-
-  private _setProfile(profile: Profile): void {
-    this._patch({ profiles: this._p.profiles.map((x) => (x.id === profile.id ? profile : x)) });
-  }
-
-  private _submitProfileForm(): boolean {
-    const form = this._profileForm;
-    if (!form) return true;
-    const name = form.name.trim();
-    const clash = this._p.profiles.some((x) => x.name === name && !(form.mode === "rename" && x.id === this._profileId));
-    if (!name || clash || name.length > 40) {
-      this._error = this._tr("err_profile_name");
-      return false;
-    }
-    this._edit(() => {
-      if (form.mode === "rename") {
-        this._setProfile({ ...this._profile, name });
-      } else {
-        const source = this._profile;
-        const profile: Profile = {
-          id: newId(), name,
-          days: form.mode === "copy" ? source.days.map(cloneSlots) : EMPTY_DAYS(),
-        };
-        this._patch({ profiles: [...this._p.profiles, profile] });
-        this._profileId = profile.id;
-      }
-      this._profileForm = undefined;
-      this._error = "";
-    });
-    return true;
-  }
-
-  private _deleteProfile(): void {
-    this._edit(() => {
-      const profile = this._profile;
-      const profiles = this._p.profiles.filter((x) => x.id !== profile.id);
-      this._patch({ profiles });
-      this._profileId = this._activeId();
-      if (!profiles.some((x) => x.id === this._profileId)) this._profileId = profiles[0].id;
-    });
   }
 
   /* ---- entities ---- */
@@ -338,7 +274,6 @@ export class WpProgramEditor extends LitElement {
 
   private async _save(): Promise<void> {
     if (!this._canEdit() || this._saving) return;
-    if (!this._submitProfileForm()) return;
     const problem = this._problem();
     if (problem) {
       this._error = ""; this._nameError = ""; this._entitiesError = "";
@@ -394,10 +329,6 @@ export class WpProgramEditor extends LitElement {
 
   private async _askDelete(): Promise<void> {
     if (await confirmAction(this, this._tr("confirm_delete", { name: this._p.name }), this._tr("delete"))) await this._delete();
-  }
-
-  private async _askDeleteProfile(profile: Profile): Promise<void> {
-    if (await confirmAction(this, this._tr("confirm_delete", { name: profile.name }), this._tr("delete"))) this._deleteProfile();
   }
 
   private async _askDeleteEntity(index: number): Promise<void> {
@@ -456,11 +387,9 @@ export class WpProgramEditor extends LitElement {
 
   private _duplicate(): void {
     this._edit(() => {
-      const pid = newId();
       const source = this._p;
       const profiles = source.profiles.map((profile) => {
-        const id = profile.id === this._activeId() ? pid : newId();
-        return { ...structuredClone(profile), id, days: profile.days.map(cloneSlots) };
+        return { ...structuredClone(profile), id: newId(), days: profile.days.map(cloneSlots) };
       });
       this._p = {
         ...structuredClone(source), id: "", revision: 0, created_at: undefined,
@@ -471,7 +400,6 @@ export class WpProgramEditor extends LitElement {
       this._isNew = true;
       this._origin = undefined;
       this._applied = false;
-      this._profileId = profiles.find((x) => x.id === pid)?.id ?? profiles[0].id;
       this._error = "";
     });
   }
@@ -622,12 +550,8 @@ export class WpProgramEditor extends LitElement {
         <ha-icon icon="mdi:link-off"></ha-icon>${this._tr("pe_incompatible_remove")}</button></div>`;
   }
 
-  private get _seasonsUnapplied(): boolean {
-    return Boolean(this._profileForm) || !this._origin || JSON.stringify(this._p.profiles) !== JSON.stringify(this._origin.profiles);
-  }
-
   private _closeModeSchedule(): void {
-    this._scheduleProfileId = null;
+    this._scheduleOpen = false;
     const live = this.data.programs.find((p) => p.id === this._p.id);
     if (live) this._adoptModeSchedule(live);
   }
@@ -641,46 +565,13 @@ export class WpProgramEditor extends LitElement {
   }
 
   private _renderSeasons() {
-    const p = this._p;
-    const profile = this._profile;
-    const active = this._activeId();
-    const form = this._profileForm;
+    const active = this.data.mode?.selector ? this.data.mode.active : null;
     return html`
       <p class="hint">${this._tr("profile_explanation")}</p>
-      ${!this._isNew ? html`<p class="active-profile" role="status"><ha-icon icon="mdi:star"></ha-icon>
-        ${this._tr("profile_current", { name: this._origin?.profiles.find((x) => x.id === active)?.name ?? profile.name })}</p>` : nothing}
-      ${this._seasonsUnapplied ? html`<p class="hint">${this._tr("profile_apply_first")}</p>` : nothing}
-      <div class="row profile-bar">
-        <div class="field" style="flex:1 1 160px"><label for="f-profile">${this._tr("profile_manage")}</label>
-          <select id="f-profile" data-value=${profile.id} ?disabled=${Boolean(form)} @change=${(e: Event) => { this._profileId = (e.target as HTMLSelectElement).value; }}>
-            ${p.profiles.map((x) => html`<option value=${x.id} ?selected=${x.id === profile.id}>${x.name}${x.id === active ? ` (${this._tr("profile_active")})` : ""}</option>`)}
-          </select></div>
-      </div>
-      <p class="hint">${this._tr("profile_draft_hint")}</p>
-      <button class="btn" ?disabled=${this._seasonsUnapplied} @click=${() => { this._scheduleProfileId = profile.id; }}>
+      ${active ? html`<p class="active-profile" role="status"><ha-icon icon="mdi:star"></ha-icon>
+        ${this._tr("profile_current", { name: active })}</p>` : nothing}
+      <button class="btn" ?disabled=${this._isNew} @click=${() => { this._scheduleOpen = true; }}>
         <ha-icon icon="mdi:calendar-edit"></ha-icon>${this._tr("mode_edit_hours")}</button>
-      <div class="row season-actions">
-        <button class="btn" ?disabled=${Boolean(form)}
-          @click=${() => this._changeProfileForm({ mode: "add", name: "" })}><ha-icon icon="mdi:plus"></ha-icon>${this._tr("profile_add")}</button>
-        <button class="btn" ?disabled=${Boolean(form)}
-          @click=${() => this._changeProfileForm({ mode: "rename", name: profile.name })}><ha-icon icon="mdi:pencil"></ha-icon>${this._tr("profile_rename")}</button>
-        <button class="btn" ?disabled=${Boolean(form)}
-          @click=${() => this._changeProfileForm({ mode: "copy", name: `${profile.name} ${this._tr("copy_suffix")}`.slice(0, 40) })}><ha-icon icon="mdi:content-copy"></ha-icon>${this._tr("profile_copy")}</button>
-      </div>
-      ${profile.id === active ? html`<p class="hint">${this._tr("profile_active_hint")}</p>` : nothing}
-      ${form
-        ? html`<div class="card">
-            <div class="field"><label for="f-pname">${this._tr(form.mode === "rename" ? "profile_rename" : form.mode === "copy" ? "profile_copy" : "profile_add")}</label>
-              <input id="f-pname" type="text" maxlength="40" .value=${form.name}
-                @input=${(e: Event) => this._changeProfileForm({ ...form, name: (e.target as HTMLInputElement).value }, "season-name")}
-                @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); void this._save(); } }} /></div>
-            ${form.mode === "rename" ? html`<p class="hint">${this._tr("profile_rename_warning")}</p>` : nothing}
-            <button class="btn" @click=${() => this._changeProfileForm(undefined)}>${this._tr("profile_discard_edit")}</button>
-          </div>`
-        : nothing}
-      <div class="season-delete"><button class="btn danger"
-        ?disabled=${Boolean(form) || p.profiles.length < 2 || profile.id === active}
-        @click=${() => void this._askDeleteProfile(profile)}><ha-icon icon="mdi:delete"></ha-icon>${this._tr("profile_delete")}</button></div>
     `;
   }
 
@@ -725,10 +616,10 @@ export class WpProgramEditor extends LitElement {
         ${this._tr(this._isNew ? "pe_create" : this.embedded ? "ce_apply_program" : "save")}</button>
       ${!this.embedded ? html`<button class="btn" @click=${() => this._close()}>${this._tr("cancel")}</button>` : nothing}`;
     const secondaryActions = html`
-      ${!this._isNew ? html`<button class="btn" ?disabled=${!editable || this._saving || Boolean(this._profileForm)} @click=${() => this._duplicate()}>${this._tr("duplicate")}</button>` : nothing}
-      ${!this._isNew ? html`<button class="btn danger" ?disabled=${!editable || this._saving || Boolean(this._profileForm)}
+      ${!this._isNew ? html`<button class="btn" ?disabled=${!editable || this._saving} @click=${() => this._duplicate()}>${this._tr("duplicate")}</button>` : nothing}
+      ${!this._isNew ? html`<button class="btn danger" ?disabled=${!editable || this._saving}
         @click=${() => void this._askDelete()}><ha-icon icon="mdi:delete"></ha-icon>${this._tr("delete")}</button>` : nothing}`;
-    const unapplied = Boolean(this._profileForm) || (this._origin
+    const unapplied = (this._origin
       ? JSON.stringify(this._p) !== JSON.stringify(this._origin)
       : Boolean(this._p.name || this._p.entities.length));
     if (this.embedded) return html`<section class="embedded">${content}
@@ -737,8 +628,8 @@ export class WpProgramEditor extends LitElement {
       ${globalError}
       <div class="actions apply-bar">${primaryActions}</div><div class="actions secondary-actions">${secondaryActions}</div>
       ${this._applied ? html`<p role="status" class="hint">${this._tr("ce_program_applied")}</p>` : nothing}
-      ${this._scheduleProfileId ? html`<wp-schedule .hass=${this.hass} .data=${this.data}
-        .scope=${{ kind: "program", programId: this._p.id }} .profileId=${this._scheduleProfileId} .chart=${false}
+      ${this._scheduleOpen ? html`<wp-schedule .hass=${this.hass} .data=${this.data}
+        .scope=${{ kind: "program", programId: this._p.id }} .chart=${false}
         @schedule-program-saved=${(e: CustomEvent<Program>) => { e.stopPropagation(); this._adoptModeSchedule(e.detail); }}
         @closed=${(e: Event) => { e.stopPropagation(); this._closeModeSchedule(); }}></wp-schedule>` : nothing}
     </section>`;
@@ -779,10 +670,7 @@ export class WpProgramEditor extends LitElement {
         color: var(--primary-color); font: inherit; font-size: 14px; cursor: pointer; --mdc-icon-size: 20px;
       }
       .svc { display: flex; flex-direction: column; padding-left: 8px; }
-      .profile-bar { align-items: flex-end; gap: 4px; }
       .active-profile { display: flex; align-items: center; gap: 8px; }
-      .season-actions { margin: 12px 0; }
-      .season-delete { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--divider-color); }
       @media (max-width: 480px) { .btn { padding: 0 12px; } }
     `,
   ];

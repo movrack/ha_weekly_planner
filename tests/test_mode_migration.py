@@ -111,8 +111,8 @@ async def test_one_repair_issue_names_the_programs_and_the_selects_are_removed(h
     assert engine.store.config["mode_selector"] == "input_select.house" and engine.store.config["default_mode"] == "Away"
     assert "mode_migration" not in engine.store.config  # handled once
     issues = [i for i in ir.async_get(hass).issues.values() if i.domain == DOMAIN]
-    assert [i.issue_id for i in issues] == ["modes_now_global"]
-    issue = issues[0]
+    assert sorted(i.issue_id for i in issues) == ["mode_option_missing", "modes_now_global"]  # "Eco" has no option
+    issue = next(i for i in issues if i.issue_id == "modes_now_global")
     assert issue.translation_key == "modes_now_global" and issue.is_fixable is False
     names = issue.translation_placeholders["programs"]
     assert names == "Salon (input_select.house); Chambre (input_select.house); Bureau"  # not the single-mode "Cave"

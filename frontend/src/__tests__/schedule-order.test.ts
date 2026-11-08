@@ -20,7 +20,8 @@ function screen(viewMode?: string) {
   view.hass = { language: "en", config: { time_zone: "UTC" }, states: {}, callWS: vi.fn() };
   view.scope = { kind: "program", programId: "p" };
   view.data = { programs: [program], status: {}, can_edit: true, read_only: false, labels: [] };
-  if (viewMode) view._viewProfileId = viewMode;
+  view.data.mode = { selector: "input_select.m", default: "Home", active: "Home", options: ["Home", "Away"], available: true };
+  if (viewMode) view._viewMode = viewMode;
   view._renderRest = () => "[REST]";
   view._renderWeek = () => "[WEEK]";
   view._renderChart = () => "[CHART]";
@@ -31,23 +32,23 @@ function screen(viewMode?: string) {
 describe("schedule screen order", () => {
   it("is switch, mode, rest of the time, slots + add, 7 days, day chart, delete", () => {
     const html = flat(screen().render());
-    const at = ['class="switch"', 'class="mode-select"', "[REST]", 'class="list"', "row add", "[WEEK]", "[CHART]", "wp-chart-options", "danger-line alone"].map((m) => html.indexOf(m));
+    const at = ['class="modes"', 'class="switch"', "[REST]", 'class="list"', "row add", "[WEEK]", "[CHART]", "wp-chart-options", "danger-line alone"].map((m) => html.indexOf(m));
     expect(at.every((i) => i >= 0)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
   });
   it("keeps hiding the switch, the rest row and Delete when only another mode is edited", () => {
-    const html = flat(screen("away").render());
+    const html = flat(screen("Away").render());
     expect(html).not.toContain('class="switch"');
     expect(html).not.toContain("[REST]");
     expect(html).not.toContain("danger-line alone");
-    expect(html.indexOf("class=\"mode-select\"")).toBeLessThan(html.indexOf("[WEEK]"));
+    expect(html.indexOf("class=\"modes\"")).toBeLessThan(html.indexOf("[WEEK]"));
     expect(html.indexOf("row add")).toBeLessThan(html.indexOf("[WEEK]"));
     expect(html.indexOf("[WEEK]")).toBeLessThan(html.indexOf("[CHART]"));
   });
   it("lets the toggle and Delete stay in the tab order at their place (DOM order = visual order)", () => {
     const html = flat(screen().render());
-    expect(html.indexOf("type=\"checkbox\"")).toBeLessThan(html.indexOf("<select"));
-    expect(html.indexOf("<select")).toBeLessThan(html.indexOf("row add"));
+    expect(html.indexOf("role=\"tablist\"")).toBeLessThan(html.indexOf("type=\"checkbox\""));
+    expect(html.indexOf("type=\"checkbox\"")).toBeLessThan(html.indexOf("row add"));
     expect(html.indexOf("row add")).toBeLessThan(html.indexOf("mdi:delete-outline"));
   });
   it("shows the day focus header, notes and errors above the list", () => {
@@ -62,8 +63,8 @@ describe("schedule screen order", () => {
     expect(html.indexOf("note-text")).toBeLessThan(html.indexOf('class="list"'));
     expect(html.indexOf("[REST]")).toBeLessThan(html.indexOf("mdi:arrow-left"));
   });
-  it("blocks adding and warns when the mode no longer exists or the data is read-only", () => {
-    const view = screen("gone");
+  it("warns and blocks adding when the data is read-only", () => {
+    const view = screen();
     view.data.read_only = true;
     const html = flat(view.render());
     expect(html).toContain('role="alert"');
@@ -91,5 +92,5 @@ it("places the options in the left desktop grid while preserving the phone DOM o
   expect(styles).toContain('.area-options { grid-area: options;');
   const view=screen();view._open="new";expect(flat(view.render())).not.toContain("wp-chart-options");
   view._open=null;view.chart=false;expect(flat(view.render())).not.toContain("wp-chart-options");
-  expect(flat(screen("away").render())).not.toContain("wp-chart-options");
+  expect(flat(screen("Away").render())).not.toContain("wp-chart-options");
 });

@@ -145,75 +145,45 @@ describe("program editor: general and entities tabs", () => {
   });
 });
 
-describe("program editor: modes (seasons)", () => {
-  it("renders the seasons tab; the active mode is never changed from here", () => {
+describe("program editor: modes tab", () => {
+  it("no longer lets modes be added, renamed, copied, deleted or picked", () => {
     const { e } = make(); e._tab = "seasons";
-    const r = e._renderSeasons();
-    expect(flat(r)).toContain("f-profile");
-    find(r, "change", "f-profile").fn({ target: { value: "away" } });
-    expect(e._profileId).toBe("away");
+    const html = flat(e._renderSeasons());
+    for (const gone of ["f-profile", "f-pname", "season-actions", "season-delete", "mdi:plus", "mdi:pencil", "mdi:content-copy", "mdi:delete"]) expect(html).not.toContain(gone);
+    for (const dead of ["_profileForm", "_submitProfileForm", "_changeProfileForm", "_deleteProfile", "_askDeleteProfile", "_profileId", "_activeId"]) expect(e[dead]).toBeUndefined();
+    expect(html).toContain("mdi:calendar-edit");
+  });
+  it("names the active mode, never changes it from here", () => {
+    const { e } = make(); e._tab = "seasons";
+    expect(flat(e._renderSeasons())).not.toContain("mdi:star");
+    e.data.mode = { selector: "input_select.mode", default: "Home", active: "Away", options: ["Home", "Away"], available: true };
+    expect(flat(e._renderSeasons())).toContain("Active now: Away");
     expect(e.hass.callWS).not.toHaveBeenCalled();
   });
-  it("adds, renames, copies, discards and deletes a mode", async () => {
-    const { e } = make(); e._tab = "seasons";
-    const click = (i: number) => handlers(e._renderSeasons()).filter((h) => h.event === "click")[i].fn();
-    click(1); expect(e._profileForm).toEqual({ mode: "add", name: "" });
-    await e._save(); expect(e._error).not.toBe("");
-    find(e._renderSeasons(), "input", "f-pname").fn({ target: { value: "Summer" } });
-    find(e._renderSeasons(), "keydown", "f-pname").fn({ key: "x", preventDefault() {} });
-    expect(e._submitProfileForm()).toBe(true);
-    expect(e._p.profiles.map((p: any) => p.name)).toContain("Summer");
-    const summer = e._p.profiles.find((p: any) => p.name === "Summer").id;
-    expect(e._profileId).toBe(summer);
-    e._changeProfileForm({ mode: "rename", name: "Summer 2" });
-    expect(flat(e._renderSeasons())).toContain("profile_rename_warning".length ? "f-pname" : "");
-    e._submitProfileForm(); expect(e._profile.name).toBe("Summer 2");
-    e._changeProfileForm({ mode: "rename", name: "Home" }); expect(e._submitProfileForm()).toBe(false);
-    e._changeProfileForm({ mode: "add", name: "x".repeat(41) }); expect(e._submitProfileForm()).toBe(false);
-    e._changeProfileForm(undefined);
-    e._p.profiles[0].days[0] = [{ id: "s1", start: { time: "08:00" }, end: { time: "09:00" }, label: "l" }];
-    e._profileId = "home";
-    e._changeProfileForm({ mode: "copy", name: "Home copy" }); e._submitProfileForm();
-    const copy = e._p.profiles.find((p: any) => p.name === "Home copy");
-    expect(copy.days[0][0].id).not.toBe("s1");
-    e._profileId = summer;
-    await e._askDeleteProfile(e._profile);
-    expect(e._p.profiles.map((p: any) => p.id)).not.toContain(summer);
-    vi.mocked(confirmAction).mockResolvedValue(false);
-    const n = e._p.profiles.length; await e._askDeleteProfile(e._profile); expect(e._p.profiles).toHaveLength(n);
+  it("starts a new program with the default mode when there is a selector", () => {
+    const { e } = make(null);
+    expect(e._p.profiles[0].name).toBe("Standard week");
+    const withMode = make(null);
+    withMode.e._ready = false;
+    withMode.e.data.mode = { selector: "input_select.mode", default: "Home", active: "Away", options: ["Home", "Away"], available: true };
+    withMode.e.willUpdate();
+    expect(withMode.e._p.profiles[0].name).toBe("Home");
   });
-  it("opens the hours of a mode when nothing is unapplied, and adopts saved hours", () => {
+  it("opens the schedules screen on the active mode and adopts saved hours", () => {
     const { e } = make({ ...prog() } as any, { embedded: true });
     e._tab = "seasons";
-    const r = e._renderSeasons();
-    find(r, "click", "mdi:calendar-edit").fn;
-    handlers(r).filter((h) => h.event === "click")[0];
-    e._scheduleProfileId = "home";
+    handlers(e._renderSeasons()).filter((h) => h.event === "click")[0].fn();
+    expect(e._scheduleOpen).toBe(true);
     const html = flat(e.render());
     expect(html).toContain("wp-schedule");
+    expect(html).not.toContain("profileId");
     const saved = structuredClone(e._p); saved.revision = 3; saved.profiles[0].days[0] = [{ id: "z", start: { time: "01:00" }, end: { time: "02:00" }, label: "l" }];
     find(e.render(), "schedule-program-saved", "wp-schedule").fn({ stopPropagation() {}, detail: saved });
     expect(e._p.profiles[0].days[0]).toHaveLength(1);
     e._adoptModeSchedule({ ...saved, id: "other" }); e._adoptModeSchedule({ ...saved, revision: 1 });
     e.data.programs = [saved];
     find(e.render(), "closed", "wp-schedule").fn({ stopPropagation() {} });
-    expect(e._scheduleProfileId).toBeNull();
-  });
-  it("no longer offers to choose a mode or to follow an entity (the mode is global)", () => {
-    const { e } = make(); e._tab = "seasons";
-    const html = flat(e._renderSeasons());
-    expect(html).not.toContain("mode-control");
-    expect(html).not.toContain("mode-active");
-    expect(html).not.toContain("wp-entity-picker");
-    expect(html).toContain("f-profile");
-  });
-  it("marks the schedules named after the active mode as active", () => {
-    const { e } = make(); e._tab = "seasons";
-    expect(e._activeId()).toBe("home");
-    e.data.mode = { selector: "input_select.mode", default: "Home", active: "Away", options: ["Home", "Away"], available: true };
-    expect(e._activeId()).toBe("away");
-    e.data.mode.active = "Unknown";
-    expect(e._activeId()).toBe("home");
+    expect(e._scheduleOpen).toBe(false);
   });
 });
 

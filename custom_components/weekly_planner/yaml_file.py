@@ -27,7 +27,7 @@ from homeassistant.util import dt as dt_util
 from .const import DOMAIN
 from .slots import normalise_slot_entities, remove_device_from_slots
 from .store import PlannerStore, new_id
-from .validation import check_label, check_program, keep_pause
+from .validation import check_label, check_mode_config, check_program, keep_pause
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,14 +55,60 @@ def remove_files(path: Path) -> None:
         path.with_name(name).unlink(missing_ok=True)
 
 
+DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+
+
+def program_to_file(program: dict[str, Any]) -> dict[str, Any]:
+    """A program as written in the file: ``profiles`` become ``modes: {name: {mon..sun: [...]}}``."""
+    out: dict[str, Any] = {}
+    for key, value in program.items():
+        if key == "profiles":
+            out["modes"] = {p["name"]: dict(zip(DAYS, p["days"], strict=True)) for p in value}
+        else:
+            out[key] = value
+    return out
+
+
+def program_from_file(item: dict[str, Any], existing: dict[str, Any] | None) -> dict[str, Any]:
+    """A program of the file as stored: ``modes`` become ``profiles``; the old ``profiles`` list still works.
+
+    A mode keeps the id of the existing profile with the same NAME (a new name gets a fresh id). A profile
+    absent from the file is removed, unless the file lists no mode at all (the program keeps its profiles).
+    """
+    program = dict(item)
+    modes = program.pop("modes", None)
+    if modes is None:
+        return program
+    if "profiles" in program:
+        raise ValueError("a program has either 'modes' or the old 'profiles', not both")
+    if not isinstance(modes, dict):
+        raise TypeError("'modes' must map a mode name to its days")
+    ids = {p["name"]: p["id"] for p in (existing or {}).get("profiles", [])}
+    profiles = []
+    for name, days in modes.items():
+        if not isinstance(name, str):
+            raise TypeError(f"mode name {name!r} must be text")
+        if days is None:
+            days = {}
+        if not isinstance(days, dict) or set(days) - set(DAYS):
+            raise TypeError(f"mode {name}: expected the days {', '.join(DAYS)}")
+        profiles.append({"id": ids.get(name) or new_id(), "name": name,
+                         "days": [days.get(day) or [] for day in DAYS]})
+    if not profiles and existing:
+        return {**program, "profiles": existing["profiles"]}
+    return {**program, "profiles": profiles}
+
+
 def render(config: dict[str, Any]) -> bytes:
     """The file content for ``config`` (a JSON round trip first: no YAML anchors for shared objects)."""
     plain = json.loads(json.dumps(config))
     body = {
         "version": YAML_VERSION,
         "vacation": plain.get("vacation", False),
+        "mode_selector": plain.get("mode_selector"),
+        "default_mode": plain.get("default_mode"),
         "labels": plain.get("labels", []),
-        "programs": plain.get("programs", []),
+        "programs": [program_to_file(p) for p in plain.get("programs", [])],
     }
     text = yaml.safe_dump(body, sort_keys=False, allow_unicode=True)
     return (HEADER + "\n" + text).encode()
@@ -123,6 +169,9 @@ def _parse(data: bytes) -> dict[str, Any]:
             raise TypeError(f"'{key}' must be a list")
     if not isinstance(raw.get("vacation", False), bool):
         raise TypeError("'vacation' must be true or false")
+    for key in ("mode_selector", "default_mode"):
+        if raw.get(key) is not None and not isinstance(raw[key], str):
+            raise TypeError(f"'{key}' must be text or empty")
     return raw
 
 
@@ -238,13 +287,13 @@ class YamlSync:
 
     async def _async_import(self, data: bytes, file_hash: str) -> None:
         try:
-            labels, programs, vacation = await self._async_validate(data)
+            labels, programs, vacation, mode = await self._async_validate(data)
         except (ValueError, vol.Invalid, TypeError, KeyError, AttributeError) as err:
             self._reject(file_hash, str(err))
             return
         self._importing = True
         try:
-            await self._async_apply(labels, programs, vacation)
+            await self._async_apply(labels, programs, vacation, mode)
         finally:
             self._importing = False
         self._remember(file_hash)
@@ -262,7 +311,7 @@ class YamlSync:
             translation_key=ISSUE, translation_placeholders={"error": error[:500]},
         )
 
-    async def _async_validate(self, data: bytes) -> tuple[list[dict], list[dict], bool]:
+    async def _async_validate(self, data: bytes) -> tuple[list[dict], list[dict], bool, dict | None]:
         """Same rules as ``label/save`` and ``program/save``; nothing is modified."""
         raw = _parse(data)
         descriptions = await self._descriptions(self.hass)
@@ -287,10 +336,17 @@ class YamlSync:
                 raise ValueError(f"duplicate program id {program['id']}")
             seen.add(program["id"])
             existing = self.store.program(program["id"])
+            program = program_from_file(program, existing)
             program = keep_pause(existing, self._clean_slot_entities(existing, program), keep_enabled=False)
             programs.append(check_program(program, labels, self.hass, descriptions,
                                           self.engine.reapply_default))
-        return list(labels.values()), programs, raw.get("vacation", False)
+        mode = None
+        if "mode_selector" in raw or "default_mode" in raw:  # a file without them leaves the settings alone
+            selector = raw.get("mode_selector") or None
+            state = self.hass.states.get(selector) if selector else None
+            options = [o for o in state.attributes.get("options") or [] if isinstance(o, str)] if state else None
+            mode = check_mode_config(selector, raw.get("default_mode"), self.hass, options)
+        return list(labels.values()), programs, raw.get("vacation", False), mode
 
     @staticmethod
     def _clean_slot_entities(existing: dict | None, program: dict) -> dict:
@@ -305,7 +361,8 @@ class YamlSync:
         except (KeyError, TypeError, AttributeError):
             return program
 
-    async def _async_apply(self, labels: list[dict], programs: list[dict], vacation: bool) -> None:
+    async def _async_apply(self, labels: list[dict], programs: list[dict], vacation: bool,
+                           mode: dict | None = None) -> None:
         store = self.store
         new_ids = {p["id"] for p in programs}
         removed = [p for p in store.programs if p["id"] not in new_ids]
@@ -330,6 +387,12 @@ class YamlSync:
         store.config["labels"] = labels
         store.config["programs"] = programs
         store.config["vacation"] = vacation
+        if mode is not None:
+            if store.config.get("mode_selector") != mode["mode_selector"]:
+                for key in ("last_mode", "mode_options_seen", "mode_renames"):
+                    store.runtime.pop(key, None)  # remembered for the former selector
+                store.save_runtime()
+            store.config.update(mode)
         store.save_config(mirror=False)
         for program in removed:
             await self.engine.async_remove_program_entities(program)

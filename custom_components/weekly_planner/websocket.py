@@ -58,7 +58,8 @@ def _editor_engine(hass: HomeAssistant, connection, msg) -> PlannerEngine | None
 @callback
 def async_register(hass: HomeAssistant) -> None:
     for handler in (ws_get, ws_subscribe, ws_program_save, ws_program_delete, ws_label_save,
-                    ws_label_delete, ws_preview, ws_journal, ws_set_enabled, ws_pause, ws_set_mode):
+                    ws_label_delete, ws_preview, ws_journal, ws_set_enabled, ws_pause, ws_set_mode,
+                    ws_resolve_mode, ws_undo_mode_rename):
         websocket_api.async_register_command(hass, handler)
 
 
@@ -101,6 +102,9 @@ def _snapshot_data(engine: PlannerEngine) -> dict[str, Any]:
             "active": engine.active_mode,
             "options": engine.mode_options(),
             "available": engine.mode_available,
+            "orphans": engine.mode_orphans(),
+            "proposals": engine.mode_proposals(),
+            "renamed": engine.mode_renames(),
         },
         "programs": engine.store.programs,
         "status": {p["id"]: engine.program_status(p["id"]) for p in engine.store.programs},
@@ -442,3 +446,48 @@ async def ws_set_mode(hass, connection, msg) -> None:
         return
     renamed = await engine.async_set_mode_config(settings["mode_selector"], settings["default_mode"])
     connection.send_result(msg["id"], {**settings, "renamed_programs": renamed})
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/mode/resolve",
+    vol.Required("old"): str,
+    vol.Required("new"): vol.Any(None, str),
+})
+@websocket_api.async_response
+async def ws_resolve_mode(hass, connection, msg) -> None:
+    """Match a mode with no option to an option (``new``), or delete it from every program (``new`` null).
+
+    Result: ``{renamed: [program ids], skipped: [program ids]}``. Administrators only.
+    """
+    engine = _engine(hass)
+    if engine is None or not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Mode settings are reserved to administrators")
+        return
+    old, new = msg["old"], msg["new"]
+    options = engine.mode_options()
+    if old in options:
+        connection.send_error(msg["id"], "invalid", "This mode is still an option of the selector")
+        return
+    if new is not None and new not in options:
+        connection.send_error(msg["id"], "invalid", "Unknown option of the mode selector")
+        return
+    renamed, skipped = await engine.async_resolve_mode(old, new)
+    connection.send_result(msg["id"], {"renamed": renamed, "skipped": skipped})
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/mode/undo_rename",
+    vol.Required("new"): str,
+})
+@websocket_api.async_response
+async def ws_undo_mode_rename(hass, connection, msg) -> None:
+    """Reverse the latest automatic rename to ``new`` (administrators only)."""
+    engine = _engine(hass)
+    if engine is None or not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Mode settings are reserved to administrators")
+        return
+    record = await engine.async_undo_mode_rename(msg["new"])
+    if record is None:
+        connection.send_error(msg["id"], "not_found", "No rename to undo for this mode")
+        return
+    connection.send_result(msg["id"], {"old": record["old"], "new": record["new"]})

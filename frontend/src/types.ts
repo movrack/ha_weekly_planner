@@ -133,6 +133,12 @@ export interface ModeInfo {
   active: string | null;
   options: string[];
   available: boolean;
+  /** Modes some program still has schedules for although the selector no longer offers them. */
+  orphans?: string[];
+  /** For each orphan mode, the new options it may have become. */
+  proposals?: { old: string; candidates: string[] }[];
+  /** Renames applied automatically, oldest first (`at`: ISO date-time). */
+  renamed?: { old: string; new: string; at: string }[];
 }
 
 export interface PlannerData {

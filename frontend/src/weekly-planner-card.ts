@@ -11,6 +11,7 @@ import "./components/radial-day";
 import { pauseChoice } from "./components/confirm";
 import { sunDir } from "./components/day-bar";
 import "./components/dialog";
+import "./components/mode-notice";
 import "./components/schedule-dialog";
 import type { BarSpan } from "./components/day-bar";
 import { scopeKey } from "./components/schedule-dialog";
@@ -578,6 +579,7 @@ export class WeeklyPlannerCard extends LitElement {
             </div>`
           : nothing}
         ${this._modeLine()}
+        ${data?.mode?.selector ? html`<wp-mode-notice .hass=${this.hass} .data=${data}></wp-mode-notice>` : nothing}
         ${this._error ? html`<div class="error">${t(lang, "error", { message: this._error })}</div>` : nothing}
         ${data?.read_only ? html`<div class="error">${t(lang, "read_only")}</div>` : nothing}
         ${!data ? html`<div class="empty">…</div>` : nothing}

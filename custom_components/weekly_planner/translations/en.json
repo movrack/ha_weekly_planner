@@ -119,6 +119,10 @@
     "modes_now_global": {
       "title": "Weekly Planner: modes are now global",
       "description": "The mode is now the same for all programs and chosen by one selector (an input_select or select entity) set in the Weekly Planner settings. The per-program mode choice and its select entity were removed. Programs concerned: {programs}. Each program keeps its first mode as the default mode and its other modes are matched to the selector options by name."
+    },
+    "mode_option_missing": {
+      "title": "Weekly Planner: a mode matches no option",
+      "description": "These modes have schedules but are no longer an option of the mode selector: {modes}. They are kept, inactive, and nothing was erased. Options no program uses yet: {options}. Open the schedules screen to match each mode to an option, or to delete it."
     }
   }
 }

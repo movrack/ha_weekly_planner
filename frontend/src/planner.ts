@@ -1,7 +1,7 @@
 // Shared data access: one subscription per page, helpers to read programs and labels.
 
 import { syncPreviewCache } from "./preview-cache";
-import type { HomeAssistant, PlannerData, Profile, Program } from "./types";
+import type { HomeAssistant, PlannerData, Profile, Program, Slot } from "./types";
 
 type Listener = (data: PlannerData) => void;
 
@@ -105,6 +105,15 @@ export function filterPrograms(data: PlannerData, config: { program?: string; fi
 
 export function newId(): string {
   return Math.random().toString(16).slice(2, 14).padEnd(12, "0");
+}
+
+/** Independent copies of slots: fresh ids, and no explicit random seed (it follows the new id). */
+export function cloneSlots(slots: Slot[]): Slot[] {
+  return slots.map((s) => {
+    const copy = { ...structuredClone(s), id: newId() };
+    delete copy.seed;
+    return copy;
+  });
 }
 
 /* ---- number formatting ---- */

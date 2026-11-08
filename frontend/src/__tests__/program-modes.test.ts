@@ -9,7 +9,7 @@ const program = (): Program => ({ id: "p", revision: 1, name: "Office", priority
 const editor = () => {
   vi.stubGlobal("customElements", { get: () => undefined });
   const e = new WpProgramEditor() as any;
-  e._p = program(); e._origin = structuredClone(e._p); e._isNew = false; e._profileId = "home";
+  e._p = program(); e._origin = structuredClone(e._p); e._isNew = false;
   e.data = { programs: [e._p], status: {}, labels: [], can_edit: true, read_only: false };
   e.hass = { language: "en", states: {}, callWS: vi.fn().mockResolvedValue({}) };
   return e;
@@ -23,7 +23,6 @@ describe("program mode drafts", () => {
     const ids = e._p.profiles.map((p: { id: string }) => p.id);
     expect(ids).not.toContain("home");
     expect(ids).not.toContain("vacation");
-    expect(e._profileId).toBe(ids[0]);
     expect(e._p.mode_source).toBeUndefined();
     expect(e._p.active_profile).toBeUndefined();
   });

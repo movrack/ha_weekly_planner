@@ -560,10 +560,6 @@ comme n'importe quelle autre ; les **pilotes concurrents** sont signalés (§ 9)
 - Python des tests aligné sur HA (3.14, via `uv`) ; `pytest-homeassistant-custom-component` aligné 2026.10 ; temps simulé.
 - `manifest.json` : `dependencies` = `http`, `websocket_api` ; `after_dependencies` = `frontend`, `logbook`, `lovelace`,
   `repairs` ; `single_config_entry: true`.
-- `scripts/deploy_prod.sh` : copie de l'intégration vers `/config/custom_components/weekly_planner` de la prod
-  par SSH/rsync (`WP_HOST`, `WP_CONFIG`) : essai à blanc par défaut, `--apply` pour copier après les tests Python et
-  carte ; indique la révision (et l'état non commité) et l'empreinte SHA-256 du bundle. Ne redémarre rien et ne
-  sauvegarde pas HA : la sauvegarde avant un changement Python se fait à part (AGENTS.md).
 - CI (`.github/workflows`) : `hacs/action`, `hassfest`, pytest, et pour la carte `tsc --noEmit`, vitest, build et
   vérification que le bundle commité est à jour. Pas de test Playwright ni de lint de la carte en CI.
 - `hacs.json`, `manifest.json` (`domain`, `name`, `version`, `documentation`, `issue_tracker`, `codeowners`,
@@ -757,10 +753,10 @@ Vocabulaire : voir `GLOSSARY.md` (« mode » seulement ; « profil » et « sais
 - [x] **Moteur** : le mode actif de tous les programmes est l'état du sélecteur ; les modes sont ses options. Indisponible ou inconnu : dernier mode valide gardé (un message au journal à la perte, un au retour) ; sans mode valide connu : option par défaut. Un programme sans horaires pour le mode actif applique « le reste du temps ». La suspension globale prime sur le mode.
 - [ ] **Migration** : un mode se rattache à une option par son nom ; sans correspondance il est conservé, inactif (« sans option ») ; sans sélecteur le premier mode de chaque programme devient le mode par défaut. Les horaires du mode par défaut passent sous l'option par défaut choisie. `mode_source` par programme retiré.
 - [ ] **Entités** : suppression de l'entité `select` de chaque programme, avec une réparation qui nomme les programmes concernés et une note dans le CHANGELOG.
-- [ ] **Renommage** : détecté seulement sans ambiguïté (même nombre d'options, même ordre, une seule différente) → horaires reportés sous le nouveau nom dans tous les programmes, journal, mention « Renommé depuis … » et bouton pour défaire. Sinon : ancien mode « sans option » et correspondance proposée (réparation et boutons dans l'écran des horaires, un par nouvelle option, plus « Non, le supprimer »). Rien n'est modifié sans réponse ; jamais d'effacement automatique.
+- [x] **Renommage** (partie moteur et API faite ; boutons de l'écran des horaires : lot 3b) : détecté seulement sans ambiguïté (même nombre d'options, même ordre, une seule différente) → horaires reportés sous le nouveau nom dans tous les programmes, journal, mention « Renommé depuis … » et bouton pour défaire. Sinon : ancien mode « sans option » et correspondance proposée (réparation et boutons dans l'écran des horaires, un par nouvelle option, plus « Non, le supprimer »). Rien n'est modifié sans réponse ; jamais d'effacement automatique.
 - [x] **Carte** : le mode actif s'affiche **une seule fois en haut**, en texte non touchable (une fois aussi dans une liste) ; rien s'il n'y a qu'un mode. « Aucun horaire pour ce mode » sous un programme concerné. Plus de choix de mode sur la carte.
-- [ ] **Écran des horaires** : ouvre sur le mode actif ; choix de mode en haut ; « Ce mode n'est pas actif » pour un autre mode ; « Copier depuis un autre mode » (confirmation si le mode ouvert a déjà des horaires). Plus d'ajout, copie ni renommage de mode dans les réglages du programme.
-- [ ] **Fichier de configuration** : `mode_selector` (global) et option par défaut ; par programme `modes: {nom: [...]}`. Mettre à jour `AI_GUIDE.md`, `example.yml`, `llms.txt`, les README et le wiki (MODES.md, GUIDE.fr.md).
+- [x] **Écran des horaires** : ouvre sur le mode actif ; choix de mode en haut ; « Ce mode n'est pas actif » pour un autre mode ; « Copier depuis un autre mode » (confirmation si le mode ouvert a déjà des horaires). Plus d'ajout, copie ni renommage de mode dans les réglages du programme.
+- [x] **Fichier de configuration** (code fait, docs lot 4) : `mode_selector` (global) et option par défaut ; par programme `modes: {nom: [...]}`. Mettre à jour `AI_GUIDE.md`, `example.yml`, `llms.txt`, les README et le wiki (MODES.md, GUIDE.fr.md).
 - [ ] Mêmes droits que l'interrupteur de programme (tous, sauf option `admin_only`).
 - Hors périmètre : calendrier automatique de saisons (une bascule automatique passe par une automatisation sur le sélecteur).
 

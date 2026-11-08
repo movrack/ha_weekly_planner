@@ -51,7 +51,7 @@ async def test_file_created_at_start(hass, hass_storage, freezer, yaml_in_tmp):
     assert text.startswith("# Weekly Planner configuration")
     assert "/local/weekly_planner.yml" in text and "WITHOUT authentication" in text
     doc = _doc(yaml_in_tmp)
-    assert list(doc) == ["version", "vacation", "labels", "programs"]
+    assert list(doc) == ["version", "vacation", "mode_selector", "default_mode", "labels", "programs"]
     assert doc["version"] == 1 and doc["programs"][0]["id"] == "office"
     assert "runtime" not in text and "entities" in doc["programs"][0]
     assert engine.store.runtime["yaml_hash"] == yaml_file.digest(yaml_in_tmp.read_bytes())
@@ -127,7 +127,7 @@ async def test_hand_edit_adds_and_removes_programs_and_labels(hass, hass_storage
 
 
 @pytest.mark.parametrize("breaker", [
-    lambda d: d["programs"][0]["profiles"][0]["days"][0][0].update(label="nope"),
+    lambda d: d["programs"][0]["modes"]["Base"]["mon"][0].update(label="nope"),
     lambda d: d["programs"][0].update(priority="high"),
     lambda d: d["programs"].append(d["programs"][0]),
     lambda d: d["labels"].append(d["labels"][0]),
@@ -255,3 +255,107 @@ async def test_removing_the_integration_deletes_the_file(hass, hass_storage, fre
     assert await hass.config_entries.async_remove(hass.config_entries.async_entries(DOMAIN)[0].entry_id)
     await hass.async_block_till_done()
     assert not list(yaml_in_tmp.parent.iterdir())
+
+
+# -- modes in the file (docs/adr/0001) -----------------------------------------------------------------
+
+
+def _two_modes():
+    prog = program()
+    prog["profiles"].append({"id": "other", "name": "Away", "days": [[] for _ in range(7)]})
+    return prog
+
+
+async def test_file_shows_modes_by_name_and_the_mode_settings(hass, hass_storage, freezer, yaml_in_tmp):
+    hass.states.async_set("input_select.house", "Base", {"options": ["Base", "Away"]})
+    await setup(hass, hass_storage, freezer, [_two_modes()], local(26, 7),
+                config={"mode_selector": "input_select.house", "default_mode": "Base"})
+    doc = _doc(yaml_in_tmp)
+    assert doc["mode_selector"] == "input_select.house" and doc["default_mode"] == "Base"
+    prog = doc["programs"][0]
+    assert "profiles" not in prog and list(prog["modes"]) == ["Base", "Away"]
+    assert list(prog["modes"]["Base"]) == ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    assert prog["modes"]["Base"]["mon"][0]["id"] == "s1" and prog["modes"]["Away"]["sun"] == []
+
+
+async def test_hand_edit_of_modes_keeps_ids_by_name(hass, hass_storage, freezer, yaml_in_tmp):
+    engine = await _start(hass, hass_storage, freezer, [_two_modes()])
+
+    def mutate(doc):
+        modes = doc["programs"][0]["modes"]
+        modes["Night"] = {"mon": [{"id": "n1", "start": {"time": "22:00"}, "end": {"time": "23:00"}, "label": "t15"}]}
+        modes["Base"]["mon"][0]["end"] = {"time": "13:00"}
+        del modes["Away"]
+
+    _edit(yaml_in_tmp, mutate)
+    await _later(hass, freezer, 31)
+    assert _issue(hass) is None
+    profiles = engine.store.programs[0]["profiles"]
+    assert [p["name"] for p in profiles] == ["Base", "Night"]
+    assert profiles[0]["id"] == "base" and profiles[1]["id"] not in ("base", "other", "")
+    assert profiles[0]["days"][0][0]["end"] == {"time": "13:00"}
+    assert len(profiles[1]["days"]) == 7 and profiles[1]["days"][1] == []
+
+
+async def test_file_without_any_mode_keeps_the_profiles(hass, hass_storage, freezer, yaml_in_tmp):
+    engine = await _start(hass, hass_storage, freezer, [_two_modes()])
+    _edit(yaml_in_tmp, lambda d: d["programs"][0].update(modes={}, name="kept"))
+    await _later(hass, freezer, 31)
+    assert [p["id"] for p in engine.store.programs[0]["profiles"]] == ["base", "other"]
+    assert engine.store.programs[0]["name"] == "kept"
+
+
+async def test_old_profiles_format_is_still_imported(hass, hass_storage, freezer, yaml_in_tmp):
+    engine = await _start(hass, hass_storage, freezer)
+
+    def mutate(doc):
+        prog = doc["programs"][0]
+        modes = prog.pop("modes")
+        prog["profiles"] = [{"id": "base", "name": "Old format", "days": list(modes["Base"].values())}]
+        doc.pop("mode_selector"), doc.pop("default_mode")
+
+    _edit(yaml_in_tmp, mutate)
+    await _later(hass, freezer, 31)
+    assert _issue(hass) is None
+    assert [p["name"] for p in engine.store.programs[0]["profiles"]] == ["Old format"]
+
+
+async def test_modes_and_profiles_together_are_refused(hass, hass_storage, freezer, yaml_in_tmp):
+    engine = await _start(hass, hass_storage, freezer)
+    _edit(yaml_in_tmp, lambda d: d["programs"][0].update(profiles=[]))
+    await _later(hass, freezer, 31)
+    assert _issue(hass) is not None and engine.store.programs[0]["profiles"][0]["name"] == "Base"
+
+
+async def test_mode_settings_are_imported_and_validated(hass, hass_storage, freezer, yaml_in_tmp):
+    hass.states.async_set("input_select.house", "Base", {"options": ["Base", "Away"]})
+    engine = await _start(hass, hass_storage, freezer, [_two_modes()])
+    _edit(yaml_in_tmp, lambda d: d.update(mode_selector="input_select.house", default_mode="Base"))
+    await _later(hass, freezer, 31)
+    assert engine.store.config["mode_selector"] == "input_select.house"
+    assert engine.store.config["default_mode"] == "Base" and engine.active_mode == "Base"
+    for bad in ({"mode_selector": "light.kitchen"}, {"default_mode": "Nope"}, {"mode_selector": 5}):
+        _edit(yaml_in_tmp, lambda d, bad=bad: d.update(bad))
+        await _later(hass, freezer, 31)
+        assert _issue(hass) is not None
+        assert engine.store.config["mode_selector"] == "input_select.house"
+        _edit(yaml_in_tmp, lambda d: d.update(mode_selector="input_select.house", default_mode="Base"))
+        await _later(hass, freezer, 31)
+        assert _issue(hass) is None
+    _edit(yaml_in_tmp, lambda d: d.update(mode_selector=None, default_mode=None))
+    await _later(hass, freezer, 31)
+    assert engine.store.config["mode_selector"] is None and engine.active_mode is None
+
+
+def test_program_conversion_round_trip():
+    prog = _two_modes()
+    again = yaml_file.program_from_file(yaml_file.program_to_file(prog), prog)
+    assert again == prog
+    fresh = yaml_file.program_from_file(yaml_file.program_to_file(prog), None)
+    assert [p["name"] for p in fresh["profiles"]] == ["Base", "Away"] and fresh["profiles"][0]["id"] != "base"
+    with pytest.raises(TypeError):
+        yaml_file.program_from_file({"modes": {"A": {"funday": []}}}, None)
+    with pytest.raises(TypeError):
+        yaml_file.program_from_file({"modes": {1: {}}}, None)
+    with pytest.raises(TypeError):
+        yaml_file.program_from_file({"modes": []}, None)

@@ -63,7 +63,8 @@ async def test_without_selector_each_program_uses_its_default_profile(hass, hass
     assert temperatures(rec) == [21]  # the first profile, whatever the name
     assert engine.active_mode is None and engine.mode_options() == []
     data = await snapshot(ws)
-    assert data["mode"] == {"selector": None, "default": None, "active": None, "options": [], "available": False}
+    assert data["mode"] == {"selector": None, "default": None, "active": None, "options": [], "available": False,
+                            "orphans": [], "proposals": [], "renamed": []}
     status = data["status"]["office"]
     assert status["no_schedule_for_mode"] is False
     assert "active_profile" not in status and "mode_source_status" not in status
@@ -86,7 +87,8 @@ async def test_selector_state_switches_every_program_at_once(hass, hass_storage,
     assert engine.active_profile_id("office") == engine.active_profile_id("second") == "away"
     data = await snapshot(ws)
     assert data["mode"] == {"selector": SELECTOR, "default": "Home", "active": "Away",
-                            "options": OPTIONS, "available": True}
+                            "options": OPTIONS, "available": True,
+                            "orphans": [], "proposals": [], "renamed": []}
     assert engine.store.runtime["last_mode"] == "Away"
 
 

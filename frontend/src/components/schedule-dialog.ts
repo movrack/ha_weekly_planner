@@ -12,6 +12,7 @@ import "./day-bar";
 import { sunDir, type BarSpan } from "./day-bar";
 import "./dialog";
 import "./label-picker";
+import "./mode-notice";
 import "./slot-form";
 import { daysText, groupSlots, slotKey, specText, ALL_DAYS } from "../actions";
 import type { SlotGroup } from "../actions";
@@ -25,12 +26,16 @@ import { addDaysIso } from "./chart";
 import { confirmAction, pauseChoice } from "./confirm";
 import { slotDeviceError, strings, t } from "../i18n";
 import { loadServiceNames } from "../services";
-import { activeProfile, friendlyName, newId } from "../planner";
+import { cloneSlots, friendlyName, newId } from "../planner";
 import { deviceDays, fetchPreviewResponse } from "../preview-cache";
 import { DAY, formatPauseEnd, localDateIso, minutesToClock, pauseEnd } from "../time";
 import { applicable, applies, normaliseEntities, shiftTimeSpec, specMinutes, sunBoundsInvalid } from "../slots";
 import { editorStyles, langOf } from "../editors/shared";
 import type { Action, HomeAssistant, PlannerData, PreviewResponse, PreviewSlot, Profile, Program, Slot, TimeSpec } from "../types";
+
+/** The profiles with `next` in place of the one with its id, added at the end when it is new. */
+const putProfile = (profiles: Profile[], next: Profile): Profile[] =>
+  profiles.some((p) => p.id === next.id) ? profiles.map((p) => (p.id === next.id ? next : p)) : [...profiles, next];
 
 /** A program screen opened from one device row carries that device (`entityId`): its schedules are shown first. */
 export type Scope = { kind: "device"; entityId: string } | { kind: "program"; programId: string; entityId?: string };
@@ -46,9 +51,12 @@ export class WpSchedule extends LitElement {
   @property({ attribute: false }) data!: PlannerData;
   @property({ attribute: false }) scope!: Scope;
   @property({ type: Boolean }) chart = true;
-  @property({ attribute: false }) profileId: string | null = null;
-  @state() private _viewProfileId: string | null = null;
+  /** Mode opened with the mode choice (null: the active mode). */
+  @state() private _viewMode: string | null = null;
+  @state() private _copyOpen = false;
   private _editProfileId: string | null = null;
+  /** Mode of the row being edited (null: no mode, the first schedules). */
+  private _editMode: string | null = null;
   /** Opened from a day of the card's week (0 = Monday, `offset` days from today): edit that day. */
   @property({ attribute: false }) day: { weekday: number; offset: number } | null = null;
   /** Opened from the card's "Create a setting" button: straight to the first slot when there is none. */
@@ -128,18 +136,47 @@ export class WpSchedule extends LitElement {
     return [...list].sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
   }
 
+  /**
+   * The modes of the choice: the selector's options, then the modes of this screen's programs that the selector
+   * no longer offers (marked "no option"). Empty without a selector (a single mode).
+   */
+  private _modes(): { name: string; orphan: boolean }[] {
+    const mode = this.data.mode;
+    if (!mode?.selector) return [];
+    const out = mode.options.map((name) => ({ name, orphan: false }));
+    for (const program of this._programs) {
+      for (const p of program.profiles) if (!out.some((m) => m.name === p.name)) out.push({ name: p.name, orphan: true });
+    }
+    return out;
+  }
+
+  /** The mode whose schedules are shown and edited (null without a selector: the program's first schedules). */
+  private get _openMode(): string | null {
+    const mode = this.data.mode;
+    if (!mode?.selector) return null;
+    if (this._viewMode !== null && this._modes().some((m) => m.name === this._viewMode)) return this._viewMode;
+    return mode.active ?? mode.default ?? mode.options[0] ?? null;
+  }
+
+  /** The schedules of the opened mode in a program (none yet: undefined; they are created on the first save). */
   private _modeProfile(program: Program): Profile | undefined {
-    const id = this._open && program.id === this._programId ? this._editProfileId
-      : this.profileId ?? (this.scope.kind === "program" ? this._viewProfileId : null);
-    return id === null ? activeProfile(program, this.data) : program.profiles.find((p) => p.id === id);
+    const mode = this._openMode;
+    return mode === null ? program.profiles[0] : program.profiles.find((p) => p.name === mode);
   }
 
+  /** The opened mode is not the active one: its schedules are edited, nothing else of the program. */
   private get _modeOnly(): boolean {
-    return this.profileId !== null || this._programs.some((p) => this._modeProfile(p)?.id !== activeProfile(p, this.data)?.id);
+    const mode = this.data.mode;
+    return Boolean(mode?.selector) && this._openMode !== null && this._openMode !== mode!.active;
   }
 
+  /** The schedules being edited; for a mode with none yet, an empty week that the first save creates. */
   private _editProfile(program: Program): Profile | undefined {
-    return program.profiles.find((p) => p.id === this._editProfileId);
+    if (this._editProfileId === null) return undefined;
+    const found = program.profiles.find((p) => p.id === this._editProfileId);
+    if (found || this._editMode === null) return found;
+    return program.profiles.find((p) => p.name === this._editMode)
+      ?? { id: this._editProfileId, name: this._editMode, days: [[], [], [], [], [], [], []] };
   }
 
   /** Every device of the screen (the program's devices, or the one device of a device scope). */
@@ -267,7 +304,8 @@ export class WpSchedule extends LitElement {
     key: string, program: Program, group: SlotGroup | null,
     opts: { restLabel?: string | null; rest?: SlotGroup | null; dayOnly?: number | null; openId?: string | null; origin?: SlotGroup | null } = {},
   ): void {
-    this._editProfileId = this._modeProfile(program)?.id ?? null;
+    this._editMode = this._openMode;
+    this._editProfileId = this._modeProfile(program)?.id ?? newId();
     this._open = key;
     this._programId = program.id;
     this._group = group ? structuredClone(group) : null;
@@ -315,6 +353,7 @@ export class WpSchedule extends LitElement {
 
   private _cancel(): void {
     this._editProfileId = null;
+    this._editMode = null;
     this._open = null;
     this._group = null;
     this._dayOnly = null;
@@ -355,9 +394,7 @@ export class WpSchedule extends LitElement {
     if (!program || !eid) return;
     const first = labelsFor(this.hass, this.data, [eid], program)[0];
     const day = days.length === 1 ? days[0] : null;
-    const profile = this._modeProfile(program);
-    if (!profile) return;
-    const times = day === null ? undefined : nextTimes(profile.days[day], this._minutes, eid);
+    const times = day === null ? undefined : nextTimes(this._modeProfile(program)?.days[day] ?? [], this._minutes, eid);
     const group = freshGroup(first?.id ?? "", days, times);
     // a new slot belongs to the device it is created from ("Also for" adds others); absent for a single device (D5)
     const entities = normaliseEntities([eid], devicesOf(program));
@@ -649,7 +686,7 @@ export class WpSchedule extends LitElement {
         if (!days) return { error: t(this._lang, "ss_changed") };
         const next = { ...profile, days };
         if (overlapPair(next)) return { error: this._overlapText(next) };
-        return { program: { ...live, entities: this._withOverrides(live), profiles: live.profiles.map((p) => (p.id === profile.id ? next : p)) } };
+        return { program: { ...live, entities: this._withOverrides(live), profiles: putProfile(live.profiles, next) } };
       });
       if (ok && !stale) this._cancel();
       return;
@@ -678,7 +715,7 @@ export class WpSchedule extends LitElement {
       // copies that became identical again (other devices) are merged back into one slot (D1)
       const next = { ...edited, days: edited.days.map((d) => remergeIdentical(d, devicesOf(live)).day) };
       if (overlapPair(next)) return { error: this._overlapText(next) };
-      return { program: { ...live, entities: this._withOverrides(live), profiles: live.profiles.map((p) => (p.id === profile.id ? next : p)) } };
+      return { program: { ...live, entities: this._withOverrides(live), profiles: putProfile(live.profiles, next) } };
     });
     if (saved && !changed) {
       this._cancel();
@@ -705,10 +742,10 @@ export class WpSchedule extends LitElement {
         // "This device": the slot stops for this device only, the other devices keep it (D1)
         const days = this._forDevice(profile.days, this._origin, null, devicesOf(live));
         if (!days) return { error: t(this._lang, "ss_changed") };
-        return { program: { ...live, profiles: live.profiles.map((p) => (p.id === profile.id ? { ...profile, days } : p)) } };
+        return { program: { ...live, profiles: putProfile(live.profiles, { ...profile, days }) } };
       }
       const next = applyEdit(profile, this._include, this._minutes, { openId: this._openId, rest: this._rest, draft: null });
-      return { program: { ...live, profiles: live.profiles.map((p) => (p.id === profile.id ? next : p)) } };
+      return { program: { ...live, profiles: putProfile(live.profiles, next) } };
     });
     if (ok) this._cancel();
   }
@@ -907,6 +944,90 @@ export class WpSchedule extends LitElement {
     </div>`;
   }
 
+  /* ---- modes ---- */
+
+  private _pickMode(name: string): void {
+    if (this._open !== null || name === this._openMode) return;
+    this._viewMode = name;
+    this._copyOpen = false;
+    this._resp = null;
+    this._error = "";
+    this._note = "";
+    this._focus = null;
+  }
+
+  private _modeKey(event: KeyboardEvent, modes: { name: string }[]): void {
+    const at = modes.findIndex((m) => m.name === this._openMode);
+    const next = event.key === "ArrowRight" || event.key === "ArrowDown" ? (at + 1) % modes.length
+      : event.key === "ArrowLeft" || event.key === "ArrowUp" ? (at + modes.length - 1) % modes.length
+      : event.key === "Home" ? 0 : event.key === "End" ? modes.length - 1 : -1;
+    if (next < 0) return;
+    event.preventDefault();
+    this._pickMode(modes[next].name);
+    void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(".modechip.on")?.focus());
+  }
+
+  /** One tab per mode, opening on the active one; only with a selector. */
+  private _renderModes() {
+    const modes = this._modes();
+    if (!modes.length) return nothing;
+    const lang = this._lang;
+    const open = this._openMode;
+    return html`<div class="modes" role="tablist" aria-label=${t(lang, "profile")}>
+      ${modes.map((m) => {
+        const on = m.name === open;
+        return html`<button class="modechip ${on ? "on" : ""} ${m.orphan ? "orphan" : ""}" role="tab" aria-selected=${on}
+          tabindex=${on ? 0 : -1} ?disabled=${this._open !== null && !on}
+          @keydown=${(e: KeyboardEvent) => this._modeKey(e, modes)} @click=${() => this._pickMode(m.name)}>
+          ${on ? html`<ha-icon icon="mdi:check"></ha-icon>` : nothing}<span>${m.name}</span>
+          ${m.orphan ? html`<small>${t(lang, "mode_no_option")}</small>` : nothing}</button>`;
+      })}
+    </div>`;
+  }
+
+  /** Other modes of the screen's programs that have schedules (sources of a copy). */
+  private _copySources(): string[] {
+    const open = this._openMode;
+    if (open === null) return [];
+    return this._modes().map((m) => m.name)
+      .filter((name) => name !== open && this._programs.some((p) => p.profiles.some((x) => x.name === name && x.days.some((d) => d.length))));
+  }
+
+  private _renderCopy() {
+    const sources = this._copySources();
+    if (this._open !== null || !sources.length || !this._canEdit) return nothing;
+    const lang = this._lang;
+    return html`<button class="row copy" aria-expanded=${this._copyOpen} ?disabled=${this._saving}
+        @click=${() => { this._copyOpen = !this._copyOpen; }}>
+        <ha-icon icon="mdi:content-copy"></ha-icon><span class="txt">${t(lang, "mode_copy_from")}</span></button>
+      ${this._copyOpen ? html`<div class="copy-from" role="group" aria-label=${t(lang, "mode_copy_pick")}>
+        <span>${t(lang, "mode_copy_pick")}</span>
+        ${sources.map((name) => html`<button class="modechip" ?disabled=${this._saving} @click=${() => void this._copyFrom(name)}>${name}</button>`)}
+      </div>` : nothing}`;
+  }
+
+  /** Puts a copy of the seven days of another mode in the opened one (new slots), after confirming a replacement. */
+  private async _copyFrom(source: string): Promise<void> {
+    const target = this._openMode;
+    if (target === null || target === source || !this._canEdit || this._saving) return;
+    const lang = this._lang;
+    if (this._programs.some((p) => this._modeProfile(p)?.days.some((d) => d.length))
+      && !(await confirmAction(this, t(lang, "mode_copy_confirm", { to: target, from: source }), t(lang, "mode_copy_replace"), t(lang, "no")))) return;
+    let ok = true;
+    for (const program of this._programs) {
+      if (!program.profiles.some((p) => p.name === source)) continue;
+      ok = (await this._commit(program.id, (live) => {
+        const from = live.profiles.find((p) => p.name === source);
+        if (!from) return { error: t(lang, "ss_changed") };
+        const own = live.profiles.find((p) => p.name === target);
+        return { program: { ...live, profiles: putProfile(live.profiles, { id: own?.id ?? newId(), name: target, days: from.days.map(cloneSlots) }) } };
+      })) && ok;
+    }
+    this._copyOpen = false;
+    this._resp = null;
+    if (ok) { this._error = ""; this._note = t(lang, "mode_copy_done", { from: source }); }
+  }
+
   /** Keep the whole week visible, including the unsaved slot being edited. */
   private _renderWeek() {
     const lang = this._lang;
@@ -980,12 +1101,13 @@ export class WpSchedule extends LitElement {
     }
     const rows = this._rows();
     const first = !rows.length && this._focus === null && !this._modeOnly;
-    const missingMode = this.scope.kind === "program" && !this._modeProfile(this._programs[0]);
     return html`
       <wp-dialog open columns heading=${this._title}>
         <div class="cols">
         <div class="params">
-        ${missingMode ? html`<p class="err" role="alert">${t(lang, "mode_removed")}</p>` : nothing}
+        ${this._renderModes()}
+        ${this._modeOnly ? html`<p class="muted note" role="status">${t(lang, "mode_not_active")}</p>` : nothing}
+        <wp-mode-notice .hass=${this.hass} .data=${this.data}></wp-mode-notice>
         ${!this._canEdit ? html`<p class="err" role="alert">${t(lang, "read_only")}</p>` : nothing}
         ${this._error && !this._open ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
         ${this._open !== null || this._modeOnly ? nothing : html`<label class="switch">
@@ -995,14 +1117,7 @@ export class WpSchedule extends LitElement {
             @change=${(e: Event) => void this._setEnabled((e.target as HTMLInputElement).checked, e.target as HTMLInputElement)} />
           <span class="track"></span>
         </label>`}
-        ${this.scope.kind === "program" ? html`<label class="mode-select">${t(lang, "profile")}
-          <select .value=${this._modeProfile(this._programs[0])?.id ?? ""} ?disabled=${this.profileId !== null || this._open !== null}
-            @change=${(e: Event) => { this._viewProfileId = (e.target as HTMLSelectElement).value; this._resp = null; this._error = ""; }}>
-            ${missingMode ? html`<option value="" selected>${t(lang, "mode_removed")}</option>` : nothing}
-            ${this._programs[0].profiles.map((p) => html`<option value=${p.id} ?selected=${p.id === this._modeProfile(this._programs[0])?.id}>${p.name}</option>`)}
-          </select></label>` : nothing}
         ${this._renderDevices()}
-        ${this._modeOnly ? html`<p class="muted note">${t(lang, "mode_schedule_hint")}</p>` : nothing}
         ${this._modeOnly ? nothing : html`<div class="rests">${this._renderRest()}</div>`}
         ${this._focus !== null && this._open === null ? html`<div class="focus">
           <button class="chip back" @click=${() => { this._focus = null; this._note = ""; }}>
@@ -1012,8 +1127,9 @@ export class WpSchedule extends LitElement {
         <div class="list">
           ${rows.length ? rows.map((r) => this._renderRow(r)) : (this._open === "new" ? nothing : html`<p class="muted">${t(lang, "w_none")}</p>`)}
           ${this._group && (this._open === "new" || (this._open !== null && !rows.some((r) => r.key === this._open))) ? this._renderEditor(this._programs.find((p) => p.id === this._programId) ?? this._programs[0], this._open!) : nothing}
-          ${this._open === null ? html`<button class="row add ${first ? "first" : ""}" ?disabled=${!this._canEdit || missingMode} @click=${() => this._add()}>
+          ${this._open === null ? html`<button class="row add ${first ? "first" : ""}" ?disabled=${!this._canEdit} @click=${() => this._add()}>
             <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${first ? t(lang, "create_setting") : this._focus === null ? t(lang, "w_add") : t(lang, "w_add_day", { day: strings(lang).days[this._focus].toLocaleLowerCase(lang) })}</span></button>` : nothing}
+          ${this._renderCopy()}
         </div>
         </div>
         <div class="area-week">${this._renderWeek()}</div>
@@ -1064,8 +1180,21 @@ export class WpSchedule extends LitElement {
       font-size: 15px; cursor: pointer; --mdc-icon-size: 20px;
     }
     .who button.on { border: 2px solid var(--primary-color); font-weight: 600; }
-    .mode-select { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-    .mode-select select { flex: 1; min-width: 0; min-height: 44px; }
+    .modes, .copy-from { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .modechip {
+      display: inline-flex; align-items: center; gap: 6px; min-height: 48px; max-width: 100%; padding: 0 16px; border-radius: 24px;
+      border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); font: inherit; font-size: 15px; cursor: pointer;
+      --mdc-icon-size: 20px;
+    }
+    .modechip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .modechip.on { border: 2px solid var(--primary-color); background: color-mix(in srgb, var(--primary-color) 14%, transparent); font-weight: 600; }
+    .modechip.orphan { color: var(--secondary-text-color); border-style: dashed; }
+    .modechip small { font-size: 12px; color: var(--secondary-text-color); }
+    .modechip:disabled:not(.on) { opacity: 0.5; cursor: default; }
+    .modechip:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+    .copy-from { align-items: center; margin: 0; }
+    .copy-from > span { flex-basis: 100%; font-size: 14px; color: var(--secondary-text-color); }
+    .row.copy { border-style: dashed; color: var(--primary-color); font-weight: 500; }
     .schematic { margin-bottom: 16px; }
     .schematic h4 { margin: 8px 0; }
     .schema-day { display: grid; grid-template-columns: ${TIMELINE.label}px minmax(0, 1fr); gap: ${TIMELINE.gap}px; align-items: center; min-height: 32px; }

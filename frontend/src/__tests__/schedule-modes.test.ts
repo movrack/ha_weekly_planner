@@ -20,7 +20,9 @@ const screen = () => {
 describe("schedule mode isolation", () => {
   it("selects a mode without changing the active mode", () => {
     const { view, p } = screen();
-    view._viewProfileId = "night";
+    view.data.mode = { selector: "input_select.m", default: "day", active: "day", options: ["day", "night"], available: true };
+    expect(view._modeOnly).toBe(false);
+    view._viewMode = "night";
     expect(view._modeProfile(p).id).toBe("night");
     expect(view._modeOnly).toBe(true);
   });
@@ -30,8 +32,9 @@ describe("schedule mode isolation", () => {
     view._open = "new";
     view._programId = p.id;
     view._editProfileId = "day";
+    view._editMode = "day";
     view.data.mode = { selector: "input_select.m", default: "day", active: "night", options: ["day", "night"], available: true };
-    expect(view._modeProfile(p).id).toBe("day");
+    expect(view._modeProfile(p).id).toBe("night");
     expect(view._editProfile(p).id).toBe("day");
   });
 

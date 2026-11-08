@@ -594,13 +594,4 @@ describe("program editor: device confirmations", () => {
     expect(e._p.profiles[0].days[1]).toEqual([expect.objectContaining({ id: "s3" })]);
     expect(e._p.profiles[0].days[1][0].entities).toBeUndefined(); // the shared 15 °C slot is left alone
   });
-  it("a mode copy keeps the device lists", () => {
-    const p = program();
-    const e = editor(p);
-    e._profileForm = { mode: "copy", name: "Copy" };
-    e._submitProfileForm();
-    const copy = e._p.profiles.find((x: any) => x.name === "Copy");
-    expect(copy.days[0].map((s: Slot) => s.entities)).toEqual([[CLIMATE], [COVER]]);
-    expect(copy.days[0][0].id).not.toBe("s1");
-  });
 });

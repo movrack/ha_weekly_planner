@@ -99,7 +99,7 @@ describe("creation form errors", () => {
   const form = () => {
     vi.stubGlobal("customElements", { get: () => undefined });
     const e = new WpProgramEditor() as any;
-    e._p = prog("", "", { entities: [] }); e._isNew = true; e._origin = undefined; e._profileId = "";
+    e._p = prog("", "", { entities: [] }); e._isNew = true; e._origin = undefined;
     e.data = data([]); e.hass = { language: "en", states: {}, connection: {}, callWS: vi.fn().mockResolvedValue({}) };
     return e;
   };
@@ -154,7 +154,7 @@ describe("\"updated on all cards\" notice", () => {
     const e = new WpProgramEditor() as any;
     const base = prog("p1", "Office");
     e._p = structuredClone(base); e._isNew = isNew; e._origin = isNew ? undefined : structuredClone(base);
-    e.embedded = true; e._profileId = "";
+    e.embedded = true;
     e.data = data([base]);
     e.hass = { language: "en", states: {}, connection: {}, callWS: vi.fn(async (m: any) =>
       m.type === "weekly_planner/get" ? data([base]) : { program: { ...base, revision: 2 } }) };

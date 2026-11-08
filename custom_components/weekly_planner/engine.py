@@ -21,6 +21,7 @@ from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, State, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_track_point_in_utc_time, async_track_state_change_event
 from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.helpers.sun import get_astral_event_date
@@ -38,7 +39,10 @@ from .const import (
     VERIFY_SETTLE_S,
     VERIFY_TOLERANCE,
 )
-from .modes import NO_PROFILE, apply_default_mode, profile_for_mode
+from .modes import (
+    MAX_RENAMES, NO_PROFILE, apply_default_mode, delete_profile, mode_proposals, orphan_modes, profile_for_mode,
+    rename_profile, unambiguous_rename,
+)
 from .registry import async_check_missing, async_track_registry
 from .resolver import (
     OccurrenceCache,
@@ -207,6 +211,7 @@ class PlannerEngine:
         self._listeners: list[Callable[[], None]] = []
         self._conditions_by_entity: dict[str, list[dict]] = {}
         self._mode: str | None = None  # active global mode (selector option name); None: no selector or none known
+        self._orphan_key: tuple | None = None  # last orphan set given to the repair issue (no spam)
         self._mode_lost = False  # the selector is unusable now (logged once per loss)
         self._mode_changed: set[str] = set()  # programs whose profile changed since the last recompute
         self._last_profiles: dict[str, str] = {}
@@ -1294,12 +1299,13 @@ class PlannerEngine:
         selector = config.get("mode_selector")
         if not selector:
             self._mode, self._mode_lost = None, False
-            if runtime.pop("last_mode", None) is not None:
+            if [runtime.pop(key, None) for key in ("last_mode", "mode_options_seen", "mode_renames")] != [None] * 3:
                 self.store.save_runtime()
         else:
             state = self.hass.states.get(selector)
             raw = state.state if state else None
             options = state.attributes.get("options") if state else None
+            self._track_options(options)
             valid = (raw is not None and raw not in UNAVAILABLE
                      and (not isinstance(options, list) or raw in options))
             if valid:
@@ -1320,7 +1326,110 @@ class PlannerEngine:
         changed = {pid for pid, profile in new.items() if pid in self._last_profiles and self._last_profiles[pid] != profile}
         self._last_profiles = new
         self._mode_changed |= changed
+        self._sync_orphan_issue()
         return changed
+
+    def _track_options(self, options: Any) -> None:
+        """Remember the selector options; an unambiguous rename moves the schedules to the new name.
+
+        Only one option renamed (see ``unambiguous_rename``) is followed; every other change is left alone:
+        the profiles that match no option stay, inactive, and a correspondence is proposed to the user.
+        """
+        if not isinstance(options, list) or not options or not all(isinstance(o, str) for o in options):
+            return
+        runtime = self.store.runtime
+        seen = runtime.get("mode_options_seen")
+        if seen == options:
+            return
+        runtime["mode_options_seen"] = list(options)
+        self.store.save_runtime()
+        if not isinstance(seen, list) or self.store.read_only:
+            return
+        found = unambiguous_rename(seen, options, self.store.programs)
+        if found is None:
+            return
+        old, new = found
+        renamed, _skipped = rename_profile(self.store.programs, old, new)
+        self._rename_bookkeeping(old, new)
+        records = runtime.setdefault("mode_renames", [])
+        records.append({"old": old, "new": new, "at": dt_util.utcnow().isoformat()})
+        del records[:-MAX_RENAMES]
+        self.store.save_config()
+        _LOGGER.info("Mode %s was renamed %s: the schedules of %d program(s) moved with it", old, new, len(renamed))
+
+    def _rename_bookkeeping(self, old: str, new: str) -> None:
+        """The default mode and the remembered mode follow a renamed mode."""
+        config, runtime = self.store.config, self.store.runtime
+        if config.get("default_mode") == old:
+            config["default_mode"] = new
+        if runtime.get("last_mode") == old:
+            runtime["last_mode"] = new
+
+    def mode_orphans(self) -> list[str]:
+        """Modes of the programs that match no option of the selector; empty while its options are unknown."""
+        if not self.mode_available:
+            return []
+        return orphan_modes(self.store.programs, self.mode_options())
+
+    def mode_proposals(self) -> list[dict]:
+        if not self.mode_available:
+            return []
+        return mode_proposals(self.store.programs, self.mode_options())
+
+    def mode_renames(self) -> list[dict]:
+        return list(self.store.runtime.get("mode_renames", []))
+
+    def _sync_orphan_issue(self) -> None:
+        """Repair issue ``mode_option_missing``: created or updated only when the orphan list changes."""
+        orphans = self.mode_orphans()
+        proposals = self.mode_proposals()
+        key = (tuple(orphans), tuple(proposals[0]["candidates"]) if proposals else ())
+        if key == self._orphan_key:
+            return
+        self._orphan_key = key
+        if not orphans:
+            ir.async_delete_issue(self.hass, DOMAIN, "mode_option_missing")
+            return
+        ir.async_create_issue(
+            self.hass, DOMAIN, "mode_option_missing", is_fixable=False, severity=ir.IssueSeverity.WARNING,
+            translation_key="mode_option_missing",
+            translation_placeholders={"modes": ", ".join(orphans), "options": ", ".join(key[1]) or "-"},
+        )
+
+    async def async_resolve_mode(self, old: str, new: str | None) -> tuple[list[str], list[str]]:
+        """Match mode ``old`` (no option) to option ``new``, or delete it everywhere (``new`` None).
+
+        Returns ``(program ids changed, program ids skipped)``.
+        """
+        async with self._lock:
+            if new is None:
+                done, skipped = delete_profile(self.store.programs, old)
+            else:
+                done, skipped = rename_profile(self.store.programs, old, new)
+                if done:
+                    self._rename_bookkeeping(old, new)
+            if done:
+                self.store.save_config()
+            await self._async_config_changed(reapply=False)
+            return done, skipped
+
+    async def async_undo_mode_rename(self, new: str) -> dict | None:
+        """Reverse the latest recorded rename to ``new``; None when there is none."""
+        async with self._lock:
+            records = self.store.runtime.get("mode_renames", [])
+            record = next((r for r in reversed(records) if r["new"] == new), None)
+            if record is None:
+                return None
+            records.remove(record)
+            rename_profile(self.store.programs, new, record["old"])
+            if self.store.config.get("default_mode") == new:
+                self.store.config["default_mode"] = record["old"]
+            if self.store.runtime.get("last_mode") == new:
+                self.store.runtime["last_mode"] = record["old"]
+            self.store.save_runtime()
+            self.store.save_config()
+            await self._async_config_changed(reapply=False)
+            return record
 
     async def _async_mode_changed_locked(self) -> None:
         """The selector changed state or options; the caller holds the engine lock."""
@@ -1343,7 +1452,8 @@ class PlannerEngine:
         async with self._lock:
             config = self.store.config
             if config.get("mode_selector") != selector:
-                self.store.runtime.pop("last_mode", None)  # remembered for the former selector
+                for key in ("last_mode", "mode_options_seen", "mode_renames"):
+                    self.store.runtime.pop(key, None)  # remembered for the former selector
                 self.store.save_runtime()
             config["mode_selector"], config["default_mode"] = selector, default_mode
             renamed = apply_default_mode(self.store.programs, default_mode, self.mode_options()) if selector else []

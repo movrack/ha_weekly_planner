@@ -3,6 +3,8 @@
 # An invalid file changes nothing: a repair issue shows the error.
 version: 1
 vacation: false            # legacy global pause switch; leave false
+mode_selector: input_select.house_mode   # input_select or select entity whose state is the active mode; null = a single mode
+default_mode: Home         # option that receives the schedules when no mode is known; null without selector
 
 labels:                    # "settings": a name, a colour and what to do on the device
   - id: comfort
@@ -23,18 +25,17 @@ programs:
       - entity_id: climate.living_room   # use a real entity of your Home Assistant
         default_label: eco                # applied "the rest of the time"
         label_overrides: {}               # per-device action for a label, same shape as `action`
-    active_profile: normal
-    profiles:             # modes ("weeks"); one is enough
-      - id: normal
-        name: Normal
-        days:             # exactly 7 lists, Monday first; [] = nothing that day
-          - &workday
-            - {id: morning, start: {time: "06:30"}, end: {time: "08:30"}, label: comfort}
-            - {id: evening, start: {time: "18:00"}, end: {time: "22:30"}, label: comfort}
-          - *workday
-          - *workday
-          - *workday
-          - *workday
-          - - {id: weekend-day, start: {time: "08:00"}, end: {time: "23:00"}, label: comfort}   # Saturday
-          - - {id: sun-day, start: {time: "08:00"}, end: {time: "23:00"}, label: comfort}       # Sunday
+    modes:                # one entry per mode; a mode is a weekly schedule. Keep a mode's name to keep its history
+      Home:               # the name of an option of the mode selector (or of the default mode)
+        mon: &workday
+          - {id: morning, start: {time: "06:30"}, end: {time: "08:30"}, label: comfort}
+          - {id: evening, start: {time: "18:00"}, end: {time: "22:30"}, label: comfort}
+        tue: *workday
+        wed: *workday
+        thu: *workday
+        fri: *workday
+        sat: [{id: weekend-day, start: {time: "08:00"}, end: {time: "23:00"}, label: comfort}]
+        sun: [{id: sun-day, start: {time: "08:00"}, end: {time: "23:00"}, label: comfort}]
         # Solar times: start: {sun: sunset, offset: -30, earliest: "17:00", latest: "21:00"}
+      Away:               # a day left out (or []) has no schedule
+        mon: [{id: away-day, start: {time: "09:00"}, end: {time: "17:00"}, label: eco}]

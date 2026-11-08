@@ -59,18 +59,18 @@ describe("schedule screen rendering", () => {
     expect(html).toContain("Comfort"); expect(html).toContain("wp-day-bar"); expect(html).toContain("wp-chart");
     expect(html).toContain("Rest of the time".length ? "rest" : "");
     expect(html).toContain("mdi:delete-outline");
-    expect(html).toContain("Home"); expect(html).toContain("Away");
+    expect(html).not.toContain("tablist");
   });
   it("shows the read-only and removed-mode warnings and the single-device view", () => {
     const { view } = make({ kind: "device", entityId: "switch.demo" }, mkProgram(), { read_only: true });
     expect(flat(view.render())).toContain("role=\"alert\"");
     expect(view._title).toBe("Demo");
-    const m = make(); m.view._viewProfileId = "gone";
-    expect(flat(m.view.render())).toContain("role=\"alert\"");
   });
-  it("hides the chart and delete in a fixed mode and shows the hint", () => {
-    const { view } = make(); view.profileId = "away";
+  it("hides the chart and delete in a mode that is not active and says so", () => {
+    const { view } = make(undefined, undefined, { mode: { selector: "input_select.m", default: "Home", active: "Home", options: ["Home", "Away"], available: true } });
+    view._viewMode = "Away";
     const html = flat(view.render());
+    expect(html).toContain("This mode is not active");
     expect(html).not.toContain("wp-chart"); expect(html).not.toContain("delete-outline\"></ha-icon>Delete");
     expect(view._modeOnly).toBe(true);
   });
