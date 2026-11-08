@@ -152,12 +152,12 @@ des appareils. Un programme peut en contenir plusieurs.
 
 | Objet | Sens |
 |---|---|
-| Programme | Entités, priorité, conditions, réapplication et semaines types. |
+| Programme | Entités, priorité, conditions, réapplication et une semaine d’horaires par mode. |
 | Réglage | Nom, couleur et action partagés globalement. |
 | Horaire | Début, fin facultative, jours, référence de réglage et, au besoin, les appareils visés (`entities` ; absent = tous les appareils du programme, y compris ceux ajoutés plus tard). |
 | Défaut d’entité | `default_label`, appliqué hors des plages bornées selon les règles de priorité. |
 | Valeur propre | `label_overrides[label_id]`, action propre à cette entité dans ce programme. |
-| Mode (`profile` en interne) | Semaine type indépendante. Un mode actif par programme ; Vacances est un mode ordinaire. Appareils, défauts, conditions et priorité restent communs. |
+| Mode | L’état de toute la maison (Maison, Absent, Vacances…), le même pour tous les programmes et choisi en dehors de Weekly Planner. Chaque programme a sa propre semaine d’horaires pour chaque mode ; Vacances est un mode ordinaire. Appareils, défauts, conditions et priorité restent communs. |
 
 Deux horaires d’un programme ne peuvent se chevaucher que s’ils visent des
 appareils différents. Chaque appareil n’exécute que les horaires qui le visent ;
@@ -221,46 +221,47 @@ source sont `number`, `boolean`, `string` et `native`. Une source indisponible o
 invalide produit une erreur, sans remplacement silencieux par une valeur fixe.
 Changer sa valeur ne déclenche pas à lui seul une action planifiée.
 
-## Modes et sélection externe
+## Modes et sélecteur de mode
 
-**Mode à gérer** choisit la semaine à modifier. Modifier les horaires d’un mode
-inactif ne l’active pas et ne réapplique pas les actions du mode actif.
-**Mode actif — changement immédiat** est une commande distincte : elle prend
-effet sans Appliquer et l’annulation du brouillon ne revient pas dessus. Les
-réglages de modes et leurs associations nécessitent toujours **Appliquer au programme**.
+Le mode est global : une entité Home Assistant `input_select` ou `select`, facultative, choisie une seule fois dans
+**Paramètres → Appareils et services → Weekly Planner → Configurer → Sélecteur de mode**, donne le mode actif de
+tous les programmes. Ses options sont les modes ; un **mode par défaut** (une des options) est demandé juste après.
+Weekly Planner ne fait que la lire et ne la modifie jamais. Vide : un seul mode, le mode par défaut, que la carte
+n’affiche pas.
 
-Un programme peut suivre toute entité externe via `mode_source`. Associer ses
-états bruts aux identifiants de modes, sans catalogue d’états d’alarme ou de types
-de sélecteur imposé :
+- **Rattachement par le nom** : les horaires d’un programme appartiennent au mode qui porte le même nom qu’une option.
+- **Sélecteur indisponible ou état inconnu** : le dernier mode valide est gardé ; sans mode connu, le mode par
+  défaut s’applique. Un programme sans horaires pour le mode actif applique « le reste du temps ».
+- **Option renommée** : si une seule option est renommée, les horaires la suivent dans tous les programmes (avec
+  un bouton pour défaire pendant une semaine). Sinon l’ancien mode reste « sans option », rien n’est effacé et
+  l’écran des horaires propose les nouvelles options (ou la suppression du mode).
+- **Écran des horaires** : un onglet par mode, ouvert sur le mode actif ; modifier un autre mode ne l’active jamais.
+  « Copier depuis un autre mode » recopie ses horaires.
+- **Changer de mode** = changer l’entité sélecteur (tableau de bord, alarme, automatisation). L’interrupteur global
+  **Suspension de tous les programmes** est une commande distincte et l’emporte sur le mode.
 
-```json
-{"mode_source":{"entity_id":"input_select.example_house_mode","mappings":{"Maison":"mode_home_id","Dehors":"mode_away_id","Vacances":"mode_vacation_id"}}}
+```yaml
+# Passer la maison en mode Absent (utiliser votre sélecteur et le nom exact d’une option)
+action: input_select.select_option
+target:
+  entity_id: input_select.house_mode
+data:
+  option: Absent
 ```
 
-Remplacer ces exemples par les états bruts exacts de la source et les vrais
-identifiants de modes. Si la source devient indisponible ou son état n’est pas
-associé, le dernier mode valide reste actif. Sous contrôle externe enregistré,
-l’activation manuelle est refusée. Les entités de mode de Weekly Planner ne
-peuvent pas servir de source pour éviter les boucles. Aucun changement par date
-n’est implicite : une automatisation externe peut changer la source.
-
-Le `select` de profil HA reste disponible en sélection manuelle via
-`select.select_option`. L’interrupteur global **Suspension de tous les programmes** est une
-commande distincte.
 Voir la [référence des modes](wiki/MODES.md) et les
 [exemples d’actions natives](wiki/GENERIC_ACTIONS.md).
 
 ## Entités et services HA
 
-L’intégration crée un interrupteur global de suspension, un interrupteur et un
-sélecteur de profil par programme. Inspecter le registre réel : ne pas supposer
+L’intégration crée un interrupteur global de suspension, et un interrupteur
+par programme. Il n’y a pas de `select` de mode : le mode vient de votre sélecteur. Inspecter le registre réel : ne pas supposer
 un identifiant anglais généré sur une autre installation.
 
 | Entité | Comportement |
 |---|---|
-| Interrupteur de programme | Active ou suspend. Attributs : `program_id`, profil actif, plages en cours et prochaines actions. |
+| Interrupteur de programme | Active ou suspend. Attributs : `program_id`, mode actif, plages en cours et prochaines actions. |
 | Interrupteur global | Suspend les programmes et applique une fois les défauts éligibles. |
-| Sélecteur de profil | Choisit le mode actif par son nom exact en sélection manuelle. |
 
 | Action | Champs | Qui peut l’appeler |
 |---|---|---|
@@ -306,15 +307,6 @@ data:
 action: weekly_planner.reload
 ```
 
-```yaml
-# Choisir un mode enregistré en contrôle manuel
-action: select.select_option
-target:
-  entity_id: select.example_program_profile
-data:
-  option: Hiver
-```
-
 Les interrupteurs utilisent `switch.turn_on` et `switch.turn_off`. Planifier
 `automation.turn_on` active les déclencheurs d’une automatisation ; ce n’est pas
 `automation.trigger`.
@@ -325,7 +317,8 @@ Les interrupteurs utilisent `switch.turn_on` et `switch.turn_off`. Planifier
 
 | Option | Défaut | Comportement actuel |
 |---|---|---|
-| `admin_only` | `false` | Limite les modifications des programmes et réglages. Interrupteurs et sélection de profil restent des commandes séparées. |
+| `admin_only` | `false` | Limite les modifications des programmes et réglages. Les interrupteurs restent des commandes séparées ; le mode se choisit sur l’entité sélecteur, pas dans Weekly Planner. |
+| `mode_selector` | aucun | Entité `input_select` ou `select` facultative dont l’état est le mode actif, puis un mode par défaut parmi ses options. Réservé aux administrateurs. |
 | `reapply_default` | `true` | Présent dans les options, mais la création initialise actuellement `reapply: true` sans le consommer. Régler ce choix dans chaque programme. |
 | `notify_delay_min` | `30` | Notification d’entité indisponible, 1 à 1440 minutes. |
 | `debounce_min` | `2` | Délai de stabilité des conditions, 0 à 60 minutes. |
@@ -354,25 +347,27 @@ client tiers, [websocket.py](custom_components/weekly_planner/websocket.py) fait
 | `weekly_planner/get`, `weekly_planner/subscribe` | État initial et mises à jour. |
 | `weekly_planner/program/save`, `program/delete`, `program/set_enabled` | Mutations de programme ; tous les suffixes sont sous `weekly_planner/`. |
 | `weekly_planner/label/save`, `label/delete` | Réglages globaux. |
-| `weekly_planner/preview` | Résoudre les occurrences d’un programme/mode pour une date. |
+| `weekly_planner/preview` | Résoudre les occurrences d’un programme (pour un mode) pour une date. |
 | `weekly_planner/journal` | Décisions enregistrées, jusqu’à 14 jours. |
 
 Une modification porte la `revision` courante ; une révision obsolète provoque
 `conflict`. La carte reconstruit l’écriture sur des données fraîches et retente
 une fois. Les réglages sont fusionnés avec leur base de brouillon pour préserver
 les horaires modifiés ailleurs. Un conflit sur le même réglage est signalé plutôt
-qu’écrasé. Il n’existe pas de service public `weekly_planner.set_profile`.
+qu’écrasé. Aucune action ne change le mode : changer l’entité sélecteur.
 
 ## Fichier YAML
 
 Les programmes peuvent aussi se modifier comme du texte. Weekly Planner garde une copie de sa
-configuration (vacances, réglages et programmes, sans l'état d'exécution) dans
+configuration (vacances, sélecteur de mode, réglages et programmes, sans l'état d'exécution) dans
 `/config/www/weekly_planner.yml`. Les données `.storage` restent la référence pendant que Home
 Assistant tourne ; le fichier est une copie lisible que vous pouvez modifier.
 
 ```yaml
 version: 1
 vacation: false
+mode_selector: input_select.house_mode   # null = un seul mode
+default_mode: Maison                     # une option du sélecteur
 labels:
   - id: comfort
     name: Confort
@@ -382,7 +377,8 @@ programs:
   - id: living
     name: Salon
     entities: [{entity_id: climate.living, default_label: eco, label_overrides: {}}]
-    profiles: [...]   # même structure que celle enregistrée par la carte
+    modes:            # les horaires de chaque mode, rangés par nom de mode
+      Maison: {mon: [...], tue: [...]}   # 7 listes de jours ; le premier mode est celui utilisé sans sélecteur
 ```
 
 - **Modification dans la carte** : le fichier est écrit environ 2 secondes après l'enregistrement
@@ -413,7 +409,7 @@ Les agents qui travaillent sur ce dépôt lisent [`AGENTS.md`](AGENTS.md).
 ## Désinstallation
 
 1. Ouvrir **Paramètres → Appareils et services → Weekly Planner**, puis le menu à trois points → **Supprimer**.
-   Cela retire les interrupteurs et les sélecteurs, et efface les programmes enregistrés ainsi que le
+   Cela retire les interrupteurs et efface les programmes enregistrés ainsi que le
    fichier `/config/www/weekly_planner.yml` (et ses restes `.invalid` et `.tmp`).
 2. Retirer la carte **Weekly Planner** de chaque tableau de bord (modifier le tableau de bord, ouvrir la carte, la supprimer).
    Sans l’intégration, la carte n’affiche plus rien d’utile.

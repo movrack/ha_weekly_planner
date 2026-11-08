@@ -5,10 +5,8 @@
 Les captures de Weekly Planner ont été réalisées le 29 octobre 2026,
 avec des programmes et appareils de démonstration du salon. Les écrans utilisent
 les vrais composants de l’application ; leurs données sont préparées pour
-expliquer les fonctions. Les vues d’historique, de profil et d’options sont celles
-de Home Assistant local. Le sélecteur natif porte le nom « Profil Bureau » : il
-illustre le mécanisme réel avec un programme de test distinct des exemples du
-salon. Aucune configuration de production n’a été modifiée.
+expliquer les fonctions. Les vues d’historique et d’options sont celles
+de Home Assistant local. Aucune configuration de production n’a été modifiée.
 
 Les modifications de programme n’ont pas été enregistrées pour réaliser cet
 atlas. Le bandeau de la capture S21 utilise un enregistrement simulé en mémoire,
@@ -39,7 +37,7 @@ Donner un nom, ajouter un appareil, puis cocher les commandes utiles. Aucune com
 
 ### S38 — Choisir ou préparer un mode
 
-Mode actif agit immédiatement. Mode à modifier prépare les horaires sans les activer.
+Capture à refaire : elle montre un choix de mode qui n’existe plus dans les réglages du programme. Le mode se choisit désormais en dehors de Weekly Planner, et les horaires de chaque mode se préparent dans l’écran des horaires, un onglet par mode.
 
 <a href="images/guide/s38-modes-manual.png"><img src="images/guide/s38-modes-manual.png" width="320" alt="Choisir ou préparer un mode" /></a>
 
@@ -47,7 +45,7 @@ Mode actif agit immédiatement. Mode à modifier prépare les horaires sans les 
 
 ### S39 — Suivre une entité
 
-Associer chaque état à un mode. Ici, Présence activée correspond à Maison et désactivée à Vacances : exemple à adapter, sans règle imposée.
+Capture à refaire : l’association des états d’une entité à un mode n’existe plus. Le sélecteur de mode se règle une fois dans les options de l’intégration ([S35](#s35)) et ses options sont les modes.
 
 <a href="images/guide/s39-modes-external.png"><img src="images/guide/s39-modes-external.png" width="320" alt="Suivre une entité" /></a>
 
@@ -333,7 +331,7 @@ La liste limite les services proposés pour cet appareil. Toutes signifie que le
 
 ## S31 — Gérer les modes
 
-Le mode actif et le mode à gérer sont distingués. Ajouter, renommer, copier et supprimer modifient le brouillon.
+Capture à refaire : la gestion des modes (ajouter, renommer, copier, supprimer) a quitté les réglages du programme. Les modes sont les options du sélecteur ; « Copier depuis un autre mode » se trouve dans l’écran des horaires.
 
 <a href="images/guide/s31-season-management.png"><img src="images/guide/s31-season-management.png" width="320" alt="S31 — Gérer les modes" /></a>
 
@@ -341,7 +339,7 @@ Le mode actif et le mode à gérer sont distingués. Ajouter, renommer, copier e
 
 ## S32 — Nom de mode en cours
 
-Le nom est enregistré avec Appliquer au programme. Le bouton de changement de mode actif reste indisponible tant que les changements de mode ne sont pas appliqués.
+Capture à refaire : un nom de mode ne se saisit plus. Il vient de l’option du sélecteur.
 
 <a href="images/guide/s32-season-name-draft.png"><img src="images/guide/s32-season-name-draft.png" width="320" alt="S32 — Nom de mode en cours" /></a>
 
@@ -349,7 +347,7 @@ Le nom est enregistré avec Appliquer au programme. Le bouton de changement de m
 
 ## S33 — Changer le mode actif
 
-Le bouton ouvre le véritable sélecteur de profil Home Assistant du programme, trouvé dans le registre des entités.
+Capture à refaire : le programme n’a plus de sélecteur propre. Pour changer de mode, utiliser le sélecteur Home Assistant choisi dans les options de l’intégration.
 
 <a href="images/guide/s33-active-season-ha.png"><img src="images/guide/s33-active-season-ha.png" width="320" alt="S33 — Changer le mode actif" /></a>
 
@@ -365,7 +363,7 @@ Les opérations concernées demandent confirmation. Cette capture montre la boî
 
 ## S35 — Options de l’intégration
 
-Ces options Home Assistant concernent l’intégration entière : droits d’édition, réapplication par défaut, notifications et délai des conditions.
+Ces options Home Assistant concernent l’intégration entière : droits d’édition, sélecteur de mode (capture à refaire : l’écran montre encore l’ancienne liste d’options, sans le sélecteur de mode ni le mode par défaut), réapplication par défaut, notifications et délai des conditions.
 
 <a href="images/guide/s35-integration-options.png"><img src="images/guide/s35-integration-options.png" width="320" alt="S35 — Options de l’intégration" /></a>
 

@@ -1,6 +1,6 @@
 # Weekly Planner
 
-> Home Assistant integration (HACS) that schedules service calls or scenes on any entity in weekly programs with modes, plus a bundled Lovelace card. Configurable by a YAML file (/config/www/weekly_planner.yml) or by the card.
+> Home Assistant integration (HACS) that schedules service calls or scenes on any entity in weekly programs with a global mode (chosen by an external input_select or select), plus a bundled Lovelace card. Switch the mode by changing that selector entity, not through a Weekly Planner service. Configurable by a YAML file (/config/www/weekly_planner.yml) or by the card.
 
 Start with the AI guide: it explains how to discover what is configured, how to edit the YAML file and how to verify.
 
@@ -12,6 +12,6 @@ Start with the AI guide: it explains how to discover what is configured, how to 
 
 ## Optional
 - [Generic actions](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/GENERIC_ACTIONS.md)
-- [Modes and seasons](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/MODES.md)
+- [Modes](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/MODES.md)
 - [User guide (French)](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/GUIDE.fr.md)
 - [Changelog](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/CHANGELOG.md)

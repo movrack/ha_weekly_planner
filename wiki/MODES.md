@@ -1,73 +1,92 @@
-# Program modes
+# Modes
 
-Weekly Planner organizes schedules in **modes**. Each mode is an independent
-weekly schedule: Home, Away, Vacation, Winter or any name chosen by the user.
-Vacation is an ordinary mode. Names do not assign dates or automatic behaviour.
-One mode is active per program.
+A **mode** is the state of the whole house: Home, Away, Vacation, Winter or any
+name you like. The mode is the same for every program and is chosen **outside
+Weekly Planner**. Each program has its own weekly schedule for each mode.
+Vacation is an ordinary mode. A name does not choose a date and does not
+suspend anything by itself.
 
-Stored `profiles`, profile IDs and Home Assistant entity identities are stable;
-renaming a mode does not rename entity IDs.
+## Choose where the mode comes from
 
-## Shared settings and independent schedules
+The mode comes from one Home Assistant `input_select` or `select` entity, which
+you probably already have (a dashboard button, an alarm panel, an automation).
 
-Each mode owns its seven lists of slots, including times, days and setting
-references. A new mode starts empty; copying creates independent slots that keep
-the devices each slot targets. Editing the copied times does not change the source
-mode.
+1. Open **Settings → Devices & services → Weekly Planner → Configure**.
+2. Choose the **Mode selector** (optional). Only administrators can do this.
+3. Choose the **Default Mode** among the options of that selector.
 
-Devices, default settings ("The rest of the time"), per-device setting overrides,
-allowed services, program conditions, priority and enabled/reapply settings are
-shared by the program. Settings are global: copying a mode does not copy its settings.
-Changing a shared setting affects every schedule using it.
+The options of the selector are the modes. Weekly Planner only reads the
+selector; it never changes it. To switch mode, change the selector itself.
 
-An empty mode does not mean that a device is off: the shared default can still
-apply. Configure the intended action explicitly rather than relying on a name.
+Without a selector there is a single mode, the default mode, and the card shows
+no mode.
 
-## Prepare a mode without activating it
+## What is shown
 
-1. Edit the dashboard card, open **Program settings**, and choose the program.
-2. Open **Modes**, then add or copy a mode and give it a distinct name.
-3. Choose **Apply to program** to save the settings.
-4. Select **Mode to edit**, then **Edit this mode’s schedules**.
+- The card shows the active mode once, at the top: **Mode: Home**. It is text,
+  not a button.
+- A program that has no schedule for the active mode shows **No schedule for
+  this mode**. Its devices then follow "The rest of the time".
 
-Editing inactive schedules does not activate that mode or reapply the active
-mode's actions. Names must be nonempty, unique within the program and at most
-40 characters. The active mode cannot be deleted. Applied settings affect every
-card using the program; cancelling the outer card editor does not undo them.
+## How a mode is matched to its schedules
 
-## Choose the active mode
+A program's schedules belong to the mode that has **the same name** as an option
+of the selector. Keep the names identical.
 
-Under **Choose mode**, use either:
+When the selector is unavailable, or its state is not one of its options, the
+last valid mode stays active. If no valid mode has ever been known, the default
+mode is used. The **default mode** also receives the schedules of a program that
+had a single week before a selector was chosen.
 
-- **Manually**: **Active mode — changes immediately** changes the running mode
-  without Apply. Draft Undo does not restore the previous active mode.
-- **From an entity**: select an existing Home Assistant entity and associate its
-  raw states with program modes. For example, associate the household selector's
-  Vacation state with this program's Vacation mode. Apply these settings.
+## Edit the schedules of a mode
 
-No alarm states or selector types are required: any external entity can be used.
-When its state is unavailable or has no association, the last valid mode stays
-active. Weekly Planner entities cannot be used as sources, to avoid circular
-selection. While a program follows an external entity, change that entity rather
-than manually overriding its mode here.
+Open a program's schedules. The modes are shown as tabs at the top; the screen
+opens on the active mode.
 
-The program's Home Assistant `select` entity remains available with its existing
-identity. It offers mode names as options. In manual mode, `select.select_option`
-can activate a mode; use the actual entity ID and exact option name from your
-installation. Update name-based automations if a mode is renamed. There is no
-`weekly_planner.set_profile` service.
+- Another mode shows **This mode is not active**. Editing it does not activate it
+  and does not resend the actions of the active mode.
+- **Copy from another mode** copies the schedules of that mode into the open
+  one. If the open mode already has schedules, you are asked to confirm the
+  replacement. Settings are global, so only the schedules are copied.
+- An empty mode does not mean that a device is off: "The rest of the time" can
+  still apply. Choose the action you want explicitly.
 
-## Activation, priority and suspension
+## When an option is renamed or removed
 
-Activation recalculates the action for the current time. It does not replay all
-earlier actions. Reapply settings govern whether the current action is sent;
-past one-shot actions are not replayed. Activation does not enable a disabled
-program or bypass its conditions. Device sharing retains the usual priority
-rules: a lower number wins among eligible programs; modes do not add priority.
+- **One option renamed**: if the selector has the same number of options in the
+  same order and exactly one name changed, the schedules follow the new name in
+  every program. The card says **Renamed from …**, with an **Undo** button for a
+  week.
+- **Anything else**: Weekly Planner does not guess. The old mode stays with its
+  schedules, marked **no option** (it is never used), and nothing is erased. A
+  notice on the card and in the schedules screen offers each new option ("Did it
+  become…?") or **No, delete it**, and a repair message points to it. Nothing
+  changes until you answer.
 
-**Suspension of all programs** is a separate global control. It suspends scheduling across programs and does
-not mean "activate the Vacation mode" or "turn every device off".
+## Suspension and priority
 
-Source references: `frontend/src/editors/program-editor.ts`,
-`frontend/src/components/schedule-dialog.ts`, and
-`custom_components/weekly_planner/{select,engine,resolver}.py`.
+**Suspension of all programs** is a separate global switch. It wins over the
+mode and is not the Vacation mode. A mode never adds priority: among programs
+that share a device, the lowest priority number still wins.
+
+A change of mode recalculates the action for the current time and does not
+replay earlier actions. It does not enable a disabled program and does not skip
+its conditions.
+
+## Automations
+
+There is no Weekly Planner action to change the mode: use the selector.
+
+```yaml
+action: input_select.select_option
+target:
+  entity_id: input_select.house_mode   # your own selector
+data:
+  option: Away
+```
+
+A time-based change (summer / winter) is an automation that changes the
+selector.
+
+Source references: `custom_components/weekly_planner/{modes,engine,config_flow}.py`,
+`frontend/src/components/{schedule-dialog,mode-notice}.ts`.

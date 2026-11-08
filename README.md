@@ -157,12 +157,12 @@ registry IDs. A program may contain several of them.
 
 | Object | Meaning |
 |---|---|
-| Program | Name, entity list, priority, conditions, reapply policy and weekly profiles. |
+| Program | Name, entity list, priority, conditions, reapply policy and one weekly schedule per mode. |
 | Setting | Global `{id, name, color, action}` shared across programs. |
 | Slot | Start, optional end, days, a setting reference and, optionally, the devices it targets (`entities`; absent = every device of the program, also those added later). |
 | Entity default | Optional `default_label` applied outside bounded slots under the ownership rules. |
 | Entity override | `label_overrides[label_id]` changes that setting's action for this entity in this program. |
-| Mode (`profile` internally) | A named weekly slot set. One is active per program. Vacation is an ordinary mode. Entities, defaults, program conditions and priority are shared. |
+| Mode | The state of the whole house (Home, Away, Vacation…), the same for every program and chosen outside Weekly Planner. Each program has its own weekly schedule for each mode. Vacation is an ordinary mode. Entities, defaults, program conditions and priority are shared. |
 
 Two slots of a program may overlap in time only when they target different
 devices. Each device runs only the slots that target it; saving a program
@@ -233,45 +233,46 @@ restricts actions to that list. Empty or missing lists without
 The picker hides unsupported fields and services requiring raw text/object input.
 Presets come from entity attributes; no manufacturer-specific modes are synthesized.
 
-### Program modes and external selection
+### Modes and the mode selector
 
-**Mode to manage** selects the weekly schedule to edit. Editing an inactive mode
-does not activate it or replay the active mode’s actions. **Active mode — changes
-immediately** is a separate control; its effect does not wait for Apply and cannot
-be reversed by draft undo. Mode definitions and their associations still require
-**Apply to program**.
+The mode is global: one optional Home Assistant `input_select` or `select` entity, chosen once in
+**Settings → Devices & services → Weekly Planner → Configure → Mode selector**, gives the active mode of
+every program. Its options are the modes; a **default mode** (one of the options) is asked right after.
+Weekly Planner only reads this entity and never changes it. Leave it empty to have a single mode, the default
+mode, which the card does not show.
 
-A program can follow any external entity through `mode_source`. Map its raw
-states to saved mode IDs; there is no fixed catalogue of alarm states or selector
-types. For example:
+- **Matching by name**: a program's schedules belong to the mode with the same name as an option.
+- **Selector unavailable or in an unknown state**: the last valid mode is kept; with none known yet, the
+  default mode applies. A program with no schedules for the active mode applies “the rest of the time”.
+- **Renamed option**: if exactly one option is renamed, the schedules follow it in every program (with an
+  Undo for a week). Otherwise the old mode stays “no option”, nothing is erased and the schedules screen
+  proposes the new options (or deleting the mode).
+- **Schedules screen**: one tab per mode, opening on the active one; editing another mode never activates it.
+  “Copy from another mode” copies its schedules.
+- **Switching mode** = change the selector entity (dashboard, alarm, automation). The suspension of all
+  programs is a separate control and wins over the mode.
 
-```json
-{"mode_source":{"entity_id":"input_select.example_house_mode","mappings":{"Home":"mode_home_id","Away":"mode_away_id","Vacation":"mode_vacation_id"}}}
+```yaml
+# Switch the house to the Away mode (use your selector entity and an exact option name).
+action: input_select.select_option
+target:
+  entity_id: input_select.house_mode
+data:
+  option: Away
 ```
 
-The values above are placeholders: use the source entity’s exact raw states and
-the program’s actual profile IDs. When a state is unmapped or the entity is
-unavailable, the last valid mode stays active. Manual activation is blocked while
-the saved external source controls the program. Weekly Planner’s own mode entities
-cannot be used as sources, preventing circular selection. Modes do not switch by
-calendar date unless an external automation changes their source.
-
-The per-program HA profile `select` remains available for manual selection using
-`select.select_option`. The global switch is a separate **Suspension of all
-programs** control. See the
-[mode reference](wiki/MODES.md) and [native-action examples](wiki/GENERIC_ACTIONS.md).
+See the [mode reference](wiki/MODES.md) and [native-action examples](wiki/GENERIC_ACTIONS.md).
 
 ## Created entities and HA actions
 
-The integration creates one global suspension switch, one program switch per
-program, and one profile `select` per program. Inspect the actual entity registry;
+The integration creates one global suspension switch, and one program switch per
+program. There is no mode `select`: the mode comes from your selector. Inspect the actual entity registry;
 do not assume a generated English entity ID on another installation.
 
 | Entity | Integration behavior |
 |---|---|
-| Program `switch` | Enable/suspend the program. Attributes include `program_id`, active profile, current slots and next actions. |
+| Program `switch` | Enable/suspend the program. Attributes include `program_id`, the active mode, current slots and next actions. |
 | Global pause `switch` | Suspend programs globally and apply the applicable defaults once. |
-| Program profile `select` | Select the active mode by its exact visible name when manually controlled. |
 
 | Action | Fields | Who can call it |
 |---|---|---|
@@ -317,15 +318,6 @@ data:
 action: weekly_planner.reload
 ```
 
-```yaml
-# Select a saved mode in manual mode. Use the actual entity ID and option name.
-action: select.select_option
-target:
-  entity_id: select.example_program_profile
-data:
-  option: Winter
-```
-
 Program and vacation switches use the usual `switch.turn_on` / `switch.turn_off`
 actions. Enabling an `automation.*` entity with a scheduled `automation.turn_on`
 action enables its triggers; it is not the same as `automation.trigger`.
@@ -336,7 +328,8 @@ action enables its triggers; it is not the same as `automation.trigger`.
 
 | Option | Default | Current behavior |
 |---|---|---|
-| `admin_only` | `false` | Restricts program/setting mutations. Program/vacation switches and profile selection remain separate controls. |
+| `admin_only` | `false` | Restricts program/setting mutations. Program/vacation switches remain separate controls; choosing the mode is done on the selector entity, not in Weekly Planner. |
+| `mode_selector` | none | Optional `input_select` or `select` entity whose state is the active mode, then a default mode among its options. Changing them is reserved to administrators. |
 | `reapply_default` | `true` | Exposed in options, but currently not consumed by new-program creation; the card initializes `reapply: true`. Set it explicitly per program. |
 | `notify_delay_min` | `30` | Unavailable-entity notification delay, 1–1440 minutes. |
 | `debounce_min` | `2` | Condition stability delay, 0–60 minutes. |
@@ -366,25 +359,27 @@ is the source of truth:
 | `weekly_planner/get`, `weekly_planner/subscribe` | Snapshot and live updates. |
 | `weekly_planner/program/save`, `program/delete`, `program/set_enabled` | Program mutations. All suffixes shown are under `weekly_planner/`. |
 | `weekly_planner/label/save`, `label/delete` | Global setting mutations. |
-| `weekly_planner/preview` | Resolve a program/profile's occurrences for a date. |
+| `weekly_planner/preview` | Resolve a program's occurrences (for a mode) for a date. |
 | `weekly_planner/journal` | Recorded decisions, up to 14 days. |
 
 Updates to an existing program must carry its current `revision`; stale revisions
 are rejected with `conflict`. The card rebuilds edits against fresh data and retries
 once. Shared-setting saves merge against their original draft base to preserve
 unrelated concurrent schedule changes. A conflict in the same setting is reported
-rather than overwriting it. There is no public `weekly_planner.set_profile` action.
+rather than overwriting it. There is no action to change the mode: change the selector entity.
 
 ## YAML file
 
 Programs can also be edited as text. Weekly Planner keeps a mirror of its configuration (global
-vacation flag, settings and programs, not the runtime state) in `/config/www/weekly_planner.yml`.
+vacation flag, mode selector, settings and programs, not the runtime state) in `/config/www/weekly_planner.yml`.
 The `.storage` data stays the source of truth while Home Assistant runs; the file is a readable copy
 that you may edit.
 
 ```yaml
 version: 1
 vacation: false
+mode_selector: input_select.house_mode   # null = a single mode
+default_mode: Home                       # an option of the selector
 labels:
   - id: comfort
     name: Comfort
@@ -394,7 +389,8 @@ programs:
   - id: living
     name: Living room
     entities: [{entity_id: climate.living, default_label: eco, label_overrides: {}}]
-    profiles: [...]   # same structure as the card saves
+    modes:            # the schedules of each mode, keyed by mode name
+      Home: {mon: [...], tue: [...]}   # 7 day lists; the first mode is the default one without a selector
 ```
 
 - **Edit in the card**: the file is written about 2 seconds after the save (and created at startup
@@ -422,7 +418,7 @@ Agents working on this repository read [`AGENTS.md`](AGENTS.md).
 ## Uninstalling
 
 1. Open **Settings → Devices & services → Weekly Planner**, then the three-dot menu → **Delete**.
-   This removes the switches and selects, and deletes the stored programs and the
+   This removes the switches and deletes the stored programs and the
    `/config/www/weekly_planner.yml` file (with its `.invalid` and `.tmp` leftovers).
 2. Remove the **Weekly Planner** card from every dashboard (edit the dashboard, open the card, delete it).
    Without the integration the card shows nothing useful.

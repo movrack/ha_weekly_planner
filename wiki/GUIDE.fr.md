@@ -229,37 +229,55 @@ un redémarrage.
 
 ## Je veux des horaires différents pour Maison ou Vacances
 
-Un **mode** est une autre semaine d’horaires : Maison, Dehors, Vacances, Été…
-Vacances fonctionne comme les autres. **Le nom ne choisit pas une date et ne
-suspend pas les autres programmes.**
+Un **mode** est l’état de toute la maison : Maison, Absent, Vacances, Été…
+Il est le même pour tous les programmes, et chaque programme a ses propres
+horaires pour chaque mode. Vacances fonctionne comme les autres. **Le nom ne
+choisit pas une date et ne suspend pas les autres programmes.**
 
-Voir [le choix manuel S38](SCREENS.fr.md#s38) et [le suivi d’une entité S39](SCREENS.fr.md#s39).
+Sur la carte, la ligne **Mode : Maison**, en haut, indique le mode actif. Ce
+n’est pas un bouton. S’il n’y a qu’un seul mode, la ligne n’apparaît pas. Sous un
+programme qui n’a pas d’horaires pour ce mode, on lit **Aucun horaire pour ce
+mode** : ses appareils suivent alors **Le reste du temps**.
 
-Dans les réglages de carte, ouvrir **Réglages des programmes**, choisir le
-programme, puis **Modes**. **Mode à modifier** choisit les horaires à préparer.
-**Modifier les horaires de ce mode** permet de les changer sans activer ce mode.
+### Choisir le mode, en dehors de Weekly Planner
 
-Pour créer un mode : **Ajouter un mode**, saisir son nom, puis **Appliquer au
-programme**. Les boutons Renommer et Copier préparent aussi une modification à
-appliquer. Le mode actif ne peut pas être supprimé : en activer un autre d’abord.
+Le mode se choisit avec un sélecteur Home Assistant (`input_select` ou `select`)
+que tu as déjà ou que tu crées : un bouton du tableau de bord, une alarme, une
+automatisation… Pour le faire connaître à Weekly Planner :
 
-Sous **Choisir le mode**, deux possibilités :
+1. Ouvrir **Paramètres → Appareils et services → Weekly Planner → Configurer**
+   (réservé aux administrateurs).
+2. Choisir le **Sélecteur de mode** (facultatif).
+3. Choisir le **Mode par défaut** parmi les options du sélecteur : c’est le mode
+   utilisé quand le sélecteur n’a pas de choix utilisable.
 
-- **Manuellement** : **Mode actif — changement immédiat** choisit celui qui
-  fonctionne maintenant. Une action peut partir tout de suite. **Annuler la
-  modification** ne remet pas le mode précédent.
-- **Depuis une entité** : choisir le sélecteur ou l’entité déjà présent dans Home
-  Assistant, puis associer chacun de ses états à un mode. Par exemple, le choix
-  Vacances de ton sélecteur peut utiliser les horaires Vacances du programme.
-  Toucher **États associés** pour voir ou changer les associations, puis
-  **Appliquer au programme**.
+Les options du sélecteur sont les modes. Weekly Planner le lit et ne le modifie
+jamais : pour changer de mode, changer le sélecteur. Si le sélecteur est
+indisponible, le dernier mode valide reste actif.
 
-Si l’entité suivie est indisponible, ou si son état n’a pas d’association,
-le dernier mode reste actif. Un mode contrôlé de cette façon ne se choisit plus
-manuellement ici : changer le sélecteur habituel de la maison.
+### Modifier les horaires d’un mode
 
-Les appareils et **Le reste du temps** restent communs aux modes. Un mode vide
-ne signifie donc pas forcément que l’appareil sera éteint. 
+Toucher le calendrier avec un crayon ouvre les horaires. En haut, un onglet par
+mode ; l’écran s’ouvre sur le mode actif.
+
+- Un autre mode affiche **Ce mode n’est pas actif**. Le modifier ne l’active pas
+  et ne renvoie aucune action.
+- **Copier depuis un autre mode** recopie les horaires d’un autre mode ; si le
+  mode ouvert a déjà des horaires, une confirmation demande de les remplacer.
+- Un mode vide ne veut pas dire que l’appareil sera éteint : **Le reste du
+  temps** peut encore s’appliquer.
+
+### Si une option du sélecteur change de nom
+
+Si une seule option est renommée, les horaires suivent le nouveau nom dans tous
+les programmes ; **Renommé depuis …** s’affiche avec un bouton **Annuler** pendant
+une semaine. Dans les autres cas, Weekly Planner ne devine pas : l’ancien mode
+garde ses horaires, marqué **sans option**, et rien n’est effacé. Un message
+propose chaque nouvelle option (**Est-ce devenu… ?**) ou **Non, le supprimer**.
+
+La **Suspension de tous les programmes** reste une commande à part, qui l’emporte
+sur le mode. Voir le [détail des modes](MODES.md) ; les captures
+[S31 à S33, S38 et S39](SCREENS.fr.md#s31) sont à refaire.
 
 ## Je veux changer la présentation ou créer un programme
 
@@ -386,7 +404,7 @@ droits de modification avec la personne qui a installé la carte.
 - Appareils → Actions proposées limite les choix de services. Les modes et favoris
   dépendent de ce que Home Assistant expose : [exemples](GENERIC_ACTIONS.md).
 - Réappliquer peut envoyer l’action courante après un changement ou un redémarrage.
-  Les fins manquées restent un cas de rattrapage. Les identifiants de profils restent stables pour les automatisations.
+  Les fins manquées restent un cas de rattrapage. Les identifiants internes des modes restent stables.
 - La pièce du programme se définit dans Général ; le filtre de carte propose les
   pièces existantes. Les cadrans fonctionnent aussi dans une liste filtrée.
 - Les options globales se trouvent dans Paramètres → Appareils et services →
@@ -394,7 +412,7 @@ droits de modification avec la personne qui a installé la carte.
   par défaut est affichée, mais n’est pas encore utilisée lors de la création ;
   régler chaque programme explicitement.
 - Les captures sont locales : programmes synthétiques du salon et écrans natifs
-  de test, dont **Profil Bureau**. S21 utilise un enregistrement simulé en mémoire,
+  de test. S21 utilise un enregistrement simulé en mémoire,
   sans écriture de programme ni commande d’appareil. Ce n’est pas un essai physique.
 
 [Voir tous les écrans dans l’atlas](SCREENS.fr.md)

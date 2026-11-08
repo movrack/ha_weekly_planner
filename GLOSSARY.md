@@ -24,6 +24,14 @@ _Avoid_: profil actif, saison en cours
 L'entité externe de Home Assistant dont l'état est le mode actif. Facultatif : sans sélecteur, il n'existe qu'un seul mode, le mode par défaut. Weekly Planner le lit ; il ne le modifie jamais. Les modes disponibles sont ses options.
 _Avoid_: source de mode, entité source
 
+**Mode par défaut**:
+Le mode utilisé quand le sélecteur n'a pas de choix utilisable, et celui qui reçoit les horaires existants au moment où un sélecteur est choisi. Sans sélecteur, c'est le seul mode. Se choisit parmi les options du sélecteur, dans les options de l'intégration.
+_Avoid_: profil par défaut, semaine type
+
+**Sans option**:
+Un mode qui a des horaires mais que le sélecteur ne propose plus (option supprimée ou renommée). Il est conservé, inactif, et jamais effacé automatiquement : on le rattache à une nouvelle option ou on le supprime.
+_Avoid_: mode orphelin, mode supprimé
+
 **Horaire**:
 Une règle « de telle heure à telle heure, tels jours, tel réglage » d'un programme pour un mode. Sans heure de fin, c'est une action unique.
 _Avoid_: créneau, plage, slot, planning

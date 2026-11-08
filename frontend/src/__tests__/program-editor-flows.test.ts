@@ -162,7 +162,7 @@ describe("program editor: modes tab", () => {
   });
   it("starts a new program with the default mode when there is a selector", () => {
     const { e } = make(null);
-    expect(e._p.profiles[0].name).toBe("Standard week");
+    expect(e._p.profiles[0].name).toBe("Default mode");
     const withMode = make(null);
     withMode.e._ready = false;
     withMode.e.data.mode = { selector: "input_select.mode", default: "Home", active: "Away", options: ["Home", "Away"], available: true };
