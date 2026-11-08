@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .engine import PlannerEngine
-from .switch import device_info
+from .entity import PlannerEntity
 
 
 async def async_setup_entry(
@@ -28,17 +28,14 @@ async def async_setup_entry(
     entry.async_on_unload(engine.add_listener(sync_programs))
 
 
-class ProfileSelect(SelectEntity):
-    _attr_has_entity_name = True
-    _attr_should_poll = False
+class ProfileSelect(PlannerEntity, SelectEntity):
     _attr_icon = "mdi:calendar-week"
     _attr_translation_key = "profile"
 
     def __init__(self, engine: PlannerEngine, entry: ConfigEntry, program_id: str) -> None:
-        self.engine = engine
+        super().__init__(engine, entry)
         self.program_id = program_id
         self._attr_unique_id = f"{entry.entry_id}_profile_{program_id}"
-        self._attr_device_info = device_info(entry)
 
     @property
     def _program(self) -> dict | None:
@@ -73,11 +70,3 @@ class ProfileSelect(SelectEntity):
         profile = next((p for p in program["profiles"] if p["name"] == option), None)
         if profile:
             await self.engine.async_set_profile(self.program_id, profile["id"])
-
-    async def async_added_to_hass(self) -> None:
-        self.async_on_remove(self.engine.add_listener(self._refresh))
-
-    @callback
-    def _refresh(self) -> None:
-        if self.hass is not None:
-            self.async_write_ha_state()
