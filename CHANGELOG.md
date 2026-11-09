@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-11-09
+
 ### Added
 - A pause can last hours: a “1 hour” chip and an hours field next to the days field in the pause dialog; the `weekly_planner.pause` action takes `days` and/or `hours` (1 hour to 365 days).
 - Quality scale: Bronze badge in both READMEs (self-declared), kept as a permanent project rule.
