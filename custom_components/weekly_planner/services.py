@@ -5,7 +5,8 @@ from __future__ import annotations
 import voluptuous as vol
 
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import ServiceValidationError, Unauthorized
+from homeassistant.exceptions import Unauthorized
+from homeassistant.helpers import config_validation as cv
 
 from .const import CONF_ADMIN_ONLY, DOMAIN
 from .engine import MAX_PAUSE_DAYS, PlannerEngine
@@ -13,17 +14,21 @@ from .engine import MAX_PAUSE_DAYS, PlannerEngine
 PROGRAM = vol.Schema({vol.Required("program_id"): str, vol.Optional("cancel", default=False): bool})
 
 
-PAUSE = vol.Schema({
-    vol.Required("program_id"): str,
-    vol.Required("days"): vol.All(vol.Coerce(int), vol.Range(min=1, max=MAX_PAUSE_DAYS)),
-})
+PAUSE = vol.All(
+    vol.Schema({
+        vol.Required("program_id"): str,
+        vol.Optional("days"): vol.All(vol.Coerce(int), vol.Range(min=0, max=MAX_PAUSE_DAYS)),
+        vol.Optional("hours"): vol.All(vol.Coerce(int), vol.Range(min=0, max=MAX_PAUSE_DAYS * 24)),
+    }),
+    cv.has_at_least_one_key("days", "hours"),
+)
 RESUME = vol.Schema({vol.Required("program_id"): str})
 
 
 def _engine(hass: HomeAssistant) -> PlannerEngine:
     entries = hass.config_entries.async_loaded_entries(DOMAIN)
     if not entries:
-        raise ServiceValidationError("Weekly Planner is not loaded")
+        raise validation_error("not_loaded")
     return entries[0].runtime_data
 
 
@@ -45,7 +50,7 @@ def async_register(hass: HomeAssistant) -> None:
 
     async def pause(call: ServiceCall) -> None:
         await _check_edit(hass, call)
-        await _engine(hass).async_pause(call.data["program_id"], call.data["days"])
+        await _engine(hass).async_pause(call.data["program_id"], call.data.get("days"), call.data.get("hours"))
 
     async def resume(call: ServiceCall) -> None:
         await _check_edit(hass, call)

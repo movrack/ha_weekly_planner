@@ -23,14 +23,21 @@ pause:
       selector:
         text:
     days:
-      required: true
-      default: 1
+      required: false
       selector:
         number:
-          min: 1
+          min: 0
           max: 365
           mode: box
           unit_of_measurement: days
+    hours:
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 8760
+          mode: box
+          unit_of_measurement: hours
 
 resume:
   fields:

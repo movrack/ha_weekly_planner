@@ -225,11 +225,12 @@ async def test_resolve_refuses_unknown_option_and_real_options(hass, hass_storag
     assert _names(engine) == ["Home", "Away"]
 
 
-async def test_resolve_and_undo_are_for_administrators(hass, hass_storage, freezer, hass_ws_client,
+async def test_resolve_and_undo_follow_the_program_edit_rights(hass, hass_storage, freezer, hass_ws_client,
                                                        hass_read_only_access_token):
     Recorder(hass)
     choose(hass, "Home", ["Home", "Night"])
     engine = await setup(hass, hass_storage, freezer, [moded()], None, config=CONFIG)
+    engine.options = {**engine.options, "admin_only": True}
     ws = await hass_ws_client(hass, hass_read_only_access_token)
     for payload in ({"old": "Away", "new": "Night"}, {"old": "Away", "new": None}):
         await ws.send_json_auto_id({"type": f"{DOMAIN}/mode/resolve", **payload})
@@ -285,10 +286,11 @@ async def test_dismiss_rename_hides_the_notice_for_everybody_and_keeps_the_renam
     assert (await ws.receive_json())["error"]["code"] == "not_found"
 
 
-async def test_dismiss_rename_is_for_administrators(hass, hass_storage, freezer, hass_ws_client, hass_read_only_access_token):
+async def test_dismiss_rename_follows_the_program_edit_rights(hass, hass_storage, freezer, hass_ws_client, hass_read_only_access_token):
     Recorder(hass)
     choose(hass, "Home", ["Home", "Night"])
-    await setup(hass, hass_storage, freezer, [moded()], None, config=CONFIG)
+    engine = await setup(hass, hass_storage, freezer, [moded()], None, config=CONFIG)
+    engine.options = {**engine.options, "admin_only": True}
     ws = await hass_ws_client(hass, hass_read_only_access_token)
     await ws.send_json_auto_id({"type": f"{DOMAIN}/mode/dismiss_rename", "new": "Night"})
     assert (await ws.receive_json())["error"]["code"] == "unauthorized"

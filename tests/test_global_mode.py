@@ -251,9 +251,10 @@ async def test_set_mode_validates_and_renames_default_profiles(hass, hass_storag
     assert reply["success"] and engine.active_mode is None and "last_mode" not in engine.store.runtime
 
 
-async def test_set_mode_is_reserved_to_administrators(hass, hass_storage, freezer, hass_ws_client, hass_read_only_access_token):
+async def test_set_mode_follows_the_program_edit_rights(hass, hass_storage, freezer, hass_ws_client, hass_read_only_access_token):
     Recorder(hass)
     engine = await setup(hass, hass_storage, freezer, [program()], None)
+    engine.options = {**engine.options, "admin_only": True}  # only administrators edit: refused to a plain user
     ws = await hass_ws_client(hass, hass_read_only_access_token)
     await ws.send_json_auto_id({"type": f"{DOMAIN}/mode/set", "mode_selector": SELECTOR, "default_mode": "Home"})
     assert (await ws.receive_json())["error"]["code"] == "unauthorized"

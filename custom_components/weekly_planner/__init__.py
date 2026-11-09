@@ -14,6 +14,7 @@ from homeassistant.helpers.typing import ConfigType
 from . import services, websocket, yaml_file
 from .const import DOMAIN
 from .engine import PlannerEngine
+from .messages import message
 from .frontend import async_register_card, async_unregister_card
 from .registry import async_finish_mode_migration
 from .store import ConfigStoreError, PlannerStore
@@ -45,8 +46,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: WeeklyPlannerConfigEntry
         _LOGGER.error("Weekly Planner configuration unreadable, read-only mode: %s", err)
         persistent_notification.async_create(
             hass,
-            "The Weekly Planner configuration file could not be read. Programs are paused "
-            "and nothing will be overwritten. Restore `.storage/weekly_planner` from a backup.",
+            message(hass, "storage"),
             title="Weekly Planner",
             notification_id=f"{DOMAIN}_storage",
         )

@@ -16,6 +16,9 @@ from homeassistant.core import callback
 from homeassistant.helpers.selector import (
     EntitySelector,
     EntitySelectorConfig,
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -85,6 +88,8 @@ class WeeklyPlannerOptionsFlow(OptionsFlow):
         config = self._engine.store.config
         if user_input is not None:
             selector = user_input.pop(CONF_MODE_SELECTOR, None) or None
+            for key in (CONF_NOTIFY_DELAY_MIN, CONF_DEBOUNCE_MIN):  # number selectors give floats (both are required)
+                user_input[key] = int(user_input[key])
             try:
                 check_mode_config(selector, None, self.hass)
             except vol.Invalid as err:
@@ -113,11 +118,13 @@ class WeeklyPlannerOptionsFlow(OptionsFlow):
                 vol.Required(
                     CONF_NOTIFY_DELAY_MIN,
                     default=options.get(CONF_NOTIFY_DELAY_MIN, DEFAULT_NOTIFY_DELAY_MIN),
-                ): vol.All(int, vol.Range(min=1, max=1440)),
+                ): NumberSelector(NumberSelectorConfig(
+                    min=1, max=1440, step=1, mode=NumberSelectorMode.BOX, unit_of_measurement="min")),
                 vol.Required(
                     CONF_DEBOUNCE_MIN,
                     default=options.get(CONF_DEBOUNCE_MIN, DEFAULT_DEBOUNCE_MIN),
-                ): vol.All(int, vol.Range(min=0, max=60)),
+                ): NumberSelector(NumberSelectorConfig(
+                    min=0, max=60, step=1, mode=NumberSelectorMode.SLIDER, unit_of_measurement="min")),
                 selector_key: EntitySelector(EntitySelectorConfig(domain=list(MODE_SELECTOR_DOMAINS))),
             }
         )
@@ -126,8 +133,7 @@ class WeeklyPlannerOptionsFlow(OptionsFlow):
     async def _save_mode(self, selector: str | None, default_mode: str | None) -> None:
         """Save the global mode now: changed options reload the entry, which reads the store again."""
         await self._engine.async_set_mode_config(selector, default_mode)
-        store = self._engine.store
-        await store._config.async_save(store.config)  # a delayed save would be lost by the reload
+        await self._engine.store.async_flush_config()  # a delayed save would be lost by the reload
 
     def _known_options(self) -> list[str]:
         state = self.hass.states.get(self._selector or "")

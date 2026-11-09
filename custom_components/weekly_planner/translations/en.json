@@ -16,12 +16,14 @@
         "title": "Weekly Planner",
         "data": {
           "admin_only": "Only administrators can edit programs",
-          "reapply_default": "Send the current action again after a restart or a change (default for new programs)",
-          "notify_delay_min": "Notify when a device is still unavailable after (minutes)",
-          "debounce_min": "Minimum time a condition must hold before it starts or ends a slot (minutes)",
+          "reapply_default": "Send the current setting again after a restart or a change (default for new programs)",
+          "notify_delay_min": "Alert when a device has been unavailable for",
+          "debounce_min": "Wait before applying a change of condition",
           "mode_selector": "Mode selector (optional)"
         },
         "data_description": {
+          "notify_delay_min": "If a device driven by a schedule stays unavailable longer than this, Home Assistant shows a notification. The setting is sent again by itself when the device comes back.",
+          "debounce_min": "A program can have conditions that you add yourself, for example “someone is home” or “temperature > 24 °C”. When one of them changes, Weekly Planner waits this long before acting, to ignore brief flickers. 0 = immediately.",
           "mode_selector": "A Home Assistant selector (input_select or select) whose current choice is the active Mode of the house, for example Home, Away or Vacation. Weekly Planner only reads it and never changes it. Leave empty to have a single Mode."
         }
       },
@@ -49,7 +51,7 @@
   "entity": {
     "switch": {
       "vacation": {
-        "name": "All programs paused"
+        "name": "All programs suspended"
       }
     }
   },
@@ -80,7 +82,7 @@
     },
     "pause": {
       "name": "Pause",
-      "description": "Suspend a program for a number of days, then resume it automatically.",
+      "description": "Put a program on pause for a number of days and/or hours, then resume it automatically.",
       "fields": {
         "program_id": {
           "name": "Program",
@@ -88,7 +90,11 @@
         },
         "days": {
           "name": "Days",
-          "description": "How long the pause lasts, in days."
+          "description": "How long the pause lasts, in days (added to the hours)."
+        },
+        "hours": {
+          "name": "Hours",
+          "description": "How long the pause lasts, in hours (added to the days). Give at least the days or the hours."
         }
       }
     },
@@ -123,6 +129,50 @@
     "mode_option_missing": {
       "title": "Weekly Planner: a mode matches no option",
       "description": "These modes have schedules but are no longer an option of the mode selector: {modes}. They are kept, inactive, and nothing was erased. Options no program uses yet: {options}. Open the schedules screen to match each mode to an option, or to delete it."
+    }
+  },
+  "exceptions": {
+    "not_loaded": {
+      "message": "Weekly Planner is not loaded"
+    },
+    "pause_range": {
+      "message": "A pause lasts 1 hour to {max_days} days"
+    },
+    "unknown_program": {
+      "message": "Unknown program"
+    },
+    "source_unavailable": {
+      "message": "Value source is unavailable"
+    },
+    "source_missing": {
+      "message": "Value source is missing or unavailable"
+    },
+    "source_not_number": {
+      "message": "Value source is not a number"
+    },
+    "source_not_finite_number": {
+      "message": "Value source is not a finite number"
+    },
+    "source_not_boolean": {
+      "message": "Value source is not a boolean"
+    },
+    "source_not_text": {
+      "message": "Value source is not text"
+    },
+    "source_not_finite": {
+      "message": "Value source is not finite"
+    },
+    "source_unknown_type": {
+      "message": "Unknown value source type"
+    },
+    "source_unsupported_native": {
+      "message": "Unsupported native value source"
+    },
+    "source_needs_state": {
+      "message": "Value sources require Home Assistant state access"
+    },
+    "source_invalid": {
+      "message": "Invalid value source for {key}"
     }
   }
 }

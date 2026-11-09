@@ -16,12 +16,14 @@
         "title": "Weekly Planner",
         "data": {
           "admin_only": "Seuls les administrateurs peuvent modifier les programmes",
-          "reapply_default": "Refaire l'action en cours après un redémarrage ou une modification (valeur par défaut des nouveaux programmes)",
-          "notify_delay_min": "Prévenir quand un appareil reste indisponible après (minutes)",
-          "debounce_min": "Durée minimale d'une condition avant qu'elle commence ou termine un horaire (minutes)",
+          "reapply_default": "Refaire le réglage en cours après un redémarrage ou une modification (valeur par défaut des nouveaux programmes)",
+          "notify_delay_min": "Alerte si un appareil est indisponible depuis",
+          "debounce_min": "Attendre avant d'appliquer un changement de condition",
           "mode_selector": "Sélecteur de mode (facultatif)"
         },
         "data_description": {
+          "notify_delay_min": "Si un appareil piloté par un horaire reste indisponible plus longtemps que cette durée, Home Assistant affiche une notification. Le réglage est renvoyé tout seul au retour de l'appareil.",
+          "debounce_min": "Un programme peut avoir des conditions que vous ajoutez vous-même, par exemple « quelqu'un est présent » ou « température > 24 °C ». Quand l'une d'elles change, Weekly Planner attend cette durée avant d'agir, pour ignorer les oscillations brèves. 0 = tout de suite.",
           "mode_selector": "Un sélecteur de Home Assistant (input_select ou select) dont le choix actuel est le Mode actif de la maison, par exemple Maison, Absent ou Vacances. Weekly Planner le lit seulement, il ne le change jamais. Laisser vide pour n'avoir qu'un seul Mode."
         }
       },
@@ -80,7 +82,7 @@
     },
     "pause": {
       "name": "Mettre en pause",
-      "description": "Suspend un programme pendant quelques jours, puis le reprend automatiquement.",
+      "description": "Met un programme en pause pendant quelques jours et/ou heures, puis le reprend automatiquement.",
       "fields": {
         "program_id": {
           "name": "Programme",
@@ -88,7 +90,11 @@
         },
         "days": {
           "name": "Jours",
-          "description": "Durée de la pause, en jours."
+          "description": "Durée de la pause, en jours (à ajouter aux heures)."
+        },
+        "hours": {
+          "name": "Heures",
+          "description": "Durée de la pause, en heures (à ajouter aux jours). Indiquez au moins les jours ou les heures."
         }
       }
     },
@@ -123,6 +129,50 @@
     "mode_option_missing": {
       "title": "Weekly Planner : un mode ne correspond à aucune option",
       "description": "Ces modes ont des horaires mais ne sont plus une option du sélecteur de mode : {modes}. Ils sont conservés, inactifs, et rien n'a été effacé. Options qu'aucun programme n'utilise encore : {options}. Ouvrez l'écran des horaires pour rattacher chaque mode à une option, ou le supprimer."
+    }
+  },
+  "exceptions": {
+    "not_loaded": {
+      "message": "Weekly Planner n'est pas chargé"
+    },
+    "pause_range": {
+      "message": "Un programme se met en pause de 1 heure à {max_days} jours"
+    },
+    "unknown_program": {
+      "message": "Programme inconnu"
+    },
+    "source_unavailable": {
+      "message": "La source de la valeur est indisponible"
+    },
+    "source_missing": {
+      "message": "La source de la valeur est absente ou indisponible"
+    },
+    "source_not_number": {
+      "message": "La source de la valeur n'est pas un nombre"
+    },
+    "source_not_finite_number": {
+      "message": "La source de la valeur n'est pas un nombre fini"
+    },
+    "source_not_boolean": {
+      "message": "La source de la valeur n'est pas un booléen"
+    },
+    "source_not_text": {
+      "message": "La source de la valeur n'est pas du texte"
+    },
+    "source_not_finite": {
+      "message": "La source de la valeur n'est pas finie"
+    },
+    "source_unknown_type": {
+      "message": "Type de source de valeur inconnu"
+    },
+    "source_unsupported_native": {
+      "message": "Source de valeur native non prise en charge"
+    },
+    "source_needs_state": {
+      "message": "Les sources de valeur nécessitent l'accès aux états de Home Assistant"
+    },
+    "source_invalid": {
+      "message": "Source de valeur non valide pour {key}"
     }
   }
 }

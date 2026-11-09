@@ -144,7 +144,7 @@ async def test_explicit_empty_services_persist_and_never_call_devices(hass, hass
     await go_to(hass, freezer, tomorrow.replace(hour=9, minute=0, second=0, microsecond=0))
     await go_to(hass, freezer, tomorrow.replace(hour=13, minute=0, second=0, microsecond=0))
     assert recorder.calls == []  # neither the slot nor the default sends an action
-    await engine.store._config.async_save(engine.store.config)
+    await engine.store.async_flush_config()
     stored = hass_storage[DOMAIN]["data"]["programs"][0]["entities"][0]
     assert stored["restrict_services"] is True and stored["allowed_services"] == []
 

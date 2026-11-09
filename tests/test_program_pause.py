@@ -382,3 +382,38 @@ async def test_cancel_leaves_a_plain_suspension_alone(hass, hass_storage, freeze
     await engine.async_set_enabled("office", False)
     await engine.async_pause("office", None)
     assert engine.store.program("office")["enabled"] is False and _until(engine) is None
+
+
+async def test_pause_in_hours_and_days_plus_hours(hass, hass_storage, freezer):
+    _rec, engine = await _start(hass, hass_storage, freezer)
+    now = dt_util.utcnow()
+    await engine.async_pause("office", None, 1)
+    assert dt_util.parse_datetime(_until(engine)) == now + timedelta(hours=1)
+    await engine.async_pause("office", 2, 5)
+    assert dt_util.parse_datetime(_until(engine)) == now + timedelta(hours=53)
+    await engine.async_pause("office", 0, 6)
+    assert dt_util.parse_datetime(_until(engine)) == now + timedelta(hours=6)
+
+
+@pytest.mark.parametrize("days,hours", [(0, 0), (None, 0), (None, -1), (365, 1), (None, 8761), (1, True)])
+async def test_invalid_hours_are_rejected(hass, hass_storage, freezer, days, hours):
+    _rec, engine = await _start(hass, hass_storage, freezer)
+    with pytest.raises(ServiceValidationError):
+        await engine.async_pause("office", days, hours)
+    assert engine.store.program("office")["enabled"] is True and _until(engine) is None
+
+
+async def test_websocket_and_service_pause_in_hours(hass, hass_storage, freezer, hass_ws_client):
+    _rec, engine = await _start(hass, hass_storage, freezer, start=None)
+    ws = await hass_ws_client(hass)
+    now = dt_util.utcnow()
+    await ws.send_json_auto_id({"type": f"{DOMAIN}/program/pause", "program_id": "office", "hours": 1})
+    assert (await ws.receive_json())["success"]
+    assert dt_util.parse_datetime(_until(engine)) == now + timedelta(hours=1)
+    await ws.send_json_auto_id({"type": f"{DOMAIN}/program/pause", "program_id": "office"})  # neither: resume
+    assert (await ws.receive_json())["success"]
+    assert engine.store.program("office")["enabled"] is True and _until(engine) is None
+    await hass.services.async_call(DOMAIN, "pause", {"program_id": "office", "hours": 5}, blocking=True)
+    assert dt_util.parse_datetime(_until(engine)) == now + timedelta(hours=5)
+    with pytest.raises(vol.Invalid):  # days or hours is needed
+        await hass.services.async_call(DOMAIN, "pause", {"program_id": "office"}, blocking=True)

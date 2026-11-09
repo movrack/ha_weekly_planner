@@ -129,6 +129,10 @@ class PlannerStore:
         if mirror and self.on_config_saved is not None:
             self.on_config_saved()
 
+    async def async_flush_config(self) -> None:
+        """Write the configuration to disk now (a delayed save would be lost by a reload of the entry)."""
+        await self._config.async_save(self.config)
+
     def save_runtime(self) -> None:
         self._runtime.async_delay_save(lambda: self.runtime, 1)
 

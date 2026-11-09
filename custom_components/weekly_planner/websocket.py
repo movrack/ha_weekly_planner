@@ -412,16 +412,17 @@ async def ws_set_enabled(hass, connection, msg) -> None:
 @websocket_api.websocket_command({
     vol.Required("type"): f"{DOMAIN}/program/pause",
     vol.Required("program_id"): str,
-    vol.Required("days"): vol.Any(None, vol.All(int, vol.Range(min=1, max=MAX_PAUSE_DAYS))),
+    vol.Optional("days", default=None): vol.Any(None, vol.All(int, vol.Range(min=1, max=MAX_PAUSE_DAYS))),
+    vol.Optional("hours", default=None): vol.Any(None, vol.All(int, vol.Range(min=1, max=MAX_PAUSE_DAYS * 24))),
 })
 @websocket_api.async_response
 async def ws_pause(hass, connection, msg) -> None:
-    """Suspend a program for 1, 2, 7 or 14 days (``days`` null: resume now); open to everyone like set_enabled."""
+    """Suspend a program for ``days`` days and/or ``hours`` hours (neither: resume now); open to everyone like set_enabled."""
     engine = _engine(hass)
     if engine is None or engine.store.program(msg["program_id"]) is None:
         connection.send_error(msg["id"], "not_found", "Unknown program")
         return
-    await engine.async_pause(msg["program_id"], msg["days"])
+    await engine.async_pause(msg["program_id"], msg["days"], msg["hours"])
     connection.send_result(msg["id"])
 
 
@@ -432,10 +433,9 @@ async def ws_pause(hass, connection, msg) -> None:
 })
 @websocket_api.async_response
 async def ws_set_mode(hass, connection, msg) -> None:
-    """Set the global mode selector and the default mode (administrators only)."""
-    engine = _engine(hass)
-    if engine is None or not connection.user.is_admin:
-        connection.send_error(msg["id"], "unauthorized", "Mode settings are reserved to administrators")
+    """Set the global mode selector and the default mode (same rights as saving a program)."""
+    engine = _editor_engine(hass, connection, msg)
+    if engine is None:
         return
     try:
         selector = msg["mode_selector"] or None
@@ -458,11 +458,10 @@ async def ws_set_mode(hass, connection, msg) -> None:
 async def ws_resolve_mode(hass, connection, msg) -> None:
     """Match a mode with no option to an option (``new``), or delete it from every program (``new`` null).
 
-    Result: ``{renamed: [program ids], skipped: [program ids]}``. Administrators only.
+    Result: ``{renamed: [program ids], skipped: [program ids]}``. Same rights as saving a program.
     """
-    engine = _engine(hass)
-    if engine is None or not connection.user.is_admin:
-        connection.send_error(msg["id"], "unauthorized", "Mode settings are reserved to administrators")
+    engine = _editor_engine(hass, connection, msg)
+    if engine is None:
         return
     old, new = msg["old"], msg["new"]
     options = engine.mode_options()
@@ -482,10 +481,9 @@ async def ws_resolve_mode(hass, connection, msg) -> None:
 })
 @websocket_api.async_response
 async def ws_undo_mode_rename(hass, connection, msg) -> None:
-    """Reverse the latest automatic rename to ``new`` (administrators only)."""
-    engine = _engine(hass)
-    if engine is None or not connection.user.is_admin:
-        connection.send_error(msg["id"], "unauthorized", "Mode settings are reserved to administrators")
+    """Reverse the latest automatic rename to ``new`` (same rights as saving a program)."""
+    engine = _editor_engine(hass, connection, msg)
+    if engine is None:
         return
     record = await engine.async_undo_mode_rename(msg["new"])
     if record is None:
@@ -527,10 +525,9 @@ async def ws_mode_follow(hass, connection, msg) -> None:
 })
 @websocket_api.async_response
 async def ws_dismiss_mode_rename(hass, connection, msg) -> None:
-    """Hide the "Renamed from ..." notice of mode ``new`` for everybody (administrators only, like undo_rename)."""
-    engine = _engine(hass)
-    if engine is None or not connection.user.is_admin:
-        connection.send_error(msg["id"], "unauthorized", "Mode settings are reserved to administrators")
+    """Hide the "Renamed from ..." notice of mode ``new`` for everybody (same rights as saving a program)."""
+    engine = _editor_engine(hass, connection, msg)
+    if engine is None:
         return
     if not await engine.async_dismiss_mode_rename(msg["new"]):
         connection.send_error(msg["id"], "not_found", "No rename to dismiss for this mode")

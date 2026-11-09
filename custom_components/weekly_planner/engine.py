@@ -39,6 +39,7 @@ from .const import (
     VERIFY_SETTLE_S,
     VERIFY_TOLERANCE,
 )
+from .messages import async_reason, message, validation_error
 from .modes import (
     MAX_RENAMES, NO_PROFILE, apply_default_mode, delete_profile, detach_followers, mode_proposals, orphan_modes,
     profile_for_mode, rename_profile, set_follow, unambiguous_rename,
@@ -940,7 +941,7 @@ class PlannerEngine:
             _LOGGER.warning("Action %s refused by %s: %s", action, entity_id, err)
             rt.pop("service_retry", None)
             rt.pop("retry_at", None)
-            self._notify_failure(entity_id, action, str(err))
+            self._notify_failure(entity_id, action, await async_reason(self.hass, err))
             self._persist()
             return
         except Exception as err:  # noqa: BLE001 - other failures are retried with a backoff
@@ -1103,14 +1104,14 @@ class PlannerEngine:
         action = self.rt(entity_id).get("target") or {}
         target_entity_id = action.get("target_entity_id", entity_id)
         persistent_notification.async_create(
-            self.hass, f"{target_entity_id} is unavailable: its scheduled action is still waiting.",
+            self.hass, message(self.hass, "unavailable", entity=target_entity_id),
             title="Weekly Planner", notification_id=f"{DOMAIN}_{entity_id}_failed")
         self._log(entity_id, "failed", {"action": self.rt(entity_id).get("target")})
 
     def _notify_failure(self, entity_id: str, action: dict, reason: str | None = None) -> None:
         persistent_notification.async_create(
             self.hass,
-            f"{entity_id}: {action.get('service') or action.get('scene')} could not be run."
+            message(self.hass, "failed", entity=entity_id, action=action.get("service") or action.get("scene"))
             + (f" {reason}" if reason else ""),
             title="Weekly Planner",
             notification_id=f"{DOMAIN}_{entity_id}_failed",
@@ -1189,19 +1190,23 @@ class PlannerEngine:
                     self.rt(eid)["target"] = None
         await self._async_recompute("disable")
 
-    async def async_pause(self, program_id: str, days: int | None) -> None:
-        """Suspend one program for ``days`` x 24 h from now (``None``: cancel its pause and resume it now)."""
-        if days is not None and (isinstance(days, bool) or not isinstance(days, int) or not 1 <= days <= MAX_PAUSE_DAYS):
-            raise ServiceValidationError(f"A pause lasts 1 to {MAX_PAUSE_DAYS} days")
+    async def async_pause(self, program_id: str, days: int | None, hours: int | None = None) -> None:
+        """Suspend one program for ``days`` x 24 h + ``hours`` from now (neither given: cancel its pause and resume it now)."""
+        for value in (days, hours):
+            if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
+                raise validation_error("pause_range", max_days=str(MAX_PAUSE_DAYS))
+        total = (days or 0) * 24 + (hours or 0) if (days is not None or hours is not None) else None
+        if total is not None and not 1 <= total <= MAX_PAUSE_DAYS * 24:
+            raise validation_error("pause_range", max_days=str(MAX_PAUSE_DAYS))
         async with self._lock:
             program = self.store.program(program_id)
             if not program:
-                raise ServiceValidationError("Unknown program")
-            if days is None:
+                raise validation_error("unknown_program")
+            if total is None:
                 if program.get("paused_until"):  # only a pause is cancelled; a plain suspension stays
                     await self._async_set_enabled(program_id, True)
                 return
-            program["paused_until"] = (dt_util.utcnow() + timedelta(days=days)).isoformat()
+            program["paused_until"] = (dt_util.utcnow() + timedelta(hours=total)).isoformat()
             if program.get("enabled", True):
                 await self._async_set_enabled(program_id, False, keep_pause=True)  # default applied once
             else:
