@@ -1,0 +1,43 @@
+# Weekly Planner: annotated example of /config/www/weekly_planner.yml (copy, adapt, save the real file).
+# A valid change is imported within 30 seconds (or call the weekly_planner.reload action).
+# An invalid file changes nothing: a repair issue shows the error.
+version: 1
+vacation: false            # legacy global pause switch; leave false
+mode_selector: input_select.house_mode   # input_select or select entity whose state is the active mode; null = a single mode
+default_mode: Home         # option that receives the schedules when no mode is known; null without selector
+
+labels:                    # "settings": a name, a colour and what to do on the device
+  - id: comfort
+    name: Comfort
+    color: "#ff9800"
+    action: {kind: service, service: climate.set_temperature, data: {temperature: 21}}
+  - id: eco
+    name: Eco
+    color: "#4caf50"
+    action: {kind: service, service: climate.set_temperature, data: {temperature: 17}}
+
+programs:
+  - id: living-room       # stable id, keep it when renaming
+    name: Living room
+    enabled: true
+    priority: 10          # 1-100; the highest priority wins when two programs target a device
+    entities:             # 1-100 devices; any entity that has a service the label calls
+      - entity_id: climate.living_room   # use a real entity of your Home Assistant
+        default_label: eco                # applied "the rest of the time"
+        label_overrides: {}               # per-device action for a label, same shape as `action`
+    modes:                # one entry per mode; a mode is a weekly schedule. Keep a mode's name to keep its history
+      Home:               # the name of an option of the mode selector (or of the default mode)
+        mon: &workday
+          - {id: morning, start: {time: "06:30"}, end: {time: "08:30"}, label: comfort}
+          - {id: evening, start: {time: "18:00"}, end: {time: "22:30"}, label: comfort}
+        tue: *workday
+        wed: *workday
+        thu: *workday
+        fri: *workday
+        sat: [{id: weekend-day, start: {time: "08:00"}, end: {time: "23:00"}, label: comfort}]
+        sun: [{id: sun-day, start: {time: "08:00"}, end: {time: "23:00"}, label: comfort}]
+        # Solar times: start: {sun: sunset, offset: -30, earliest: "17:00", latest: "21:00"}
+      Away:               # a day left out (or []) has no schedule
+        mon: [{id: away-day, start: {time: "09:00"}, end: {time: "17:00"}, label: eco}]
+      Holiday:            # a mode can follow another one instead of having schedules of its own
+        follows: Home     # always the schedules of Home (a change in Home shows here at once); Home must follow nobody

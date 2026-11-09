@@ -47,6 +47,16 @@ const TARGET_FIELDS = new Set(["entity_id", "device_id", "area_id", "floor_id", 
 let loaded: Localize | undefined;
 const requested = new Set<string>();
 
+/** Told each time translations arrive, so every component that shows a service name can draw it again (not only the one that asked). */
+const nameListeners = new Set<() => void>();
+let namesVersion = 0;
+/** Changes each time translations arrive: part of the key of anything memoized that holds a service name. */
+export const serviceNamesVersion = (): number => namesVersion;
+export function onServiceNames(fn: () => void): () => void {
+  nameListeners.add(fn);
+  return () => { nameListeners.delete(fn); };
+}
+
 /** Loads the translations of the services of some integrations (once per domain). */
 export async function loadServiceNames(hass: HomeAssistant, domains: string[]): Promise<boolean> {
   const fresh = [...new Set(domains)].filter((d) => !requested.has(d));
@@ -55,6 +65,8 @@ export async function loadServiceNames(hass: HomeAssistant, domains: string[]): 
   try {
     const results = await Promise.all(fresh.map((d) => hass.loadBackendTranslation!("services", d)));
     loaded = results[results.length - 1] ?? loaded;
+    namesVersion++;
+    nameListeners.forEach((fn) => fn());
     return true;
   } catch {
     fresh.forEach((d) => requested.delete(d));

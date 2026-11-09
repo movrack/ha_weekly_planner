@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 import math
 from typing import Any
 
-from homeassistant.exceptions import ServiceValidationError
+from .messages import validation_error
 
 # Domains whose services only administrators may schedule (spec § 9).
 SENSITIVE_DOMAINS = frozenset({
@@ -85,21 +85,21 @@ def source_value(source: dict, get_state: Callable[[str], Any]) -> Any:
     """Read a source at call time; never substitute an unavailable value or a stored fallback."""
     state = get_state(source["entity_id"])
     if state is None or state.state in ("unknown", "unavailable"):
-        raise ServiceValidationError("Value source is unavailable")
+        raise validation_error("source_unavailable")
     attribute = source.get("attribute")
     value = state.attributes.get(attribute) if attribute else state.state
     if value is None or value in ("unknown", "unavailable", ""):
-        raise ServiceValidationError("Value source is missing or unavailable")
+        raise validation_error("source_missing")
     kind = source["type"]
     if kind == "number":
         if isinstance(value, bool) or not isinstance(value, (str, int, float)):
-            raise ServiceValidationError("Value source is not a number")
+            raise validation_error("source_not_number")
         try:
             value = float(value)
         except (ValueError, OverflowError) as err:
-            raise ServiceValidationError("Value source is not a number") from err
+            raise validation_error("source_not_number") from err
         if not math.isfinite(value):
-            raise ServiceValidationError("Value source is not a finite number")
+            raise validation_error("source_not_finite_number")
         return value
     if kind == "boolean":
         if isinstance(value, bool):
@@ -108,15 +108,15 @@ def source_value(source: dict, get_state: Callable[[str], Any]) -> Any:
             return bool(value)
         if isinstance(value, str) and value.lower() in ("on", "off", "true", "false", "yes", "no", "1", "0"):
             return value.lower() in ("on", "true", "yes", "1")
-        raise ServiceValidationError("Value source is not a boolean")
+        raise validation_error("source_not_boolean")
     if kind == "string":
         if not isinstance(value, (str, int, float, bool)):
-            raise ServiceValidationError("Value source is not text")
+            raise validation_error("source_not_text")
         if isinstance(value, float) and not math.isfinite(value):
-            raise ServiceValidationError("Value source is not finite")
+            raise validation_error("source_not_finite")
         return str(value)
     if kind != "native":
-        raise ServiceValidationError("Unknown value source type")
+        raise validation_error("source_unknown_type")
     _check_native_source(value)
     return deepcopy(value)
 
@@ -124,7 +124,7 @@ def source_value(source: dict, get_state: Callable[[str], Any]) -> Any:
 def _check_native_source(value: Any) -> None:
     """Native attribute values must remain valid service-data values, including nested numbers."""
     if isinstance(value, float) and not math.isfinite(value):
-        raise ServiceValidationError("Value source is not finite")
+        raise validation_error("source_not_finite")
     if isinstance(value, dict):
         for item in value.values():
             _check_native_source(item)
@@ -132,7 +132,7 @@ def _check_native_source(value: Any) -> None:
         for item in value:
             _check_native_source(item)
     elif value is not None and not isinstance(value, (str, int, float, bool)):
-        raise ServiceValidationError("Unsupported native value source")
+        raise validation_error("source_unsupported_native")
 
 
 def call_for(entity_id: str, action: dict, get_state: Callable[[str], Any] | None = None) -> Call:
@@ -143,9 +143,9 @@ def call_for(entity_id: str, action: dict, get_state: Callable[[str], Any] | Non
     data = dict(action.get("data") or {})
     for key, source in action.get("data_sources", {}).items():
         if get_state is None:
-            raise ServiceValidationError("Value sources require Home Assistant state access")
+            raise validation_error("source_needs_state")
         try:
             data[key] = source_value(source, get_state)
         except (KeyError, TypeError, AttributeError) as err:
-            raise ServiceValidationError(f"Invalid value source for {key}") from err
+            raise validation_error("source_invalid", key=key) from err
     return Call(domain, service, data, target_entity_id=action.get("target_entity_id", entity_id))

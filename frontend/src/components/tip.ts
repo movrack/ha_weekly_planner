@@ -1,6 +1,7 @@
 // A small tooltip for an icon: shown on mouse hover and keyboard focus, and for about 2 s after a tap. The hit
 // target is at least 32 px; pointer events stop here so a tap neither enters bar editing nor selects a slot.
 
+import { tokenStyles } from "../styles";
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
@@ -14,6 +15,10 @@ export class WpTip extends LitElement {
   @property({ type: Boolean }) passive = false;
   /** A mouse press goes through to what is below (hover still shows the text); a touch shows it, as usual. */
   @property({ type: Boolean }) through = false;
+  /** Accessible name when it must say more than the bubble (for example the device); defaults to `text`. */
+  @property() label = "";
+  /** Not a tab stop (the owner of the marker carries its information in its own accessible name); hover and tap still show it. */
+  @property({ type: Boolean, attribute: "no-tab" }) noTab = false;
   private _mouse = false;
   @state() private _show = false;
   @state() private _shift = 0;
@@ -59,7 +64,7 @@ export class WpTip extends LitElement {
   }
 
   render() {
-    return html`<span class="hit" part="hit" tabindex="0" role="img" aria-label=${this.text}
+    return html`<span class="hit" part="hit" tabindex=${this.noTab ? -1 : 0} role="img" aria-label=${this.label || this.text}
         @pointerenter=${(e: PointerEvent) => { if (e.pointerType === "mouse") this._on(); }}
         @pointerleave=${(e: PointerEvent) => { if (e.pointerType === "mouse") this._off(); }}
         @focus=${() => this._on()} @blur=${() => this._off()}
@@ -73,17 +78,18 @@ export class WpTip extends LitElement {
   }
 
   static styles = css`
+    ${tokenStyles}
     :host { display: inline-flex; position: relative; pointer-events: auto; }
     :host([passive]) { pointer-events: none; }
     .hit {
       min-width: 32px; min-height: 32px; display: inline-flex; align-items: center; justify-content: center;
       outline: none; border-radius: 16px; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
     }
-    .hit:focus-visible { outline: 2px solid var(--primary-color); }
+    .hit:focus-visible { outline: 2px solid var(--wp-primary-text); }
     .bubble {
       position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(calc(-50% + var(--shift, 0px)));
       z-index: 10; padding: 4px 8px; border-radius: 6px; white-space: nowrap; pointer-events: none;
-      background: var(--primary-text-color); color: var(--card-background-color, #fff); font-size: 12px; font-weight: 500;
+      background: var(--primary-text-color); color: var(--card-background-color, #fff); font-size: 0.75rem; font-weight: 500;
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
     }
   `;

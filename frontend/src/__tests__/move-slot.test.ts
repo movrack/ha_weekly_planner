@@ -87,14 +87,14 @@ describe("slot action bar wording", () => {
   it("names the split and the copy clearly, in both languages", () => {
     expect(t("fr", "cut")).toBe("Couper en deux");
     expect(t("en", "cut")).toBe("Split in two");
-    expect(t("fr", "copy_to")).toBe("Copier vers…");
+    expect(t("fr", "copy_to")).toBe("Copier sur d’autres jours");
     expect(t("fr", "cut_hint")).not.toBe(t("fr", "copy_hint"));
     for (const lang of ["fr", "en"]) for (const k of ["grp_time", "grp_days", "move_err_wrap", "move_err_oneshot", "move_err_sunbound"] as const) expect(t(lang, k)).not.toBe(k);
   });
 });
 
 describe("bar gesture", () => {
-  const program: any = { id: "p", revision: 1, entities: [{ entity_id: "climate.a" }], active_profile: "m", profiles: [{ id: "m", name: "M", days: [[slot("1", "08:00", "10:00")], [], [], [], [], [], []] }] };
+  const program: any = { id: "p", revision: 1, entities: [{ entity_id: "climate.a" }], profiles: [{ id: "m", name: "M", days: [[slot("1", "08:00", "10:00")], [], [], [], [], [], []] }] };
   const make = () => {
     const el = new WpBarEditor() as any;
     Object.assign(el, { hass, data: { profiles: [], programs: [program], labels: [], status: {}, can_edit: true }, program, entityId: "climate.a", weekday: 0, editing: true });

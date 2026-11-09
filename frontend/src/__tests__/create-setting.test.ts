@@ -5,7 +5,7 @@ import { find, flat } from "./helpers/tpl";
 
 const slot = { id: "s", start: { time: "08:00" }, end: { time: "09:00" }, label: "l" };
 const program = (id: string, entities: string[], filled: boolean) => ({
-  id, name: id, revision: 1, priority: 10, enabled: true, reapply: true, conditions: [], active_profile: "a",
+  id, name: id, revision: 1, priority: 10, enabled: true, reapply: true, conditions: [],
   entities: entities.map((e) => ({ entity_id: e, default_label: null, label_overrides: {} })),
   profiles: [{ id: "a", name: "A", days: [filled ? [slot] : [], [], [], [], [], [], []] }],
 });
@@ -28,7 +28,9 @@ describe("Create a setting (card)", () => {
   });
   it("shows one button per empty device of a program with several devices (D4)", () => {
     const c = card([program("p", ["switch.a", "switch.b"], false)]);
-    expect(flat(c._bySchedule(c._data.programs)).match(/class="create"/g)).toHaveLength(2);
+    expect(flat(c._bySchedule(c._data.programs)).match(/class="create"/g)).toHaveLength(1);
+    c._pickDevice(c._data.programs[0], "switch.b"); // the other device has its own button
+    expect(flat(c._bySchedule(c._data.programs)).match(/class="create"/g)).toHaveLength(1);
   });
   it("does not show it when there are slots", () => {
     const c = card([program("p", ["switch.a"], true)]);

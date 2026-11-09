@@ -7,7 +7,7 @@ from typing import Final
 DOMAIN: Final = "weekly_planner"
 
 STORAGE_KEY: Final = DOMAIN
-STORAGE_VERSION: Final = 2
+STORAGE_VERSION: Final = 3
 STORAGE_MINOR_VERSION: Final = 1
 
 CONF_ADMIN_ONLY: Final = "admin_only"
@@ -27,3 +27,9 @@ VERIFY_SETTLE_S: Final = 8  # seconds the device gets to show the requested attr
 VERIFY_TOLERANCE: Final = 0.05  # numbers closer than this are equal
 VERIFY_MIN_INTERVAL_S: Final = 60  # at least this long between two re-sends of a segment
 VERIFY_MAX_TRIES: Final = 10  # re-sends per segment, then the planner gives up (warning)
+
+# Global mode (docs/adr/0001): the selector entity and the option used when no valid mode is known.
+CONF_MODE_SELECTOR: Final = "mode_selector"
+CONF_DEFAULT_MODE: Final = "default_mode"
+MODE_SELECTOR_DOMAINS: Final = ("input_select", "select")
+MODE_NAME_MAX: Final = 40

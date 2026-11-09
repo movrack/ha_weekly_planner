@@ -13,7 +13,7 @@ function setup(focusedDay: number | null = null) {
   const days = () => Array.from({ length: 7 }, () => [] as typeof slot[]);
   const program: Program = {
     id: "p", name: "Office", revision: 1, priority: 10, enabled: true, reapply: true,
-    conditions: [], entities: [{ entity_id: "switch.demo", default_label: null, label_overrides: {} }], active_profile: "home",
+    conditions: [], entities: [{ entity_id: "switch.demo", default_label: null, label_overrides: {} }],
     profiles: [{ id: "home", name: "Home", days: days() }, { id: "away", name: "Away", days: days() }],
   };
   program.profiles[0].days[0] = [slot];
@@ -59,7 +59,7 @@ describe("delete an edited schedule slot", () => {
   it("deletes only the focused day and original mode without saving the label draft", async () => {
     const { view, program } = setup(0);
     view._labelDraft = { problem: "Invalid label draft" };
-    view.data.status.p = { active_profile: "away" };
+    view.data.mode = { selector: "input_select.m", default: "Home", active: "Away", options: ["Home", "Away"], available: true };
     await view._deleteRow();
     expect(confirmAction).toHaveBeenCalledOnce();
     expect(view.hass.callWS).toHaveBeenCalledOnce();
@@ -119,6 +119,6 @@ describe("duplicate a solar slot", () => {
     const { view, program } = setup();
     view.hass.callWS = vi.fn(async () => { throw { message: "value must be at most 240 for dictionary value @ offset" }; });
     await view._saveProgram(program);
-    expect(view._error).toBe("A time is out of range. Shorten the delay or pick a time.");
+    expect(view._error).toBe("A time is out of range. Shorten the offset or pick a time.");
   });
 });

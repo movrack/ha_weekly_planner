@@ -4,6 +4,8 @@ import { domainIcon } from "../domains";
 import { strings } from "../i18n";
 // @ts-ignore raw source import (vite)
 import src from "../card-editor.ts?raw";
+// @ts-ignore raw source import (vite)
+import styleSrc from "../styles.ts?raw";
 
 describe("setting names shown to people", () => {
   const hass = (translations: Record<string, string> = {}, services: any = {}) =>
@@ -38,7 +40,7 @@ describe("vocabulary", () => {
     expect(fr.ce_schedule_view).toBe("Présentation de la journée");
     expect(fr.ce_area_hint).toContain("Réglages des programmes > Général");
     expect(fr.chart_day).toBe("Graphique du jour");
-    expect(fr.planned).toBe("Programme");
+    expect(fr.planned).toBe("Prévu");
     expect(fr.measured).toBe("Valeur mesurée");
     expect(fr.ch_set).toBe("Demandé à l’appareil");
     expect(fr.ce_type_count).toBe("{on} sur {total}");
@@ -49,7 +51,7 @@ describe("vocabulary", () => {
 
 describe("card editor layout guards (360 px)", () => {
   it("notice button wraps inside its box", () => {
-    expect(src).toMatch(/\.notice \.btn \{[^}]*max-width: 100%[^}]*white-space: normal/);
+    expect(styleSrc).toMatch(/\.callout \.btn \{[^}]*max-width: 100%[^}]*white-space: normal/);
   });
   it("program name never breaks mid-word; type chips wrap and are 44 px tall", () => {
     expect(src).toMatch(/\.type-title \{[^}]*overflow-wrap: normal/);

@@ -105,6 +105,24 @@ describe("setting picker behaviour in the modal", () => {
     expect(drafts.at(-1)).toBeNull();
     expect(drafts[0].id).toBe("t21");
   });
+  it("keeps the per-device value in the action picker's advanced slot, open only when a device value is set", () => {
+    const flag = (v: any): boolean[] => {
+      if (Array.isArray(v)) return v.flatMap(flag);
+      if (!v?.strings) return [];
+      return v.strings.flatMap((str: string, i: number) => {
+        const val = v.values[i];
+        return (str.endsWith("?advanced-open=") ? [Boolean(val)] : []).concat(flag(val));
+      });
+    };
+    const el = make({ embedded: true });
+    el._open(true);
+    const html = flat(el.render());
+    expect(html).toContain('slot="advanced"');
+    expect(html).toContain("Value for this device");
+    expect(flag(el.render())).toEqual([false]);
+    el._ov = { "climate.a": { kind: "service", service: "climate.set_temperature", data: { temperature: 18 } } };
+    expect(flag(el.render())).toEqual([true]);
+  });
   it("does not open an edit form without a chosen setting", () => {
     const el = make({ value: null });
     el._open(true);

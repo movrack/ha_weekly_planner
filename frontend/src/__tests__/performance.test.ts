@@ -43,7 +43,7 @@ function slotsOf(prefix: string, count: number, length = 20): Slot[] {
 
 function bigProgram(index: number): Program {
   const days = Array.from({ length: 7 }, (_, d) => slotsOf(`p${index}d${d}s`, 6, 60));
-  return { id: `p${index}`, name: `P${index}`, priority: 10, enabled: true, revision: 1, active_profile: "base",
+  return { id: `p${index}`, name: `P${index}`, priority: 10, enabled: true, revision: 1,
     entities: [0, 1, 2, 3].map((k) => ({ entity_id: `switch.p${index}e${k}`, label_overrides: {} })),
     profiles: [{ id: "base", name: "Base", days }] } as unknown as Program;
 }
@@ -95,7 +95,7 @@ describe("card render", () => {
     const compute = vi.spyOn(card, "_computeSpans");
     card.render();
     const bars = compute.mock.calls.length;
-    expect(bars).toBe(10 * 4); // one today bar per entity (week rows are collapsed)
+    expect(bars).toBe(10); // one today bar per program: a program shows one device at a time (week rows are collapsed)
     card.render();
     card.render();
     expect(compute).toHaveBeenCalledTimes(bars); // same inputs: memoized

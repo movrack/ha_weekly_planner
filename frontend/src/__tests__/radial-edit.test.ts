@@ -34,7 +34,7 @@ const editor = (view: string): any => {
   el.view = view;
   el.entityId = "switch.test";
   el.hass = { states: {}, services: {}, config: { time_zone: "UTC" } };
-  el.program = { id: "radial-test", revision: 1, entities: [{ entity_id: "switch.test" }], active_profile: "home", profiles: [{ id: "home", days: [[{ id: "a", label: "x", start: { time: "08:00" }, end: { time: "12:00" } }, { id: "b", label: "y", start: { time: "12:00" }, end: { time: "18:00" } }]] }] };
+  el.program = { id: "radial-test", revision: 1, entities: [{ entity_id: "switch.test" }], profiles: [{ id: "home", days: [[{ id: "a", label: "x", start: { time: "08:00" }, end: { time: "12:00" } }, { id: "b", label: "y", start: { time: "12:00" }, end: { time: "18:00" } }]] }] };
   el.data = { programs: [el.program], labels: [], status: {} };
   return el;
 };

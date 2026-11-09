@@ -37,7 +37,7 @@ describe("named program bands", () => {
     expect(out).toContain('fill=#ff8800');
     expect(out).toContain('x=134 y="2" width=108');
     expect(out).not.toContain('>Programme</div>');
-    expect(flat(c._legend(c._model))).toContain("Programme · bandes nommées");
+    expect(flat(c._legend(c._model))).toContain("Prévu · réglages nommés");
   });
   it("retains numeric staircases without bands and handles mixed zones", () => {
     const c = chart();
@@ -51,7 +51,7 @@ describe("named program bands", () => {
     const out = flat(c._renderChart(c._model));
     expect(out.match(/class="program-band"/g)).toHaveLength(2);
     expect(out.match(/class="plan"/g)).toHaveLength(1);
-    expect(flat(c._legend(c._model))).toContain("Programme · paliers et bandes nommées");
+    expect(flat(c._legend(c._model))).toContain("Prévu · paliers et réglages nommés");
     c.data.labels[0].action.data = { temperature: 10 };
     c._model = c._build(c._loaded);
     expect(flat(c._renderChart(c._model))).not.toContain('class="program-band"');

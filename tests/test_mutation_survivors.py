@@ -3,6 +3,7 @@
 from datetime import date, datetime, timedelta, UTC
 
 from custom_components.weekly_planner.const import DEFAULT_PRIORITY
+from custom_components.weekly_planner.modes import EMPTY_PROFILE, NO_PROFILE
 from custom_components.weekly_planner.resolver import active_profile, next_transition
 from custom_components.weekly_planner.timeline import occurrence
 
@@ -51,9 +52,10 @@ def test_active_profile_follows_the_selected_mode_and_falls_back():
     prog = program("a", 1, [])
     prog["profiles"].append({"id": "q", "name": "Other", "days": prog["profiles"][0]["days"]})
     assert active_profile(prog, {"a": "q"})["id"] == "q"
-    prog["active_profile"] = "q"
-    assert active_profile(prog, {})["id"] == "q"
+    prog["active_profile"] = "q"  # a stale per-program choice is ignored
+    assert active_profile(prog, {})["id"] == "p"
     assert active_profile(prog, {"a": "missing"})["id"] == "p"
+    assert active_profile(prog, {"a": NO_PROFILE}) is EMPTY_PROFILE  # no profile for the mode: no schedule
 
 
 def test_next_transition_looks_two_days_ahead_and_picks_the_earliest():

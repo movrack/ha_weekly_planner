@@ -38,7 +38,7 @@ describe("delete a setting from the modal", () => {
     const el = make([prog("Salon", "a"), prog("Bureau", "a")], vi.fn());
     el._confirmDel = true;
     const html = flat(el.render());
-    expect(html).toContain("still used by: Salon, Bureau");
+    expect(html).toContain("still in use: Salon, Bureau");
     expect(html).not.toContain("danger-line\" ?disabled");
     expect(html).toContain("Close");
   });
@@ -57,7 +57,7 @@ describe("delete a setting from the modal", () => {
     const el = make([], vi.fn().mockRejectedValue({ code: "in_use", message: "Salon" }));
     el._confirmDel = true;
     await el._delete(el.data.labels[0]);
-    expect(flat(el.render())).toContain("still used by: Salon");
+    expect(flat(el.render())).toContain("still in use: Salon");
     const el2 = make([], vi.fn().mockRejectedValue({ code: "boom" }));
     el2._confirmDel = true;
     await el2._delete(el2.data.labels[0]);

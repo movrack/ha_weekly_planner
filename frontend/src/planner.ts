@@ -1,7 +1,7 @@
 // Shared data access: one subscription per page, helpers to read programs and labels.
 
 import { syncPreviewCache } from "./preview-cache";
-import type { HomeAssistant, PlannerData, Program } from "./types";
+import type { HomeAssistant, PlannerData, Profile, Program, Slot } from "./types";
 
 type Listener = (data: PlannerData) => void;
 
@@ -55,9 +55,35 @@ export function subscribePlanner(hass: HomeAssistant, listener: Listener): () =>
 
 export const entityDomain = (entityId: string): string => entityId.split(".")[0];
 
-export function activeProfile(program: Program, data: PlannerData) {
-  const wanted = data.status[program.id]?.active_profile ?? program.active_profile;
-  return program.profiles.find((p) => p.id === wanted) ?? program.profiles[0];
+/** Stand-in for a program with no schedule for the active mode (only "the rest of the time" applies). */
+const NO_SCHEDULE = { id: "", name: "", days: [[], [], [], [], [], [], []] } as Profile;
+
+/**
+ * The schedules a program follows now. The mode is global: the schedules named after the active mode,
+ * the first ones when there is no mode, none (an empty week) when the program has none for that mode.
+ */
+export function activeProfile(program: Program, data: PlannerData): Profile {
+  const own = ownProfile(program, data);
+  return own ? effectiveProfile(program, own) : NO_SCHEDULE;
+}
+
+/** The schedules named after the active mode (the first ones without a mode), whatever they follow. */
+function ownProfile(program: Program, data: PlannerData): Profile | undefined {
+  const mode = data.mode?.selector ? data.mode.active : null;
+  return mode == null ? program.profiles[0] : program.profiles.find((p) => p.name === mode);
+}
+
+/** The schedules that apply for `profile`: those of the mode it follows (one step), else its own. */
+export function effectiveProfile(program: Program, profile: Profile): Profile {
+  if (!profile.follows) return profile;
+  const source = program.profiles.find((p) => p.name === profile.follows);
+  return source && source !== profile && !source.follows ? source : profile;
+}
+
+/** Name of the mode the active mode of the program follows; null when it follows none. */
+export function activeFollow(program: Program, data: PlannerData): string | null {
+  const own = ownProfile(program, data);
+  return own && effectiveProfile(program, own) !== own ? own.follows ?? null : null;
 }
 
 export function friendlyName(hass: HomeAssistant, entityId: string): string {
@@ -97,6 +123,15 @@ export function filterPrograms(data: PlannerData, config: { program?: string; fi
 
 export function newId(): string {
   return Math.random().toString(16).slice(2, 14).padEnd(12, "0");
+}
+
+/** Independent copies of slots: fresh ids, and no explicit random seed (it follows the new id). */
+export function cloneSlots(slots: Slot[]): Slot[] {
+  return slots.map((s) => {
+    const copy = { ...structuredClone(s), id: newId() };
+    delete copy.seed;
+    return copy;
+  });
 }
 
 /* ---- number formatting ---- */

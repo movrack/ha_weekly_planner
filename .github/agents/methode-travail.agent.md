@@ -1,5 +1,5 @@
 ---
-# Fichier généré par ~/.config/ai-agents/sync.sh — ne pas éditer. Source : ~/.config/ai-agents/agents/methode-travail.md
+# Generated file, do not edit: regenerate it from the agent source.
 name: "Méthode de travail"
 description: "Mode d'emploi commun du dépôt weekly-planner — avant de commencer, façon de travailler, commits, versions, délégation, mise à jour des règles. À suivre par toute IA qui y travaille, à l'identique."
 argument-hint: "Tâche à réaliser sur weekly-planner"
@@ -33,7 +33,7 @@ le suit à l'identique. En cas de doute ou de conflit, `AGENTS.md` et `docs/DECI
   ajouter l'entrée du `CHANGELOG.md`.
 - Docs destinées aux utilisateurs (wiki, guide, READMEs) : ne décrire que le produit actuel — pas d'historique, pas de
   « ancien / ex- / remplacé », pas de légende de capture datée par version ; l'historique va dans CHANGELOG/DECISIONS.
-- Avant la v1.0.0, TOUTES les captures (docs/images/guide, images du wiki) doivent être refaites avec l'interface finale ;
+- Avant la v1.0.0, TOUTES les captures (wiki/images/guide) doivent être refaites avec l'interface finale ;
   d'ici là elles peuvent être en retard mais ne portent jamais de numéro de version.
 - Renuméroter l'atlas des écrans à la release v1.0.0 (trous de numérotation admis d'ici là).
 - Rendre compte fidèlement, sans enjoliver : **fait** / **vérifié** (avec la preuve) / **non vérifié** /
@@ -101,7 +101,7 @@ Agents en parallèle qui modifient des fichiers : chacun dans son worktree git, 
 Ne pas les recopier : appliquer les sections de `AGENTS.md` — découverte générique (aucun catalogue
 d'appareils codé en dur), un seul modèle pour tous les appareils, étiquettes et modes, pas de secrets,
 interface (écran 360 × 780, thèmes clair et sombre, peu de texte, icônes `mdi:`, une seule paire
-Enregistrer / Annuler), et déploiement (`scripts/deploy_prod.sh`, simulation par défaut).
+Enregistrer / Annuler), et déploiement (script local propre à l’installation du propriétaire, hors dépôt).
 
 ## Mise à jour des règles
 Automatique : dès que le propriétaire donne une règle, une préférence ou une correction, l'enregistrer
@@ -110,8 +110,6 @@ Automatique : dès que le propriétaire donne une règle, une préférence ou un
    courte et sans référence à un outil. Note de travail partagée : `PROJECT_MEMORY.md`.
 2. Si la règle existe déjà ailleurs, la mettre à jour au lieu de la dupliquer. Si elle contredit une règle
    existante, le signaler au propriétaire avant d'écraser.
-3. Si elle modifie ce mode d'emploi : éditer la **source** `~/.config/ai-agents/agents/methode-travail.md`
-   puis lancer `~/.config/ai-agents/sync.sh` (ne jamais éditer les copies générées).
 4. Dire au propriétaire en une ligne ce qui a été enregistré et où.
 5. Ne jamais garder une règle uniquement dans la mémoire ou la configuration privée d'un seul outil.
 

@@ -28,7 +28,7 @@ describe("quantity legend #41", () => {
     h.localize = undefined; h.language = "fr";
     expect(chartLegend(h, "custom.probe", "%", "set")).toBe("Valeur demandée");
     expect(chartLegend(h, "custom.probe", "", "measured")).toBe("Valeur mesurée");
-    expect(chartLegend(h, "custom.probe", "", "planned")).toBe("Programme");
+    expect(chartLegend(h, "custom.probe", "", "planned")).toBe("Prévu");
   });
 });
 
@@ -41,8 +41,8 @@ it("connects plotted attributes to the rendered planned/measured/requested legen
   c.program = { id: "test", revision: 1, entities: [] };
   const out = flat(c._legend({ unit: "°F", quantityField: "temperature", measuredField: c._live({ s: "heat", a: {}, t: 0 }).measuredField, lines: [{key:"measured"},{key:"set"}],
     markers: [{}], planned: {steps:[], zones:[]}, shade:[], manual:[] }));
-  expect(out).toContain("Programme · Température cible (°F)");
-  expect(out).toContain("Mesure · Température actuelle (°F)");
-  expect(out).toContain("Demande · Température cible (°F)");
+  expect(out).toContain("Prévu · Température cible (°F)");
+  expect(out).toContain("Mesuré · Température actuelle (°F)");
+  expect(out).toContain("Demandé · Température cible (°F)");
   expect(out).not.toContain("°C");
 });

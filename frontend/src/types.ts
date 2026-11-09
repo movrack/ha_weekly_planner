@@ -74,6 +74,8 @@ export interface Profile {
   id: string;
   name: string;
   days: Slot[][]; // 0 = Monday … 6 = Sunday
+  /** Name of the mode this one follows: its schedules are those of that mode (this one has none of its own). */
+  follows?: string;
 }
 
 export interface ChartSource {
@@ -106,19 +108,17 @@ export interface Program {
   area?: string | null;
   priority: number;
   enabled: boolean;
+  paused_until?: string;
   reapply: boolean;
   conditions: Condition[];
   entities: ProgramEntity[];
-  active_profile?: string | null;
-  mode_source?: { entity_id: string; mappings: Record<string, string> };
   profiles: Profile[];
 }
 
 export interface ProgramStatus {
   program_id: string;
-  active_profile: string | null;
-  mode_source_state?: string | null;
-  mode_source_status?: "matched" | "unmapped" | "unavailable";
+  /** The program has no schedule for the active mode. */
+  no_schedule_for_mode?: boolean;
   current_slots: Record<string, string>;
   next_change: string | null;
   skip_next: string | null;
@@ -127,7 +127,26 @@ export interface ProgramStatus {
   next_actions?: Record<string, { at: string; action: Action; label: string | null }>;
 }
 
+/** The global mode (one for the whole house), read from an external selector. */
+export interface ModeInfo {
+  /** Entity read for the mode; null when there is a single mode. */
+  selector: string | null;
+  default: string | null;
+  active: string | null;
+  options: string[];
+  available: boolean;
+  /** Modes some program still has schedules for although the selector no longer offers them. */
+  orphans?: string[];
+  /** For each orphan mode, the new options it may have become. */
+  proposals?: { old: string; candidates: string[] }[];
+  /** Renames applied automatically, oldest first (`at`: ISO date-time). */
+  renamed?: { old: string; new: string; at: string }[];
+  /** Modes that stopped following a mode that went away (they kept a copy of its last schedules), oldest first. */
+  follow_lost?: { source: string; modes: string[]; programs: string[]; at: string }[];
+}
+
 export interface PlannerData {
+  mode?: ModeInfo;
   vacation: boolean;
   labels: Label[];
   programs: Program[];

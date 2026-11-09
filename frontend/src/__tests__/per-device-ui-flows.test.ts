@@ -48,7 +48,7 @@ function program(over: Partial<Program> = {}): Program {
   return {
     id: `p${++seq}`, name: "Salon", revision: 1, priority: 10, enabled: true, reapply: true, conditions: [],
     entities: [{ entity_id: CLIMATE, default_label: null, label_overrides: {} }, { entity_id: COVER, default_label: null, label_overrides: {} }],
-    active_profile: "home", profiles: [{ id: "home", name: "Home", days: d }, { id: "away", name: "Away", days: days() }], ...over,
+    profiles: [{ id: "home", name: "Home", days: d }, { id: "away", name: "Away", days: days() }], ...over,
   } as Program;
 }
 const data = (programs: Program[], over: any = {}): any => ({ programs, labels, status: {}, can_edit: true, read_only: false, ...over });
@@ -127,6 +127,7 @@ describe("card: per-device bars (owner case)", () => {
     p.profiles[0].days = days();
     p.profiles[0].days[0] = [structuredClone(t15)];
     const c = card([p]);
+    c._pickDevice(p, COVER); // a program shows one device at a time
     const html = flat(c._bySchedule([p]));
     expect(html.match(/class="create"/g)).toHaveLength(1);
     find(c._bySchedule([p]), "click", 'class="create"').fn();
@@ -381,7 +382,7 @@ function bar(p: Program, entityId: string, weekday: number) {
   const b = new WpBarEditor() as any;
   let live = p;
   b.program = p;
-  b.data = data([p], { status: { [p.id]: { active_profile: "home" } } });
+  b.data = data([p], { status: {} });
   b.entityId = entityId; b.weekday = weekday;
   const emitted: any[] = [];
   b._emit = (name: string, detail: any) => emitted.push({ name, detail });
@@ -537,7 +538,7 @@ function editor(p: Program) {
   e.dispatchEvent = () => true;
   e.requestUpdate = vi.fn();
   e.hass = hass({ connection: {}, callWS: vi.fn(async (m: any) => (m.type === "weekly_planner/get" ? { programs: [p] } : m.type === "weekly_planner/program/save" ? { program: { ...m.program, revision: 2 } } : {})) });
-  e.data = data([p], { status: { [p.id]: { active_profile: "home" } } });
+  e.data = data([p], { status: {} });
   e.program = p;
   e.renderRoot = { querySelector: vi.fn(() => null), querySelectorAll: () => [] };
   Object.defineProperty(e, "updateComplete", { value: Promise.resolve(true) });
@@ -592,14 +593,5 @@ describe("program editor: device confirmations", () => {
     find(e._renderEntity(e._p.entities[1], 1), "click", 'class="notice"').fn();
     expect(e._p.profiles[0].days[1]).toEqual([expect.objectContaining({ id: "s3" })]);
     expect(e._p.profiles[0].days[1][0].entities).toBeUndefined(); // the shared 15 °C slot is left alone
-  });
-  it("a mode copy keeps the device lists", () => {
-    const p = program();
-    const e = editor(p);
-    e._profileForm = { mode: "copy", name: "Copy" };
-    e._submitProfileForm();
-    const copy = e._p.profiles.find((x: any) => x.name === "Copy");
-    expect(copy.days[0].map((s: Slot) => s.entities)).toEqual([[CLIMATE], [COVER]]);
-    expect(copy.days[0][0].id).not.toBe("s1");
   });
 });

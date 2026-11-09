@@ -73,6 +73,12 @@ describe("schedule and chart horizontal geometry", () => {
       // A secondary scale sits inside the right edge instead of moving 24h.
       expect(out).toContain(`class="source-axis" text-anchor="end"`);
       expect(out).toContain(`<text x=${right - 4} y="10"`);
+      // 2.5.3: the interactive svg (role=button) holds no <text>; every tick is drawn by the aria-hidden sibling svg
+      const [button, rest] = [out.slice(0, out.indexOf("</svg>")), out.slice(out.indexOf("</svg>"))];
+      expect(button).toContain('role="button"');
+      expect(button).not.toContain("<text");
+      expect(rest).toMatch(/<svg class="txt"[^>]*aria-hidden="true"/);
+      expect(rest.slice(0, rest.indexOf("</svg>", 6))).toContain('class="xlab"');
     } finally { vi.useRealTimers(); }
   });
   it("uses theme colors for readable overlaid secondary scales", () => {

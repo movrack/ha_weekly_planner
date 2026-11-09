@@ -9,19 +9,21 @@ import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.util import dt as dt_util
 
 from .const import CONF_ADMIN_ONLY, DEFAULT_PRIORITY, DOMAIN
 from .checks import program_warnings
-from .engine import PlannerEngine
+from .engine import MAX_PAUSE_DAYS, PlannerEngine
 from .frontend import CARD_VERSION_KEY
 from .resolver import OccurrenceCache, active_profile, occurrences_around
 from .slots import normalise_slot_entities, remove_device_from_slots
 from .store import new_id
 from .actions import needs_admin
-from .validation import PROGRAM, ProgramError, admin_required, check_label, check_program, label_users, with_defaults
+from .modes import apply_default_mode
+from .validation import (
+    PROGRAM, ProgramError, admin_required, check_label, check_mode_config, check_program, keep_pause, label_users, with_defaults,
+)
 
 
 async def _descriptions(hass: HomeAssistant) -> dict | None:
@@ -56,7 +58,8 @@ def _editor_engine(hass: HomeAssistant, connection, msg) -> PlannerEngine | None
 @callback
 def async_register(hass: HomeAssistant) -> None:
     for handler in (ws_get, ws_subscribe, ws_program_save, ws_program_delete, ws_label_save,
-                    ws_label_delete, ws_preview, ws_journal, ws_set_enabled, ws_set_profile):
+                    ws_label_delete, ws_preview, ws_journal, ws_set_enabled, ws_pause, ws_set_mode,
+                    ws_resolve_mode, ws_undo_mode_rename, ws_mode_follow, ws_dismiss_mode_rename):
         websocket_api.async_register_command(hass, handler)
 
 
@@ -72,7 +75,7 @@ def _is_inactive_mode_edit(engine: PlannerEngine, existing: dict, program: dict)
     old_mode = next((p for p in old["profiles"] if p["id"] == active_id), None)
     new_mode = next((p for p in program["profiles"] if p["id"] == active_id), None)
     return (old["profiles"] != program["profiles"] and metadata(old) == metadata(program)
-            and old_mode is not None and old_mode == new_mode)
+            and old_mode == new_mode)
 
 
 def _snapshot(engine: PlannerEngine) -> dict[str, Any]:
@@ -93,6 +96,17 @@ def _snapshot_data(engine: PlannerEngine) -> dict[str, Any]:
     return {
         "vacation": engine.store.config.get("vacation", False),
         "labels": engine.store.config.get("labels", []),
+        "mode": {
+            "selector": engine.store.config.get("mode_selector"),
+            "default": engine.store.config.get("default_mode"),
+            "active": engine.active_mode,
+            "options": engine.mode_options(),
+            "available": engine.mode_available,
+            "orphans": engine.mode_orphans(),
+            "proposals": engine.mode_proposals(),
+            "renamed": engine.mode_renames(),
+            "follow_lost": engine.mode_follow_lost(),
+        },
         "programs": engine.store.programs,
         "status": {p["id"]: engine.program_status(p["id"]) for p in engine.store.programs},
         "warnings": {p["id"]: program_warnings(engine.hass, engine.store.programs, p, engine)
@@ -214,6 +228,7 @@ async def ws_program_save(hass, connection, msg) -> None:
     if existing and existing.get("revision", 0) != program.get("revision", 0):
         connection.send_error(msg["id"], "conflict", "Modified elsewhere, reload")
         return
+    program = keep_pause(existing, program, keep_enabled=True)  # an edit never ends a pause
     chart_metadata_only = _chart_metadata_only(existing, program, engine.reapply_default)
     inactive_mode_edit = bool(existing) and _is_inactive_mode_edit(engine, existing, program)
     program["revision"] = program.get("revision", 0) + 1
@@ -221,6 +236,9 @@ async def ws_program_save(hass, connection, msg) -> None:
     if existing:
         engine.store.programs[engine.store.programs.index(existing)] = program
     else:
+        config = engine.store.config
+        if config.get("mode_selector"):  # a new program starts under the default mode
+            apply_default_mode([program], config.get("default_mode"), engine.mode_options())
         engine.store.programs.append(program)
     engine.store.save_config()
     await engine.async_config_changed(reapply=not inactive_mode_edit, metadata_only=chart_metadata_only)
@@ -392,20 +410,126 @@ async def ws_set_enabled(hass, connection, msg) -> None:
 
 
 @websocket_api.websocket_command({
-    vol.Required("type"): f"{DOMAIN}/program/set_profile",
+    vol.Required("type"): f"{DOMAIN}/program/pause",
     vol.Required("program_id"): str,
-    vol.Required("profile_id"): str,
+    vol.Optional("days", default=None): vol.Any(None, vol.All(int, vol.Range(min=1, max=MAX_PAUSE_DAYS))),
+    vol.Optional("hours", default=None): vol.Any(None, vol.All(int, vol.Range(min=1, max=MAX_PAUSE_DAYS * 24))),
 })
 @websocket_api.async_response
-async def ws_set_profile(hass, connection, msg) -> None:
-    """Select a manual mode with the same access as the native select."""
+async def ws_pause(hass, connection, msg) -> None:
+    """Suspend a program for ``days`` days and/or ``hours`` hours (neither: resume now); open to everyone like set_enabled."""
     engine = _engine(hass)
     if engine is None or engine.store.program(msg["program_id"]) is None:
         connection.send_error(msg["id"], "not_found", "Unknown program")
         return
+    await engine.async_pause(msg["program_id"], msg["days"], msg["hours"])
+    connection.send_result(msg["id"])
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/mode/set",
+    vol.Required("mode_selector"): vol.Any(None, str),
+    vol.Required("default_mode"): vol.Any(None, str),
+})
+@websocket_api.async_response
+async def ws_set_mode(hass, connection, msg) -> None:
+    """Set the global mode selector and the default mode (same rights as saving a program)."""
+    engine = _editor_engine(hass, connection, msg)
+    if engine is None:
+        return
     try:
-        await engine.async_set_profile(msg["program_id"], msg["profile_id"])
-    except ServiceValidationError as err:
+        selector = msg["mode_selector"] or None
+        state = hass.states.get(selector) if selector else None
+        options = [o for o in state.attributes.get("options") or [] if isinstance(o, str)] if state else None
+        settings = check_mode_config(selector, msg["default_mode"], hass, options)
+    except vol.Invalid as err:
         connection.send_error(msg["id"], "invalid", str(err))
+        return
+    renamed = await engine.async_set_mode_config(settings["mode_selector"], settings["default_mode"])
+    connection.send_result(msg["id"], {**settings, "renamed_programs": renamed})
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/mode/resolve",
+    vol.Required("old"): str,
+    vol.Required("new"): vol.Any(None, str),
+})
+@websocket_api.async_response
+async def ws_resolve_mode(hass, connection, msg) -> None:
+    """Match a mode with no option to an option (``new``), or delete it from every program (``new`` null).
+
+    Result: ``{renamed: [program ids], skipped: [program ids]}``. Same rights as saving a program.
+    """
+    engine = _editor_engine(hass, connection, msg)
+    if engine is None:
+        return
+    old, new = msg["old"], msg["new"]
+    options = engine.mode_options()
+    if old in options:
+        connection.send_error(msg["id"], "invalid", "This mode is still an option of the selector")
+        return
+    if new is not None and new not in options:
+        connection.send_error(msg["id"], "invalid", "Unknown option of the mode selector")
+        return
+    renamed, skipped = await engine.async_resolve_mode(old, new)
+    connection.send_result(msg["id"], {"renamed": renamed, "skipped": skipped})
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/mode/undo_rename",
+    vol.Required("new"): str,
+})
+@websocket_api.async_response
+async def ws_undo_mode_rename(hass, connection, msg) -> None:
+    """Reverse the latest automatic rename to ``new`` (same rights as saving a program)."""
+    engine = _editor_engine(hass, connection, msg)
+    if engine is None:
+        return
+    record = await engine.async_undo_mode_rename(msg["new"])
+    if record is None:
+        connection.send_error(msg["id"], "not_found", "No rename to undo for this mode")
+        return
+    connection.send_result(msg["id"], {"old": record["old"], "new": record["new"]})
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/program/mode_follow",
+    vol.Required("program_id"): str,
+    vol.Required("mode"): vol.All(str, vol.Length(min=1, max=40)),
+    vol.Required("follows"): vol.Any(None, vol.All(str, vol.Length(min=1, max=40))),
+})
+@websocket_api.async_response
+async def ws_mode_follow(hass, connection, msg) -> None:
+    """In a program, make a mode follow another one (its schedules are those of the source), or (``follows`` null)
+    stop following: the mode keeps a copy of the schedules of the source. Same rights as saving a program."""
+    engine = _editor_engine(hass, connection, msg)
+    if engine is None:
+        return
+    if not engine.store.config.get("mode_selector"):
+        connection.send_error(msg["id"], "invalid", "Modes need a mode selector")
+        return
+    try:
+        program = await engine.async_set_mode_follow(msg["program_id"], msg["mode"], msg["follows"])
+    except ValueError as err:
+        connection.send_error(msg["id"], "invalid", str(err))
+        return
+    if program is None:
+        connection.send_error(msg["id"], "not_found", "Unknown program")
+        return
+    connection.send_result(msg["id"], {"program": program})
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/mode/dismiss_rename",
+    vol.Required("new"): str,
+})
+@websocket_api.async_response
+async def ws_dismiss_mode_rename(hass, connection, msg) -> None:
+    """Hide the "Renamed from ..." notice of mode ``new`` for everybody (same rights as saving a program)."""
+    engine = _editor_engine(hass, connection, msg)
+    if engine is None:
+        return
+    if not await engine.async_dismiss_mode_rename(msg["new"]):
+        connection.send_error(msg["id"], "not_found", "No rename to dismiss for this mode")
         return
     connection.send_result(msg["id"])

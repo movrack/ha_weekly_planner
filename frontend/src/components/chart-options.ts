@@ -6,6 +6,7 @@ import { sourceColor, sourceKind, sourceUnit, sourceUnits, knownStates, stateNam
 import type { SourcePoint } from "../chart-sources";
 import type { ChartSource, HomeAssistant, PlannerData, Program } from "../types";
 import { t } from "../i18n";
+import { callout, calloutStyles } from "../styles";
 import "../editors/shared";
 
 @customElement("wp-chart-options")
@@ -127,20 +128,21 @@ export class WpChartOptions extends LitElement {
         .exclude=${[this.entityId, ...this._sources.map(s => s.entity_id)]}
         @wp-change=${(e: CustomEvent<string>) => { e.stopPropagation(); this._add(e.detail); }}></wp-entity-picker>` : nothing}
       <p role="status">${this._saving ? t(lang, "chart_sources_saving") : this._done ? t(lang, "chart_sources_saved") : ""}</p>
-      ${this._error ? html`<p class="error" role="alert">${this._error}</p>` : nothing}
+      ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
     </details>`;
   }
   static styles = css`
+    ${calloutStyles}
     :host { display:block; margin-top:8px; }
     details { border:1px solid var(--divider-color); border-radius:12px; padding:0 10px; }
-    summary { min-height:44px; display:list-item; align-content:center; cursor:pointer; font-size:14px; }
+    summary { min-height:44px; display:list-item; align-content:center; cursor:pointer; font-size:0.875rem; }
     section { padding:8px 0; border-top:1px solid var(--divider-color); }
     .source { display:flex; gap:8px; align-items:center; } .source span { flex:1; overflow-wrap:anywhere; }
     i { display:inline-block; width:10px; height:10px; border-radius:50%; flex:none; }
     button { min-width:44px; min-height:44px; border:0; background:transparent; color:inherit; cursor:pointer; --mdc-icon-size:20px; }
     button:disabled { opacity:.4; } .states { display:flex; flex-wrap:wrap; gap:4px 12px; }
-    label { display:flex; align-items:center; gap:6px; min-height:44px; font-size:14px; }
+    label { display:flex; align-items:center; gap:6px; min-height:44px; font-size:0.875rem; }
     input[type="text"] { min-width:0; width:100%; box-sizing:border-box; min-height:44px; color:var(--primary-text-color); background:var(--card-background-color); border:1px solid var(--divider-color); border-radius:4px; padding:8px; }
-    small, p { color:var(--secondary-text-color); font-size:12px; } p:empty { display:none; } .error { color:var(--error-color); }
+    small, p { color:var(--secondary-text-color); font-size:0.75rem; } p:empty { display:none; } .callout p { font-size:0.875rem; color:var(--primary-text-color); }
   `;
 }

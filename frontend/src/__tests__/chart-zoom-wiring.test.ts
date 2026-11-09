@@ -214,7 +214,7 @@ describe("rendering when zoomed", () => {
     const html = flat(c.render());
     expect(html).toContain("mdi:magnify-minus-outline");
     expect(html).toContain("Return to selected day");
-    expect(html).toContain("08:00 – 10:00");
+    expect(html.replace(/\u00a0|\u202f/g, " ")).toContain("8 am – 10 am");
     find(c.render(), "click", "return-day").fn();
     expect(win(c)).toBeNull();
   });

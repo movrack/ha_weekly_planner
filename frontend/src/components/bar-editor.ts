@@ -7,7 +7,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { ifDefined } from "lit/directives/if-defined.js";
 import { repeat } from "lit/directives/repeat.js";
 import "./day-bar";
-import "./radial-day";
+import { radialHoverTarget } from "./radial-day";
 import { radialPointerMinute, radialPosition, radialDelta, radialSegments } from "../radial";
 import "./dialog";
 import "./label-picker";
@@ -20,13 +20,16 @@ import {
 } from "../edits";
 import type { At, DayCtx, Handle, Target } from "../edits";
 import { editorStyles } from "../editors/shared";
+import { callout } from "../styles";
 import { devicesOf, isShared, isolateForDevice, remergeIdentical, undoSlots } from "../device-edits";
 import { dismissHoldHint, HOLD_HINT_MS, takeHoldHint } from "../hold-hint";
 import { slotDeviceError, strings, t } from "../i18n";
 import { appliedAction, labelName, labelOf, labelsFor } from "../labels";
+import { onServiceNames } from "../services";
 import { activeProfile, newId } from "../planner";
 import { applicable, applies, normaliseEntities, shiftTimeSpec, specMinutes } from "../slots";
 import { DAY, clockToMinutes, fmtClock, localMinutes } from "../time";
+import { selectedTimeText } from "../selected-time";
 import type { HomeAssistant, PlannerData, PreviewSlot, Program, Slot } from "../types";
 
 const LONG_PRESS_MS = 450;
@@ -62,6 +65,8 @@ export class WpBarEditor extends LitElement {
   @property({ type: Boolean }) editable = false;
   /** Hour labels under the bar (today's bar only). */
   @property({ type: Boolean }) hours = false;
+  /** Names the day-editing button for assistive technology (the program, and the device when there are several). */
+  @property({ attribute: "device-name" }) deviceName = "";
   @property() lang = "en";
   @property() tz = "UTC";
   @property() view = "bar";
@@ -84,6 +89,8 @@ export class WpBarEditor extends LitElement {
   /** An edit touches a slot shared with other devices: "This device" / "All (N)" is asked before saving (D1). */
   @state() private _ask: { op: DevOp; touched: number[]; ids: string[]; profileId: string; count: number; others: string[] } | null = null;
   @state() private _hover = false;
+  /** Keep identity rather than cached text: minute ticks and drafts update an open tooltip. */
+  @state() private _tip: number | "now" | null = null;
   /** A slot is being dragged: the strip is hidden so that the other day bars come back within reach. */
   @state() private _moving = false;
   /** "Press and hold to edit" shown after a plain tap (first times only). */
@@ -183,8 +190,16 @@ export class WpBarEditor extends LitElement {
     }
   }
 
+  private _offNames?: () => void;
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    this._offNames = onServiceNames(() => this.requestUpdate());
+  }
+
   disconnectedCallback(): void {
     super.disconnectedCallback();
+    this._offNames?.();
     this._listen(false);
     window.clearTimeout(this._clearTimer);
     window.clearTimeout(this._errTimer);
@@ -303,6 +318,7 @@ export class WpBarEditor extends LitElement {
 
   /** Keyboard: Enter or Space on the focused bar does what a click does. */
   private _zoneKey(e: KeyboardEvent): void {
+    if (e.key === "Escape") this._tip = null;
     if (this.editing || e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
     e.preventDefault();
     if (this.editable) {
@@ -368,7 +384,7 @@ export class WpBarEditor extends LitElement {
 
   private _radialOverlay() {
     const sel = this._sel;
-    return html`<div class="ov polar" @pointerdown=${this._ovDown} @pointermove=${this._ovMove}
+    return html`<div class="ov polar" title=${this._tipText || this._selectedTime} aria-label=${this._selectedTime} @pointerdown=${this._ovDown} @pointermove=${this._ovMove}
       @pointerup=${this._ovUp} @pointercancel=${this._ovCancel}>
       ${sel ? html`<svg class="polar-selection" viewBox="0 0 320 320" aria-hidden="true">
         ${radialSegments([{ start: sel.start, end: sel.end ?? sel.start, marker: sel.end === null, color: "", label: "" }], this.view === "radial_12h").map(s => {
@@ -384,9 +400,9 @@ export class WpBarEditor extends LitElement {
         return html`<button class="hd dot" style="left:${p.x / 3.2}%;top:${p.y / 3.2}%" role="slider"
           aria-valuemin="0" aria-valuemax="1440" aria-valuenow=${b.m} aria-valuetext=${this._clock(b.m)}
           aria-label=${t(this.lang, "handle", { time: this._clock(b.m) })} data-h=${`${ref.id}:${ref.edge}`}
-          @keydown=${(e: KeyboardEvent) => this._key(e, ref)} @focus=${() => (this._hsel = ref)}><i></i></button>`;
+          @keydown=${(e: KeyboardEvent) => this._key(e, ref)} @focus=${() => { this._hsel = ref; this._selected = { kind: "slot", id: ref.id }; this._focusSlotTip(ref.id); }} @blur=${() => { this._tip = null; }}><i></i></button>`;
       })}
-      ${this._bubble || sel ? html`<div class="polar-time">${this._bubble?.text ?? (this._bubble ? this._clock(this._bubble.m) : `${this._clock(sel!.start)}${sel!.end === null ? "" : `–${this._clock(sel!.end)}`}`)}</div>` : nothing}
+      ${!this._selectedTime && this._bubble ? html`<div class="polar-time">${this._bubble.text ?? this._clock(this._bubble.m)}</div>` : nothing}
     </div>`;
   }
 
@@ -418,6 +434,7 @@ export class WpBarEditor extends LitElement {
       this._drag = { ref: near.refs[0], m0: near.m, x0: e.clientX, id: e.pointerId, moved: false, last: near.m,
         profileId: activeProfile(this._live, this.data).id, weekday: this.weekday, ctx: this._ctx() };
       this._hsel = near.refs[0];
+      this._selected = { kind: "slot", id: near.refs[0].id };
       e.preventDefault();
       // a long press without moving turns the grab into a move of the whole slot under the finger (slots are
       // often narrower than the two 44 px handle zones, so the body cannot always be reached otherwise)
@@ -838,7 +855,9 @@ export class WpBarEditor extends LitElement {
     const sel = this._sel;
     if (!sel?.slot) return;
     const id = sel.slot.id;
-    if (!(await confirmAction(this, t(this.lang, "w_confirm_slot"), t(this.lang, "yes"), t(this.lang, "no")))) return;
+    const lbl = labelOf(this.data, sel.slot.label);
+    const what = [lbl ? labelName(this.hass, lbl) : "", this._selectedTime].filter(Boolean).join(" · ");  // say which schedule goes away
+    if (!(await confirmAction(this, `${t(this.lang, "w_confirm_slot")}${what ? ` ${what}` : ""}`, t(this.lang, "slot_delete_yes"), t(this.lang, "slot_delete_no")))) return;
     this._selected = null;
     this._edit((days, of) => this._with(days, this.weekday, removeSlot(days[this.weekday], of(id))), [this.weekday], [id]);
   }
@@ -914,6 +933,95 @@ export class WpBarEditor extends LitElement {
     return out;
   }
 
+  /** Read from the draft on every pointer update; eff() intentionally clips the drawing at midnight. */
+  private get _selectedTime(): string {
+    const sel = this._sel;
+    if (!sel) return "";
+    const slot = sel.slot;
+    const text = selectedTimeText(this.lang, sel.start, slot?.end ? this._at(slot.end) : sel.end,
+      slot?.start, slot?.end);
+    return this._bubble?.text ? `${text} · ${this._bubble.text}` : text;
+  }
+
+  private _spanTip(span: BarSpan): string {
+    const sourceDay = span.spill ? activeProfile(this._live, this.data).days[(this.weekday + 6) % 7] ?? [] : this._day;
+    const slot = sourceDay.find(s => s.id === span.slotId);
+    const resolved = !this._draft || span.spill ? this.preview?.find(r => r.slot_id === span.slotId) : undefined;
+    // Drawing is clipped at midnight; the complete occurrence retains its stored/resolved end.
+    const startSpec = slot?.start ?? span.startSpec;
+    const endSpec = slot?.end ?? span.endSpec;
+    const start = startSpec && "time" in startSpec ? clockToMinutes(startSpec.time)
+      : resolved ? localMinutes(resolved.start, this.tz) : slot ? this._at(slot.start) : span.start;
+    const end = span.marker || (slot && !slot.end) ? null
+      : endSpec && "time" in endSpec ? clockToMinutes(endSpec.time)
+      : resolved?.end ? localMinutes(resolved.end, this.tz) : slot?.end ? this._at(slot.end) : span.end;
+    return `${span.label} · ${selectedTimeText(this.lang, start, end, slot?.start ?? span.startSpec ?? undefined, slot?.end ?? span.endSpec)}`;
+  }
+
+  private get _tipText(): string {
+    if (this._tip === "now") return this.now === null ? "" : t(this.lang, "now_time", { time: fmtClock(this.lang, this.now) });
+    const span = this._tip === null ? undefined : this._spansNow()[this._tip];
+    return span ? this._spanTip(span) : "";
+  }
+
+  /** Observe existing gesture surfaces; this never catches a press or alters handle hit targets. */
+  private _tipMove(e: PointerEvent): void {
+    if (e.pointerType !== "mouse" || e.buttons || this._drag || this._mv) { this._tip = null; return; }
+    const spans = this._spansNow();
+    if (this._radial) {
+      const face = this.renderRoot.querySelector(".radial-face");
+      if (face) this._tip = radialHoverTarget(spans, this.now, this.view === "radial_12h", e.clientX, e.clientY, face.getBoundingClientRect());
+      return;
+    }
+    const bar = this.renderRoot.querySelector("wp-day-bar")?.shadowRoot?.querySelector(".bar");
+    if (!bar) return;
+    const r = bar.getBoundingClientRect();
+    if (e.clientY < r.top - 4 || e.clientY > r.bottom + 4 || e.clientX < r.left || e.clientX > r.right) { this._tip = null; return; }
+    const m = (e.clientX - r.left) / r.width * DAY;
+    // Sixteen CSS pixels around the 2px line, without an intercepting hit element.
+    this._tip = this.now !== null && Math.abs(m - this.now) * r.width / DAY <= 8 ? "now" : null;
+    if (this._tip !== "now") for (let i = spans.length - 1; i >= 0; i--) {
+      const span = spans[i];
+      if (span.ignored) continue;
+      if (span.marker ? Math.abs(m - span.start) * r.width / DAY <= 8 : m >= span.start && m < span.end) { this._tip = i; break; }
+    }
+  }
+
+  private _focusSlotTip(id: string): void {
+    const i = this._spansNow().findIndex(span => span.slotId === id && !span.spill);
+    this._tip = i < 0 ? null : i;
+  }
+
+  /** Accessible name of the bar while it is not being edited: what it does, for which device and day, then what it shows. */
+  /** Names drawn on the bar, reported by the bar itself (it knows which ones fit). */
+  @state() private _barText = "";
+
+  private _zoneLabel(): string {
+    const day = strings(this.lang).days[this.weekday] ?? "";
+    const what = this.deviceName ? t(this.lang, "edit_bar_of", { name: this.deviceName, day }) : t(this.lang, "edit_bar");
+    const shown = this._spansNow().filter((span) => !span.ignored).map((span) => this._spanTip(span));
+    if (this.now !== null) shown.push(t(this.lang, "now_time", { time: fmtClock(this.lang, this.now) }));
+    const named = shown.length ? `${what} : ${shown.join(" ; ")}` : what;
+    // WCAG 2.5.3: the name starts with the text drawn on the bar (the action names), then adds the context
+    return !this._radial && this._barText ? `${this._barText}, ${named}` : named;
+  }
+
+  private _tipTargets() {
+    const target = (key: number | "now", text: string, m: number, from: number, to: number) => {
+      const p = this._radial ? radialPosition(m, this.view === "radial_12h") : null;
+      // not a tab stop: the zone is, and its name carries this text
+      return html`<span class="tip-target" aria-hidden="true" title=${text}
+        style=${p ? `left:${p.x / 3.2}%;top:${p.y / 3.2}%;width:24px;height:24px;transform:translate(-50%,-50%)`
+          : key === "now" ? `left:${m / DAY * 100}%;top:-4px;bottom:-4px;width:16px;transform:translateX(-50%)`
+          : `left:${from / DAY * 100}%;width:${Math.max(to - from, 5) / DAY * 100}%;top:0;bottom:0`}
+></span>`;
+    };
+    return html`<div class="tip-targets ${this._radial ? "round" : ""}">
+      ${this._spansNow().map((span, i) => target(i, this._spanTip(span), span.marker ? span.start : (span.start + span.end) / 2, span.start, span.end))}
+      ${this.now === null ? nothing : target("now", t(this.lang, "now_time", { time: fmtClock(this.lang, this.now) }), this.now, this.now, this.now)}
+    </div>`;
+  }
+
   private _clock(m: number): string {
     return m >= DAY ? "24 h" : fmtClock(this.lang, m);
   }
@@ -931,7 +1039,7 @@ export class WpBarEditor extends LitElement {
     const pct = (m: number) => `${(m / DAY) * 100}%`;
     const sel = this._sel;
     const bnds = boundaries(day, ctx);
-    return html`<div class="ov ${this._hover ? "grab" : ""}"
+    return html`<div class="ov ${this._hover ? "grab" : ""}" title=${this._tipText || this._selectedTime} aria-label=${this._selectedTime}
       @pointerdown=${this._ovDown} @pointermove=${this._ovMove} @pointerup=${this._ovUp} @pointercancel=${this._ovCancel}
       @pointerleave=${() => (this._hover = false)}>
       ${sel && sel.end !== null ? html`<div class="selbox ${sel.slot ? "" : "gap"}"
@@ -944,10 +1052,10 @@ export class WpBarEditor extends LitElement {
           role="slider" aria-orientation="horizontal" aria-valuemin="0" aria-valuemax="1440" aria-valuenow=${b.m}
           aria-valuetext=${this._clock(b.m)} aria-label=${t(this.lang, "handle", { time: this._clock(b.m) })}
           data-h=${b.refs.map((r) => `${r.id}:${r.edge}`).join(" ")} title=${this._sunTitle(ref, b.m)}
-          @keydown=${(e: KeyboardEvent) => this._key(e, ref)} @focus=${() => (this._hsel = ref)}
+          @keydown=${(e: KeyboardEvent) => this._key(e, ref)} @focus=${() => { this._hsel = ref; this._selected = { kind: "slot", id: ref.id }; this._focusSlotTip(ref.id); }} @blur=${() => { this._tip = null; }}
           ><i></i></button>`;
       })}
-      ${this._bubble ? html`<div class="bubble" style="left:clamp(44px, ${pct(this._bubble.m)}, calc(100% - 44px))">${this._bubble.text ?? this._clock(this._bubble.m)}</div>` : nothing}
+      ${!this._selectedTime && this._bubble ? html`<div class="bubble" style="left:clamp(44px, ${pct(this._bubble.m)}, calc(100% - 44px))">${this._bubble.text ?? this._clock(this._bubble.m)}</div>` : nothing}
     </div>`;
   }
 
@@ -960,7 +1068,7 @@ export class WpBarEditor extends LitElement {
     const days = strings(lang).days_short;
     return html`<div class="strip" role="group">
       <div class="acts">
-        ${sel.slot ? html`<button class="act" @click=${() => void this._nothing()}><ha-icon icon="mdi:close-circle-outline"></ha-icon>${t(lang, "rest_none_short")}</button>` : nothing}
+        ${sel.slot ? html`<button class="act" @click=${() => void this._nothing()}><ha-icon icon="mdi:close-circle-outline"></ha-icon>${t(lang, "strip_erase")}</button>` : nothing}
         <div class="grp" role="group" aria-label=${t(lang, "grp_time")}>
           <button class="act" ?disabled=${!canCut} aria-label=${`${t(lang, "cut")}. ${t(lang, "cut_hint")}`} title=${t(lang, "cut_hint")} @click=${() => this._cut()}>
             <ha-icon icon="mdi:arrow-split-vertical"></ha-icon>${t(lang, "cut")}</button>
@@ -976,6 +1084,7 @@ export class WpBarEditor extends LitElement {
           role="checkbox" aria-checked=${this._copyDays.includes(d)} @click=${() => this._toggleDay(d)}>${name}</button>`)}
         <button class="act go" ?disabled=${!this._copyDays.length} aria-label=${t(lang, "copy_go")} title=${t(lang, "copy_go")}
           @click=${() => this._copyGo()}><ha-icon icon="mdi:check"></ha-icon>${t(lang, "copy_go")}</button>
+        ${this._copyDays.length ? nothing : html`<span class="copy-hint" role="status">${t(lang, "copy_pick_days")}</span>`}
       </div>` : nothing}
       <div class="pick">
         <wp-label-picker compact readonly-settings .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${[this.entityId]}
@@ -1029,37 +1138,73 @@ export class WpBarEditor extends LitElement {
     </wp-dialog>`;
   }
 
+  /** Hour axis under the bar: outside the zone (a button), so its ticks are not visible text of the button (2.5.3). */
+  private _hoursAxis() {
+    return html`<div class="hours" aria-hidden="true">${[0, 6, 12, 18, 24].map((h) => html`<span style="left:${(h / 24) * 100}%">${h === 24 ? "24 h" : fmtClock(this.lang, h * 60)}</span>`)}</div>`;
+  }
+
   render() {
     if (!this.hass || !this.data || !this.program) return nothing;
     return html`
-      <div class="zone ${this.editing ? "editing" : ""}" tabindex=${ifDefined(this.editing ? undefined : 0)}
-        role=${ifDefined(this.editing ? undefined : "button")} aria-label=${ifDefined(this.editing ? undefined : t(this.lang, "edit_bar"))}
+      <div class="zone ${this.editing ? "editing" : ""}" title=${this._tipText || (this.editing ? this._selectedTime : "")} tabindex=${ifDefined(this.editing ? undefined : 0)}
+        role=${ifDefined(this.editing ? undefined : "button")} aria-label=${ifDefined(this.editing ? undefined : this._zoneLabel())}
         @keydown=${this._zoneKey}
-        @pointerdown=${this._zoneDown} @pointermove=${this._zoneMove} @pointerup=${this._zoneUp}
+        @pointerdown=${(e: PointerEvent) => { this._tip = null; this._zoneDown(e); }}
+        @pointermove=${(e: PointerEvent) => { this._zoneMove(e); this._tipMove(e); }} @pointerup=${this._zoneUp}
+        @pointerleave=${() => { this._tip = null; }}
         @pointercancel=${this._zoneCancel} @contextmenu=${(e: Event) => { if (this._press && !this._press.mouse) e.preventDefault(); }}>
-        ${this._radial ? html`<div class="radial-face"><wp-radial-day passive .spans=${this._spansNow()} .now=${this.now}
-          .double=${this.view === "radial_12h"} lang=${this.lang} rest=${this.rest}></wp-radial-day>
-          ${this.editing ? this._radialOverlay() : nothing}</div>` : html`<wp-day-bar ?show-hours=${this.hours} notches lang=${this.lang} ?tall=${this.editing} .spans=${this._spansNow()} .now=${this.now}
-          aria-label=${t(this.lang, "edit_bar")}>${this.editing ? this._overlay_() : nothing}</wp-day-bar>`}
-        <div class="hint" role="status">${this._hint ? t(this.lang, "hold_hint") : nothing}</div>
+        ${this.editing && !this._radial && this._selectedTime ? html`<div class="selected-time-row" style=${`grid-template-columns:minmax(0, ${Math.max(0, Math.min(DAY, (this._sel!.start + (this._sel!.end ?? this._sel!.start)) / 2))}fr) auto minmax(0, ${DAY - Math.max(0, Math.min(DAY, (this._sel!.start + (this._sel!.end ?? this._sel!.start)) / 2))}fr)`}>
+          <div class="selected-time" title=${this._selectedTime} aria-label=${this._selectedTime} role="status">${this._selectedTime}</div></div>` : nothing}
+        ${this._radial ? html`<div class="radial-face"><wp-radial-day passive device-name=${this.deviceName} .spans=${this._spansNow()} .now=${this.now}
+          .double=${this.view === "radial_12h"} .selectedTime=${this.editing ? this._selectedTime : ""} lang=${this.lang} rest=${this.rest}></wp-radial-day>
+          ${this.editing ? this._radialOverlay() : nothing}${this._tipTargets()}</div>` : html`<wp-day-bar notches ?no-tab=${!this.editing} lang=${this.lang} device-name=${this.deviceName} @visible-text=${(e: CustomEvent<string>) => { this._barText = e.detail; }} ?tall=${this.editing} .spans=${this._spansNow()} .now=${this.now}
+          aria-label=${t(this.lang, "edit_bar")}>${this.editing ? this._overlay_() : nothing}${this._tipTargets()}</wp-day-bar>`}
+        ${this._tipText ? html`<div id="schedule-tooltip" class="hover-tip ${this._radial ? "round" : ""}" role="tooltip"
+          title=${this._tipText} aria-label=${this._tipText}>${this._tipText}</div>` : nothing}
+        <div class="hold-hint" role="status">${this._hint ? t(this.lang, "hold_hint") : nothing}</div>
       </div>
+      ${this.hours && !this._radial ? this._hoursAxis() : nothing}
       ${this.editing && !this._moving && !this._ask ? this._strip() : nothing}
       ${this._askBox()}
-      ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
+      ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
       ${this._conflictDialog()}`;
   }
 
   static styles = [editorStyles, css`
     :host { display: block; min-width: 0; }
     .zone { position: relative; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: pointer; }
-    .zone:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 3px; border-radius: 14px; }
+    .hours { position: relative; height: 20px; font-size: 0.75rem; color: var(--secondary-text-color); }
+    .hours span { position: absolute; transform: translateX(-50%); top: 2px; white-space: nowrap; }
+    .hours span:first-child { transform: none; }
+    .hours span:last-child { transform: translateX(-100%); }
+    .tip-targets { position: absolute; inset: 0; pointer-events: none; }
+    .tip-targets.round { bottom: auto; aspect-ratio: 1; }
+    .tip-target { position: absolute; pointer-events: none; border-radius: 8px; }
+    .tip-target:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
+    .hover-tip {
+      position: absolute; bottom: calc(100% + 4px); left: 0; right: 0; margin: auto; width: max-content;
+      max-width: 100%; box-sizing: border-box; padding: 6px 10px; border-radius: 8px; z-index: 8;
+      pointer-events: none; overflow-wrap: anywhere; text-align: center; font-size: 0.8125rem; line-height: 1.4;
+      background: var(--primary-text-color, #212121); color: var(--card-background-color, #fff);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .3);
+    }
+    .hover-tip.round { bottom: auto; top: 12px; }
+    .zone::before { content: ""; position: absolute; inset: -10px 0; } /* 28 px bar, 48 px tap area, layout unchanged */
+    .zone:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 3px; border-radius: 14px; }
     /* above the "now" line of the bar (z-index 5) */
-    .hint {
+    .hold-hint {
       position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; max-width: 96%;
-      padding: 6px 12px; border-radius: 16px; font-size: 13px; line-height: 1.3; text-align: center; pointer-events: none;
+      padding: 6px 12px; border-radius: 16px; font-size: 0.8125rem; line-height: 1.3; text-align: center; pointer-events: none;
       background: var(--primary-text-color); color: var(--card-background-color, #fff);
     }
-    .hint:empty { display: none; }
+    .hold-hint:empty { display: none; }
+    .selected-time-row { display: grid; margin-bottom: 20px; }
+    .selected-time {
+      grid-column: 2; min-width: 0; max-width: 100%; box-sizing: border-box;
+      padding: 4px 10px; border-radius: 10px; background: var(--primary-text-color, #212121);
+      color: var(--card-background-color, #fff); font-size: 0.875rem; font-weight: 600; line-height: 1.4;
+      text-align: center; overflow-wrap: anywhere; pointer-events: auto;
+    }
     .zone.editing { touch-action: none; cursor: default; }
     .ov { position: absolute; inset: 0; touch-action: none; z-index: 2; }
     .radial-face { position: relative; max-width: 360px; margin: auto; }
@@ -1089,43 +1234,43 @@ export class WpBarEditor extends LitElement {
     .hd.on i, .hd:focus-visible i { background: var(--primary-color); border-color: #fff; box-shadow: 0 0 0 2px var(--primary-color); }
     .bubble {
       position: absolute; bottom: calc(100% + 8px); transform: translateX(-50%); padding: 4px 10px; border-radius: 10px;
-      background: var(--primary-text-color); color: var(--card-background-color, #fff); font-size: 14px; font-weight: 600;
+      background: var(--primary-text-color); color: var(--card-background-color, #fff); font-size: 0.875rem; font-weight: 600;
       white-space: nowrap; pointer-events: none; z-index: 5; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
     }
-    .ask { margin: 4px 0 8px; padding: 8px; border: 2px solid var(--primary-color); border-radius: 12px; }
-    .ask > span { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+    .ask { margin: 4px 0 8px; padding: 8px; border: 2px solid var(--wp-primary-text); border-radius: 12px; }
+    .ask > span { display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 6px; }
     .strip { margin: 4px 0 8px; padding: 8px; border: 1px solid var(--divider-color); border-radius: 12px; }
     .strip wp-label-picker { --mdc-icon-size: 18px; }
     .acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-    .grp { display: inline-flex; padding: 2px; border-radius: 28px; background: var(--secondary-background-color); }
-    :host([drop]) .zone { outline: 2px dashed var(--primary-color); outline-offset: 3px; border-radius: 14px; }
+    .grp { display: inline-flex; }
+    :host([drop]) .zone { outline: 2px dashed var(--wp-primary-text); outline-offset: 3px; border-radius: 14px; }
     .pick { margin-top: 8px; }
     .act {
       display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; min-width: 48px; padding: 0 12px;
-      border-radius: 24px; border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color);
-      font: inherit; font-size: 14px; cursor: pointer; --mdc-icon-size: 20px;
+      border-radius: 24px; border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color);
+      font: inherit; font-size: 0.875rem; cursor: pointer; --mdc-icon-size: 20px;
     }
     .act:hover:not(:disabled) { background: var(--secondary-background-color); }
-    .act.on { border: 2px solid var(--primary-color); }
+    .act.on { border: 2px solid var(--wp-primary-text); background: color-mix(in srgb, var(--wp-primary-text) 12%, transparent); }
     .act:disabled { opacity: 0.4; cursor: default; }
-    .act.go { background: var(--primary-color); border-color: var(--primary-color); color: var(--text-primary-color, #fff); }
+    .act.go { background: var(--wp-primary-fill); border-color: var(--wp-primary-fill); color: #fff; }
+    .copy-hint { flex-basis: 100%; font-size: 0.875rem; color: var(--secondary-text-color); }
     .copy { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
     .dchip {
-      min-width: 48px; min-height: 48px; padding: 0 10px; border-radius: 24px; border: 1px solid var(--divider-color); background: none;
-      color: var(--primary-text-color); font: inherit; font-size: 14px; cursor: pointer;
+      min-width: 48px; min-height: 48px; padding: 0 10px; border-radius: 24px; border: 1px solid var(--wp-field-border); background: none;
+      color: var(--primary-text-color); font: inherit; font-size: 0.875rem; cursor: pointer;
     }
-    .dchip.on { background: var(--primary-color); border-color: var(--primary-color); color: var(--text-primary-color, #fff); }
-    .err { color: var(--error-color, #db4437); font-size: 13px; margin: 4px 0; }
+    .dchip.on { background: var(--wp-primary-fill); border-color: var(--wp-primary-fill); color: #fff; }
     .cf { display: flex; flex-direction: column; gap: 12px; }
     .cfrow { display: flex; flex-direction: column; gap: 6px; }
     .seg2 { display: flex; flex-wrap: wrap; gap: 6px; }
-    .cfbar { display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 8px; font-size: 13px; }
+    .cfbar { display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: 8px; font-size: 0.8125rem; }
     .cfbar span { color: var(--secondary-text-color); }
     .seg2 button {
-      flex: 1 1 140px; min-height: 48px; padding: 0 12px; border-radius: 24px; border: 1px solid var(--divider-color); background: none;
-      color: var(--primary-text-color); font: inherit; font-size: 14px; cursor: pointer;
+      flex: 1 1 140px; min-height: 48px; padding: 0 12px; border-radius: 24px; border: 1px solid var(--wp-field-border); background: none;
+      color: var(--primary-text-color); font: inherit; font-size: 0.875rem; cursor: pointer;
     }
-    .seg2 button.on { border: 2px solid var(--primary-color); font-weight: 600; }
+    .seg2 button.on { border: 2px solid var(--wp-primary-text); font-weight: 600; }
   `];
 }
 

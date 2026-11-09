@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WpSchedule, scopeKey } from "../components/schedule-dialog";
-import { confirmAction } from "../components/confirm";
+import { confirmAction, pauseChoice } from "../components/confirm";
 import { fetchPreviewResponse } from "../preview-cache";
 import { flat, handlers, find } from "./helpers/tpl";
 import type { Program } from "../types";
 
-vi.mock("../components/confirm", () => ({ confirmAction: vi.fn(async () => true) }));
+vi.mock("../components/confirm", () => ({ confirmAction: vi.fn(async () => true), pauseChoice: vi.fn(async () => "none") }));
 vi.mock("../preview-cache", async (orig) => ({ ...(await orig<typeof import("../preview-cache")>()),
   fetchPreviewResponse: vi.fn(async () => ({ slots: [{ slot_id: "m", start: "2026-01-01T08:00:00", end: "2026-01-01T09:00:00", ignored: null, sun: false }] })) }));
 
@@ -15,7 +15,7 @@ const mkProgram = (over: Partial<Program> = {}): Program => {
   const home = emptyDays(); home[0] = [slot("m")]; home[1] = [slot("t")];
   return { id: "p", name: "Office", revision: 1, priority: 10, enabled: true, reapply: true, conditions: [],
     entities: [{ entity_id: "switch.demo", default_label: "comfort", label_overrides: {} }, { entity_id: "switch.two", default_label: null, label_overrides: {} }],
-    active_profile: "home", profiles: [{ id: "home", name: "Home", days: home }, { id: "away", name: "Away", days: emptyDays() }], ...over } as any;
+    profiles: [{ id: "home", name: "Home", days: home }, { id: "away", name: "Away", days: emptyDays() }], ...over } as any;
 };
 
 function make(scope: any = { kind: "program", programId: "p" }, program = mkProgram(), extra: any = {}) {
@@ -37,6 +37,7 @@ beforeEach(() => {
   (globalThis as any).CustomEvent ??= class { type: string; detail: unknown; constructor(t: string, i: any) { this.type = t; this.detail = i?.detail; } };
   vi.stubGlobal("requestAnimationFrame", (f: () => void) => f());
   vi.mocked(confirmAction).mockReset(); vi.mocked(confirmAction).mockResolvedValue(true);
+  vi.mocked(pauseChoice).mockReset(); vi.mocked(pauseChoice).mockResolvedValue("none");
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -58,18 +59,18 @@ describe("schedule screen rendering", () => {
     expect(html).toContain("Comfort"); expect(html).toContain("wp-day-bar"); expect(html).toContain("wp-chart");
     expect(html).toContain("Rest of the time".length ? "rest" : "");
     expect(html).toContain("mdi:delete-outline");
-    expect(html).toContain("Home"); expect(html).toContain("Away");
+    expect(html).not.toContain("tablist");
   });
   it("shows the read-only and removed-mode warnings and the single-device view", () => {
     const { view } = make({ kind: "device", entityId: "switch.demo" }, mkProgram(), { read_only: true });
     expect(flat(view.render())).toContain("role=\"alert\"");
     expect(view._title).toBe("Demo");
-    const m = make(); m.view._viewProfileId = "gone";
-    expect(flat(m.view.render())).toContain("role=\"alert\"");
   });
-  it("hides the chart and delete in a fixed mode and shows the hint", () => {
-    const { view } = make(); view.profileId = "away";
+  it("hides the chart and delete in a mode that is not active and says so", () => {
+    const { view } = make(undefined, undefined, { mode: { selector: "input_select.m", default: "Home", active: "Home", options: ["Home", "Away"], available: true } });
+    view._viewMode = "Away";
     const html = flat(view.render());
+    expect(html).toContain("This mode is not active");
     expect(html).not.toContain("wp-chart"); expect(html).not.toContain("delete-outline\"></ha-icon>Delete");
     expect(view._modeOnly).toBe(true);
   });
@@ -293,7 +294,7 @@ describe("schedule screen editing", () => {
     await view._setEnabled(false, input);
     expect(view.hass.callWS).toHaveBeenCalledWith({ type: "weekly_planner/program/set_enabled", program_id: "p", enabled: false });
     expect(input.checked).toBe(true);
-    vi.mocked(confirmAction).mockResolvedValueOnce(false);
+    vi.mocked(pauseChoice).mockResolvedValueOnce(null);
     const calls = view.hass.callWS.mock.calls.length;
     await view._setEnabled(false, input); expect(view.hass.callWS.mock.calls.length).toBe(calls);
     await view._setEnabled(true, input); expect(view.hass.callWS.mock.calls.length).toBe(calls + 1);
@@ -303,6 +304,24 @@ describe("schedule screen editing", () => {
     view.hass.callWS.mockRejectedValueOnce("str"); await view._setEnabled(true, input);
     const sw = handlers(view.render()).find((h) => h.event === "change" && h.before.includes("checkbox"))!;
     await sw.fn({ target: input });
+  });
+  it("pauses for the chosen number of hours, shows the end and resumes without asking", async () => {
+    const { view } = make();
+    const input: any = { checked: false };
+    vi.mocked(pauseChoice).mockResolvedValueOnce(7);
+    await view._setEnabled(false, input);
+    expect(view.hass.callWS).toHaveBeenCalledWith({ type: "weekly_planner/program/pause", program_id: "p", hours: 7 });
+    const paused = mkProgram({ enabled: false, paused_until: "2026-11-09T21:30:00+00:00" });
+    view.data = { ...view.data, programs: [paused] };
+    expect(view._stateText()).toBe("Paused until Mon, Nov 9, 9:30 pm");
+    expect(flat(view.render())).toContain("Paused until");
+    view.data = { ...view.data, programs: [mkProgram({ enabled: false })] };
+    expect(view._stateText()).toBe("Paused");
+    view.data = { ...view.data, programs: [paused] };
+    vi.mocked(pauseChoice).mockClear(); view.hass.callWS.mockClear();
+    await view._setEnabled(true, input);
+    expect(pauseChoice).not.toHaveBeenCalled();
+    expect(view.hass.callWS).toHaveBeenCalledWith({ type: "weekly_planner/program/set_enabled", program_id: "p", enabled: true });
   });
   it("opens the history and closes the dialog", () => {
     const { view } = make();

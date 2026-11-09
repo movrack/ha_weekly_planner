@@ -3,31 +3,36 @@ import { TIMELINE } from "./timeline-geometry";
 // change of the schedule happens in the schedule screen. No immediate controls.
 
 import { LitElement, css, html, nothing } from "lit";
+import { callout, calloutStyles } from "./styles";
 import { keyed } from "lit/directives/keyed.js";
 import { customElement, property, state } from "lit/decorators.js";
 import "./components/bar-editor";
 import "./components/day-bar";
 import "./components/radial-day";
-import { confirmAction } from "./components/confirm";
+import { pauseChoice } from "./components/confirm";
 import { sunDir } from "./components/day-bar";
 import "./components/dialog";
+import "./components/mode-notice";
 import "./components/schedule-dialog";
 import type { BarSpan } from "./components/day-bar";
 import { scopeKey } from "./components/schedule-dialog";
 import type { Scope } from "./components/schedule-dialog";
 import { nb } from "./actions";
 import { cardIdentity, chartKey, isChartOpen, loadChartChoices, openHistory, saveChartChoices } from "./chart-state";
-import { actionText, appliedAction, labelName, labelOf } from "./labels";
-import { strings, t } from "./i18n";
-import { loadServiceNames } from "./services";
+import { actionText, appliedAction, labelDomains, labelName, labelOf } from "./labels";
+import { errorText, strings, t } from "./i18n";
+import { loadServiceNames, onServiceNames, serviceNamesVersion } from "./services";
 import { reloadIfOutdated } from "./update";
 import { deviceDays, fetchPreviewResponse } from "./preview-cache";
 import { applies } from "./slots";
 import { configDefaults, normalizeConfig } from "./config";
-import { activeProfile, filterPrograms, friendlyName, subscribePlanner } from "./planner";
+import { activeFollow, activeProfile, filterPrograms, friendlyName, subscribePlanner } from "./planner";
 import { dayBounds, addDaysIso } from "./components/chart";
-import { formatWhen, localDateIso, localMinutes, localWeekday, nominal, spillover, DAY } from "./time";
+import { formatPauseEnd, formatWhen, localDateIso, localMinutes, localWeekday, nominal, pauseEnd, spillover, DAY } from "./time";
 import type { CardConfig, HomeAssistant, PlannerData, PreviewResponse, Program, Slot } from "./types";
+
+/** How long a confirmation message stays (ms), counted from the end of any hover or focus on it. */
+const INFO_MS = 8000;
 
 type Dialog =
   | { kind: "schedule"; scope: Scope; day?: { weekday: number; offset: number }; create?: boolean }
@@ -39,12 +44,16 @@ export class WeeklyPlannerCard extends LitElement {
   @state() private _config!: CardConfig;
   @state() private _data?: PlannerData;
   @state() private _error?: string;
+  @state() private _info?: string;
+  private _infoTimer?: ReturnType<typeof setTimeout>;
   @state() private _dialog: Dialog = null;
   // Resolved slots (sun times) per local date, then per program: today and the next 6 days (`by_entity` per device).
   @state() private _preview: Record<string, Record<string, PreviewResponse>> = {};
   @state() private _now = new Date();
   @state() private _week = new Set<string>();
   @state() private _expandedProgram: string | null = null;
+  /** Device shown for each program that has several (program id -> entity id); lives as long as the card. */
+  @state() private _deviceOf = new Map<string, string>();
   /** Day charts shown on the card (key: card|scope|entity). Initial state from `chart_collapsed` (default collapsed); the choice is remembered per device. */
   @state() private _charts = loadChartChoices();
   /** Bar being edited in place (null: none), and the "Changed · Undo" bar. */
@@ -78,8 +87,11 @@ export class WeeklyPlannerCard extends LitElement {
     return { columns: 12, min_columns: 6, rows: "auto" };
   }
 
+  private _offNames?: () => void;
+
   connectedCallback(): void {
     super.connectedCallback();
+    this._offNames = onServiceNames(() => this.requestUpdate());
     // HA can reattach a cached view without assigning a new hass object.
     this.requestUpdate();
     this._clock = window.setInterval(() => {
@@ -130,6 +142,7 @@ export class WeeklyPlannerCard extends LitElement {
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
+    this._offNames?.();
     window.clearTimeout(this._snackTimer);
     document.removeEventListener("visibilitychange", this._visible);
     this._unsub?.();
@@ -164,8 +177,7 @@ export class WeeklyPlannerCard extends LitElement {
 
   /** Translated names of the services used by the labels. */
   private async _loadNames(data: PlannerData): Promise<void> {
-    const domains = data.labels.flatMap((l) => (l.action.kind === "service" ? [l.action.service.split(".")[0]] : []));
-    if (await loadServiceNames(this.hass, domains)) this.requestUpdate();
+    if (await loadServiceNames(this.hass, labelDomains(data.labels))) this.requestUpdate();
   }
 
   /** Resolved slots of the coming 7 days (sun times), reloaded only when a program changes. */
@@ -203,7 +215,7 @@ export class WeeklyPlannerCard extends LitElement {
 
   /** Spans of a day (`offset` days from today) for a device, from every program that schedules it (memoized until an input is replaced). */
   private _spans(entityId: string, programs: Program[], offset = 0): BarSpan[] {
-    const inputs = [this._data, this._preview, this._now, this._config];
+    const inputs = [this._data, this._preview, this._now, this._config, serviceNamesVersion()];
     if (inputs.some((x, i) => x !== this._spanInputs[i])) {
       this._spanCache.clear();
       this._spanInputs = inputs;
@@ -319,42 +331,116 @@ export class WeeklyPlannerCard extends LitElement {
       <ha-icon icon="mdi:plus"></ha-icon>${t(this._lang, "create_setting")}</button>`;
   }
 
+  /** A short confirmation shown for a few seconds (role=status). */
+  private _say(text: string): void {
+    this._info = text;
+    clearTimeout(this._infoTimer);
+    this._infoTimer = setTimeout(() => { this._info = undefined; }, INFO_MS);
+  }
+
+  /** The message stays while the pointer or the focus is on it, then disappears INFO_MS later. */
+  private _holdInfo(held: boolean): void {
+    if (!this._info) return;
+    clearTimeout(this._infoTimer);
+    if (!held) this._infoTimer = setTimeout(() => { this._info = undefined; }, INFO_MS);
+  }
+
   private async _toggleProgram(program: Program): Promise<void> {
     if (this._toggling.has(program.id)) return;
     this._toggling = new Set(this._toggling).add(program.id);
     const enabled = !program.enabled;
     try {
-      if (!enabled && !(await confirmAction(this, t(this._lang, "confirm_pause", { name: program.name }), t(this._lang, "yes"), t(this._lang, "no")))) return;
-      await this.hass.callWS({ type: "weekly_planner/program/set_enabled", program_id: program.id, enabled });
+      if (enabled) {
+        await this.hass.callWS({ type: "weekly_planner/program/set_enabled", program_id: program.id, enabled });
+        this._say(t(this._lang, "program_resumed", { name: program.name }));  // tell that it worked
+      } else {
+        const choice = await pauseChoice(this, program.name);
+        if (choice === null) return;
+        if (choice === "none") await this.hass.callWS({ type: "weekly_planner/program/set_enabled", program_id: program.id, enabled });
+        else await this.hass.callWS({ type: "weekly_planner/program/pause", program_id: program.id, hours: choice });
+      }
     } catch (err) {
-      this._error = String((err as { message?: string }).message ?? err);
+      this._error = errorText(this._lang, err);
     } finally {
       const pending = new Set(this._toggling);
       pending.delete(program.id);
       this._toggling = pending;
+      // the switch is disabled while the call (and its dialog) runs: give the focus back to it
+      void this.updateComplete.then(() => this._focusSwitch(program.id));
     }
   }
 
+  private _focusSwitch(programId: string): void {
+    Array.from(this.renderRoot.querySelectorAll<HTMLElement>("button.hours[role=switch]")).find((el) => el.dataset.program === programId)?.focus({ preventScroll: true });
+  }
+
   private _programToggle(program: Program) {
-    return html`<button class="hours" role="switch" aria-checked=${program.enabled}
-      aria-label=${`${program.name}: ${t(this._lang, program.enabled ? "running" : "stopped")}`}
+    return html`<button class="hours" role="switch" aria-checked=${program.enabled} data-program=${program.id}
+      aria-label=${program.name}
       ?disabled=${this._data?.read_only || this._toggling.has(program.id)}
       @click=${() => void this._toggleProgram(program)}>
       <ha-icon icon=${program.enabled ? "mdi:toggle-switch" : "mdi:toggle-switch-off-outline"}></ha-icon></button>`;
   }
 
-  private _modeName(program: Program) {
-    const mode = this._data ? activeProfile(program, this._data) : undefined;
-    return mode && (program.profiles.length > 1 || program.mode_source) ? html`<span class="mode-name">${t(this._lang, "profile")}: ${mode.name}</span>` : nothing;
+  /** The active mode, once, as plain text above the programs; nothing when there is a single mode. */
+  private _modeLine() {
+    const mode = this._data?.mode;
+    return mode?.selector && mode.options.length && mode.active
+      ? html`<p class="mode-line">${t(this._lang, "mode_shown", { name: mode.active })}</p>` : nothing;
   }
 
-  private _disabledBadge(disabled: boolean) {
-    return disabled ? html`<span class="disabled-badge" role="status">${t(this._lang, "program_disabled")}</span>` : nothing;
+  /** A program with no schedule for the active mode: only "the rest of the time" applies to its devices. */
+  private _noSchedule(program: Program) {
+    return this._data?.status[program.id]?.no_schedule_for_mode
+      ? html`<span class="no-schedule">${t(this._lang, "no_schedule_for_mode")}</span>` : nothing;
+  }
+
+  /** The device a program with several devices shows now: the chosen one, else the first. */
+  private _shownDevice(program: Program): string {
+    const chosen = this._deviceOf.get(program.id);
+    return program.entities.some((e) => e.entity_id === chosen) ? chosen! : program.entities[0].entity_id;
+  }
+
+  private _pickDevice(program: Program, entityId: string): void {
+    this._deviceOf = new Map(this._deviceOf).set(program.id, entityId);
+  }
+
+  /** One tab per device, the chosen one marked; nothing for a program with a single device. */
+  private _deviceTabs(program: Program) {
+    if (program.entities.length < 2) return nothing;
+    const shown = this._shownDevice(program);
+    const ids = program.entities.map((e) => e.entity_id);
+    const key = (e: KeyboardEvent) => {
+      const at = ids.indexOf(shown);
+      const next = e.key === "ArrowRight" || e.key === "ArrowDown" ? (at + 1) % ids.length
+        : e.key === "ArrowLeft" || e.key === "ArrowUp" ? (at + ids.length - 1) % ids.length
+        : e.key === "Home" ? 0 : e.key === "End" ? ids.length - 1 : -1;
+      if (next < 0) return;
+      e.preventDefault();
+      this._pickDevice(program, ids[next]);
+      void this.updateComplete.then(() => Array.from(this.renderRoot.querySelectorAll<HTMLElement>('.devtab[aria-selected="true"]')).find((el) => el.dataset.tab === program.id)?.focus());
+    };
+    return html`<div class="devtabs" role="tablist" aria-label=${t(this._lang, "devices_of", { name: program.name })} @keydown=${key}>
+      ${ids.map((id) => html`<button class="devtab" role="tab" data-tab=${program.id} aria-selected=${id === shown}
+        tabindex=${id === shown ? 0 : -1} @click=${() => this._pickDevice(program, id)}>
+        ${id === shown ? html`<ha-icon icon="mdi:check"></ha-icon>` : nothing}<span>${friendlyName(this.hass, id)}</span></button>`)}
+    </div>`;
+  }
+
+  private _disabledBadge(disabled: boolean, programs: Program[] = []) {
+    const until = pauseEnd(programs);
+    const text = until ? t(this._lang, "paused_until", { when: nb(formatPauseEnd(until, this._tz, this._lang)) }) : t(this._lang, "program_disabled");
+    return disabled ? html`<span class="badge-row"><span class="disabled-badge" role="status">${text}</span></span>` : nothing;
   }
 
   /* ---- render ---- */
 
   /** A bar that can be edited in place: today's (`kind` "today") or one of the week's. */
+  /** Program name, plus the device when the program has several: what names a block's buttons. */
+  private _deviceLabel(program: Program, entityId: string): string {
+    return program.entities.length > 1 ? `${program.name}, ${friendlyName(this.hass, entityId)}` : program.name;
+  }
+
   private _bar(entityId: string, program: Program, offset: number, kind: "today" | "week", openDay: () => void) {
     const at = this._dateAt(offset);
     const weekday = localWeekday(at, this._tz);
@@ -364,8 +450,8 @@ export class WeeklyPlannerCard extends LitElement {
     return html`<wp-bar-editor .hass=${this.hass} .data=${this._data} .program=${program} entity-id=${entityId}
       weekday=${weekday} .spans=${this._spans(entityId, programs, offset)} .preview=${this._deviceDays(program.id, date, entityId).today}
       .now=${offset === 0 ? localMinutes(this._now, this._tz) : null} ?hours=${kind === "today"}
-      ?editing=${this._edit === key} ?editable=${Boolean(this._data?.can_edit) && !this._data?.read_only}
-      lang=${this._lang} tz=${this._tz} view=${kind === "today" ? this._config.schedule_view ?? "bar" : "bar"}
+      ?editing=${this._edit === key} ?editable=${Boolean(this._data?.can_edit) && !this._data?.read_only && !activeFollow(program, this._data!)}
+      device-name=${this._deviceLabel(program, entityId)} lang=${this._lang} tz=${this._tz} view=${kind === "today" ? this._config.schedule_view ?? "bar" : "bar"}
       .rest=${(() => { const l = labelOf(this._data!, program.entities.find((e) => e.entity_id === entityId)?.default_label); return l ? labelName(this.hass, l) : t(this._lang, "rest_none"); })()}
       @edit-request=${() => (this._edit = key)} @edit-exit=${() => { if (this._edit === key) this._edit = null; }}
       @open-day=${openDay} @edited=${(e: CustomEvent<{ undo: () => Promise<boolean> }>) => this._showSnack(e.detail.undo)}></wp-bar-editor>`;
@@ -389,18 +475,19 @@ export class WeeklyPlannerCard extends LitElement {
             : html`<ha-icon class="dev" icon=${icon}></ha-icon>`}
           <div class="info">
             ${opts.name ? html`<span class="name">${opts.name}</span>` : nothing}
-            ${opts.button && programs.length === 1 ? this._modeName(programs[0]) : nothing}
+            ${opts.button && programs.length === 1 ? this._noSchedule(programs[0]) : nothing}
+            ${opts.button ? this._disabledBadge(paused, programs) : nothing}
             <span class="now">
-              <span class="nw">${stateObj ? (this.hass.formatEntityState?.(stateObj) ?? stateObj.state) : "—"}</span>
-              ${next ? html`<span class="next">→ ${nextLabel ? labelName(this.hass, nextLabel) : actionText(this.hass, lang, next.action)}
+              <span class="state">${stateObj ? (this.hass.formatEntityState?.(stateObj) ?? stateObj.state) : "—"}</span>
+              ${next ? html`<span class="next"><span class="arrow">→</span> <span class="lbl">${nextLabel ? labelName(this.hass, nextLabel) : actionText(this.hass, lang, next.action)}</span>
                 <span class="when nw">${nb(formatWhen(next.at, this._tz, lang, this._now))}</span></span>` : nothing}
             </span>
             ${this._skipped(entityId, programs)}
           </div>
           ${opts.button ? html`<div class="header-actions"><div class="header-icons">
             ${programs.length === 1 ? this._programToggle(programs[0]) : nothing}
-            <button class="hours" aria-label=${t(lang, "hours")} title=${t(lang, "hours")} @click=${open}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
-          </div>${this._disabledBadge(paused)}</div>` : nothing}
+            <button class="hours" aria-label=${t(lang, "hours_of", { name: opts.name ?? friendlyName(this.hass, entityId) })} title=${t(lang, "hours")} @click=${open}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
+          </div></div>` : nothing}
         </div>
         ${create ? this._createButton(opts.open) : (this._config.schedule_view === "radial" || this._config.schedule_view === "radial_12h") ? this._bar(entityId, programs[0], 0, "today", open) : html`<div class="today">
           <span class="wname" title=${t(lang, "today")}>${t(lang, "today_short")}</span>
@@ -436,13 +523,14 @@ export class WeeklyPlannerCard extends LitElement {
       saveChartChoices(next);
     };
     const program = programs[0];
+    const who = this._deviceLabel(program, entityId);
     const date = localDateIso(this._now, this._tz);
     const { today: slots, previous } = this._deviceDays(program.id, date, entityId);
     return html`
       <div class="toggles">
-        <button class="weekbtn" aria-expanded=${weekOpen} @click=${toggleWeek}>
+        <button class="weekbtn" aria-label=${t(lang, "week_of", { name: who })} aria-expanded=${weekOpen} @click=${toggleWeek}>
           <ha-icon icon=${weekOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>${t(lang, "week")}</button>
-        ${showChart ? html`<button class="weekbtn chartbtn" aria-expanded=${chartOpen} @click=${toggleChart}>
+        ${showChart ? html`<button class="weekbtn chartbtn" aria-label=${t(lang, "chart_day_of", { name: who })} aria-expanded=${chartOpen} @click=${toggleChart}>
           <ha-icon icon="mdi:chart-line"></ha-icon>${t(lang, "chart_day")}<ha-icon class="after" icon=${chartOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>` : nothing}
       </div>
       ${weekOpen ? html`<div class="week">
@@ -473,12 +561,13 @@ export class WeeklyPlannerCard extends LitElement {
       <section class="prog">
         <div class="phead">
           <ha-icon icon=${p.icon ?? "mdi:calendar-clock"}></ha-icon>
-          <h2>${p.name}${this._modeName(p)}</h2>
+          <h2>${p.name}${this._noSchedule(p)}${this._disabledBadge(!p.enabled, [p])}</h2>
           <div class="header-actions"><div class="header-icons">${this._programToggle(p)}
-            <button class="hours" aria-label=${t(lang, "hours")} title=${t(lang, "hours")} @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
-          </div>${this._disabledBadge(!p.enabled)}</div>
+            <button class="hours" aria-label=${t(lang, "hours_of", { name: p.name })} title=${t(lang, "hours")} @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
+          </div></div>
         </div>
-        ${p.entities.map((e) => this._line(e.entity_id, [p], { name: friendlyName(this.hass, e.entity_id), button: null, open: { ...scope, entityId: e.entity_id } }))}
+        ${this._deviceTabs(p)}
+        ${this._line(this._shownDevice(p), [p], { name: null, button: null, open: { ...scope, entityId: this._shownDevice(p) } })}
       </section>`;
     });
   }
@@ -493,17 +582,16 @@ export class WeeklyPlannerCard extends LitElement {
         <ha-icon icon=${p.icon ?? "mdi:calendar-clock"}></ha-icon>
         <button class="summary" aria-expanded=${expanded} aria-controls=${`compact-${p.id}`}
           @click=${() => { this._expandedProgram = expanded ? null : p.id; this._edit = null; }}>
-          <strong>${p.name}<ha-icon icon=${expanded ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></strong>${this._modeName(p)}
-          ${next.length ? html`<span>${(() => { const l = labelOf(this._data!, next[0].next!.label); return l ? labelName(this.hass, l) : actionText(this.hass, this._lang, next[0].next!.action); })()} · ${nb(formatWhen(next[0].next!.at, this._tz, this._lang, this._now))}</span>` : html`${p.enabled ? html`<span>${t(this._lang, "hours")}</span>` : nothing}`}
+          <strong>${p.name}<ha-icon icon=${expanded ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></strong>${this._noSchedule(p)}${this._disabledBadge(!p.enabled, [p])}
+          ${next.length ? html`<span>${(() => { const l = labelOf(this._data!, next[0].next!.label); return l ? labelName(this.hass, l) : actionText(this.hass, this._lang, next[0].next!.action); })()} · ${t(this._lang, "then_label")} ${nb(formatWhen(next[0].next!.at, this._tz, this._lang, this._now))}</span>` : html`${p.enabled ? html`<span>${t(this._lang, "hours")}</span>` : nothing}`}
         </button><div class="header-actions"><div class="header-icons">${this._programToggle(p)}
-        ${expanded ? html`<button class="hours" aria-label=${t(this._lang, "hours")} title=${t(this._lang, "hours")}
-          @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>` : nothing}</div>
-          ${this._disabledBadge(!p.enabled)}</div></div>
+        ${expanded ? html`<button class="hours" aria-label=${t(this._lang, "hours_of", { name: p.name })} title=${t(this._lang, "hours")}
+          @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>` : nothing}</div></div></div>
         ${expanded ? html`<div id=${`compact-${p.id}`} class="compact-details" role="region" aria-label=${p.name}>
-          ${p.entities.map((e) => {
+          ${this._deviceTabs(p)}
+          ${p.entities.filter((e) => p.entities.length < 2 || e.entity_id === this._shownDevice(p)).map((e) => {
             const own: Scope = p.entities.length > 1 ? { ...scope, entityId: e.entity_id } : scope;
             return html`
-            ${p.entities.length > 1 ? html`<strong class="compact-device">${friendlyName(this.hass, e.entity_id)}</strong>` : nothing}
             ${this._needsCreate(p, e.entity_id) ? this._createButton(own) : html`<div class="today"><span class="wname" title=${t(this._lang, "today")}>${t(this._lang, "today_short")}</span>
               ${this._bar(e.entity_id, p, 0, "today", () => this._open(own))}</div>
             ${this._extras(own, e.entity_id, [p])}`}`;
@@ -526,8 +614,11 @@ export class WeeklyPlannerCard extends LitElement {
               ${data?.vacation ? html`<span class="chip"><ha-icon icon="mdi:pause-circle-outline"></ha-icon> ${t(lang, "vacation")}</span>` : nothing}
             </div>`
           : nothing}
-        ${this._error ? html`<div class="error">${t(lang, "error", { message: this._error })}</div>` : nothing}
-        ${data?.read_only ? html`<div class="error">${t(lang, "read_only")}</div>` : nothing}
+        ${this._modeLine()}
+        ${this._info ? html`<div class="info" @pointerenter=${() => this._holdInfo(true)} @pointerleave=${() => this._holdInfo(false)}
+          @focusin=${() => this._holdInfo(true)} @focusout=${() => this._holdInfo(false)}>${callout("success", "", this._info, { role: "status" })}</div>` : nothing}
+        ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
+        ${data?.read_only ? html`${callout("error", "", t(lang, "read_only"))}` : nothing}
         ${!data ? html`<div class="empty">…</div>` : nothing}
         ${data && !programs.length ? html`<div class="empty" role="status">${t(lang, data.programs.length && this._config.program === undefined ? "no_matching_program" : "no_program")}</div>` : nothing}
         ${data ? this._config.schedule_view === "list" ? this._compactList(programs) : this._bySchedule(programs) : nothing}
@@ -548,36 +639,48 @@ export class WeeklyPlannerCard extends LitElement {
     }
   }
 
-  static styles = css`
+  static styles = [calloutStyles, css`
     .compact-program { border-top: 1px solid var(--divider-color); }
     .compact-program:first-of-type { border-top: 0; }
     .compact-row { display: flex; align-items: center; gap: 8px; min-height: 72px; }
     .summary strong { display: flex; align-items: center; gap: 4px; overflow-wrap: anywhere; }
     .summary ha-icon { --mdc-icon-size: 18px; flex: none; }
     .compact-details { padding-bottom: 8px; }
-    .compact-device { display: block; margin-top: 12px; }
+    .devtabs { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0 8px; }
+    .devtab {
+      display: inline-flex; align-items: center; gap: 4px; min-height: 48px; max-width: 100%; padding: 0 16px; border-radius: 24px;
+      border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem;
+      text-align: left; cursor: pointer; --mdc-icon-size: 20px;
+    }
+    .devtab span { min-width: 0; overflow-wrap: anywhere; }
+    .devtab[aria-selected="true"] { background: var(--wp-primary-fill); border-color: var(--wp-primary-fill); color: #fff; font-weight: 600; }
+    .devtab:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
     .summary { flex: 1; min-width: 0; min-height: 56px; display: flex; flex-direction: column; justify-content: center; gap: 4px; text-align: left; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
-    .summary span { font-size: 14px; color: var(--secondary-text-color); overflow-wrap: anywhere; }
+    .summary span { font-size: 0.875rem; color: var(--secondary-text-color); overflow-wrap: anywhere; }
     button:disabled { opacity: .5; cursor: default; }
     ha-card { padding: 8px 16px 12px; }
     .head { display: flex; align-items: center; gap: 8px; min-height: 48px; }
-    h1 { flex: 1; min-width: 0; margin: 0; font-size: 20px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .chip { display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 14px; font-size: 14px; padding: 2px 10px; border-radius: 12px; background: var(--warning-color, #ff9800); color: #fff; }
+    h1 { flex: 1; min-width: 0; margin: 0; font-size: 1.25rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chip { display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 14px; font-size: 0.875rem; padding: 2px 10px; border-radius: 12px; background: var(--warning-color, #ff9800); color: #000; }
     .block { padding: 8px 0; border-top: 1px solid var(--divider-color); }
     .block:first-of-type, .head + .block { border-top: none; }
     .line { display: flex; align-items: flex-start; gap: 10px; min-height: 28px; }
     .dev { --mdc-icon-size: 26px; flex: none; color: var(--secondary-text-color); margin-top: -1px; }
     .info { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 0; }
-    .mode-name { display: block; flex-basis: 100%; font-size: 13px; font-weight: 400; color: var(--secondary-text-color); line-height: 20px; }
-    .name { font-size: 17px; font-weight: 600; }
-    .skip { flex-basis: 100%; display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--secondary-text-color); --mdc-icon-size: 16px; }
-    .now { font-size: 15px; display: flex; flex-wrap: wrap; column-gap: 6px; color: var(--primary-text-color); }
+    .mode-line { margin: 0; padding: 4px 0 8px; font-size: 0.875rem; line-height: 20px; color: var(--secondary-text-color); }
+    .no-schedule { display: block; flex-basis: 100%; font-size: 0.8125rem; font-weight: 400; color: var(--secondary-text-color); line-height: 20px; }
+    .name { font-size: 1.0625rem; font-weight: 600; }
+    .skip { flex-basis: 100%; display: inline-flex; align-items: center; gap: 4px; font-size: 0.8125rem; color: var(--secondary-text-color); --mdc-icon-size: 16px; }
+    .now { font-size: 0.9375rem; display: flex; flex-wrap: wrap; min-width: 0; max-width: 100%; align-items: baseline; column-gap: 6px; color: var(--primary-text-color); }
     .nw { white-space: nowrap; }
-    .next { min-width: 0; overflow-wrap: anywhere; }
+    .state { min-width: 0; overflow-wrap: anywhere; }
+    .next { min-width: 0; max-width: 100%; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 4px; }
+    .next .lbl { min-width: 0; overflow-wrap: anywhere; }
     .when { opacity: 0.8; }
     .header-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
     .header-icons { display: flex; align-items: center; }
-    .disabled-badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; background: #b3261e; color: #fff; font-size: 13px; font-weight: 600; line-height: 20px; }
+    .badge-row { display: block; flex-basis: 100%; min-width: 0; margin-top: 2px; }
+    .disabled-badge { display: inline-block; max-width: 100%; padding: 0 8px; border-radius: 10px; background: #b3261e; color: #fff; font-size: 0.75rem; font-weight: 600; line-height: 20px; }
     .line .header-actions { margin-top: -12px; }
     .name, .now { line-height: 24px; }
     button.hours {
@@ -587,16 +690,16 @@ export class WeeklyPlannerCard extends LitElement {
     }
     button.create {
       display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 48px; margin-top: 8px;
-      padding: 0 16px; border: none; border-radius: 24px; font: inherit; font-size: 16px; font-weight: 500; cursor: pointer;
-      background: var(--primary-color); color: var(--text-primary-color, #fff); --mdc-icon-size: 22px;
+      padding: 0 16px; border: none; border-radius: 24px; font: inherit; font-size: 1rem; font-weight: 500; cursor: pointer;
+      background: var(--wp-primary-fill); color: #fff; --mdc-icon-size: 22px;
     }
-    button.create:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+    button.create:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
     button.hours:hover { background: var(--secondary-background-color); }
     wp-bar-editor { margin-top: 2px; }
     .toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }
     .weekbtn {
       display: inline-flex; align-items: center; gap: 4px; min-height: 48px; min-width: 48px; padding: 0 8px 0 0; border: none;
-      background: none; color: var(--primary-color); font: inherit; font-size: 16px; cursor: pointer; --mdc-icon-size: 22px;
+      background: none; color: var(--wp-primary-text); font: inherit; font-size: 1rem; cursor: pointer; --mdc-icon-size: 22px;
     }
     .chartbtn .after { --mdc-icon-size: 20px; }
     .chartbox { padding: 4px 0 8px; }
@@ -609,7 +712,7 @@ export class WeeklyPlannerCard extends LitElement {
     .wday .wnamebtn { margin-top: 6px; }
     .wnamebtn:hover .wname { text-decoration: underline; }
     .wday wp-bar-editor { margin: 16px 0 10px; }
-    .wname { flex: none; width: ${TIMELINE.label}px; font-size: 14px; color: var(--secondary-text-color); }
+    .wname { flex: none; width: ${TIMELINE.label}px; font-size: 0.875rem; color: var(--secondary-text-color); }
     .wday wp-bar-editor, .today wp-bar-editor { flex: 1; min-width: 0; }
     .wname.today { color: var(--primary-text-color); font-weight: 600; }
     .today { display: flex; align-items: flex-start; gap: ${TIMELINE.gap}px; padding-top: 20px; } /* room for the "now" clock above the bar */
@@ -618,10 +721,10 @@ export class WeeklyPlannerCard extends LitElement {
     .prog:first-of-type, .head + .prog { border-top: none; }
     .prog .block { border-top: none; padding: 2px 0 4px; }
     .phead { display: flex; align-items: center; gap: 10px; min-height: 48px; --mdc-icon-size: 24px; }
-    .phead h2 { flex: 1; min-width: 0; margin: 0; font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
+    .phead h2 { flex: 1; min-width: 0; margin: 0; font-size: 1.125rem; font-weight: 600; overflow-wrap: anywhere; }
     .snack {
       position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 8; display: flex; align-items: center; gap: 12px;
-      min-height: 48px; padding: 0 8px 0 16px; border-radius: 24px; font-size: 15px; white-space: nowrap;
+      min-height: 48px; padding: 0 8px 0 16px; border-radius: 24px; font-size: 0.9375rem; white-space: nowrap;
       background: var(--primary-text-color); color: var(--card-background-color, #fff); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
     }
     .snack button {
@@ -629,6 +732,5 @@ export class WeeklyPlannerCard extends LitElement {
       color: inherit; text-decoration: underline; border-radius: 24px;
     }
     .empty { color: var(--primary-text-color); opacity: 0.8; padding: 16px 0; text-align: center; }
-    .error { color: var(--error-color, #db4437); font-size: 14px; margin: 8px 0; }
-  `;
+  `];
 }

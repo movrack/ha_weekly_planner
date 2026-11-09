@@ -3,7 +3,7 @@
 Inventory date: 2026-10-29. Current target: Weekly Planner 0.16.2. S01–S36 are historical 0.10.0 captures.
 
 This source-derived checklist tracks the canonical captures under
-`docs/images/guide/`; see the completion record below for actual capture status. Use synthetic local
+`wiki/images/guide/`; see the completion record below for actual capture status. Use synthetic local
 test programs and friendly device names. Do not expose production addresses,
 tokens, personal names or configuration secrets.
 
@@ -46,11 +46,11 @@ claiming that invisible controls fit on the phone.
 | S28 | `s28-program-general-history.png` | Existing program with local history | Open General, make a harmless unsaved name edit. Show Undo/Redo and a selected device's other-program names/priorities where configured. Demonstrate history locally without applying. |
 | S29 | `s29-program-conditions.png` | Program conditions | General → Add a condition, then select a synthetic helper. Show optional attribute, operator and value. This is the actual condition builder, not an obsolete device-specific mode screen. |
 | S30 | `s30-device-actions.png` | Per-device offered actions | Program settings → Devices → expand Offered actions on a selected device. Show translated service checkboxes and all/subset count. |
-| S31 | `s31-season-management.png` | Manage seasons | Program settings → Seasons. Show Active now, Change active season, Season to manage and text-labelled Add/Rename/Copy/Delete controls. |
-| S32 | `s32-season-name-draft.png` | Unsaved season name | Choose Add, Rename or Copy season. Show the name field, discard-name control, main Apply and activation disabled until the season draft is applied. Invalid-name validation can be a variant of this same screen. |
-| S33 | `s33-active-season-ha.png` | Actual active-season selector | With season changes applied, choose Change active season. Capture the real HA more-info for the registry-resolved profile select entity, including its available options. |
+| S31 | `s31-season-management.png` | Manage seasons | Program settings → Seasons. Show Active now, Change active season, Season to manage and text-labelled Add/Rename/Copy/Delete controls (removed: modes are now the options of the global selector; copy lives in the schedules screen). **Capture à refaire** : elle montre un contrôle supprimé (mode global choisi par un sélecteur externe, `docs/adr/0001`). |
+| S32 | `s32-season-name-draft.png` | Unsaved season name | Choose Add, Rename or Copy season. Show the name field, discard-name control, main Apply and activation disabled until the season draft is applied. Invalid-name validation can be a variant of this same screen (removed: no mode name is typed any more). **Capture à refaire** : elle montre un contrôle supprimé (mode global choisi par un sélecteur externe, `docs/adr/0001`). |
+| S33 | `s33-active-season-ha.png` | Actual active-season selector | With season changes applied, choose Change active season. Capture the real HA more-info for the registry-resolved profile select entity, including its available options (removed: there is no per-program select entity). **Capture à refaire** : elle montre un contrôle supprimé (mode global choisi par un sélecteur externe, `docs/adr/0001`). |
 | S34 | `s34-confirmation.png` | Destructive/pause confirmation | Choose a program's enabled control while it is on, or delete a local draft entity/season. Capture the confirmation before accepting; cancel afterwards. This shared component also serves other confirmations. |
-| S35 | `s35-integration-options.png` | Integration-wide settings | HA Settings → Devices & services → Weekly Planner → integration options/configure. Show administrator-only editing, reapply default, unavailable notification delay and condition debounce settings. Do not change production settings to obtain this capture. |
+| S35 | `s35-integration-options.png` | Integration-wide settings | HA Settings → Devices & services → Weekly Planner → integration options/configure. Show administrator-only editing, reapply default, unavailable notification delay and condition debounce settings. Also the new optional mode selector and default mode, not yet in the capture (**capture à refaire**). Do not change production settings to obtain this capture. |
 | S36 | `s36-single-instance.png` | Integration already configured | Local HA Add integration → Weekly Planner. Capture the actual singleton notice and close it without submitting or removing an existing integration. Programs are created inside the card, not as extra integrations. |
 
 ## Supporting states and coverage boundaries
@@ -62,7 +62,7 @@ arbitrary combinations as independent pages:
 - Read-only/non-editable schedule state using an appropriate test account or actual
   read-only fixture. Do not imply that the disabled controls have been tested merely
   by setting a CSS style.
-- Required-name or missing-device validation in General; invalid season name in S32.
+- Required-name or missing-device validation in General.
 - Action field examples: thermostat presets, a cover position, an exposed favourite
   button, automation enable/disable. These are metadata-driven variants of the
   same action selector, not separate device-specific application screens.
@@ -107,9 +107,7 @@ and writes to the local test instance.
   a saved program ID or `"new"`. It retains the actual `wp-program-editor` instances
   per program. Inside a program editor `_tab` is `"general"`, `"entities"` or
   `"seasons"`; `_servicesOpen` is an existing entity ID.
-- The active-season entry point looks up `config/entity_registry/list` and opens
-  HA more-info by the actual select entity ID. Never guess the entity slug from
-  the program name.
+- There is no active-mode entry point any more (no per-program select entity): the mode is chosen on the external selector.
 - Every render-changing capture should await the relevant component's
   `updateComplete`; action/history/preview loading can require a further idle
   wait. Ensure no loading placeholder obscures the state being documented.
@@ -149,7 +147,7 @@ to their expected pixel dimensions. All 49 are referenced by `SCREENS.fr.md`;
 all image paths resolve. `GUIDE.fr.md` exists, and the atlas provides explicit
 S01–S36 and variants anchors for its links. This checks artifact integrity and
 link coverage; it does not claim a physical-device execution test. The native
-profile example is the actual local **Profil Bureau** entity, distinct from the
+selector example was a local test entity, distinct from the
 synthetic Salon program fixtures.
 
 ## Version 0.16.2 additions
@@ -159,14 +157,20 @@ Nine mobile light fixtures use real components and read-only synthetic drafts on
 | ID | File | Coverage |
 |---|---|---|
 | S37 | `s37-create-actions.png` | Créer un programme |
-| S38 | `s38-modes-manual.png` | Choisir ou préparer un mode |
-| S39 | `s39-modes-external.png` | Suivre une entité |
+| S38 | `s38-modes-manual.png` | Choisir ou préparer un mode (capture à refaire : contrôle supprimé) |
+| S39 | `s39-modes-external.png` | Choisir l’entité qui donne le mode (capture à refaire : contrôle supprimé) |
 | S40 | `s40-program-area.png` | Zone du programme |
 | S41 | `s41-card-filter.png` | Filtres et présentation |
 | S42 | `s42-action-target.png` | Appuyer sur un autre bouton |
 | S43 | `s43-action-source.png` | Lire une valeur dans une entité |
 | S44 | `s44-radial-double.png` | Double cadran de 12 heures |
 | S45 | `s45-chart-empty.png` | Graphique sans données |
+| S46 | `s46-pause-dialog.png` | Fenêtre Pause : Jusqu’à quand ? |
+| S47 | `s47-device-tabs.png` | Carte avec onglets d’appareils |
+| S48 | `s48-mode-select.png` | Liste Mode des horaires, mode qui suit un autre, notice Ce mode n’est pas actif |
+| S49 | `s49-advanced-options.png` | Éditeur d’horaire, Options avancées ouvertes |
+| S50 | `s50-setting-editor.png` | Éditeur d’un réglage, Options avancées ouvertes |
+| S51 | `s51-notifications.png` | Les trois sortes de notice côte à côte (montage) |
 
 Not every 0.16.2 state has been recaptured: compact expansion, disabled badges, solar markers, creation success and external mapping continuation still rely on source descriptions and earlier checks. The older 49-image integrity record applies only to the historical set.
 

@@ -4,7 +4,6 @@ import type { PlannerData, Program } from "../types";
 
 const program = (): Program => ({
   id: "p", revision: 1, name: "Office", priority: 10, enabled: true, reapply: true, conditions: [], entities: [],
-  active_profile: "day",
   profiles: ["day", "night"].map((id) => ({ id, name: id, days: [[], [], [], [], [], [], []] })),
 });
 
@@ -21,9 +20,10 @@ const screen = () => {
 describe("schedule mode isolation", () => {
   it("selects a mode without changing the active mode", () => {
     const { view, p } = screen();
-    view._viewProfileId = "night";
+    view.data.mode = { selector: "input_select.m", default: "day", active: "day", options: ["day", "night"], available: true };
+    expect(view._modeOnly).toBe(false);
+    view._viewMode = "night";
     expect(view._modeProfile(p).id).toBe("night");
-    expect(p.active_profile).toBe("day");
     expect(view._modeOnly).toBe(true);
   });
 
@@ -32,8 +32,9 @@ describe("schedule mode isolation", () => {
     view._open = "new";
     view._programId = p.id;
     view._editProfileId = "day";
-    view.data.status[p.id] = { active_profile: "night" };
-    expect(view._modeProfile(p).id).toBe("day");
+    view._editMode = "day";
+    view.data.mode = { selector: "input_select.m", default: "day", active: "night", options: ["day", "night"], available: true };
+    expect(view._modeProfile(p).id).toBe("night");
     expect(view._editProfile(p).id).toBe("day");
   });
 

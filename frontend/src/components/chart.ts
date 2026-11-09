@@ -1,4 +1,5 @@
 import { TIMELINE, timelineGeometry, timelineX } from "../timeline-geometry";
+import { tokenStyles } from "../styles";
 import { sourceName, chartLegend } from "../chart-sources";
 // Continuous timeline chart of one device (spec § 10.4), the same for every device: the Home Assistant history of the day
 // (a curve for a number, else a band of states), the planned actions as markers (with their value), a "now"
@@ -13,8 +14,8 @@ import { LitElement, css, html, nothing, svg } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { t } from "../i18n";
 import { actionValue, appliedAction, labelOf } from "../labels";
-import { activeProfile, entityDomain, friendlyName } from "../planner";
-import { addDaysIso, dateFormat, localMinutes, localDateIso, localWeekday, nominal, spillover } from "../time";
+import { activeProfile, entityDomain, fmtNum, friendlyName } from "../planner";
+import { addDaysIso, dateFormat, fmtClock, localMinutes, localDateIso, localWeekday, nominal, spillover } from "../time";
 import { fetchPreviewResponse, deviceSpans } from "../preview-cache";
 import { applies } from "../slots";
 import { nowTip, sunDir, sunTip } from "./day-bar";
@@ -763,12 +764,16 @@ export class WpChart extends LitElement {
     else this._open();
   }
 
-  /** "08:00" at a minute of the day. */
+  /** Clock at a minute of the day ("22 h 30" in French); with a date when the window leaves the day. */
   private _clock(m: number, span: number): string {
-    if (m === span && span === 1440 && this._win.from >= 0 && this._win.to <= span) return "24:00";
+    if (m === span && span === 1440 && this._win.from >= 0 && this._win.to <= span) return "24 h";
     const { startMs } = dayBounds(this.date, this._tz);
-    return dateFormat("en-GB", { timeZone: this._tz, ...(this._win.from < 0 || this._win.to > span ? { day: "numeric", month: "numeric" } : {}), hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
-      .format(new Date(startMs + m * 60_000));
+    const dated = this._win.from < 0 || this._win.to > span;
+    const at = new Date(startMs + m * 60_000);
+    if (dated) return dateFormat("en-GB", { timeZone: this._tz, day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at);
+    // same spoken clock as the rest of the card ("22 h 30" in French)
+    const [h, min] = dateFormat("en-GB", { timeZone: this._tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at).split(":").map(Number);
+    return fmtClock(this._lang, h * 60 + min);
   }
 
   private _windowDate(): string {
@@ -821,9 +826,9 @@ export class WpChart extends LitElement {
     if (!model) body = html`<div class="note">${t(lang, "chart_loading")}</div>`;
     else body = this._renderChart(model);
     return html`<div class="box">${body}</div>${model ? html`<div class="zoombar">
-        <button class="zreset" aria-label=${t(lang, "chart_previous")} @click=${() => this._setZoom(slideTimeline(this._win, -(this._win.to - this._win.from)))}><ha-icon icon="mdi:chevron-left"></ha-icon></button>
+        <button class="zreset step" aria-label=${`${t(lang, "chart_previous")}, ${this._shownName}`} @click=${() => this._setZoom(slideTimeline(this._win, -(this._win.to - this._win.from)))}><ha-icon icon="mdi:chevron-left"></ha-icon></button>
         <span class="zdate">${this._windowDate()}</span>
-        <button class="zreset" aria-label=${t(lang, "chart_next")} @click=${() => this._setZoom(slideTimeline(this._win, this._win.to - this._win.from))}><ha-icon icon="mdi:chevron-right"></ha-icon></button>
+        <button class="zreset step" aria-label=${`${t(lang, "chart_next")}, ${this._shownName}`} @click=${() => this._setZoom(slideTimeline(this._win, this._win.to - this._win.from))}><ha-icon icon="mdi:chevron-right"></ha-icon></button>
         ${this._zoom ? html`
         <span class="zwin">${t(lang, "chart_zoom_window", { from: this._clock(this._zoom.from, model.span), to: this._clock(this._zoom.to, model.span) })}</span>
         <button class="zreset return-day" type="button" @click=${() => this._reset()}>
@@ -946,6 +951,9 @@ export class WpChart extends LitElement {
       shown.push({ x: lx, y: ly });
       return { lx, ly };
     };
+    // No visible text inside the interactive svg (WCAG 2.5.3, the name of a button is not its axis ticks): every
+    // <text> goes to `texts`, drawn by a non-interactive sibling svg of the same size and viewBox.
+    const texts: unknown[] = [], clipped: unknown[] = [];  // clipped: the texts that were inside the plot clip when zoomed
     const mark = (mk: Marker) => {
       const cy = cyOf(mk);
       const at = mk.value !== null ? labelAt(mk, cy) : null;
@@ -953,7 +961,7 @@ export class WpChart extends LitElement {
       return svg`
         <line class="drop" x1=${x(mk.m)} x2=${x(mk.m)} y1=${cy} y2=${H - PAD.b}></line>
         ${mk.sun ? nothing : svg`<circle class="mk ${mk.end ? "end" : ""} ${mk.ignored ? "faded" : ""}" cx=${x(mk.m)} cy=${cy} r="5" style="--c:${color}"></circle>`}
-        ${mk.value !== null && at ? svg`<text class="val" x=${at.lx} y=${at.ly} text-anchor="middle">${Number(mk.value.toFixed(1))}</text>` : nothing}`;
+        ${(mk.value !== null && at ? clipped.push(svg`<text class="val" x=${at.lx} y=${at.ly} text-anchor="middle">${fmtNum(lang, mk.value)}</text>`) : 0, nothing)}`;
     };
     // the reference curve is the same for every manual interval: look it up once per render
     const base = curve ? model.lines.find((l) => l.key === "set") ?? model.lines.find((l) => l.key === "main") ?? model.lines[0] : undefined;
@@ -975,17 +983,19 @@ export class WpChart extends LitElement {
         }}>
         ${zoomed ? svg`<defs><clipPath id="plot"><rect x=${PAD.l - 3} y="0" width=${W - PAD.l - PAD.r + 6} height=${H}></rect></clipPath></defs>` : nothing}
         <g clip-path=${zoomed ? "url(#plot)" : nothing}>${curve ? shades : nothing}</g>
-        ${ticksY.map((v) => svg`<line class="grid" x1=${PAD.l} x2=${W - PAD.r} y1=${y(v)} y2=${y(v)}></line>
-          <text class="ylab" style=${`fill:${config.axes[0]?.color ?? "var(--secondary-text-color)"}`} x=${PAD.l - 4} y=${y(v) + 3} text-anchor="end">${Number(v.toFixed(1))}</text>`)}
-        ${curve ? svg`<text class="unit" x="2" y="10" style=${`fill:${config.axes[0]?.color ?? "var(--primary-text-color)"}`}>${config.axes[0]?.unit ?? model.unit}</text>` : nothing}
-        ${config.axes.slice(1).map((axis, index) => {
+        ${ticksY.map((v) => {
+          texts.push(svg`<text class="ylab" style=${`fill:${config.axes[0]?.color ?? "var(--secondary-text-color)"}`} x=${PAD.l - 4} y=${y(v) + 3} text-anchor="end">${fmtNum(lang, v)}</text>`);
+          return svg`<line class="grid" x1=${PAD.l} x2=${W - PAD.r} y1=${y(v)} y2=${y(v)}></line>`;
+        })}
+        ${(curve ? texts.push(svg`<text class="unit" x="2" y="10" style=${`fill:${config.axes[0]?.color ?? "var(--primary-text-color)"}`}>${config.axes[0]?.unit ?? model.unit}</text>`) : 0, nothing)}
+        ${config.axes.slice(1).forEach((axis, index) => {
           const ax = W - PAD.r - 4 - index * 38;
           const labels = axisTicks(axis.lo, axis.hi);
-          return svg`<g class="source-axis" text-anchor="end" style=${`fill:${axis.color};color:${axis.color}`}>
+          texts.push(svg`<g class="source-axis" text-anchor="end" style=${`fill:${axis.color};color:${axis.color}`}>
             <text x=${ax} y="10" style="fill:inherit">${axis.unit}</text>
-            ${labels.map(v => svg`<text x=${ax} y=${axisY(v, axis) + 3} style="fill:inherit">${Number(v.toFixed(1))}</text>`)}</g>`;
+            ${labels.map(v => svg`<text x=${ax} y=${axisY(v, axis) + 3} style="fill:inherit">${fmtNum(lang, v)}</text>`)}</g>`);
         })}
-        ${ticksX.map((m) => svg`<text class="xlab" x=${x(m)} y=${H - 6} text-anchor=${anchorOf(m)}>${tickText(m)}</text>`)}
+        ${ticksX.forEach((m) => texts.push(svg`<text class="xlab" x=${x(m)} y=${H - 6} text-anchor=${anchorOf(m)}>${tickText(m)}</text>`))}
         <g clip-path=${zoomed ? "url(#plot)" : nothing}>
         ${curve ? nothing : svg`
           <rect class="track" x=${PAD.l} y=${bandY} width=${W - PAD.l - PAD.r} height=${bandH} rx="6"></rect>
@@ -995,7 +1005,8 @@ export class WpChart extends LitElement {
             // the text is centred on the part of the band that is visible
             const s0 = Math.max(b.s, win.from), e0 = Math.min(b.e, win.to);
             const w = x(e0) - x(s0);
-            return e0 > s0 && fitText(b.text, w) ? svg`<text class="btxt" x=${x(s0) + w / 2} y=${bandY + bandH / 2 + 4} text-anchor="middle">${fitText(b.text, w)}</text>` : nothing;
+            if (e0 > s0 && fitText(b.text, w)) clipped.push(svg`<text class="btxt" x=${x(s0) + w / 2} y=${bandY + bandH / 2 + 4} text-anchor="middle">${fitText(b.text, w)}</text>`);
+            return nothing;
           })}
           ${model.manual.map(([a, b]) => svg`<rect class="red-band" x=${x(a)} y=${bandY} width=${Math.max(3, x(b) - x(a))} height=${bandH}></rect>`)}`}
         ${curve ? model.lines.map((l) => svg`<path class="line ${l.key}" d=${this._path(l.pts, model, x, y, l.key !== "measured")}></path>`) : nothing}
@@ -1027,10 +1038,13 @@ export class WpChart extends LitElement {
           width=${Math.abs(this._band.b - this._band.a)} height=${H - PAD.t - PAD.b + 4}></rect>` : nothing}
         <rect class="hit" x="0" y="0" width=${W} height=${H}></rect>
       </svg>
-      ${model.markers.filter((mk) => mk.sun && (!zoomed || inPlot(mk.m))).map((mk) => html`<wp-tip class="suntip ${mk.ignored ? "faded" : ""}"
+      <svg class="txt" width=${W} height=${H} viewBox="0 0 ${W} ${H}" aria-hidden="true" focusable="false">
+        ${texts}<g clip-path=${zoomed ? "url(#plot)" : nothing}>${clipped}</g>
+      </svg>
+      ${model.markers.filter((mk) => mk.sun && (!zoomed || inPlot(mk.m))).map((mk) => html`<wp-tip class="suntip ${mk.ignored ? "faded" : ""}" no-tab
         style="left:${x(mk.m)}px;top:${cyOf(mk)}px;--c:${mk.label.color}" text=${sunTip(lang, mk.spec, mk.m)}>
         <span class="sunc"><ha-icon icon=${mk.sun === "up" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down"}></ha-icon></span></wp-tip>`)}
-      ${model.isToday && (!zoomed || inPlot(model.pastEnd)) ? html`<wp-tip class="nowtip" style="left:${x(model.pastEnd)}px;top:${PAD.t - 11}px"
+      ${model.isToday && (!zoomed || inPlot(model.pastEnd)) ? html`<wp-tip class="nowtip" no-tab label=${`${nowTip(lang, localMinutes(new Date(), this._tz))}, ${this._shownName}`} style="left:${x(model.pastEnd)}px;top:${PAD.t - 11}px"
         text=${nowTip(lang, localMinutes(new Date(), this._tz))}></wp-tip>` : nothing}
     </div>
     ${config.overflow ? html`<p class="source-warning" role="status">${t(lang, "chart_sources_overflow")}</p>` : nothing}
@@ -1046,7 +1060,7 @@ export class WpChart extends LitElement {
     const programBands = model.planned.zones.filter(z => z.value === null && z.to > win.from && z.from < win.to);
     return html`<div class="source-bands">
       ${programBands.length ? html`<div class="source-row program-row">
-        <svg width=${this._width} height="24" viewBox="0 0 ${this._width} 24" tabindex="0" role="img" aria-label=${t(this._lang, "chart_program_bands")}
+        <svg width=${this._width} height="24" viewBox="0 0 ${this._width} 24" role="img" aria-label=${t(this._lang, "chart_program_bands")}
           @pointerdown=${(e: PointerEvent) => this._down(e)} @pointermove=${(e: PointerEvent) => this._move(e)}
           @pointerup=${(e: PointerEvent) => this._up(e)} @pointercancel=${(e: PointerEvent) => this._up(e)}
           @wheel=${(e: WheelEvent) => this._wheel(e)} @keydown=${(e: KeyboardEvent) => this._zoomKey(e)}>
@@ -1083,6 +1097,7 @@ export class WpChart extends LitElement {
   }
 
   static styles = css`
+    ${tokenStyles}
     :host { display: block; }
     .program-band rect { fill-opacity: .24; stroke: var(--card-background-color); stroke-width: 1; }
     text.program-text { fill: var(--primary-text-color); font-size: 11px; font-weight: 600; }
@@ -1090,15 +1105,15 @@ export class WpChart extends LitElement {
     .key i.planned-band { height: 10px; border: 1px solid var(--secondary-text-color); background: var(--divider-color); }
     .source-axis text { paint-order: stroke; stroke: var(--card-background-color, var(--ha-card-background)); stroke-width: 3px; stroke-linejoin: round; }
     .source-line { fill:none; stroke-width:2; stroke-linejoin:round; }
-    .legend, .state-legend { display:flex; gap:4px 12px; flex-wrap:wrap; font-size:12px; color:var(--secondary-text-color); }
+    .legend, .state-legend { display:flex; gap:4px 12px; flex-wrap:wrap; font-size:0.75rem; color:var(--secondary-text-color); }
     .legend > span, .state-legend span { display:inline-flex; align-items:center; gap:5px; }
     .legend > span:not(.key) i, .state-legend i { display:inline-block; width:10px; height:10px; border-radius:50%; flex:none; }
     .source-key { flex-wrap:wrap; overflow-wrap:anywhere; max-width:100%; }
-    .legend small { margin-left:4px; } .source-name { font-size:12px; margin-top:8px; overflow-wrap:anywhere; }
+    .legend small { margin-left:4px; } .source-name { font-size:0.75rem; margin-top:8px; overflow-wrap:anywhere; }
     .neutral { background:var(--divider-color); } .missing { border:1px dashed var(--secondary-text-color); opacity:.5; }
-    .source-warning { color:var(--error-color); font-size:13px; }
+    .source-warning { color:var(--wp-danger-text); font-size:0.8125rem; }
     .box { position: relative; width: 100%; min-height: 40px; }
-    .availability { color: var(--secondary-text-color); font-size: 13px; line-height: 1.5; }
+    .availability { color: var(--secondary-text-color); font-size: 0.8125rem; line-height: 1.5; }
     .availability p { margin: 4px 0; }
     .cwrap { position: relative; width: fit-content; max-width: 100%; }
     .nowtip { position: absolute; transform: translate(-50%, -50%); }
@@ -1111,17 +1126,19 @@ export class WpChart extends LitElement {
     .faded { opacity: 0.45; }
     /* vertical scroll of the page stays with the browser; horizontal moves and two fingers are ours (zoom) */
     svg { display: block; user-select: none; outline: none; max-width: 100%; cursor: pointer; touch-action: pan-y; }
+    svg.txt { position: absolute; left: 0; top: 0; pointer-events: none; cursor: default; }
     .rubber { fill: var(--primary-color); opacity: 0.2; stroke: var(--primary-color); stroke-width: 1; pointer-events: none; }
     .zoombar { display: flex; align-items: center; justify-content: space-between; gap: 4px 8px; margin-top: 2px; flex-wrap: wrap; }
-    .zdate { font-size: 13px; }
-    .zwin { color: var(--secondary-text-color); font-size: 14px; white-space: nowrap; }
+    .zdate { font-size: 0.8125rem; }
+    .zwin { color: var(--secondary-text-color); font-size: 0.875rem; white-space: nowrap; }
     .zreset {
       display: inline-flex; align-items: center; gap: 6px; min-height: 44px; min-width: 44px; padding: 0 12px;
-      border: 1px solid var(--divider-color); border-radius: 22px; background: transparent; color: var(--primary-color);
-      font: inherit; font-size: 14px; cursor: pointer; white-space: nowrap; --mdc-icon-size: 20px;
+      border: 1px solid var(--wp-field-border); border-radius: 22px; background: transparent; color: var(--wp-primary-text);
+      font: inherit; font-size: 0.875rem; cursor: pointer; white-space: nowrap; --mdc-icon-size: 20px;
     }
-    .zreset:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
-    svg:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; border-radius: 4px; }
+    .zreset.step { min-height: 48px; min-width: 48px; padding: 0 10px; justify-content: center; }
+    .zreset:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
+    svg:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; border-radius: 4px; }
     .grid { stroke: var(--divider-color, rgba(127, 127, 127, 0.3)); stroke-width: 1; }
     text { fill: var(--secondary-text-color); font-size: 10px; }
     text.unit { font-size: 11px; }
@@ -1148,8 +1165,8 @@ export class WpChart extends LitElement {
     .now { stroke: var(--primary-text-color); stroke-width: 1.5; }
     .nowicon path { fill: var(--primary-text-color); }
     .hit { fill: transparent; }
-    .note { padding: 24px 0; text-align: center; color: var(--secondary-text-color); font-size: 13px; }
-    .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 14px; color: var(--secondary-text-color); }
+    .note { padding: 24px 0; text-align: center; color: var(--secondary-text-color); font-size: 0.8125rem; }
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 0.875rem; color: var(--secondary-text-color); }
     .key { display: inline-flex; align-items: center; gap: 5px; }
     .key i { display: inline-block; width: 16px; height: 0; border-top: 3px solid var(--primary-color); }
     .key i.main { border-top: 2px solid var(--primary-color); }

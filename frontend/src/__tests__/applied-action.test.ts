@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { WeeklyPlannerCard } from "../weekly-planner-card";
 import { appliedAction } from "../labels";
+import { loadServiceNames } from "../services";
 
 const hass: any = {
   language: "en", config: { time_zone: "UTC" },
@@ -14,7 +15,7 @@ const mixed = { id: "m", name: "Mixed", color: "#f00", action: temp.action };
 const slot = (label: string) => ({ id: "s" + label, start: { time: "08:00" }, end: { time: "09:00" }, label });
 
 function setup(entities: any[], labels: any[], slots: any[]) {
-  const program = { id: "p", name: "p", revision: 1, priority: 10, enabled: true, reapply: true, conditions: [], active_profile: "a", entities,
+  const program = { id: "p", name: "p", revision: 1, priority: 10, enabled: true, reapply: true, conditions: [], entities,
     profiles: [{ id: "a", name: "A", days: Array.from({ length: 7 }, () => slots) }] };
   const c = new WeeklyPlannerCard() as any;
   c.hass = hass;
@@ -44,5 +45,19 @@ describe("slots drawn only on devices that accept their action", () => {
     const { c, program } = setup([ent("cover.b", { restrict_services: true, allowed_services: ["cover.close_cover"] })], [open], [slot("o")]);
     expect(c._spans("cover.b", [program])).toEqual([]);
     expect(appliedAction(hass, program as any, "cover.b", open as any)).toBeUndefined();
+  });
+});
+
+describe("a label named by a raw service id", () => {
+  it("is redrawn with the translated service name once the translations arrive (memoized spans)", async () => {
+    const vac = { id: "v", name: "vacuum.start", color: "#795548", action: { kind: "service", service: "vacuum.start" } };
+    const h: any = { ...hass, states: { "vacuum.r": { entity_id: "vacuum.r", state: "docked", attributes: {} } },
+      services: { vacuum: { start: { name: "Start", target: { entity: [{ domain: "vacuum" }] }, fields: {} } } },
+      loadBackendTranslation: async () => (k: string) => (k === "component.vacuum.services.start.name" ? "Démarrer l'aspirateur" : "") };
+    const { c, program } = setup([ent("vacuum.r")], [vac], [slot("v")]);
+    c.hass = h;
+    expect(c._spans("vacuum.r", [program])[0].label).toBe("Start");
+    await loadServiceNames(h, ["vacuum"]);
+    expect(c._spans("vacuum.r", [program])[0].label).toBe("Démarrer l'aspirateur");
   });
 });

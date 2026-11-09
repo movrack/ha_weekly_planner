@@ -10,8 +10,9 @@ import "./chart-options";
 import type { SourcePoint } from "../chart-sources";
 import "./day-bar";
 import { sunDir, type BarSpan } from "./day-bar";
-import "./dialog";
+import { collectFocusable } from "./dialog";
 import "./label-picker";
+import "./mode-notice";
 import "./slot-form";
 import { daysText, groupSlots, slotKey, specText, ALL_DAYS } from "../actions";
 import type { SlotGroup } from "../actions";
@@ -19,18 +20,23 @@ import { applyEdit, compareOrigin, dayView, findGroup, freshGroup, groupId, next
 import { devicesOf, dropDeviceSlots, editForDevice, isShared, remergeIdentical } from "../device-edits";
 import type { SlotPatch } from "../device-edits";
 import type { RowEdit } from "../edits";
-import { appliedAction, labelName, labelOf, labelsFor } from "../labels";
+import { appliedAction, labelDomains, labelName, labelOf, labelsFor } from "../labels";
 import type { LabelDraft } from "./label-picker";
 import { addDaysIso } from "./chart";
-import { confirmAction } from "./confirm";
-import { slotDeviceError, strings, t } from "../i18n";
-import { loadServiceNames } from "../services";
-import { activeProfile, friendlyName, newId } from "../planner";
+import { chooseAction, confirmAction, pauseChoice } from "./confirm";
+import { errorText, slotDeviceError, strings, t } from "../i18n";
+import { loadServiceNames, onServiceNames } from "../services";
+import { cloneSlots, effectiveProfile, friendlyName, newId } from "../planner";
 import { deviceDays, fetchPreviewResponse } from "../preview-cache";
-import { DAY, localDateIso, minutesToClock } from "../time";
+import { DAY, formatPauseEnd, localDateIso, minutesToClock, pauseEnd } from "../time";
 import { applicable, applies, normaliseEntities, shiftTimeSpec, specMinutes, sunBoundsInvalid } from "../slots";
 import { editorStyles, langOf } from "../editors/shared";
+import { callout } from "../styles";
 import type { Action, HomeAssistant, PlannerData, PreviewResponse, PreviewSlot, Profile, Program, Slot, TimeSpec } from "../types";
+
+/** The profiles with `next` in place of the one with its id, added at the end when it is new. */
+const putProfile = (profiles: Profile[], next: Profile): Profile[] =>
+  profiles.some((p) => p.id === next.id) ? profiles.map((p) => (p.id === next.id ? next : p)) : [...profiles, next];
 
 /** A program screen opened from one device row carries that device (`entityId`): its schedules are shown first. */
 export type Scope = { kind: "device"; entityId: string } | { kind: "program"; programId: string; entityId?: string };
@@ -46,9 +52,13 @@ export class WpSchedule extends LitElement {
   @property({ attribute: false }) data!: PlannerData;
   @property({ attribute: false }) scope!: Scope;
   @property({ type: Boolean }) chart = true;
-  @property({ attribute: false }) profileId: string | null = null;
-  @state() private _viewProfileId: string | null = null;
+  /** Mode opened with the mode choice (null: the active mode). */
+  @state() private _viewMode: string | null = null;
+  @state() private _copyOpen = false;
+  @state() private _optsOpen = false;
   private _editProfileId: string | null = null;
+  /** Mode of the row being edited (null: no mode, the first schedules). */
+  private _editMode: string | null = null;
   /** Opened from a day of the card's week (0 = Monday, `offset` days from today): edit that day. */
   @property({ attribute: false }) day: { weekday: number; offset: number } | null = null;
   /** Opened from the card's "Create a setting" button: straight to the first slot when there is none. */
@@ -128,18 +138,62 @@ export class WpSchedule extends LitElement {
     return [...list].sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
   }
 
+  /**
+   * The modes of the choice: the selector's options, then the modes of this screen's programs that the selector
+   * no longer offers (marked "no option"). Empty without a selector (a single mode).
+   */
+  private _modes(): { name: string; orphan: boolean }[] {
+    const mode = this.data.mode;
+    if (!mode?.selector) return [];
+    const out = mode.options.map((name) => ({ name, orphan: false }));
+    for (const program of this._programs) {
+      for (const p of program.profiles) if (!out.some((m) => m.name === p.name)) out.push({ name: p.name, orphan: true });
+    }
+    return out;
+  }
+
+  /** The mode whose schedules are shown and edited (null without a selector: the program's first schedules). */
+  private get _openMode(): string | null {
+    const mode = this.data.mode;
+    if (!mode?.selector) return null;
+    if (this._viewMode !== null && this._modes().some((m) => m.name === this._viewMode)) return this._viewMode;
+    return mode.active ?? mode.default ?? mode.options[0] ?? null;
+  }
+
+  /** The schedules named after the opened mode in a program, whatever they follow. */
+  private _ownProfile(program: Program): Profile | undefined {
+    const mode = this._openMode;
+    return mode === null ? program.profiles[0] : program.profiles.find((p) => p.name === mode);
+  }
+
+  /**
+   * The schedules shown and edited for the opened mode in a program (none yet: undefined; they are created on the
+   * first save). A mode that follows another one shows, and edits, the schedules of its source.
+   */
   private _modeProfile(program: Program): Profile | undefined {
-    const id = this._open && program.id === this._programId ? this._editProfileId
-      : this.profileId ?? (this.scope.kind === "program" ? this._viewProfileId : null);
-    return id === null ? activeProfile(program, this.data) : program.profiles.find((p) => p.id === id);
+    const own = this._ownProfile(program);
+    return own ? effectiveProfile(program, own) : undefined;
   }
 
+  /** The mode the opened mode follows in a program; null when it follows none. */
+  private _followOf(program: Program): string | null {
+    const own = this._ownProfile(program);
+    return own && effectiveProfile(program, own) !== own ? own.follows ?? null : null;
+  }
+
+  /** The opened mode is not the active one: its schedules are edited, nothing else of the program. */
   private get _modeOnly(): boolean {
-    return this.profileId !== null || this._programs.some((p) => this._modeProfile(p)?.id !== activeProfile(p, this.data)?.id);
+    const mode = this.data.mode;
+    return Boolean(mode?.selector) && this._openMode !== null && this._openMode !== mode!.active;
   }
 
+  /** The schedules being edited; for a mode with none yet, an empty week that the first save creates. */
   private _editProfile(program: Program): Profile | undefined {
-    return program.profiles.find((p) => p.id === this._editProfileId);
+    if (this._editProfileId === null) return undefined;
+    const found = program.profiles.find((p) => p.id === this._editProfileId);
+    if (found || this._editMode === null) return found;
+    return program.profiles.find((p) => p.name === this._editMode)
+      ?? { id: this._editProfileId, name: this._editMode, days: [[], [], [], [], [], [], []] };
   }
 
   /** Every device of the screen (the program's devices, or the one device of a device scope). */
@@ -220,9 +274,7 @@ export class WpSchedule extends LitElement {
 
   /** Translated service names of the actions of the labels. */
   private _loadNames(): void {
-    const domains = new Set<string>();
-    for (const l of this.data.labels) if (l.action.kind === "service") domains.add(l.action.service.split(".")[0]);
-    void loadServiceNames(this.hass, [...domains]).then((ok) => ok && this.requestUpdate());
+    void loadServiceNames(this.hass, labelDomains(this.data.labels)).then((ok) => ok && this.requestUpdate());
   }
 
   willUpdate(changed: Map<string, unknown>): void {
@@ -267,7 +319,8 @@ export class WpSchedule extends LitElement {
     key: string, program: Program, group: SlotGroup | null,
     opts: { restLabel?: string | null; rest?: SlotGroup | null; dayOnly?: number | null; openId?: string | null; origin?: SlotGroup | null } = {},
   ): void {
-    this._editProfileId = this._modeProfile(program)?.id ?? null;
+    this._editMode = this._openMode;
+    this._editProfileId = this._modeProfile(program)?.id ?? newId();
     this._open = key;
     this._programId = program.id;
     this._group = group ? structuredClone(group) : null;
@@ -286,7 +339,22 @@ export class WpSchedule extends LitElement {
     this._error = "";
     this._note = "";
     // Show the top of the opened row, not the bottom of its form.
-    void this.updateComplete.then(() => requestAnimationFrame(() => this._revealEditor()));
+    void this.updateComplete.then(() => requestAnimationFrame(() => { this._revealEditor(); this._focusEditor(); }));
+  }
+
+  /** The focus follows the row that turned into an editor: it goes to the editor's first control. */
+  private _focusEditor(): void {
+    const editor = this.renderRoot.querySelector<HTMLElement>(".editor");
+    if (editor) (collectFocusable(editor)[0] ?? editor).focus({ preventScroll: true });
+  }
+
+  /** The editor closed: the focus goes back to the row it replaced (or to "add" for a new one). */
+  private _focusRow(key: string | null): void {
+    void this.updateComplete.then(() => requestAnimationFrame(() => {
+      const root = this.renderRoot;
+      const row = key && key !== "new" ? Array.from(root.querySelectorAll<HTMLElement>("button.row[data-key]")).find((el) => el.dataset.key === key) : undefined;
+      (row ?? root.querySelector<HTMLElement>("button.row.add"))?.focus({ preventScroll: true });
+    }));
   }
 
   /** Brings the opened editor into view. In two columns the schematic sits beside it: scroll only if the editor's top is out of view. */
@@ -304,6 +372,11 @@ export class WpSchedule extends LitElement {
 
   /** Opens a slot row: the whole group, or only the focused day of it. */
   private _openRow(key: string, program: Program, group: SlotGroup): void {
+    if (this._followOf(program)) { void this._askFollow(program, () => this._openRowNow(key, program, group)); return; }
+    this._openRowNow(key, program, group);
+  }
+
+  private _openRowNow(key: string, program: Program, group: SlotGroup): void {
     const openId = groupId(group) ?? null;
     if (this._focus !== null && group.days.includes(this._focus)) {
       const { draft, rest } = dayView(group, this._focus);
@@ -313,8 +386,18 @@ export class WpSchedule extends LitElement {
     }
   }
 
+  /** Escape with a row editor open closes only that editor (its edit is discarded, the focus goes back to its row). */
+  private _onEscape(e: Event): void {
+    if (this._open === null) return;
+    e.preventDefault();
+    this._cancel();
+  }
+
   private _cancel(): void {
+    const closed = this._open;
+    if (closed !== null) this._focusRow(closed);
     this._editProfileId = null;
+    this._editMode = null;
     this._open = null;
     this._group = null;
     this._dayOnly = null;
@@ -350,14 +433,18 @@ export class WpSchedule extends LitElement {
 
   /** A new slot: all days from the full screen, one day when focused (starting after that day's last slot). */
   private _add(days: number[] = this._focus === null ? ALL_DAYS : [this._focus]): void {
+    const owner = this._programs[0];
+    if (owner && this._followOf(owner)) { void this._askFollow(owner, () => this._addNow(days)); return; }
+    this._addNow(days);
+  }
+
+  private _addNow(days: number[]): void {
     const program = this._programs[0];
     const eid = this._eid;
     if (!program || !eid) return;
     const first = labelsFor(this.hass, this.data, [eid], program)[0];
     const day = days.length === 1 ? days[0] : null;
-    const profile = this._modeProfile(program);
-    if (!profile) return;
-    const times = day === null ? undefined : nextTimes(profile.days[day], this._minutes, eid);
+    const times = day === null ? undefined : nextTimes(this._modeProfile(program)?.days[day] ?? [], this._minutes, eid);
     const group = freshGroup(first?.id ?? "", days, times);
     // a new slot belongs to the device it is created from ("Also for" adds others); absent for a single device (D5)
     const entities = normaliseEntities([eid], devicesOf(program));
@@ -649,7 +736,7 @@ export class WpSchedule extends LitElement {
         if (!days) return { error: t(this._lang, "ss_changed") };
         const next = { ...profile, days };
         if (overlapPair(next)) return { error: this._overlapText(next) };
-        return { program: { ...live, entities: this._withOverrides(live), profiles: live.profiles.map((p) => (p.id === profile.id ? next : p)) } };
+        return { program: { ...live, entities: this._withOverrides(live), profiles: putProfile(live.profiles, next) } };
       });
       if (ok && !stale) this._cancel();
       return;
@@ -678,7 +765,7 @@ export class WpSchedule extends LitElement {
       // copies that became identical again (other devices) are merged back into one slot (D1)
       const next = { ...edited, days: edited.days.map((d) => remergeIdentical(d, devicesOf(live)).day) };
       if (overlapPair(next)) return { error: this._overlapText(next) };
-      return { program: { ...live, entities: this._withOverrides(live), profiles: live.profiles.map((p) => (p.id === profile.id ? next : p)) } };
+      return { program: { ...live, entities: this._withOverrides(live), profiles: putProfile(live.profiles, next) } };
     });
     if (saved && !changed) {
       this._cancel();
@@ -695,7 +782,8 @@ export class WpSchedule extends LitElement {
     const program = this._live(this._programId);
     if (!program || !this._openId) return;
     if (this._shared && this._who === null) { this._error = t(this._lang, "who_pick"); return; }
-    if (!(await confirmAction(this, t(this._lang, "w_confirm_slot"), t(this._lang, "yes"), t(this._lang, "no")))) return;
+    const what = this._group ? this._rowText(this._group).text : "";  // say which schedule goes away
+    if (!(await confirmAction(this, `${t(this._lang, "w_confirm_slot")}${what ? ` ${what}` : ""}`, t(this._lang, "slot_delete_yes"), t(this._lang, "slot_delete_no")))) return;
     const one = this._shared && this._who === "one";
     const ok = await this._commit(program.id, (live) => {
       const profile = this._editProfile(live);
@@ -705,10 +793,10 @@ export class WpSchedule extends LitElement {
         // "This device": the slot stops for this device only, the other devices keep it (D1)
         const days = this._forDevice(profile.days, this._origin, null, devicesOf(live));
         if (!days) return { error: t(this._lang, "ss_changed") };
-        return { program: { ...live, profiles: live.profiles.map((p) => (p.id === profile.id ? { ...profile, days } : p)) } };
+        return { program: { ...live, profiles: putProfile(live.profiles, { ...profile, days }) } };
       }
       const next = applyEdit(profile, this._include, this._minutes, { openId: this._openId, rest: this._rest, draft: null });
-      return { program: { ...live, profiles: live.profiles.map((p) => (p.id === profile.id ? next : p)) } };
+      return { program: { ...live, profiles: putProfile(live.profiles, next) } };
     });
     if (ok) this._cancel();
   }
@@ -732,22 +820,32 @@ export class WpSchedule extends LitElement {
     return this._programs.some((p) => p.enabled);
   }
 
+  private _stateText(): string {
+    if (this._enabled) return t(this._lang, "running");
+    const until = pauseEnd(this._programs);
+    return until ? t(this._lang, "paused_until", { when: formatPauseEnd(until, this._tz, this._lang) }) : t(this._lang, "stopped");
+  }
+
   private async _setEnabled(enabled: boolean, input: HTMLInputElement): Promise<void> {
     if (this._toggling) { input.checked = this._enabled; return; }
     this._toggling = true;
     try {
-      if (!enabled && !(await confirmAction(this, t(this._lang, "confirm_pause", { name: this._title }), t(this._lang, "yes"), t(this._lang, "no")))) {
+      const choice = enabled ? "none" : await pauseChoice(this, this._title);
+      if (choice === null) {
         input.checked = true;
         return;
       }
       for (const p of this._programs) {
-        await this.hass.callWS({ type: "weekly_planner/program/set_enabled", program_id: p.id, enabled });
+        if (typeof choice === "number") await this.hass.callWS({ type: "weekly_planner/program/pause", program_id: p.id, hours: choice });
+        else await this.hass.callWS({ type: "weekly_planner/program/set_enabled", program_id: p.id, enabled });
       }
     } catch (err) {
-      this._error = t(this._lang, "error", { message: (err as { message?: string })?.message ?? String(err) });
+      this._error = errorText(this._lang, err);
     } finally {
       this._toggling = false;
       input.checked = this._enabled;
+      // the switch was disabled while its dialog was open: give the focus back to it once it is enabled again
+      void this.updateComplete.then(() => { if (input.isConnected) input.focus({ preventScroll: true }); });
     }
   }
 
@@ -756,11 +854,11 @@ export class WpSchedule extends LitElement {
     if (this.scope.kind === "program" && owner && owner.entities.length > 1 && this._eid) {
       // one device of several: only its schedules go (every mode); the program and the other devices stay
       const eid = this._eid;
-      if (!(await confirmAction(this, t(this._lang, "confirm_delete_device", { name: friendlyName(this.hass, eid) }), t(this._lang, "yes"), t(this._lang, "no")))) return;
+      if (!(await confirmAction(this, t(this._lang, "confirm_delete_device", { name: friendlyName(this.hass, eid) }), t(this._lang, "slot_delete_yes"), t(this._lang, "slot_delete_no")))) return;
       if (await this._commit(owner.id, (live) => ({ program: dropDeviceSlots(live, eid) }))) this._closeDialog();
       return;
     }
-    if (!(await confirmAction(this, t(this._lang, "confirm_delete_schedule", { name: this._title }), t(this._lang, "yes"), t(this._lang, "no")))) return;
+    if (!(await confirmAction(this, t(this._lang, "confirm_delete_schedule", { name: this._title }), t(this._lang, "slot_delete_yes"), t(this._lang, "slot_delete_no")))) return;
     try {
       for (const program of this._programs) {
         const eid = this.scope.kind === "device" ? this.scope.entityId : null;
@@ -774,7 +872,7 @@ export class WpSchedule extends LitElement {
       }
       this._closeDialog();
     } catch (err) {
-      this._error = t(this._lang, "error", { message: (err as { message?: string })?.message ?? String(err) });
+      this._error = errorText(this._lang, err);
     }
   }
 
@@ -815,7 +913,7 @@ export class WpSchedule extends LitElement {
     const { program, group, key } = row;
     if (this._open === key && this._group) return this._renderEditor(program, key);
     const { text, days, color, also } = this._rowText(group, program);
-    return html`<button class="row" aria-expanded="false" @click=${() => this._openRow(key, program, group)}>
+    return html`<button class="row" data-key=${key} aria-expanded="false" @click=${() => this._openRow(key, program, group)}>
       <span class="dot" style="background:${color}"></span>
       <span class="txt"><span class="l1">${text}</span>${this._focus === null ? html`<span class="l2">${days}</span>` : nothing}${also ? html`<small>${also}</small>` : nothing}${this._programs.length > 1 ? html`<small>${program.name}</small>` : nothing}</span>
       <ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
@@ -847,7 +945,7 @@ export class WpSchedule extends LitElement {
           <button role="radio" aria-checked=${this._who === "all"} class=${this._who === "all" ? "on" : ""} ?disabled=${!this._canEdit}
             @click=${() => this._pickWho("all")}><ha-icon icon="mdi:select-all"></ha-icon>${this._whoAll(count, devices)}</button>
         </div></div>` : nothing}
-      ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
+      ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
       <div class="btns">
         <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRow()}>${t(lang, "save")}</button>
         <button class="btn" @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
@@ -873,14 +971,14 @@ export class WpSchedule extends LitElement {
             .value=${this._restLabel} ?disabled=${!this._canEdit}
             @label-draft=${(e: CustomEvent<LabelDraft | null>) => { e.stopPropagation(); this._labelDraft = e.detail; this._error = ""; }}
             @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._restLabel = e.detail; }}></wp-label-picker>`)}
-          ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
+          ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
           <div class="btns">
             <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRest(eid)}>${t(lang, "save")}</button>
             <button class="btn" @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
           </div></div>`;
       }
       const label = labelOf(this.data, entity.default_label);
-      return html`<button class="row rest" aria-expanded="false" @click=${() => this._expand(key, program, null, { restLabel: entity.default_label ?? null })}>
+      return html`<button class="row rest" data-key=${key} aria-expanded="false" @click=${() => this._expand(key, program, null, { restLabel: entity.default_label ?? null })}>
         ${label ? html`<span class="dot" style="background:${label.color}"></span>` : html`<ha-icon icon="mdi:update"></ha-icon>`}
         <span class="txt">${title}${t(lang, "colon")}<b>${label ? labelName(this.hass, label) : t(lang, "rest_untouched")}</b></span><ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
     });
@@ -897,6 +995,190 @@ export class WpSchedule extends LitElement {
           <ha-state-icon .hass=${this.hass} .stateObj=${this.hass.states[eid]}></ha-state-icon><span>${friendlyName(this.hass, eid)}</span></button>`;
       })}
     </div>`;
+  }
+
+  /* ---- modes ---- */
+
+  /**
+   * The opened mode follows another one: nothing is changed silently. Edit the source (it applies to this mode too:
+   * `go` runs), or stop following (this mode gets a copy of the schedules and the user taps again to edit them).
+   */
+  private async _askFollow(program: Program, go: () => void): Promise<void> {
+    const source = this._followOf(program);
+    const mode = this._openMode;
+    if (!source || mode === null) { go(); return; }
+    const lang = this._lang;
+    const choice = await chooseAction(this, t(lang, "mode_follows_edit_ask", { mode, source }), [
+      { id: "source", label: t(lang, "mode_follows_edit", { source }) },
+      { id: "stop", label: t(lang, "mode_follows_stop") },
+    ]);
+    if (choice === "source") go();
+    else if (choice === "stop" && (await this._setFollow(program, mode, null))) this._note = t(lang, "mode_follows_stopped", { mode, source });
+  }
+
+  /** Makes `mode` follow `follows` in a program, or (null) stop following with a copy of the schedules of the source. */
+  private async _setFollow(program: Program, mode: string, follows: string | null): Promise<boolean> {
+    if (this._saving) return false;
+    this._saving = true;
+    try {
+      const res = await this.hass.callWS<{ program?: Program }>({ type: "weekly_planner/program/mode_follow", program_id: program.id, mode, follows });
+      if (res?.program) this._saved[program.id] = res.program;
+      this._error = "";
+      return true;
+    } catch (err) {
+      this._error = errorText(this._lang, err);
+      return false;
+    } finally {
+      this._saving = false;
+    }
+  }
+
+  /** Modes the opened mode may follow in a program: offered by the selector, with schedules of their own (they follow nobody). */
+  private _followSources(program: Program): string[] {
+    const open = this._openMode;
+    if (open === null || program.profiles.some((p) => p.follows === open)) return [];
+    return this._modes().filter((m) => !m.orphan && m.name !== open && program.profiles.some((p) => p.name === m.name && !p.follows)).map((m) => m.name);
+  }
+
+  private async _onFollowChange(program: Program, event: Event): Promise<void> {
+    const select = event.target as HTMLSelectElement;
+    const mode = this._openMode;
+    const own = this._ownProfile(program);
+    const current = own?.follows ?? "";
+    const value = select.value;
+    if (mode === null || value === current) return;
+    const lang = this._lang;
+    if (value === "") {
+      if (await this._setFollow(program, mode, null)) this._note = t(lang, "mode_follows_stopped", { mode, source: current });
+      else select.value = current;
+      return;
+    }
+    if (own?.days.some((d) => d.length)
+      && !(await confirmAction(this, t(lang, "mode_follows_confirm", { mode, source: value }), t(lang, "mode_follows_yes", { source: value }), t(lang, "no")))) {
+      select.value = current;
+      return;
+    }
+    if (await this._setFollow(program, mode, value)) this._note = "";
+    else select.value = current;
+  }
+
+  /** "This mode follows: (none / a mode)" for each program of the screen; the list of followers when others follow this mode. */
+  private _renderFollow() {
+    const open = this._openMode;
+    if (open === null || this._open !== null) return nothing;
+    const lang = this._lang;
+    const many = this._programs.length > 1;
+    return this._programs.map((program) => {
+      const current = this._ownProfile(program)?.follows ?? "";
+      const followers = program.profiles.filter((p) => p.follows === open).map((p) => p.name);
+      const name = many ? ` (${program.name})` : "";
+      if (followers.length) return html`<p class="muted note">${t(lang, "mode_followed_by", { modes: followers.join(", ") })}${name}</p>`;
+      if (!this._canEdit) return current ? html`<p class="muted note">${t(lang, "mode_follows_info", { source: current })}${name}</p>` : nothing;
+      const sources = this._followSources(program);
+      if (!sources.length && !current) return nothing;
+      const list = current && !sources.includes(current) ? [current, ...sources] : sources;
+      return html`<label class="follow"><span>${t(lang, "mode_follows_label")}${name}</span>
+        <select ?disabled=${this._saving} @change=${(e: Event) => void this._onFollowChange(program, e)}>
+          <option value="" ?selected=${current === ""}>${t(lang, "mode_follows_none")}</option>
+          ${list.map((m) => html`<option value=${m} ?selected=${m === current}>${m}</option>`)}
+        </select></label>`;
+    });
+  }
+
+  /** "Mode options": what belongs to the opened mode only (the mode it follows, copying from another one), folded by default. */
+  private _renderModeOptions() {
+    if (!this._modes().length || this._open !== null || this._openMode === null) return nothing;
+    const lang = this._lang;
+    const follow = this._programs.map((p) => this._followOf(p)).find(Boolean);
+    return html`<button class="row opts" aria-expanded=${this._optsOpen} @click=${() => { this._optsOpen = !this._optsOpen; }}>
+        <ha-icon icon=${this._optsOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
+        <span class="txt">${t(lang, "advanced_options")}</span>
+        ${follow ? html`<small>${t(lang, "mode_follows_short", { source: follow })}</small>` : nothing}</button>
+      ${this._optsOpen ? html`<div class="opts-body">${this._renderFollow()}${this._renderCopy()}</div>` : nothing}`;
+  }
+
+  /** Warning shown when the opened mode is not the active one: what it means and when it will apply. */
+  private _renderInactive() {
+    const lang = this._lang;
+    const mode = this.data.mode!;
+    const open = this._openMode ?? "";
+    const why = mode.active
+      ? t(lang, "mode_not_active_why", { active: mode.active, selector: friendlyName(this.hass, mode.selector ?? ""), mode: open })
+      : t(lang, "mode_not_active_why_none", { selector: friendlyName(this.hass, mode.selector ?? ""), mode: open });
+    return callout("info", t(lang, "mode_not_active"), why, { role: "status" });
+  }
+
+  private _pickMode(name: string): void {
+    if (this._open !== null || name === this._openMode) return;
+    this._viewMode = name;
+    this._copyOpen = false;
+    this._resp = null;
+    this._error = "";
+    this._note = "";
+    this._focus = null;
+  }
+
+  /** "Mode" fieldset with a select of the modes (the active one marked), opening on the active mode; only with a selector. */
+  private _renderModes() {
+    const modes = this._modes();
+    if (!modes.length) return nothing;
+    const lang = this._lang;
+    const open = this._openMode;
+    return html`<select class="modesel" aria-label=${t(lang, "profile")} ?disabled=${this._open !== null}
+        @change=${(e: Event) => this._pickMode((e.target as HTMLSelectElement).value)}>
+        ${modes.map((m) => {
+          const follows = this._programs.map((p) => p.profiles.find((x) => x.name === m.name)?.follows).find(Boolean);
+          const notes = [m.name === this.data.mode?.active ? t(lang, "mode_active_badge") : "", m.orphan ? t(lang, "mode_no_option") : "",
+            follows ? t(lang, "mode_follows_short", { source: follows }) : ""].filter(Boolean);
+          const text = notes.length ? `${m.name} (${notes.join(", ")})` : m.name;
+          return html`<option value=${m.name} ?selected=${m.name === open}>${text}</option>`;
+        })}
+      </select>
+      ${open !== null && open === this.data.mode?.active
+        ? callout("success", t(lang, "mode_active_now"), undefined, { role: "status", icon: "mdi:play-circle-outline" }) : nothing}`;
+  }
+
+  /** Other modes of the screen's programs that have schedules (sources of a copy). */
+  private _copySources(): string[] {
+    const open = this._openMode;
+    if (open === null) return [];
+    return this._modes().map((m) => m.name)
+      .filter((name) => name !== open && this._programs.some((p) => p.profiles.some((x) => x.name === name && x.days.some((d) => d.length))));
+  }
+
+  private _renderCopy() {
+    const sources = this._copySources();
+    if (this._open !== null || !sources.length || !this._canEdit || this._programs.some((p) => this._followOf(p))) return nothing;
+    const lang = this._lang;
+    return html`<button class="row copy" aria-expanded=${this._copyOpen} ?disabled=${this._saving}
+        @click=${() => { this._copyOpen = !this._copyOpen; }}>
+        <ha-icon icon="mdi:content-copy"></ha-icon><span class="txt">${t(lang, "mode_copy_from")}</span></button>
+      ${this._copyOpen ? html`<div class="copy-from" role="group" aria-label=${t(lang, "mode_copy_pick")}>
+        <span>${t(lang, "mode_copy_pick")}</span>
+        ${sources.map((name) => html`<button class="modechip" ?disabled=${this._saving} @click=${() => void this._copyFrom(name)}>${name}</button>`)}
+      </div>` : nothing}`;
+  }
+
+  /** Puts a copy of the seven days of another mode in the opened one (new slots), after confirming a replacement. */
+  private async _copyFrom(source: string): Promise<void> {
+    const target = this._openMode;
+    if (target === null || target === source || !this._canEdit || this._saving) return;
+    const lang = this._lang;
+    if (this._programs.some((p) => this._modeProfile(p)?.days.some((d) => d.length))
+      && !(await confirmAction(this, t(lang, "mode_copy_confirm", { to: target, from: source }), t(lang, "mode_copy_replace"), t(lang, "no")))) return;
+    let ok = true;
+    for (const program of this._programs) {
+      if (!program.profiles.some((p) => p.name === source)) continue;
+      ok = (await this._commit(program.id, (live) => {
+        const from = live.profiles.find((p) => p.name === source);
+        if (!from) return { error: t(lang, "ss_changed") };
+        const own = live.profiles.find((p) => p.name === target);
+        return { program: { ...live, profiles: putProfile(live.profiles, { id: own?.id ?? newId(), name: target, days: from.days.map(cloneSlots) }) } };
+      })) && ok;
+    }
+    this._copyOpen = false;
+    this._resp = null;
+    if (ok) { this._error = ""; this._note = t(lang, "mode_copy_done", { from: source }); }
   }
 
   /** Keep the whole week visible, including the unsaved slot being edited. */
@@ -964,6 +1246,18 @@ export class WpSchedule extends LitElement {
     </section>`;
   }
 
+  private _offNames?: () => void;
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    this._offNames = onServiceNames(() => this.requestUpdate());
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this._offNames?.();
+  }
+
   render() {
     if (!this.hass || !this.data || !this.scope) return nothing;
     const lang = this._lang;
@@ -972,29 +1266,28 @@ export class WpSchedule extends LitElement {
     }
     const rows = this._rows();
     const first = !rows.length && this._focus === null && !this._modeOnly;
-    const missingMode = this.scope.kind === "program" && !this._modeProfile(this._programs[0]);
+    // With a mode selector, everything about the mode and everything about the schedule each sit in a fieldset.
+    const boxed = this._modes().length > 0;
+    const box = (cls: string, legend: string, body: unknown) => boxed ? html`<fieldset class="box ${cls}"><legend>${legend}</legend>${body}</fieldset>` : body;
     return html`
-      <wp-dialog open columns heading=${this._title}>
+      <wp-dialog open columns heading=${this._title} @escape=${(e: Event) => this._onEscape(e)}>
         <div class="cols">
         <div class="params">
-        ${missingMode ? html`<p class="err" role="alert">${t(lang, "mode_removed")}</p>` : nothing}
-        ${!this._canEdit ? html`<p class="err" role="alert">${t(lang, "read_only")}</p>` : nothing}
-        ${this._error && !this._open ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
         ${this._open !== null || this._modeOnly ? nothing : html`<label class="switch">
           <span class="grow">${t(lang, "schedule_on")}</span>
-          <span class="state">${this._enabled ? t(lang, "running") : t(lang, "stopped")}</span>
+          <span class="state">${this._stateText()}</span>
           <input type="checkbox" .checked=${this._enabled} ?disabled=${!this._canEdit || this._toggling}
             @change=${(e: Event) => void this._setEnabled((e.target as HTMLInputElement).checked, e.target as HTMLInputElement)} />
           <span class="track"></span>
         </label>`}
-        ${this.scope.kind === "program" ? html`<label class="mode-select">${t(lang, "profile")}
-          <select .value=${this._modeProfile(this._programs[0])?.id ?? ""} ?disabled=${this.profileId !== null || this._open !== null}
-            @change=${(e: Event) => { this._viewProfileId = (e.target as HTMLSelectElement).value; this._resp = null; this._error = ""; }}>
-            ${missingMode ? html`<option value="" selected>${t(lang, "mode_removed")}</option>` : nothing}
-            ${this._programs[0].profiles.map((p) => html`<option value=${p.id} ?selected=${p.id === this._modeProfile(this._programs[0])?.id}>${p.name}</option>`)}
-          </select></label>` : nothing}
+        ${box("modebox", t(lang, "profile"), html`${this._renderModes()}
+          ${this._modeOnly ? this._renderInactive() : nothing}
+          ${this._renderModeOptions()}
+          <wp-mode-notice .hass=${this.hass} .data=${this.data}></wp-mode-notice>`)}
+        ${!this._canEdit ? html`${callout("error", "", t(lang, "read_only"), { role: "alert" })}` : nothing}
+        ${this._error && !this._open ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
+        ${box("schedbox", t(lang, "schedules_legend"), html`
         ${this._renderDevices()}
-        ${this._modeOnly ? html`<p class="muted note">${t(lang, "mode_schedule_hint")}</p>` : nothing}
         ${this._modeOnly ? nothing : html`<div class="rests">${this._renderRest()}</div>`}
         ${this._focus !== null && this._open === null ? html`<div class="focus">
           <button class="chip back" @click=${() => { this._focus = null; this._note = ""; }}>
@@ -1004,9 +1297,9 @@ export class WpSchedule extends LitElement {
         <div class="list">
           ${rows.length ? rows.map((r) => this._renderRow(r)) : (this._open === "new" ? nothing : html`<p class="muted">${t(lang, "w_none")}</p>`)}
           ${this._group && (this._open === "new" || (this._open !== null && !rows.some((r) => r.key === this._open))) ? this._renderEditor(this._programs.find((p) => p.id === this._programId) ?? this._programs[0], this._open!) : nothing}
-          ${this._open === null ? html`<button class="row add ${first ? "first" : ""}" ?disabled=${!this._canEdit || missingMode} @click=${() => this._add()}>
+          ${this._open === null ? html`<button class="row add ${first ? "first" : ""}" ?disabled=${!this._canEdit} @click=${() => this._add()}>
             <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${first ? t(lang, "create_setting") : this._focus === null ? t(lang, "w_add") : t(lang, "w_add_day", { day: strings(lang).days[this._focus].toLocaleLowerCase(lang) })}</span></button>` : nothing}
-        </div>
+        </div>`)}
         </div>
         <div class="area-week">${this._renderWeek()}</div>
         <div class="area-chart">${this._open !== null ? nothing : this._renderChart()}</div>
@@ -1040,76 +1333,100 @@ export class WpSchedule extends LitElement {
     .devices { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
     .devchip {
       display: inline-flex; align-items: center; gap: 8px; min-height: 48px; max-width: 100%; padding: 0 16px; border-radius: 24px;
-      border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); font: inherit; font-size: 15px; cursor: pointer;
+      border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem; cursor: pointer;
       --mdc-icon-size: 20px;
     }
     .devchip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .devchip.on { border: 2px solid var(--primary-color); font-weight: 600; }
+    .devchip.on { border: 2px solid var(--wp-primary-text); font-weight: 600; }
     .devchip:disabled:not(.on) { opacity: 0.5; cursor: default; }
     .who { margin-top: 8px; }
-    .who > span { display: block; font-size: 14px; font-weight: 600; color: var(--secondary-text-color); margin-bottom: 6px; }
+    .who > span { display: block; font-size: 0.875rem; font-weight: 600; color: var(--secondary-text-color); margin-bottom: 6px; }
     .who .seg { display: flex; flex-wrap: wrap; gap: 8px; }
     .who button {
       flex: 1 1 200px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; padding: 4px 12px;
       text-align: left;
-      border-radius: 24px; border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); font: inherit;
-      font-size: 15px; cursor: pointer; --mdc-icon-size: 20px;
+      border-radius: 24px; border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit;
+      font-size: 0.9375rem; cursor: pointer; --mdc-icon-size: 20px;
     }
-    .who button.on { border: 2px solid var(--primary-color); font-weight: 600; }
-    .mode-select { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-    .mode-select select { flex: 1; min-width: 0; min-height: 44px; }
+    .who button.on { border: 2px solid var(--wp-primary-text); font-weight: 600; }
+    fieldset.box { border: 1px solid var(--divider-color); border-radius: 12px; padding: 4px 12px 12px; margin: 0 0 12px; min-width: 0; }
+    fieldset.box legend { padding: 0 6px; font-size: 0.875rem; font-weight: 600; color: var(--secondary-text-color); }
+    .modesel { display: block; margin: 0 0 10px; width: 100%; min-height: 48px; box-sizing: border-box; padding: 0 12px; border-radius: 24px; border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 1rem; }
+    .copy-from { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .row.opts { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; margin: 0 0 8px; padding: 0 12px; border-radius: 12px;
+      border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem; cursor: pointer; text-align: left; }
+    .row.opts .txt { flex: 1; }
+    .row.opts small { color: var(--secondary-text-color); font-size: 0.75rem; }
+    .opts-body { margin: 0 0 12px; padding: 8px 0 0 12px; border-left: 3px solid var(--divider-color); }
+    .modechip {
+      display: inline-flex; align-items: center; gap: 6px; min-height: 48px; max-width: 100%; padding: 0 16px; border-radius: 24px;
+      border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem; cursor: pointer;
+      --mdc-icon-size: 20px;
+    }
+    .modechip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .follow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 0.9375rem; }
+    .follow select {
+      min-height: 48px; max-width: 100%; padding: 0 12px; border-radius: 24px; font: inherit; font-size: 0.9375rem;
+      border: 1px solid var(--wp-field-border); background: var(--card-background-color, transparent); color: var(--primary-text-color);
+    }
+    .follow select:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
+    .modechip:disabled:not(.on) { opacity: 0.5; cursor: default; }
+    .modechip:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
+    .copy-from { align-items: center; margin: 0; }
+    .copy-from > span { flex-basis: 100%; font-size: 0.875rem; color: var(--secondary-text-color); }
+    .row.copy { border-style: dashed; color: var(--wp-primary-text); font-weight: 500; }
     .schematic { margin-bottom: 16px; }
     .schematic h4 { margin: 8px 0; }
     .schema-day { display: grid; grid-template-columns: ${TIMELINE.label}px minmax(0, 1fr); gap: ${TIMELINE.gap}px; align-items: center; min-height: 32px; }
-    .schema-day > span { font-size: 12px; color: var(--secondary-text-color); }
+    .schema-day > span { font-size: 0.75rem; color: var(--secondary-text-color); }
     .schema-day wp-day-bar { min-width: 0; }
     .list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
     .rests { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
     .rests:empty { display: none; }
     .row {
       display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 12px; border-radius: 12px; text-align: left;
-      border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); font: inherit; font-size: 16px;
+      border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 1rem;
       cursor: pointer; width: 100%; --mdc-icon-size: 22px;
     }
     .row .txt { flex: 1; min-width: 0; overflow-wrap: anywhere; line-height: 1.3; }
     .row .txt .l1, .row .txt .l2 { display: block; }
-    .row .txt .l2 { color: var(--secondary-text-color); font-size: 14px; }
-    .row.rest .txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15px; }
-    .row .txt small { display: block; color: var(--secondary-text-color); font-size: 12px; }
-    .row.add { border-style: dashed; color: var(--primary-color); font-weight: 500; }
-    .row.add.first:not(:disabled) { border-style: solid; background: var(--primary-color); color: var(--text-primary-color, #fff); }
+    .row .txt .l2 { color: var(--secondary-text-color); font-size: 0.875rem; }
+    .row.rest .txt { font-size: 0.9375rem; }
+    .row .txt small { display: block; color: var(--secondary-text-color); font-size: 0.75rem; }
+    .row.add { border-style: dashed; color: var(--wp-primary-text); font-weight: 500; }
+    .row.add.first:not(:disabled) { border-style: solid; background: var(--wp-primary-fill); color: #fff; }
     .row.rest { background: var(--secondary-background-color); }
     .row:disabled { opacity: 0.5; cursor: default; }
     .dot { width: 14px; height: 14px; border-radius: 7px; flex: none; }
-    .editor { border: 2px solid var(--primary-color); border-radius: 12px; padding: 12px; }
-    .editor h4 { margin: 0 0 8px; font-size: 15px; }
+    .editor { border: 2px solid var(--wp-primary-text); border-radius: 12px; padding: 12px; }
+    .editor h4 { margin: 0 0 8px; font-size: 0.9375rem; }
     .btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
     .btns .btn { flex: 1 1 120px; }
     .btn.alone { width: 100%; margin-top: 32px; }
     .btn.dup { width: 100%; margin-top: 8px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; --mdc-icon-size: 20px; }
     .editor { scroll-margin-top: 8px; }
-    .btn.danger-line { color: var(--error-color, #db4437); border-color: var(--error-color, #db4437); }
-    .btn.danger { background: var(--error-color, #db4437); border-color: var(--error-color, #db4437); color: #fff; }
-    .err { color: var(--error-color, #db4437); margin: 8px 0; }
+    .btn.danger-line { color: var(--wp-danger-text); border-color: var(--wp-danger-text); }
+    .btn.danger { background: var(--wp-danger-fill); border-color: var(--wp-danger-border); color: #fff; }
     .muted { color: var(--secondary-text-color); }
-    .note { margin: 0 0 8px; font-size: 14px; }
+    .note { margin: 0 0 8px; font-size: 0.875rem; }
     .focus { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
-    .focus h3 { margin: 0; font-size: 20px; font-weight: 600; }
+    .focus h3 { margin: 0; font-size: 1.25rem; font-weight: 600; }
     .chip.back {
-      display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 16px; border-radius: 24px; font: inherit; font-size: 15px;
-      border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); cursor: pointer; --mdc-icon-size: 20px;
+      display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 16px; border-radius: 24px; font: inherit; font-size: 0.9375rem;
+      border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); cursor: pointer; --mdc-icon-size: 20px;
     }
     .chart { margin-top: 16px; }
-    .chart .nav { display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 500; }
+    .chart .nav { display: flex; align-items: center; justify-content: space-between; font-size: 0.9375rem; font-weight: 500; }
     .chart select { margin-bottom: 4px; }
-    .switch { position: relative; min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; margin-bottom: 8px; font-size: 16px; }
-    .switch .state { font-size: 14px; color: var(--secondary-text-color); }
+    .switch { position: relative; min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; margin-bottom: 8px; font-size: 1rem; }
+    .switch .grow { flex: 0 0 auto; margin-right: auto; }
+    .switch .state { flex: 0 1 auto; min-width: 0; text-align: right; overflow-wrap: anywhere; font-size: 0.875rem; color: var(--secondary-text-color); }
     .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
     .switch .track { position: relative; width: 44px; height: 24px; border-radius: 12px; background: var(--disabled-color, #bdbdbd); transition: background 0.2s; flex: none; }
     .switch .track::before { content: ""; position: absolute; width: 20px; height: 20px; left: 2px; top: 2px; border-radius: 50%; background: #fff; transition: transform 0.2s; }
-    .switch input:checked + .track { background: var(--primary-color); }
+    .switch input:checked + .track { background: var(--wp-primary-fill); }
     .switch input:checked + .track::before { transform: translateX(20px); }
-    .switch input:focus-visible + .track { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+    .switch input:focus-visible + .track { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
   `];
 }
 

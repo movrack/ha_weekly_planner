@@ -13,18 +13,34 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.core import callback
+from homeassistant.helpers.selector import (
+    EntitySelector,
+    EntitySelectorConfig,
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+    TextSelector,
+)
 
 from .const import (
     CONF_ADMIN_ONLY,
     CONF_DEBOUNCE_MIN,
     CONF_NOTIFY_DELAY_MIN,
     CONF_REAPPLY_DEFAULT,
+    CONF_DEFAULT_MODE,
+    CONF_MODE_SELECTOR,
     DEFAULT_ADMIN_ONLY,
     DEFAULT_DEBOUNCE_MIN,
     DEFAULT_NOTIFY_DELAY_MIN,
     DEFAULT_REAPPLY,
     DOMAIN,
+    MODE_NAME_MAX,
+    MODE_SELECTOR_DOMAINS,
 )
+from .validation import check_mode_config
 
 
 class WeeklyPlannerConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -48,7 +64,11 @@ class WeeklyPlannerConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class WeeklyPlannerOptionsFlow(OptionsFlow):
-    """Global options."""
+    """Global options: the settings, then the global mode (selector and default mode)."""
+
+    def __init__(self) -> None:
+        self._settings: dict[str, Any] = {}
+        self._selector: str | None = None
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -56,13 +76,35 @@ class WeeklyPlannerOptionsFlow(OptionsFlow):
         """Manage the options."""
         return await self.async_step_settings(user_input)
 
+    @property
+    def _engine(self) -> Any:
+        return self.config_entry.runtime_data
+
     async def async_step_settings(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Manage the options."""
+        """Manage the options and the mode selector."""
+        errors: dict[str, str] = {}
+        config = self._engine.store.config
         if user_input is not None:
-            return self.async_create_entry(data=user_input)
+            selector = user_input.pop(CONF_MODE_SELECTOR, None) or None
+            for key in (CONF_NOTIFY_DELAY_MIN, CONF_DEBOUNCE_MIN):  # number selectors give floats (both are required)
+                user_input[key] = int(user_input[key])
+            try:
+                check_mode_config(selector, None, self.hass)
+            except vol.Invalid as err:
+                errors[CONF_MODE_SELECTOR] = str(err)
+            else:
+                self._settings = user_input
+                self._selector = selector
+                if selector:
+                    return await self.async_step_default_mode()
+                await self._save_mode(None, config.get("default_mode"))
+                return self.async_create_entry(data=user_input)
         options = self.config_entry.options
+        selector_key = (
+            vol.Optional(CONF_MODE_SELECTOR, description={"suggested_value": config.get("mode_selector")})
+        )
         schema = vol.Schema(
             {
                 vol.Required(
@@ -76,11 +118,51 @@ class WeeklyPlannerOptionsFlow(OptionsFlow):
                 vol.Required(
                     CONF_NOTIFY_DELAY_MIN,
                     default=options.get(CONF_NOTIFY_DELAY_MIN, DEFAULT_NOTIFY_DELAY_MIN),
-                ): vol.All(int, vol.Range(min=1, max=1440)),
+                ): NumberSelector(NumberSelectorConfig(
+                    min=1, max=1440, step=1, mode=NumberSelectorMode.BOX, unit_of_measurement="min")),
                 vol.Required(
                     CONF_DEBOUNCE_MIN,
                     default=options.get(CONF_DEBOUNCE_MIN, DEFAULT_DEBOUNCE_MIN),
-                ): vol.All(int, vol.Range(min=0, max=60)),
+                ): NumberSelector(NumberSelectorConfig(
+                    min=0, max=60, step=1, mode=NumberSelectorMode.SLIDER, unit_of_measurement="min")),
+                selector_key: EntitySelector(EntitySelectorConfig(domain=list(MODE_SELECTOR_DOMAINS))),
             }
         )
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)
+
+    async def _save_mode(self, selector: str | None, default_mode: str | None) -> None:
+        """Save the global mode now: changed options reload the entry, which reads the store again."""
+        await self._engine.async_set_mode_config(selector, default_mode)
+        await self._engine.store.async_flush_config()  # a delayed save would be lost by the reload
+
+    def _known_options(self) -> list[str]:
+        state = self.hass.states.get(self._selector or "")
+        options = state.attributes.get("options") if state else None
+        return [o for o in options if isinstance(o, str)] if isinstance(options, list) else []
+
+    async def async_step_default_mode(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Choose the default mode among the options of the selector (free text when none is known)."""
+        errors: dict[str, str] = {}
+        known = self._known_options()
+        if user_input is not None:
+            default_mode = user_input.get(CONF_DEFAULT_MODE)
+            try:
+                settings = check_mode_config(self._selector, default_mode, self.hass, known)
+            except vol.Invalid as err:
+                errors[CONF_DEFAULT_MODE] = str(err)
+            else:
+                await self._save_mode(settings["mode_selector"], settings["default_mode"])
+                return self.async_create_entry(data=self._settings)
+        current = self._engine.store.config.get("default_mode")
+        field: Any
+        if known:
+            field = SelectSelector(SelectSelectorConfig(options=known, mode=SelectSelectorMode.DROPDOWN))
+            current = current if current in known else known[0]
+        else:
+            field = vol.All(TextSelector(), vol.Length(min=1, max=MODE_NAME_MAX))
+        key = vol.Required(CONF_DEFAULT_MODE, default=current) if current else vol.Required(CONF_DEFAULT_MODE)
+        return self.async_show_form(
+            step_id="default_mode", data_schema=vol.Schema({key: field}), errors=errors
+        )

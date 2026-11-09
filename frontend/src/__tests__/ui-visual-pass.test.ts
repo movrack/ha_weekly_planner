@@ -68,14 +68,14 @@ describe("bar keyboard access", () => {
 
 describe("touch targets and stacking (CSS contract)", () => {
   const css = (c: any) => [c.styles].flat(Infinity).map((s: any) => s?.cssText ?? "").join("\n");
-  it("day buttons of the slot form are at least 44 px wide", async () => {
+  it("day buttons of the slot form share the row and stay 48 px tall", async () => {
     const { WpSlotForm } = await import("../components/slot-form");
     const text = css(WpSlotForm);
-    expect(text).toMatch(/\.day \{[^}]*min-width: 44px/);
-    expect(text).toMatch(/\.days \{[^}]*gap: 0/);
+    expect(text).toMatch(/\.day \{[^}]*min-height: 48px; min-width: 44px/);
+    expect(text).toMatch(/\.days \{[^}]*minmax\(44px, 1fr\)[^}]*gap: 0/);
   });
   it("hint bubble is stacked above the now line (z-index 5)", () => {
-    const hint = css(WpBarEditor).match(/\.hint \{[^}]*z-index: (\d+)/);
+    const hint = css(WpBarEditor).match(/\.hold-hint \{[^}]*z-index: (\d+)/);
     expect(Number(hint?.[1])).toBeGreaterThan(5);
   });
   it("week-list day name buttons are 44 px wide", async () => {

@@ -1,0 +1,17 @@
+# Weekly Planner
+
+> Home Assistant integration (HACS) that schedules service calls or scenes on any entity in weekly programs with a global mode (chosen by an external input_select or select), plus a bundled Lovelace card. Switch the mode by changing that selector entity, not through a Weekly Planner service. Configurable by a YAML file (/config/www/weekly_planner.yml) or by the card.
+
+Start with the AI guide: it explains how to discover what is configured, how to edit the YAML file and how to verify.
+
+## Docs
+- [AI guide](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/custom_components/weekly_planner/AI_GUIDE.md): discover, configure, verify, cautions
+- [YAML example](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/custom_components/weekly_planner/example.yml): annotated, validated by tests
+- [README](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/README.md): installation, entities, actions, YAML file, limits
+- [Services](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/custom_components/weekly_planner/services.yaml): apply_now, skip_next, pause, resume, reload
+
+## Optional
+- [Generic actions](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/GENERIC_ACTIONS.md)
+- [Modes](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/MODES.md)
+- [User guide (French)](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/GUIDE.fr.md)
+- [Changelog](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/CHANGELOG.md)
