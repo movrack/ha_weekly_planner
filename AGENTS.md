@@ -59,15 +59,16 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
   `git branch -d`). Stale or wrongly based worktrees and branches are removed first (`git worktree remove --force`,
   `git branch -D`) before any retry. Read-only agents may share the main tree. Never push from a worktree
   without the owner's approval.
-- **Method**: the shared operating manual is the agent `methode-travail` (source
-  `~/.config/ai-agents/agents/methode-travail.md`, generated for every AI tool).
+- **Method**: the shared operating manual is the agent `methode-travail`, generated for every AI tool.
   At the start of every new session, read this manual, this file and `PROJECT_MEMORY.md` if present,
   before taking action or reporting status; never rely only on instructions retained from an earlier session.
 - **Rule updates are automatic**: as soon as the owner states a new rule, preference or correction, record
   it without being asked: durable project rules here (product decisions in `docs/DECISIONS.md`), shared
   working notes in `PROJECT_MEMORY.md`; then tell the owner in one line what was recorded and where. If
   the rule already exists elsewhere, update it instead of duplicating. Report any contradiction with an
-  existing rule to the owner before overwriting.
+  existing rule to the owner before overwriting. Rules that only concern the owner's own machine or
+  installation (paths, hosts, personal habits, local tooling) go in `PROJECT_MEMORY.md`, never in this file:
+  this repository is public.
 - **Inter-AI channel**: `PROJECT_MEMORY.md` (section "Inter-AI channel") is how AI tools talk to each
   other. Read it at the start and before handing off. Append short entries
   `- YYYY-MM-DD HH:MM [tool] type: message` (types: handoff, question, answer, warning, rule-added, done),
@@ -95,7 +96,9 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
 - Before the v1.0.0 release, ALL screenshots (`wiki/images/guide`) must be redone from the final UI; until then screenshots may lag but are never labelled with versions.
 - Renumber the screen atlas at the v1.0.0 release (gaps allowed until then).
 - User-facing docs (wiki, guide, READMEs) describe only the current product: no history, no "old/former/replaced" wording, no version-dated captions; history lives in CHANGELOG/DECISIONS.
-- Documentation: `wiki/` is the official source of the user docs (French only; `docs/` holds only internal project files: SPEC, DECISIONS, quick_todo, SCREEN_INVENTORY and the plan of work in progress; delete a plan when its work is done, the decision stays in DECISIONS; README.md English, README.fr.md French, kept in sync). The GitHub wiki (https://github.com/movrack/ha_weekly_planner/wiki) is a published copy, first published on 2026-10-31. Pages: Home, _Sidebar, Guide-utilisateur (wiki/GUIDE.fr.md), Atlas-des-ecrans (wiki/SCREENS.fr.md + images/guide/), Actions-generiques (wiki/GENERIC_ACTIONS.md, translated), Modes (wiki/MODES.md, translated), Configuration-YAML-de-la-carte (README.fr.md "Configuration de la carte"), Integrateurs (README.fr.md model to storage/limits). Never publish anything from `docs/`. Resync by hand: clone `https://github.com/movrack/ha_weekly_planner.wiki.git` into a new dir (the existing `~/Dev/wp-wiki` clone may be reused after `git pull`) under `~/Dev/`, regenerate each page from its source (HTML thumbnails become `![alt](images/guide/x.png)`, links to `SCREENS.fr.md#sNN` become `Atlas-des-ecrans`, repo file links become absolute GitHub URLs), copy the images, check every link resolves, then commit (Conventional Commits, no trailers) and push to `master`. Update the wiki in the same session as any change to these sources.
+- **Quality scale (maintainer decision): the project must ALWAYS stay validated at least Bronze** on the Home Assistant Integration Quality Scale (self-declared, `custom_components/weekly_planner/quality_scale.yaml`), and the README (EN and FR) must ALWAYS claim it: the Bronze badge and the "Quality level" line. Before delivering or deploying Python code, check that no Bronze rule regressed (all 20 rules `done` or motivated `exempt`, `config_flow.py` at 100 % lines and branches, `tests/test_quality_scale.py` green, removal and actions docs up to date). A change that breaks a Bronze rule is not delivered until the rule holds again; never remove the badge to hide a regression.
+- **Review agents**: use the shared generic agents of the public repository https://github.com/movrack/AI (`john-117` orchestrator, `nemesis` devil's advocate, `mamy` novice screen tester, `ally` accessibility, `stryker` mutation testing, `heimdall` delivery gatekeeper, `parker` photographer, `iris` CSS and visual consistency, `c3po` translations) instead of project-specific copies or look-alikes; change their behaviour in that repository, never in a generated copy. They work on request only and write their reports to `reports/ai/<agent>/` (git-ignored). The findings of `mamy` and `ally` are tracked in one GitHub issue per report, as a checklist (`- [ ]` / `- [x]`, labels `accessibility` and `enhancement`) ticked as tasks are delivered. `stryker` only adds tests (never production code, never lowers a floor, never skips a test), `heimdall` only reports, `iris` reviews styles and, only when asked to harmonise, edits styles only (shared stylesheet `frontend/src/styles.ts`), and `c3po` checks that every string exists in every language and means the same thing (reports by default; fixes translation files only when asked).
+- Documentation: `wiki/` is the official source of the user docs (French only; `docs/` holds only internal project files: SPEC, DECISIONS, quick_todo, SCREEN_INVENTORY and the plan of work in progress; delete a plan when its work is done, the decision stays in DECISIONS; README.md English, README.fr.md French, kept in sync). The GitHub wiki (https://github.com/movrack/ha_weekly_planner/wiki) is a published copy. Pages: Home, _Sidebar, Guide-utilisateur (wiki/GUIDE.fr.md), Atlas-des-ecrans (wiki/SCREENS.fr.md + images/guide/), Actions-generiques (wiki/GENERIC_ACTIONS.md, translated), Modes (wiki/MODES.md, translated), Recettes-pour-les-modes (wiki/MODES_COOKBOOK.fr.md), Configuration-YAML-de-la-carte (README.fr.md "Configuration de la carte"), Integrateurs (README.fr.md model to storage/limits). Never publish anything from `docs/`. Resync by hand: clone `https://github.com/movrack/ha_weekly_planner.wiki.git` into a new directory (an existing clone may be reused after `git pull`), regenerate each page from its source (HTML thumbnails become `![alt](images/guide/x.png)`, links to `SCREENS.fr.md#sNN` become `Atlas-des-ecrans`, repo file links become absolute GitHub URLs), copy the images, check every link resolves, then commit (Conventional Commits, no trailers) and push to `master`. Update the wiki in the same session as any change to these sources.
 
 ## User interface
 - Reference screen: 360 × 780 px CSS (a common phone), then ≥ 1400 px; light and dark themes.
@@ -142,24 +145,19 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
 - `scripts/bench.py` prints best/median per scenario (not run in CI).
 
 ## Deploying to a real instance
-- Before any Home Assistant restart check the owner's time-based automations: never restart between sunset and ~35 minutes after it, nor during morning/evening shutter or heating windows (a restart cancels automations waiting in a random delay; on 2026-11-01 a restart at 17:36 cancelled the evening shutter closing). Read the automation delays/triggers first, or restart outside those windows, and after a restart check that nothing planned was missed.
-- A deployment does not need a commit. When the owner requests deployment, deploy the tested working
-  tree even if changes are uncommitted; never require a commit or another approval solely for that reason.
-  Report uncommitted changes and the deployed bundle checksum.
-- The deploy script `scripts/deploy_prod.sh` is specific to the owner's installation: it is git-ignored and never committed (not in the repository nor its history); it exists only on the owner's machine (dry run by default, `--apply` to copy; it runs the tests first). Deploy command: `WP_HOST=<ssh alias of the owner's HA> scripts/deploy_prod.sh --apply`; the alias is in the owner's `~/.ssh/config` and local AI memory, never in the repo. When the owner says "deploy", the AI runs
-  the script itself (never hands the command back to the owner), then reloads and verifies the remote
-  bundle hash and version.
-  Other scripts: `scripts/dev_ha.sh` (local test HA, port 8124), `scripts/dev_onboard.py`, `scripts/bench.py`.
-- Card-only change: `weekly_planner.reload`. Python change: back up Home Assistant, then restart it.
-  The owner explicitly authorizes any necessary restart when requesting deployment; do not ask again.
+- Deployment tooling belongs to each maintainer and is not part of this repository. A deployment does not need
+  a commit: the tested working tree is what gets deployed.
+- Card-only change: call the `weekly_planner.reload` service. Python change: back up Home Assistant, then
+  restart it.
 - Release: once the maintainer has merged the release PR into `main`, the `Release` workflow (`.github/workflows/release.yml`) creates the tag and the GitHub release from the CHANGELOG section of the version on `main` (it fails if manifest, pyproject and package.json versions differ, and skips an existing tag). `scripts/release.sh` (dry run; `--apply`) is the manual fallback. Releases are never created from `develop`.
-- Reports and plans never give effort estimates in human days or weeks (the work is done by AI agents); list the steps, dependencies and risks instead.
-- Token discipline: sub-agents default to a light/medium model (strong model only for architecture or a real adversarial review); at most 2 heavy agents in parallel; reuse finished agents with SendMessage instead of re-reading the same code with new ones; briefs name exact files and cap the report (≤ 25 lines); browser passes follow a short checklist; run the full suites once per merge batch.
+- Reports and plans never give effort estimates in human days or weeks; list the steps, dependencies and risks instead.
 
-## Feedback loop and verification before a deploy (retrospective 2026-11-02)
-- Unit tests are not proof for a UI change. Before deploying a card change, look at it rendered in a real browser on a local instance or harness with data shaped like the owner's real case (presets without numbers, extra sources, two-column modal, 360 px and desktop, light and dark) and keep a screenshot or measured numbers (bounding boxes) as evidence. On 2026-11-02 the owner found six defects after deploy that this would have caught (alias refused by an older server, wrong legend quantity, options in the wrong column, no program line for presets, chart not aligned with the bar, stray label).
-- Coupled changes: ship the server part (and its restart) before or together with the card that depends on it; never deploy a card that sends a new field to an older server.
-- A deploy report ends with "what to look at" (a short list of what the owner should see after a hard refresh); ask for a screenshot when something looks wrong, and treat the owner's captures as the main feedback.
-- Read the clock (`date`) before stating hours, save-to-Git windows or restart windows; never guess it.
-- Agent and Codex reports are claims: re-run the checks myself and, for UI, require rendered evidence before saying it is done.
-
+## Verification before a deploy
+- Unit tests are not proof for a UI change. Before deploying a card change, look at it rendered in a real browser
+  on a local instance with realistic data (presets without numbers, extra sources, two-column modal, 360 px and
+  desktop, light and dark) and keep a screenshot or measured numbers (bounding boxes) as evidence.
+- Coupled changes: ship the server part (and its restart) before or together with the card that depends on it;
+  never deploy a card that sends a new field to an older server.
+- A deploy report ends with "what to look at" (a short list of what to see after a hard refresh).
+- Read the clock (`date`) before stating hours or restart windows; never guess it.
+- Agent reports are claims: re-run the checks and, for UI, require rendered evidence before saying it is done.

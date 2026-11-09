@@ -78,5 +78,6 @@ frontend/.stryker-tmp/
 frontend/coverage/
 
 # Scripts specific to the owner's installation (never publish)
-scripts/deploy_prod.sh
 scripts/codex_run.sh
+/reports/
+/PROJECT_MEMORY.md
