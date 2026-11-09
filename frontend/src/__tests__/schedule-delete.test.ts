@@ -119,6 +119,6 @@ describe("duplicate a solar slot", () => {
     const { view, program } = setup();
     view.hass.callWS = vi.fn(async () => { throw { message: "value must be at most 240 for dictionary value @ offset" }; });
     await view._saveProgram(program);
-    expect(view._error).toBe("A time is out of range. Shorten the delay or pick a time.");
+    expect(view._error).toBe("A time is out of range. Shorten the offset or pick a time.");
   });
 });

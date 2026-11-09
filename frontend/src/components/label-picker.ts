@@ -4,11 +4,12 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "./action-picker";
-import { actionSummary, actionText, allowedOf, entityAction, hasOverride, labelName, labelOf, labelsFor, labelUsers, nextColor, PALETTE } from "../labels";
+import { actionSummary, actionText, allowedOf, entityAction, hasOverride, labelName, labelOf, labelsFor, labelUsers, nextColor, PALETTE, PALETTE_NAMES } from "../labels";
 import { t } from "../i18n";
 import { friendlyName } from "../planner";
 import { loadServiceNames, missingFields } from "../services";
 import { editorStyles, langOf } from "../editors/shared";
+import { callout } from "../styles";
 import type { Action, HomeAssistant, Label, PlannerData, Program } from "../types";
 
 /** The label form as a draft, for a parent that saves it together with its own form (`embedded`). */
@@ -213,7 +214,7 @@ export class WpLabelPicker extends LitElement {
     const msg = this._delError
       || (users.length ? t(lang, "lb_delete_used", { name, programs: users.join(", ") }) : t(lang, "lb_delete_ask", { name }));
     return html`<div class="delbox" role="alert">
-      <p class="${used ? "err" : ""}">${msg}</p>
+      ${used ? callout("error", "", msg) : html`<p>${msg}</p>`}
       <div class="btns">
         ${used ? nothing : html`<button class="btn danger-line" ?disabled=${this._saving || this.disabled} @click=${() => void this._delete(chosen)}>
           <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete")}</button>`}
@@ -241,7 +242,7 @@ export class WpLabelPicker extends LitElement {
       <button class="link ${own ? "own" : ""}" ?disabled=${this.disabled} aria-expanded=${shown}
         @click=${() => (this._valueFor = shown ? null : entityId)}>${t(lang, "lb_value_here")}${this.entityIds.length > 1 ? ` · ${friendlyName(this.hass, entityId)}` : ""}</button>
       ${shown ? html`<div class="valbox">
-        <wp-action-picker .hass=${this.hass} entity-id=${entityId} .allowed=${allowedOf(this.program, entityId)}
+        <wp-action-picker no-fold .hass=${this.hass} entity-id=${entityId} .allowed=${allowedOf(this.program, entityId)}
           .action=${own ?? this._action} ?disabled=${this.disabled}
           @action-change=${(e: CustomEvent<Action>) => { e.stopPropagation(); this._ov = { ...this._ov, [entityId]: e.detail }; this._error = ""; this._changed(); }}></wp-action-picker>
         ${own ? html`<button class="btn" ?disabled=${this.disabled}
@@ -251,21 +252,44 @@ export class WpLabelPicker extends LitElement {
     </div>`;
   }
 
+  /** Colour swatches as a radiogroup: named by colour, one tab stop, arrow keys move and choose. */
+  private _swatches() {
+    const lang = this._lang;
+    const current = PALETTE.findIndex((c) => c === this._color.toLowerCase());
+    const custom = current < 0 && /^#[0-9a-f]{3,8}$/i.test(this._color.trim());
+    const stop = current < 0 ? (custom ? -1 : 0) : current;
+    const key = (e: KeyboardEvent) => {
+      const at = PALETTE.findIndex((c) => c === this._color.toLowerCase());
+      const n = PALETTE.length;
+      const next = e.key === "ArrowRight" || e.key === "ArrowDown" ? (at + 1) % n
+        : e.key === "ArrowLeft" || e.key === "ArrowUp" ? (at < 0 ? n - 1 : (at + n - 1) % n)
+        : e.key === "Home" ? 0 : e.key === "End" ? n - 1 : -1;
+      if (next < 0 || this.disabled) return;
+      e.preventDefault();
+      this._set({ color: PALETTE[next] });
+      (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>("button.sw:not(.custom)")[next]?.focus();
+    };
+    return html`<div class="swatches" role="radiogroup" aria-label=${t(lang, "lb_color")} @keydown=${key}>
+      ${PALETTE.map((c, i) => html`<button class="sw" role="radio" aria-checked=${i === current} tabindex=${i === stop ? 0 : -1}
+        aria-label=${t(lang, PALETTE_NAMES[i])} @click=${() => this._set({ color: c })}><i class=${i === current ? "on" : ""} style="background:${c}"></i></button>`)}
+      ${custom ? html`<button class="sw custom" role="radio" aria-checked="true" tabindex="0" aria-label=${t(lang, "color_custom")}
+        title=${t(lang, "color_custom")}><i class="on" style="background:${this._color}"></i></button>` : nothing}
+    </div>`;
+  }
+
   private _renderForm() {
     const lang = this._lang;
     return html`<div class="form">
       <div class="field"><label for="lb-name">${t(lang, "lb_name")}</label>
         <input id="lb-name" type="text" maxlength="30" .value=${this._name} ?disabled=${this.disabled}
           @input=${(e: Event) => this._set({ name: (e.target as HTMLInputElement).value })} /></div>
-      <div class="swatches" role="radiogroup" aria-label=${t(lang, "lb_color")}>
-        ${PALETTE.map((c) => html`<button class="sw ${c === this._color ? "on" : ""}" role="radio" aria-checked=${c === this._color}
-          aria-label=${c} style="background:${c}" @click=${() => this._set({ color: c })}></button>`)}
-      </div>
+      ${this._swatches()}
       <wp-action-picker .hass=${this.hass} entity-id=${this.entityIds[0] ?? ""} .allowed=${allowedOf(this.program, this.entityIds[0] ?? "")}
-        .action=${this._action} ?disabled=${this.disabled}
-        @action-change=${(e: CustomEvent<Action>) => { e.stopPropagation(); this._set({ action: e.detail }); }}></wp-action-picker>
-      ${this._editId ? this.entityIds.map((eid) => this._valueEditor(eid, this._editId!)) : nothing}
-      ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
+        .action=${this._action} ?disabled=${this.disabled} ?advanced-open=${Boolean(this._editId) && this.entityIds.some((eid) => this._ownValue(eid, this._editId!))}
+        @action-change=${(e: CustomEvent<Action>) => { e.stopPropagation(); this._set({ action: e.detail }); }}>
+        ${this._editId ? html`<div slot="advanced">${this.entityIds.map((eid) => this._valueEditor(eid, this._editId!))}</div>` : nothing}
+      </wp-action-picker>
+      ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
       ${this.embedded ? nothing : html`<div class="btns">
         <button class="btn primary" ?disabled=${this._saving || this.disabled} @click=${() => void this._save()}>${t(lang, "save")}</button>
         <button class="btn" @click=${() => this._close()}>${t(lang, "cancel")}</button>
@@ -339,38 +363,39 @@ export class WpLabelPicker extends LitElement {
     .details .k { color: var(--secondary-text-color); }
     .chip {
       display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 16px; border-radius: 24px;
-      border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); font: inherit; font-size: 15px;
+      border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem;
       cursor: pointer; --mdc-icon-size: 20px; max-width: 100%;
     }
     .chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .chip.on { border: 2px solid var(--primary-color); font-weight: 600; }
-    .chip.add { border-style: dashed; color: var(--primary-color); }
+    .chip.on { border: 2px solid var(--wp-primary-text); font-weight: 600; }
+    .chip.add { border-style: dashed; color: var(--wp-primary-text); }
     .chip:disabled { opacity: 0.5; cursor: default; }
     .edit { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
     .pen {
       width: 48px; height: 48px; border: none; border-radius: 24px; background: none; color: var(--secondary-text-color);
       cursor: pointer; --mdc-icon-size: 20px; display: inline-flex; align-items: center; justify-content: center;
     }
-    .pen.on { background: var(--secondary-background-color); color: var(--primary-color); }
+    .pen.on { background: var(--secondary-background-color); color: var(--wp-primary-text); }
     .pen:hover { background: var(--secondary-background-color); }
-    .shared { display: block; margin: -4px 0 4px; font-size: 12px; color: var(--secondary-text-color); overflow-wrap: anywhere; }
+    .shared { display: block; margin: -4px 0 4px; font-size: 0.75rem; color: var(--secondary-text-color); overflow-wrap: anywhere; }
     .dot { width: 14px; height: 14px; border-radius: 7px; flex: none; }
     .form { margin-top: 12px; padding: 12px; border: 1px solid var(--divider-color); border-radius: 12px; }
     .swatches { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
-    .sw { width: 40px; height: 40px; border-radius: 20px; border: 2px solid transparent; cursor: pointer; padding: 0; }
-    .sw.on { border-color: var(--primary-text-color); box-shadow: 0 0 0 2px var(--card-background-color) inset; }
+    .sw { width: 44px; height: 44px; border: 0; background: none; cursor: pointer; padding: 2px; display: inline-flex; align-items: center; justify-content: center; }
+    .sw i { display: block; width: 40px; height: 40px; border-radius: 20px; box-sizing: border-box; border: 2px solid transparent; }
+    .sw i.on { border-color: var(--primary-text-color); box-shadow: 0 0 0 2px var(--card-background-color) inset; }
+    .sw:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 0; border-radius: 22px; }
     .btns { display: flex; gap: 8px; margin-top: 12px; }
     .btns .btn { flex: 1; }
     .delbox p { margin: 4px 0 0; }
     .delbox .btns { margin-top: 8px; }
-    .danger-line { color: var(--error-color, #db4437); border-color: var(--error-color, #db4437); }
-    .err { color: var(--error-color, #db4437); margin: 8px 0 0; }
+    .danger-line { color: var(--wp-danger-text); border-color: var(--wp-danger-text); }
     .dev { margin-top: 6px; }
-    .sum { margin-top: 2px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; font-size: 15px; }
+    .sum { margin-top: 2px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; font-size: 0.9375rem; }
     .sum .what { font-weight: 600; }
-    .sum .who { color: var(--secondary-text-color); font-size: 13px; }
+    .sum .who { color: var(--secondary-text-color); font-size: 0.8125rem; }
     .link {
-      border: none; background: none; color: var(--primary-color); font: inherit; font-size: 14px; cursor: pointer;
+      border: none; background: none; color: var(--wp-primary-text); font: inherit; font-size: 0.875rem; cursor: pointer;
       min-height: 48px; padding: 0; text-align: left;
     }
     .link.own { font-weight: 600; }

@@ -10,8 +10,8 @@ import { applicable, sunBoundsInvalid } from "../slots";
 import { devicesOf, forDevices } from "../device-edits";
 import { friendlyName } from "../planner";
 import { compatibleDevices, labelOf } from "../labels";
-import { DAY, clockToMinutes, localDateIso, localMinutes, minutesToClock } from "../time";
-import { editorStyles, langOf } from "../editors/shared";
+import { DAY, clockToMinutes, fmtClock, localDateIso, localMinutes, minutesToClock } from "../time";
+import { editorStyles, foldSection, langOf } from "../editors/shared";
 import type { HomeAssistant, PlannerData, Program, TimeSpec } from "../types";
 
 type Which = "start" | "end";
@@ -21,7 +21,7 @@ const SUN_ATTR = { dawn: "next_dawn", sunrise: "next_rising", sunset: "next_sett
 
 function duration(minutes: number): string {
   const value = Math.abs(minutes);
-  return value < 60 ? `${value} min` : `${Math.floor(value / 60)}h${value % 60 ? String(value % 60).padStart(2, "0") : ""}`;
+  return value < 60 ? `${value} min` : (value % 60 ? `${Math.floor(value / 60)} h ${String(value % 60).padStart(2, "0")}` : `${value / 60} h`);
 }
 
 /** Lowercase name of the solar event, for use inside a sentence ("coucher", "sunset"). */
@@ -32,9 +32,11 @@ function sunWord(lang: string, spec: Extract<TimeSpec, { sun: string }>, long: b
 
 /** ", mais pas avant 18:00 ni après 19:00" for the bounds that are set, or an empty string. */
 function boundsText(lang: string, spec: Extract<TimeSpec, { sun: string }>): string {
-  if (spec.earliest && spec.latest) return t(lang, "sun_limits_both", { a: spec.earliest, b: spec.latest });
-  if (spec.earliest) return t(lang, "sun_limits_earliest", { a: spec.earliest });
-  if (spec.latest) return t(lang, "sun_limits_latest", { b: spec.latest });
+  const shown = (clock: string) => { const m = clockToMinutes(clock); return m >= DAY ? "24 h" : fmtClock(lang, m); };
+  const a = spec.earliest ? shown(spec.earliest) : "", b = spec.latest ? shown(spec.latest) : "";
+  if (spec.earliest && spec.latest) return t(lang, "sun_limits_both", { a, b });
+  if (spec.earliest) return t(lang, "sun_limits_earliest", { a });
+  if (spec.latest) return t(lang, "sun_limits_latest", { b });
   return "";
 }
 
@@ -59,8 +61,7 @@ export function solarMeaningText(lang: string, spec: TimeSpec): string {
 }
 
 function clockText(lang: string, minutes: number): string {
-  const withinDay = minutes % DAY;
-  const value = `${String(Math.floor(withinDay / 60)).padStart(2, "0")}:${String(withinDay % 60).padStart(2, "0")}`;
+  const value = fmtClock(lang, minutes % DAY);
   return minutes >= DAY ? `${value} (${t(lang, "next_day")})` : value;
 }
 
@@ -104,10 +105,27 @@ export class WpSlotForm extends LitElement {
   /** Opened from one day of the week: edit that day only, other days on request. */
   @property({ type: Number }) dayOnly: number | null = null;
   @state() private _more = false;
+  /** "Advanced options" fold (sun times, random delay, time limits): closed unless the slot already uses one. */
+  @state() private _advOpen = false;
+  private _advTouched = false;
+  private _advSlot = "";
   /** Last fixed time of each field, restored when a sun chip is switched off. */
   @state() private _last: Record<Which, string> = { start: "08:00", end: "09:00" };
 
   private get _lang(): string { return langOf(this.hass); }
+
+  /** The slot already uses a sun time, a random delay or a time limit: nothing may stay hidden. */
+  private get _usesAdvanced(): boolean {
+    return [this.group?.slot.start, this.group?.slot.end].some((spec) => Boolean(spec && ("sun" in spec || spec.random_minutes)));
+  }
+
+  willUpdate(): void {
+    const id = this.group?.slot.id ?? "";
+    if (id !== this._advSlot) { this._advSlot = id; this._advTouched = false; this._advOpen = false; }
+    if (!this._advTouched && this._usesAdvanced) this._advOpen = true;
+  }
+
+  private _advIsOpen(): boolean { return this._advTouched ? this._advOpen : this._advOpen || this._usesAdvanced; }
 
   private _set(patch: Partial<SlotGroup["slot"]>, days?: number[]): void {
     let slot = { ...this.group.slot, ...patch };
@@ -194,7 +212,18 @@ export class WpSlotForm extends LitElement {
               aria-label=${title} @change=${(e: Event) => this._fromInput(which, (e.target as HTMLInputElement).value)} />`
           : html`<output class="sun">${specText(lang, { ...spec, random_minutes: 0 })}</output>`}
         <button class="step" ?disabled=${dis} aria-label=${t(lang, "plus15")} title=${t(lang, "plus15")} @click=${() => this._update(which, shiftSpec(spec, 15))}><ha-icon icon="mdi:plus"></ha-icon></button>
-      </div>
+      </div>`;
+  }
+
+  /** Sun choice, time limits and random delay of one boundary (inside the "Advanced options" fold). */
+  private _advancedBlock(which: Which, title: string) {
+    const spec = this.group.slot[which];
+    if (!spec) return nothing;
+    const lang = this._lang;
+    const s = strings(lang);
+    const dis = this.disabled;
+    return html`
+      <h5>${title}</h5>
       <div class="chips">
         ${SUNS.map((sun) => {
           const on = "sun" in spec && spec.sun === sun;
@@ -321,19 +350,22 @@ export class WpSlotForm extends LitElement {
           .value=${slot.label || null} ?disabled=${this.disabled}
           @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._set({ label: e.detail ?? "" }); }}></wp-label-picker>
       </section>
-      ${this._alsoFor()}`;
+      ${this._alsoFor()}
+      ${foldSection(lang, this._advIsOpen(), () => { const open = this._advIsOpen(); this._advTouched = true; this._advOpen = !open; },
+        html`${this._advancedBlock("start", t(lang, "start"))}${slot.end ? this._advancedBlock("end", t(lang, "end")) : nothing}`)}`;
   }
 
   static styles = [editorStyles, css`
     :host { display: block; }
     section { margin: 0 0 14px; }
-    h4 { margin: 0 0 6px; font-size: 14px; font-weight: 600; color: var(--secondary-text-color); }
+    h5 { margin: 8px 0 6px; font-size: 0.8125rem; font-weight: 600; color: var(--secondary-text-color); }
+    h4 { margin: 0 0 6px; font-size: 0.875rem; font-weight: 600; color: var(--secondary-text-color); }
     /* One field: [ − | time | + ], the steps (15 min) are part of the field. */
     .time {
       display: flex; align-items: stretch; margin-bottom: 8px; min-height: 56px; overflow: hidden;
-      border: 1px solid var(--divider-color); border-radius: 12px; background: var(--card-background-color);
+      border: 1px solid var(--wp-field-border); border-radius: 12px; background: var(--card-background-color);
     }
-    .time:focus-within { border-color: var(--primary-color); }
+    .time:focus-within { border-color: var(--wp-primary-text); }
     .time .step {
       flex: none; width: 56px; border: none; background: none; color: var(--primary-text-color); cursor: pointer;
       display: inline-flex; align-items: center; justify-content: center; --mdc-icon-size: 22px;
@@ -344,15 +376,15 @@ export class WpSlotForm extends LitElement {
     .time .step:disabled { opacity: 0.4; cursor: default; }
     .time input[type="time"] {
       flex: 1; min-width: 0; border: none; border-radius: 0; background: none; outline: none;
-      text-align: center; font-size: 24px; font-weight: 600; min-height: 56px; color: var(--primary-text-color);
+      text-align: center; font-size: 1.5rem; font-weight: 600; min-height: 56px; color: var(--primary-text-color);
     }
-    .time output.sun { flex: 1; min-width: 0; align-self: center; text-align: center; font-size: 20px; font-weight: 600; }
+    .time output.sun { flex: 1; min-width: 0; align-self: center; text-align: center; font-size: 1.25rem; font-weight: 600; }
     .ibtn.round { border: 1px solid var(--divider-color); min-width: 64px; font-weight: 600; }
-    .limits { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+    .limits { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 8px; margin: 8px 0; } /* one column on a phone: a time needs about 7 rem plus its clear button */
     .limit { display: flex; align-items: flex-end; gap: 4px; min-width: 0; }
-    .limit label { flex: 1; min-width: 0; display: grid; gap: 2px; font-size: 13px; color: var(--secondary-text-color); }
+    .limit label { flex: 1; min-width: 0; display: grid; gap: 2px; font-size: 0.8125rem; color: var(--secondary-text-color); }
     .limit input[type="time"] {
-      width: 100%; min-width: 0; box-sizing: border-box; min-height: 44px; font: inherit; font-size: 16px;
+      width: 100%; min-width: 0; box-sizing: border-box; min-height: 44px; font: inherit; font-size: 1rem;
       color: var(--primary-text-color); background: var(--card-background-color);
       border: 1px solid var(--divider-color); border-radius: 12px; padding: 0 8px;
     }
@@ -362,7 +394,7 @@ export class WpSlotForm extends LitElement {
     }
     .limit .clear:disabled { opacity: 0.4; cursor: default; }
     .sun-help { display: block; margin-bottom: 8px; color: var(--secondary-text-color); }
-    small.bad { color: var(--error-color, #db4437); display: block; margin-bottom: 8px; }
+    small.bad { color: var(--wp-danger-text); display: block; margin-bottom: 8px; }
     .random { display: grid; gap: 6px; margin: 8px 0; }
     .random label { display: flex; align-items: center; gap: 8px; min-height: 44px; }
     .random input[type="checkbox"] { width: 20px; height: 20px; }
@@ -371,20 +403,20 @@ export class WpSlotForm extends LitElement {
     .chips { display: flex; flex-wrap: wrap; gap: 8px; }
     .chips + .time { margin-top: 12px; }
     .chip {
-      display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 16px; border-radius: 24px; font: inherit; font-size: 15px;
-      border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); cursor: pointer; --mdc-icon-size: 20px;
+      display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 16px; border-radius: 24px; font: inherit; font-size: 0.9375rem;
+      border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); cursor: pointer; --mdc-icon-size: 20px;
     }
-    .chip.on, .day.on { background: var(--primary-color); border-color: var(--primary-color); color: var(--text-primary-color, #fff); font-weight: 600; }
-    .day.on { border-color: transparent; background-clip: padding-box; box-shadow: inset 0 0 0 1px var(--primary-color); }
+    .chip.on, .day.on { background: var(--wp-primary-fill); border-color: var(--wp-primary-fill); color: #fff; font-weight: 600; }
+    .day.on { border-color: transparent; background-clip: padding-box; box-shadow: inset 0 0 0 1px var(--wp-primary-fill); }
     .chip:disabled, .day:disabled { opacity: 0.5; cursor: default; }
     .chip.small { padding: 0 14px; }
-    .only { display: inline-flex; align-items: center; min-height: 48px; font-size: 16px; font-weight: 500; margin-right: 8px; }
-    /* 7 x 44 px at 360 px: the row borrows the editor's side padding; the pill is drawn inside a transparent 2 px border so the touch target stays 44 px wide */
-    .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0; margin: 0 -8px 8px; }
+    .only { display: inline-flex; align-items: center; min-height: 48px; font-size: 1rem; font-weight: 500; margin-right: 8px; }
+    /* 7 x 44 px = 308 px at 360 px: the row borrows 8 px of the editor's side padding (it wraps on narrower screens); the pill is drawn inside a transparent 2 px border so the touch target stays 44 px wide */
+    .days { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 0; margin: 0 -8px 8px; }
     .day {
       min-height: 48px; min-width: 44px; padding: 0; border-radius: 14px; border: 2px solid transparent; background-clip: padding-box;
       box-shadow: inset 0 0 0 1px var(--divider-color);
-      background-color: transparent; color: var(--primary-text-color); font: inherit; font-size: 14px; cursor: pointer;
+      background-color: transparent; color: var(--primary-text-color); font: inherit; font-size: 0.875rem; cursor: pointer;
       display: flex; flex-direction: column; align-items: center; justify-content: center; --mdc-icon-size: 14px;
     }
   `];

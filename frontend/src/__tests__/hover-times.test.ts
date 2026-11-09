@@ -33,14 +33,13 @@ describe("schedule hover and focus tooltips", () => {
   });
   it("shows the same text at keyboard focus and closes on blur or Escape", () => {
     const el = editor();
-    find(el._tipTargets(), "focus", "Comfort").fn();
-    expect(el._tipText).toBe("Comfort · 8 h 45 – 17 h");
-    find(el._tipTargets(), "blur", "@blur").fn();
-    expect(el._tipText).toBe("");
     el._focusSlotTip("slot");
     expect(el._tipText).toContain("Comfort");
     el._zoneKey({ key: "Escape" }); expect(el._tipText).toBe("");
-    expect(flat(el._tipTargets())).toContain('tabindex="0" role="img"');
+    // the bar zone is the only tab stop: the hover targets are hidden from keyboard and screen readers (the zone name carries their text)
+    expect(flat(el._tipTargets())).not.toContain("tabindex");
+    expect(flat(el._tipTargets())).toContain('aria-hidden="true"');
+    expect(el._zoneLabel()).toContain("Comfort · 8 h 45 – 17 h");
     expect(WpBarEditor.styles.map((s: any) => s.cssText).join("")).toContain("pointer-events: none");
   });
   it("preserves solar resolution, one-shot, overnight, and previous-day endpoints", () => {

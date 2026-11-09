@@ -15,12 +15,13 @@ import "../components/dialog";
 import "../components/schedule-dialog";
 import { confirmAction } from "../components/confirm";
 import { displayName, scrollHintCss, trackScrollHints } from "../components/gestures";
-import { slotDeviceError, t } from "../i18n";
+import { errorText, slotDeviceError, t } from "../i18n";
 import { ensureHaSelector, newId } from "../planner";
 import { loadServiceNames, serviceDomains, serviceDescription, serviceLabel, servicesFor } from "../services";
 import type { Condition, HomeAssistant, PlannerData, Program, ProgramEntity, Slot } from "../types";
 import "./shared";
 import { editorStyles, langOf } from "./shared";
+import { callout } from "../styles";
 import type { K } from "./shared";
 
 type Tab = "general" | "entities" | "seasons";
@@ -249,7 +250,7 @@ export class WpProgramEditor extends LitElement {
     if (device) return device;
     if (message.includes("overlapping_slots")) return this._tr("err_overlap_server");
     if (message.includes("duplicate_profile_name")) return this._tr("err_profile_name");
-    return this._tr("error", { message });
+    return errorText(this._lang, err);
   }
 
   /** Brings the field a refused save is about into view and focuses it. */
@@ -328,7 +329,7 @@ export class WpProgramEditor extends LitElement {
   }
 
   private async _askDelete(): Promise<void> {
-    if (await confirmAction(this, this._tr("confirm_delete", { name: this._p.name }), this._tr("delete"))) await this._delete();
+    if (await confirmAction(this, this._tr("confirm_delete", { name: this._p.name }), this._tr("slot_delete_yes"), this._tr("slot_delete_no"))) await this._delete();
   }
 
   private async _askDeleteEntity(index: number): Promise<void> {
@@ -339,7 +340,7 @@ export class WpProgramEditor extends LitElement {
     const text = own
       ? this._tr("confirm_remove_device_own", { name: displayName(this.hass, id), n: String(own) })
       : this._tr("confirm_delete", { name: displayName(this.hass, id) });
-    if (await confirmAction(this, text, this._tr("delete"))) {
+    if (await confirmAction(this, text, this._tr("slot_delete_yes"), this._tr("slot_delete_no"))) {
       const cleaned = removeDeviceFromSlots(this._p, id);
       this._patch({ entities: this._p.entities.filter((_, j) => j !== index), profiles: cleaned.profiles });
     }
@@ -404,6 +405,14 @@ export class WpProgramEditor extends LitElement {
     });
   }
 
+  /** Embedded editor: drop the changes not saved yet and show the saved program again. */
+  private _revert(): void {
+    if (!this._origin) return;
+    this._p = structuredClone(this._origin);
+    this._history.clear();
+    this._error = "";
+  }
+
   private _close(): void {
     this.renderRoot.querySelector<Closable>("#main")?.close();
   }
@@ -426,7 +435,7 @@ export class WpProgramEditor extends LitElement {
                 @value-changed=${(e: CustomEvent<{ value?: string }>) => this._setIcon(e.detail.value || null)}></ha-selector>`
             : html`<div class="row" style="flex-wrap:nowrap">
                 ${p.icon && customElements.get("ha-icon") ? html`<ha-icon .icon=${p.icon}></ha-icon>` : nothing}
-                <input id="f-icon" type="text" placeholder="mdi:thermometer" .value=${p.icon ?? ""}
+                <input id="f-icon" type="text" aria-describedby="icon-name-hint" .value=${p.icon ?? ""}
                   @input=${(e: Event) => this._setIcon((e.target as HTMLInputElement).value.trim() || null)} />
               </div>`}</div>
         <div class="field" style="flex:0 1 140px"><label for="f-prio">${this._tr("pe_priority")}</label>
@@ -434,6 +443,7 @@ export class WpProgramEditor extends LitElement {
             @change=${(e: Event) => this._patch({ priority: Math.max(1, Math.min(100, Math.round(Number((e.target as HTMLInputElement).value) || 10))) })} /></div>
       </div>
       <p class="hint">${this._tr("pe_icon_hint")}</p>
+      ${this._picker ? nothing : html`<p id="icon-name-hint" class="hint">${this._tr("pe_icon_name_hint")}</p>`}
       <p class="hint">${this._tr("pe_priority_hint")}</p>
       <label class="check"><input type="checkbox" .checked=${p.reapply}
         @change=${(e: Event) => this._patch({ reapply: (e.target as HTMLInputElement).checked })} /> ${this._tr("pe_reapply")}</label>
@@ -591,7 +601,8 @@ export class WpProgramEditor extends LitElement {
     const tabs: [Tab, K][] = [["general", "tab_general"], ["entities", "tab_entities"], ["seasons", "tab_seasons"]];
     const editable = this._canEdit();
     const content = html`
-      ${!editable ? html`<p class="error" role="alert">${this._tr("read_only")}</p>` : nothing}
+      ${!editable ? html`${callout("error", "", this._tr("read_only"), { role: "alert" })}` : nothing}
+      <p class="hint">${this._tr("admin_zone_hint")}</p>
       <fieldset ?disabled=${!editable || this._saving}>
         <div class="history" role="group" aria-label=${this._tr("pe_history")}>
           <button class="btn" aria-label=${this._tr("pe_undo")} title=${this._tr("pe_undo")} ?disabled=${!this._history.canUndo} @click=${() => this._undoDraft()}>
@@ -610,11 +621,13 @@ export class WpProgramEditor extends LitElement {
           ${this._tab === "general" ? this._renderGeneral() : this._tab === "entities" ? this._renderEntities() : this._renderSeasons()}
         </div>`}
       </fieldset>`;
-    const globalError = this._error ? html`<p class="error" role="alert">${this._error}</p>` : nothing;
+    const globalError = this._error ? callout("error", "", this._error, { role: "alert" }) : nothing;
     const primaryActions = html`
       <button class="btn primary" ?disabled=${!editable || this._saving} @click=${() => void this._save()}>
-        ${this._tr(this._isNew ? "pe_create" : this.embedded ? "ce_apply_program" : "save")}</button>
-      ${!this.embedded ? html`<button class="btn" @click=${() => this._close()}>${this._tr("cancel")}</button>` : nothing}`;
+        ${this._tr(this._isNew ? "pe_create" : "save")}</button>
+      ${!this.embedded ? html`<button class="btn" @click=${() => this._close()}>${this._tr("cancel")}</button>`
+        : !this._isNew && this._origin && JSON.stringify(this._p) !== JSON.stringify(this._origin)
+          ? html`<button class="btn" ?disabled=${this._saving} @click=${() => this._revert()}>${this._tr("cancel")}</button>` : nothing}`;
     const secondaryActions = html`
       ${!this._isNew ? html`<button class="btn" ?disabled=${!editable || this._saving} @click=${() => this._duplicate()}>${this._tr("duplicate")}</button>` : nothing}
       ${!this._isNew ? html`<button class="btn danger" ?disabled=${!editable || this._saving}
@@ -644,30 +657,31 @@ export class WpProgramEditor extends LitElement {
       :host { display: block; }
       fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
       .history { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-      .history .btn { font-size: 14px; }
+      .history .btn { font-size: 0.875rem; }
       .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
       .apply-bar { position: sticky; bottom: 0; z-index: 2; background: var(--card-background-color, #fff); padding: 8px 0; border-top: 1px solid var(--divider-color); }
+      .embedded { padding-bottom: 72px; } /* room for the sticky bar (48 px button + 2 x 8 px padding + border) so it never covers text */
       .apply-bar .primary { flex: 1; }
       .mode-live { margin: 12px 0; padding: 8px 12px; border: 1px solid var(--divider-color); border-radius: 10px; }
       .mode-associations { margin: 8px 0 12px; }
-      .mode-associations summary { min-height: 44px; display: list-item; align-content: center; cursor: pointer; color: var(--primary-color); }
+      .mode-associations summary { min-height: 44px; display: list-item; align-content: center; cursor: pointer; color: var(--wp-primary-text); }
       .actions .danger { margin-left: auto; }
-      h3 { margin: 16px 0 4px; font-size: 15px; font-weight: 500; }
-      .small { font-size: 12px; }
+      h3 { margin: 16px 0 4px; font-size: 0.9375rem; font-weight: 500; }
+      .small { font-size: 0.75rem; }
       .svc-choice { align-items: flex-start; padding: 8px 0; }
       .svc-choice input { margin-top: 2px; }
       .svc-copy { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
-      .svc-description { color: var(--secondary-text-color); font-size: 12px; line-height: 1.45; margin-top: 3px; white-space: pre-line; }
+      .svc-description { color: var(--secondary-text-color); font-size: 0.75rem; line-height: 1.45; margin-top: 3px; white-space: pre-line; }
       .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--divider-color); margin-bottom: 8px; overflow-x: auto; }
       .tab {
         min-height: 48px; padding: 0 16px; border: none; background: none; color: var(--secondary-text-color);
         border-bottom: 3px solid transparent; cursor: pointer; white-space: nowrap;
       }
-      .tab.on { color: var(--primary-color); border-bottom-color: var(--primary-color); font-weight: 600; }
+      .tab.on { color: var(--wp-primary-text); border-bottom-color: var(--wp-primary-text); font-weight: 600; }
       ${unsafeCSS(scrollHintCss)}
       .link {
         display: inline-flex; align-items: center; gap: 4px; min-height: 48px; padding: 0; border: none; background: none;
-        color: var(--primary-color); font: inherit; font-size: 14px; cursor: pointer; --mdc-icon-size: 20px;
+        color: var(--wp-primary-text); font: inherit; font-size: 0.875rem; cursor: pointer; --mdc-icon-size: 20px;
       }
       .svc { display: flex; flex-direction: column; padding-left: 8px; }
       .active-profile { display: flex; align-items: center; gap: 8px; }

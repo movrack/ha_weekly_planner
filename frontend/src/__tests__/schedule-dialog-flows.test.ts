@@ -305,18 +305,18 @@ describe("schedule screen editing", () => {
     const sw = handlers(view.render()).find((h) => h.event === "change" && h.before.includes("checkbox"))!;
     await sw.fn({ target: input });
   });
-  it("pauses for the chosen number of days, shows the end and resumes without asking", async () => {
+  it("pauses for the chosen number of hours, shows the end and resumes without asking", async () => {
     const { view } = make();
     const input: any = { checked: false };
     vi.mocked(pauseChoice).mockResolvedValueOnce(7);
     await view._setEnabled(false, input);
-    expect(view.hass.callWS).toHaveBeenCalledWith({ type: "weekly_planner/program/pause", program_id: "p", days: 7 });
+    expect(view.hass.callWS).toHaveBeenCalledWith({ type: "weekly_planner/program/pause", program_id: "p", hours: 7 });
     const paused = mkProgram({ enabled: false, paused_until: "2026-11-09T21:30:00+00:00" });
     view.data = { ...view.data, programs: [paused] };
     expect(view._stateText()).toBe("Paused until Mon, Nov 9, 9:30 pm");
     expect(flat(view.render())).toContain("Paused until");
     view.data = { ...view.data, programs: [mkProgram({ enabled: false })] };
-    expect(view._stateText()).toBe("Off");
+    expect(view._stateText()).toBe("Paused");
     view.data = { ...view.data, programs: [paused] };
     vi.mocked(pauseChoice).mockClear(); view.hass.callWS.mockClear();
     await view._setEnabled(true, input);

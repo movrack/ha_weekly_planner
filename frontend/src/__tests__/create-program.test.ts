@@ -119,7 +119,7 @@ describe("creation form errors", () => {
     const e = form();
     e._p.name = "Office";
     await e._save();
-    expect(e._entitiesError).toBe("Add at least one entity.");
+    expect(e._entitiesError).toBe("Add at least one device.");
     expect(e._nameError).toBe("");
     const html = text(e.render());
     expect(html.indexOf("pe-entities-error")).toBeGreaterThan(html.indexOf(t("en", "tab_entities")));

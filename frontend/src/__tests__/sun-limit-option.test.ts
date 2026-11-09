@@ -16,7 +16,7 @@ function form(start: any = { sun: "sunrise" }, end: any = { sun: "sunset" }) {
   Object.assign(el, { hass: { language: "en", config: {}, states: {} },
     group: { slot: { id: "s", label: "l", start, end }, days: [0], ids: {} } });
   el.dispatchEvent = (event: any) => { seen.push(event.detail); el.group = event.detail; return true; };
-  const block = (which = "start") => el._timeBlock(which, which);
+  const block = (which = "start") => [el._timeBlock(which, which), el._advancedBlock(which, which)];
   const toggle = (which: string, checked: boolean) => {
     const handler = handlers(block(which)).find((h) => h.event === "change" && h.before.slice(-200).includes(`id=sun-option-${which}`));
     expect(handler).toBeDefined();
@@ -28,6 +28,7 @@ function form(start: any = { sun: "sunrise" }, end: any = { sun: "sunset" }) {
 const fields = (block: any) => (flat(block).match(/class="limit"/g) ?? []).length;
 
 function checked(value: any): boolean | undefined {
+  if (Array.isArray(value)) { for (const v of value) { const r = checked(v); if (r !== undefined) return r; } return undefined; }
   if (!value?.strings) return undefined;
   if (value.strings.some((s: string) => s.includes('id=')) && value.values.some((v: unknown) => typeof v === "string" && v.startsWith("sun-option-"))) {
     const i = value.strings.findIndex((s: string) => s.endsWith('.checked='));

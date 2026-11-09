@@ -11,6 +11,12 @@ export const PALETTE = [
   "#3f51b2", "#9c27b0", "#e91e63", "#795548", "#607d8b", "#009688",
 ];
 
+/** i18n key of each palette colour's name, by hue (same order as PALETTE). */
+export const PALETTE_NAMES = [
+  "color_red", "color_orange", "color_yellow", "color_light_green", "color_cyan", "color_light_blue",
+  "color_indigo", "color_purple", "color_pink", "color_brown", "color_blue_grey", "color_green",
+] as const;
+
 export function nextColor(labels: Label[]): string {
   const used = new Set(labels.map((l) => l.color.toLowerCase()));
   return PALETTE.find((c) => !used.has(c)) ?? PALETTE[labels.length % PALETTE.length];
@@ -32,6 +38,16 @@ export function labelName(hass: HomeAssistant, label: Pick<Label, "name">): stri
   if (translated !== label.name) return translated;
   const part = label.name.split(".")[1].replace(/_/g, " ");
   return part.charAt(0).toUpperCase() + part.slice(1);
+}
+
+/** Integrations whose service names the labels show: the one of each action, and the one of a name that is a raw service id. */
+export function labelDomains(labels: Label[]): string[] {
+  const out = new Set<string>();
+  for (const l of labels) {
+    if (l.action.kind === "service") out.add(l.action.service.split(".")[0]);
+    if (SERVICE_ID.test(l.name)) out.add(l.name.split(".")[0]);
+  }
+  return [...out];
 }
 
 /** Scenes that contain the entity (attribute `entity_id` of `scene.*`). */

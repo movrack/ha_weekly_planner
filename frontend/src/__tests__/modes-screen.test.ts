@@ -30,6 +30,7 @@ function make(modeInfo: any = mode(), program = mkProgram()) {
     labels: [{ id: "comfort", name: "Comfort", color: "#f00", action: { kind: "service", service: "switch.turn_on" } }] };
   view.renderRoot = { querySelector: () => null };
   view.requestUpdate = vi.fn();
+  view._optsOpen = true;   // the mode options are folded by default
   return { view, events, program };
 }
 beforeEach(() => {
@@ -49,23 +50,25 @@ describe("mode choice in the schedules screen", () => {
   });
   it("opens on the active mode: one tab per option, then the program's modes without option", () => {
     const { view } = make(mode({ active: "Winter" }));
+    view._optsOpen = false;
     expect(view._openMode).toBe("Winter");
     expect(view._modes()).toEqual([
       { name: "Home", orphan: false }, { name: "Winter", orphan: false }, { name: "Away", orphan: false }, { name: "Old", orphan: true }]);
     const html = flat(view.render());
-    expect(html).toContain('role="tablist"');
-    expect(html.match(/role="tab"/g)).toHaveLength(4);
+    expect(html).toContain("<fieldset");
+    expect(html.match(/<option /g)).toHaveLength(4);
     expect(html).not.toContain("mdi:check");
-    expect(html.match(/class="live"/g)).toHaveLength(1); // only the active mode carries the badge
-    expect(html).toContain("no option");
-    expect(html).toContain("modechip on ");
-    expect(html).toContain("modechip  orphan");
+    expect(html).toContain("Winter (Active)");   // only the active mode carries the mark
+    expect(html.match(/\(Active/g)).toHaveLength(1);
+    expect(html).toContain("Old (no longer exists)");
+    expect(html).toContain("Schedules");          // the schedules sit in their own fieldset
   });
-  it("marks only the opened tab as selected and reachable by Tab", () => {
+  it("picks a mode from the select", () => {
     const { view } = make();
-    const html = flat(view.render());
-    expect(html.match(/aria-selected=/g)).toHaveLength(4);
-    expect(handlers(view.render()).filter((h) => h.event === "keydown")).toHaveLength(4);
+    const change = handlers(view.render()).find((h: any) => h.event === "change" && String(h.fn).includes("_pickMode"));
+    expect(change).toBeTruthy();
+    change!.fn({ target: { value: "Winter" } });
+    expect(view._openMode).toBe("Winter");
   });
   it("says a mode that is not active is not, and shows its own schedules", () => {
     const { view } = make();
@@ -74,8 +77,8 @@ describe("mode choice in the schedules screen", () => {
     view._pickMode("Old");
     const html = flat(view.render());
     expect(html).toContain("This mode is not active");
-    expect(html).toContain('class="inactive"');
-    expect(flat(view._renderInactive())).toContain("The active mode is Home. These schedules will apply when input_select.m changes to Old.");
+    expect(html).toContain('callout tone-info');
+    expect(flat(view._renderInactive())).toContain("The active mode is Home. These schedules will apply when the house goes to mode Old (“input_select.m”).");
     expect(view._modeOnly).toBe(true);
     expect(view._rows()[0].group.slot.id).toBe("c");
     expect(html).not.toContain('class="switch"');
@@ -86,17 +89,6 @@ describe("mode choice in the schedules screen", () => {
     expect(view._modeProfile(view._programs[0])).toBeUndefined();
     expect(view._rows()).toHaveLength(0);
     expect(flat(view.render())).toContain("No schedule");
-  });
-  it("moves between the modes with the arrow keys", () => {
-    const { view } = make();
-    const modes = view._modes();
-    const key = (k: string) => view._modeKey({ key: k, preventDefault() {} }, modes);
-    key("ArrowRight"); expect(view._openMode).toBe("Winter");
-    key("End"); expect(view._openMode).toBe("Old");
-    key("ArrowRight"); expect(view._openMode).toBe("Home");
-    key("ArrowLeft"); expect(view._openMode).toBe("Old");
-    key("Home"); expect(view._openMode).toBe("Home");
-    key("x"); expect(view._openMode).toBe("Home");
   });
   it("does not switch mode while a row is being edited", () => {
     const { view } = make();
@@ -137,22 +129,37 @@ describe("mode choice in the schedules screen", () => {
   });
 });
 
+describe("mode options fold", () => {
+  it("are folded by default (no follow / copy parts) and open on a tap", () => {
+    const { view } = make();
+    view._optsOpen = false;
+    const out = flat(view.render());
+    expect(out).toContain("Advanced options");
+    expect(out).not.toContain("Reuse the schedules of another mode");
+    const toggle = handlers(view.render()).find((h: any) => h.event === "click" && String(h.fn).includes("_optsOpen"));
+    expect(toggle).toBeTruthy();
+    toggle!.fn();
+    expect(view._optsOpen).toBe(true);
+    expect(flat(view.render())).toContain("Reuse the schedules of another mode");
+  });
+});
+
 describe("copy from another mode", () => {
   it("is offered with a selector and another mode that has schedules", () => {
     const { view } = make();
     expect(view._copySources()).toEqual(["Old"]);
     const html = flat(view.render());
-    expect(html).toContain("Copy from another mode");
+    expect(html).toContain("Reuse the schedules of another mode");
     expect(html).not.toContain("Copy the schedules of");
   });
   it("is not offered without a selector, without sources, read-only, or while editing", () => {
-    expect(flat(make(mode({ selector: null, options: [], active: null })).view.render())).not.toContain("Copy from another mode");
+    expect(flat(make(mode({ selector: null, options: [], active: null })).view.render())).not.toContain("Reuse the schedules of another mode");
     const none = mkProgram(); none.profiles[1].days = week();
-    expect(flat(make(mode(), none).view.render())).not.toContain("Copy from another mode");
+    expect(flat(make(mode(), none).view.render())).not.toContain("Reuse the schedules of another mode");
     const ro = make(); ro.view.data.read_only = true;
-    expect(flat(ro.view.render())).not.toContain("Copy from another mode");
+    expect(flat(ro.view.render())).not.toContain("Reuse the schedules of another mode");
     const ed = make(); ed.view._open = "new";
-    expect(flat(ed.view.render())).not.toContain("Copy from another mode");
+    expect(flat(ed.view.render())).not.toContain("Reuse the schedules of another mode");
   });
   it("opens the list of source modes", () => {
     const { view } = make();
@@ -213,11 +220,11 @@ describe("mode notices", () => {
   it("proposes each candidate and the deletion, in both languages", () => {
     const n = notice({ proposals: [{ old: "Winter", candidates: ["Cold", "Snow"] }] });
     const html = flat(n.render());
-    expect(html).toContain("The mode Winter is no longer in the selector. Did it become…?");
-    expect(html).toContain("Cold"); expect(html).toContain("Snow"); expect(html).toContain("No, delete it");
+    expect(html).toContain("The mode Winter is no longer in the list of modes. Did it become…?");
+    expect(html).toContain("Cold"); expect(html).toContain("Snow"); expect(html).toContain("Delete its schedules");
     const fr = flat(notice({ proposals: [{ old: "Hiver", candidates: ["Froid"] }] }, "fr").render());
-    expect(fr).toContain("Le mode Hiver n’existe plus dans le sélecteur. Est-ce devenu… ?");
-    expect(fr).toContain("Non, le supprimer");
+    expect(fr).toContain("Le mode Hiver n’existe plus dans la liste des modes. Est-ce devenu… ?");
+    expect(fr).toContain("Effacer ses horaires");
   });
   it("calls resolve with the chosen candidate", async () => {
     const n = notice({ proposals: [{ old: "Winter", candidates: ["Cold", "Snow"] }] });
@@ -238,9 +245,9 @@ describe("mode notices", () => {
   it("offers only the deletion for an orphan with no candidate", () => {
     const n = notice({ orphans: ["Old", "Winter"], proposals: [{ old: "Winter", candidates: ["Cold"] }] });
     const html = flat(n.render());
-    expect(html.match(/No, delete it/g)).toHaveLength(2);
-    expect(html).toContain("The mode Old is no longer in the selector.</p>");
-    expect(html).not.toContain("The mode Old is no longer in the selector. Did");
+    expect(html.match(/Delete its schedules/g)).toHaveLength(2);
+    expect(html).toContain("The mode Old is no longer in the list of modes.</p>");
+    expect(html).not.toContain("The mode Old is no longer in the list of modes. Did");
   });
   it("shows the last recent rename with an undo button", async () => {
     const n = notice({ renamed: [{ old: "A", new: "B", at: recent() }, { old: "Hiver", new: "Winter", at: recent() }] });
@@ -264,13 +271,12 @@ describe("mode notices", () => {
     expect(flat(n.render())).toContain("Error: nope");
     expect(n._busy).toBe(false);
   });
-  it("is on the card under the mode line, and in the schedules screen", () => {
+  it("is not on the card, only in the schedules screen (once)", () => {
     const c = new WeeklyPlannerCard() as any;
     c.hass = { language: "en", config: { time_zone: "UTC" }, states: {}, services: {}, callWS: vi.fn() };
     c._config = {};
     c._data = { labels: [], status: {}, can_edit: true, read_only: false, vacation: false, programs: [], mode: mode({ proposals: [{ old: "W", candidates: ["C"] }] }) };
-    const html = flat(c.render());
-    expect(html.indexOf("mode-line")).toBeLessThan(html.indexOf("wp-mode-notice"));
+    expect(flat(c.render())).not.toContain("wp-mode-notice");
     expect(flat(make().view.render())).toContain("wp-mode-notice");
   });
 });

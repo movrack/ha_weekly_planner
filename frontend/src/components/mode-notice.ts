@@ -5,8 +5,9 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { confirmAction } from "./confirm";
-import { t } from "../i18n";
+import { errorText, t } from "../i18n";
 import { langOf } from "../editors/shared";
+import { callout, calloutStyles } from "../styles";
 import type { HomeAssistant, PlannerData } from "../types";
 
 const WEEK_MS = 7 * 24 * 3600 * 1000;
@@ -27,7 +28,7 @@ export class WpModeNotice extends LitElement {
     try {
       await this.hass.callWS(msg);
     } catch (err) {
-      this._error = t(this._lang, "error", { message: (err as { message?: string })?.message ?? String(err) });
+      this._error = errorText(this._lang, err);
     } finally {
       this._busy = false;
     }
@@ -38,7 +39,7 @@ export class WpModeNotice extends LitElement {
   }
 
   private async _delete(old: string): Promise<void> {
-    if (!(await confirmAction(this, t(this._lang, "mode_gone_confirm", { old }), t(this._lang, "delete")))) return;
+    if (!(await confirmAction(this, t(this._lang, "mode_gone_confirm", { old }), t(this._lang, "slot_delete_yes"), t(this._lang, "slot_delete_no")))) return;
     await this._resolve(old, null);
   }
 
@@ -70,43 +71,37 @@ export class WpModeNotice extends LitElement {
     const lost = this._followLost();
     if (!asks.length && !renamed && !lost.length) return nothing;
     return html`
-      ${lost.map((r) => html`<div class="notice" role="status">
-        <p>${t(lang, "mode_follow_lost", { modes: r.modes.join(", "), source: r.source })}</p></div>`)}
-      ${asks.map((a) => html`<div class="notice" role="group" aria-label=${t(lang, "mode_gone", { old: a.old })}>
+      ${lost.map((r) => callout("warning", "", t(lang, "mode_follow_lost", { modes: r.modes.join(", "), source: r.source }), { role: "status" }))}
+      ${asks.map((a) => html`<div class="callout tone-warning" role="status">
+        <ha-icon icon="mdi:alert-outline"></ha-icon><div class="co-body">
         <p>${t(lang, "mode_gone", { old: a.old })}${a.candidates.length ? html` ${t(lang, "mode_gone_ask")}` : nothing}</p>
         <div class="btns">
           ${a.candidates.map((c) => html`<button class="btn" ?disabled=${this._busy} @click=${() => void this._resolve(a.old, c)}>
             <ha-icon icon="mdi:arrow-right-bold-outline"></ha-icon>${c}</button>`)}
           <button class="btn del" ?disabled=${this._busy} @click=${() => void this._delete(a.old)}>
             <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "mode_gone_delete")}</button>
-        </div>
+        </div></div>
       </div>`)}
-      ${renamed ? html`<div class="notice" role="status">
-        <p>${t(lang, "mode_renamed", { old: renamed.old, new: renamed.new })}</p>
+      ${renamed ? callout("warning", "", t(lang, "mode_renamed", { old: renamed.old, new: renamed.new }), { role: "status", extra: html`
         <div class="btns"><button class="btn" ?disabled=${this._busy}
           @click=${() => void this._call({ type: "weekly_planner/mode/undo_rename", new: renamed.new })}>
           <ha-icon icon="mdi:undo"></ha-icon>${t(lang, "mode_undo")}</button>
           <button class="btn" ?disabled=${this._busy}
           @click=${() => void this._call({ type: "weekly_planner/mode/dismiss_rename", new: renamed.new })}>
-          <ha-icon icon="mdi:check"></ha-icon>${t(lang, "ok")}</button></div>
-      </div>` : nothing}
-      ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}`;
+          <ha-icon icon="mdi:check"></ha-icon>${t(lang, "ok")}</button></div>` }) : nothing}
+      ${this._error ? callout("error", "", this._error, { role: "alert" }) : nothing}`;
   }
 
-  static styles = css`
+  static styles = [calloutStyles, css`
     :host { display: block; }
-    .notice { margin: 4px 0 8px; padding: 10px 12px; border: 1px solid var(--divider-color); border-left: 4px solid var(--warning-color, #ff9800); border-radius: 10px; }
-    .notice p { margin: 0 0 8px; font-size: 15px; line-height: 1.4; color: var(--primary-text-color); }
-    .btns { display: flex; flex-wrap: wrap; gap: 8px; }
     .btn {
-      display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 16px; border-radius: 24px; font: inherit; font-size: 15px;
-      border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); cursor: pointer; --mdc-icon-size: 20px;
+      display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 16px; border-radius: 24px; font: inherit; font-size: 0.9375rem;
+      border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); cursor: pointer; --mdc-icon-size: 20px;
     }
-    .btn.del { color: var(--error-color, #db4437); border-color: var(--error-color, #db4437); }
+    .btn.del { color: var(--wp-danger-text); border-color: var(--wp-danger-text); }
     .btn:disabled { opacity: 0.5; cursor: default; }
-    .btn:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
-    .err { color: var(--error-color, #db4437); margin: 4px 0; font-size: 14px; }
-  `;
+    .btn:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
+  `];
 }
 
 declare global {

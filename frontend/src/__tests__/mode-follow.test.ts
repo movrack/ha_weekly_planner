@@ -35,6 +35,7 @@ function make(modeInfo: any = mode(), program = mkProgram()) {
     labels: [{ id: "comfort", name: "Comfort", color: "#f00", action: { kind: "service", service: "switch.turn_on" } }] };
   view.renderRoot = { querySelector: () => null };
   view.requestUpdate = vi.fn();
+  view._optsOpen = true;   // the mode options are folded by default
   return { view, program };
 }
 const wsCalls = (view: any, type: string) => view.hass.callWS.mock.calls.map((c: any) => c[0]).filter((m: any) => m.type === type);
@@ -85,10 +86,10 @@ describe("the schedules screen of a mode that follows", () => {
     expect(view._openMode).toBe("Holiday");
     expect(view._rows().map((r: any) => r.group.slot.id)).toEqual(["a"]);
     const html = flat(view.render());
-    expect(html).toContain("follows Home");
-    expect(html).toContain("This mode follows:");
+    expect(html).toContain("same schedules as Home");
+    expect(html).toContain("Same schedules as:");
     expect(html).toContain("Home</option>");
-    expect(html).not.toContain("Copy from another mode");
+    expect(html).not.toContain("Reuse the schedules of another mode");
   });
   it("offers only valid sources: not itself, not a mode that follows, not a mode with no schedules, none for a followed mode", () => {
     const { view, program } = make();
@@ -100,14 +101,14 @@ describe("the schedules screen of a mode that follows", () => {
     view._viewMode = "Home";
     expect(view._followSources(program)).toEqual([]); // Holiday follows Home: Home cannot follow
     expect(flat(view.render())).toContain("Followed by: Holiday");
-    expect(flat(view.render())).not.toContain("This mode follows:");
+    expect(flat(view.render())).not.toContain("Same schedules as:");
   });
   it("shows nothing to choose when no mode can be followed, and only a note when read-only", () => {
     const only = mkProgram(); only.profiles = [only.profiles[0]];
-    expect(flat(make(mode({ active: "Home", options: ["Home"] }), only).view.render())).not.toContain("This mode follows:");
+    expect(flat(make(mode({ active: "Home", options: ["Home"] }), only).view.render())).not.toContain("Same schedules as:");
     const ro = make(); ro.view.data.read_only = true;
     const html = flat(ro.view.render());
-    expect(html).not.toContain("<select"); expect(html).toContain("Same schedules as Home.");
+    expect(html).not.toContain("class=\"follow\""); expect(html).toContain("Same schedules as Home.");
   });
   it("follows a mode after the choice; confirms first when the mode has schedules of its own", async () => {
     const { view } = make(mode({ active: "Away" }));

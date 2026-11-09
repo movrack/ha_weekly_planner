@@ -10,7 +10,7 @@ import "./chart-options";
 import type { SourcePoint } from "../chart-sources";
 import "./day-bar";
 import { sunDir, type BarSpan } from "./day-bar";
-import "./dialog";
+import { collectFocusable } from "./dialog";
 import "./label-picker";
 import "./mode-notice";
 import "./slot-form";
@@ -20,17 +20,18 @@ import { applyEdit, compareOrigin, dayView, findGroup, freshGroup, groupId, next
 import { devicesOf, dropDeviceSlots, editForDevice, isShared, remergeIdentical } from "../device-edits";
 import type { SlotPatch } from "../device-edits";
 import type { RowEdit } from "../edits";
-import { appliedAction, labelName, labelOf, labelsFor } from "../labels";
+import { appliedAction, labelDomains, labelName, labelOf, labelsFor } from "../labels";
 import type { LabelDraft } from "./label-picker";
 import { addDaysIso } from "./chart";
 import { chooseAction, confirmAction, pauseChoice } from "./confirm";
-import { slotDeviceError, strings, t } from "../i18n";
-import { loadServiceNames } from "../services";
+import { errorText, slotDeviceError, strings, t } from "../i18n";
+import { loadServiceNames, onServiceNames } from "../services";
 import { cloneSlots, effectiveProfile, friendlyName, newId } from "../planner";
 import { deviceDays, fetchPreviewResponse } from "../preview-cache";
 import { DAY, formatPauseEnd, localDateIso, minutesToClock, pauseEnd } from "../time";
 import { applicable, applies, normaliseEntities, shiftTimeSpec, specMinutes, sunBoundsInvalid } from "../slots";
 import { editorStyles, langOf } from "../editors/shared";
+import { callout } from "../styles";
 import type { Action, HomeAssistant, PlannerData, PreviewResponse, PreviewSlot, Profile, Program, Slot, TimeSpec } from "../types";
 
 /** The profiles with `next` in place of the one with its id, added at the end when it is new. */
@@ -54,6 +55,7 @@ export class WpSchedule extends LitElement {
   /** Mode opened with the mode choice (null: the active mode). */
   @state() private _viewMode: string | null = null;
   @state() private _copyOpen = false;
+  @state() private _optsOpen = false;
   private _editProfileId: string | null = null;
   /** Mode of the row being edited (null: no mode, the first schedules). */
   private _editMode: string | null = null;
@@ -272,9 +274,7 @@ export class WpSchedule extends LitElement {
 
   /** Translated service names of the actions of the labels. */
   private _loadNames(): void {
-    const domains = new Set<string>();
-    for (const l of this.data.labels) if (l.action.kind === "service") domains.add(l.action.service.split(".")[0]);
-    void loadServiceNames(this.hass, [...domains]).then((ok) => ok && this.requestUpdate());
+    void loadServiceNames(this.hass, labelDomains(this.data.labels)).then((ok) => ok && this.requestUpdate());
   }
 
   willUpdate(changed: Map<string, unknown>): void {
@@ -339,7 +339,22 @@ export class WpSchedule extends LitElement {
     this._error = "";
     this._note = "";
     // Show the top of the opened row, not the bottom of its form.
-    void this.updateComplete.then(() => requestAnimationFrame(() => this._revealEditor()));
+    void this.updateComplete.then(() => requestAnimationFrame(() => { this._revealEditor(); this._focusEditor(); }));
+  }
+
+  /** The focus follows the row that turned into an editor: it goes to the editor's first control. */
+  private _focusEditor(): void {
+    const editor = this.renderRoot.querySelector<HTMLElement>(".editor");
+    if (editor) (collectFocusable(editor)[0] ?? editor).focus({ preventScroll: true });
+  }
+
+  /** The editor closed: the focus goes back to the row it replaced (or to "add" for a new one). */
+  private _focusRow(key: string | null): void {
+    void this.updateComplete.then(() => requestAnimationFrame(() => {
+      const root = this.renderRoot;
+      const row = key && key !== "new" ? Array.from(root.querySelectorAll<HTMLElement>("button.row[data-key]")).find((el) => el.dataset.key === key) : undefined;
+      (row ?? root.querySelector<HTMLElement>("button.row.add"))?.focus({ preventScroll: true });
+    }));
   }
 
   /** Brings the opened editor into view. In two columns the schematic sits beside it: scroll only if the editor's top is out of view. */
@@ -371,7 +386,16 @@ export class WpSchedule extends LitElement {
     }
   }
 
+  /** Escape with a row editor open closes only that editor (its edit is discarded, the focus goes back to its row). */
+  private _onEscape(e: Event): void {
+    if (this._open === null) return;
+    e.preventDefault();
+    this._cancel();
+  }
+
   private _cancel(): void {
+    const closed = this._open;
+    if (closed !== null) this._focusRow(closed);
     this._editProfileId = null;
     this._editMode = null;
     this._open = null;
@@ -758,7 +782,8 @@ export class WpSchedule extends LitElement {
     const program = this._live(this._programId);
     if (!program || !this._openId) return;
     if (this._shared && this._who === null) { this._error = t(this._lang, "who_pick"); return; }
-    if (!(await confirmAction(this, t(this._lang, "w_confirm_slot"), t(this._lang, "yes"), t(this._lang, "no")))) return;
+    const what = this._group ? this._rowText(this._group).text : "";  // say which schedule goes away
+    if (!(await confirmAction(this, `${t(this._lang, "w_confirm_slot")}${what ? ` ${what}` : ""}`, t(this._lang, "slot_delete_yes"), t(this._lang, "slot_delete_no")))) return;
     const one = this._shared && this._who === "one";
     const ok = await this._commit(program.id, (live) => {
       const profile = this._editProfile(live);
@@ -811,14 +836,16 @@ export class WpSchedule extends LitElement {
         return;
       }
       for (const p of this._programs) {
-        if (typeof choice === "number") await this.hass.callWS({ type: "weekly_planner/program/pause", program_id: p.id, days: choice });
+        if (typeof choice === "number") await this.hass.callWS({ type: "weekly_planner/program/pause", program_id: p.id, hours: choice });
         else await this.hass.callWS({ type: "weekly_planner/program/set_enabled", program_id: p.id, enabled });
       }
     } catch (err) {
-      this._error = t(this._lang, "error", { message: (err as { message?: string })?.message ?? String(err) });
+      this._error = errorText(this._lang, err);
     } finally {
       this._toggling = false;
       input.checked = this._enabled;
+      // the switch was disabled while its dialog was open: give the focus back to it once it is enabled again
+      void this.updateComplete.then(() => { if (input.isConnected) input.focus({ preventScroll: true }); });
     }
   }
 
@@ -827,11 +854,11 @@ export class WpSchedule extends LitElement {
     if (this.scope.kind === "program" && owner && owner.entities.length > 1 && this._eid) {
       // one device of several: only its schedules go (every mode); the program and the other devices stay
       const eid = this._eid;
-      if (!(await confirmAction(this, t(this._lang, "confirm_delete_device", { name: friendlyName(this.hass, eid) }), t(this._lang, "yes"), t(this._lang, "no")))) return;
+      if (!(await confirmAction(this, t(this._lang, "confirm_delete_device", { name: friendlyName(this.hass, eid) }), t(this._lang, "slot_delete_yes"), t(this._lang, "slot_delete_no")))) return;
       if (await this._commit(owner.id, (live) => ({ program: dropDeviceSlots(live, eid) }))) this._closeDialog();
       return;
     }
-    if (!(await confirmAction(this, t(this._lang, "confirm_delete_schedule", { name: this._title }), t(this._lang, "yes"), t(this._lang, "no")))) return;
+    if (!(await confirmAction(this, t(this._lang, "confirm_delete_schedule", { name: this._title }), t(this._lang, "slot_delete_yes"), t(this._lang, "slot_delete_no")))) return;
     try {
       for (const program of this._programs) {
         const eid = this.scope.kind === "device" ? this.scope.entityId : null;
@@ -845,7 +872,7 @@ export class WpSchedule extends LitElement {
       }
       this._closeDialog();
     } catch (err) {
-      this._error = t(this._lang, "error", { message: (err as { message?: string })?.message ?? String(err) });
+      this._error = errorText(this._lang, err);
     }
   }
 
@@ -886,7 +913,7 @@ export class WpSchedule extends LitElement {
     const { program, group, key } = row;
     if (this._open === key && this._group) return this._renderEditor(program, key);
     const { text, days, color, also } = this._rowText(group, program);
-    return html`<button class="row" aria-expanded="false" @click=${() => this._openRow(key, program, group)}>
+    return html`<button class="row" data-key=${key} aria-expanded="false" @click=${() => this._openRow(key, program, group)}>
       <span class="dot" style="background:${color}"></span>
       <span class="txt"><span class="l1">${text}</span>${this._focus === null ? html`<span class="l2">${days}</span>` : nothing}${also ? html`<small>${also}</small>` : nothing}${this._programs.length > 1 ? html`<small>${program.name}</small>` : nothing}</span>
       <ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
@@ -918,7 +945,7 @@ export class WpSchedule extends LitElement {
           <button role="radio" aria-checked=${this._who === "all"} class=${this._who === "all" ? "on" : ""} ?disabled=${!this._canEdit}
             @click=${() => this._pickWho("all")}><ha-icon icon="mdi:select-all"></ha-icon>${this._whoAll(count, devices)}</button>
         </div></div>` : nothing}
-      ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
+      ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
       <div class="btns">
         <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRow()}>${t(lang, "save")}</button>
         <button class="btn" @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
@@ -944,14 +971,14 @@ export class WpSchedule extends LitElement {
             .value=${this._restLabel} ?disabled=${!this._canEdit}
             @label-draft=${(e: CustomEvent<LabelDraft | null>) => { e.stopPropagation(); this._labelDraft = e.detail; this._error = ""; }}
             @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._restLabel = e.detail; }}></wp-label-picker>`)}
-          ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
+          ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
           <div class="btns">
             <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRest(eid)}>${t(lang, "save")}</button>
             <button class="btn" @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
           </div></div>`;
       }
       const label = labelOf(this.data, entity.default_label);
-      return html`<button class="row rest" aria-expanded="false" @click=${() => this._expand(key, program, null, { restLabel: entity.default_label ?? null })}>
+      return html`<button class="row rest" data-key=${key} aria-expanded="false" @click=${() => this._expand(key, program, null, { restLabel: entity.default_label ?? null })}>
         ${label ? html`<span class="dot" style="background:${label.color}"></span>` : html`<ha-icon icon="mdi:update"></ha-icon>`}
         <span class="txt">${title}${t(lang, "colon")}<b>${label ? labelName(this.hass, label) : t(lang, "rest_untouched")}</b></span><ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
     });
@@ -999,7 +1026,7 @@ export class WpSchedule extends LitElement {
       this._error = "";
       return true;
     } catch (err) {
-      this._error = t(this._lang, "error", { message: (err as { message?: string })?.message ?? String(err) });
+      this._error = errorText(this._lang, err);
       return false;
     } finally {
       this._saving = false;
@@ -1058,6 +1085,18 @@ export class WpSchedule extends LitElement {
     });
   }
 
+  /** "Mode options": what belongs to the opened mode only (the mode it follows, copying from another one), folded by default. */
+  private _renderModeOptions() {
+    if (!this._modes().length || this._open !== null || this._openMode === null) return nothing;
+    const lang = this._lang;
+    const follow = this._programs.map((p) => this._followOf(p)).find(Boolean);
+    return html`<button class="row opts" aria-expanded=${this._optsOpen} @click=${() => { this._optsOpen = !this._optsOpen; }}>
+        <ha-icon icon=${this._optsOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
+        <span class="txt">${t(lang, "advanced_options")}</span>
+        ${follow ? html`<small>${t(lang, "mode_follows_short", { source: follow })}</small>` : nothing}</button>
+      ${this._optsOpen ? html`<div class="opts-body">${this._renderFollow()}${this._renderCopy()}</div>` : nothing}`;
+  }
+
   /** Warning shown when the opened mode is not the active one: what it means and when it will apply. */
   private _renderInactive() {
     const lang = this._lang;
@@ -1066,8 +1105,7 @@ export class WpSchedule extends LitElement {
     const why = mode.active
       ? t(lang, "mode_not_active_why", { active: mode.active, selector: friendlyName(this.hass, mode.selector ?? ""), mode: open })
       : t(lang, "mode_not_active_why_none", { selector: friendlyName(this.hass, mode.selector ?? ""), mode: open });
-    return html`<div class="inactive" role="status"><ha-icon icon="mdi:alert-outline"></ha-icon>
-      <div><b>${t(lang, "mode_not_active")}</b><p>${why}</p></div></div>`;
+    return callout("info", t(lang, "mode_not_active"), why, { role: "status" });
   }
 
   private _pickMode(name: string): void {
@@ -1080,36 +1118,24 @@ export class WpSchedule extends LitElement {
     this._focus = null;
   }
 
-  private _modeKey(event: KeyboardEvent, modes: { name: string }[]): void {
-    const at = modes.findIndex((m) => m.name === this._openMode);
-    const next = event.key === "ArrowRight" || event.key === "ArrowDown" ? (at + 1) % modes.length
-      : event.key === "ArrowLeft" || event.key === "ArrowUp" ? (at + modes.length - 1) % modes.length
-      : event.key === "Home" ? 0 : event.key === "End" ? modes.length - 1 : -1;
-    if (next < 0) return;
-    event.preventDefault();
-    this._pickMode(modes[next].name);
-    void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(".modechip.on")?.focus());
-  }
-
-  /** One tab per mode, opening on the active one; only with a selector. */
+  /** "Mode" fieldset with a select of the modes (the active one marked), opening on the active mode; only with a selector. */
   private _renderModes() {
     const modes = this._modes();
     if (!modes.length) return nothing;
     const lang = this._lang;
     const open = this._openMode;
-    return html`<div class="modes" role="tablist" aria-label=${t(lang, "profile")}>
-      ${modes.map((m) => {
-        const on = m.name === open;
-        const follows = this._programs.map((p) => p.profiles.find((x) => x.name === m.name)?.follows).find(Boolean);
-        return html`<button class="modechip ${on ? "on" : ""} ${m.orphan ? "orphan" : ""}" role="tab" aria-selected=${on}
-          tabindex=${on ? 0 : -1} ?disabled=${this._open !== null && !on}
-          @keydown=${(e: KeyboardEvent) => this._modeKey(e, modes)} @click=${() => this._pickMode(m.name)}>
-          <span>${m.name}</span>
-          ${m.name === this.data.mode?.active ? html`<small class="live"><span class="dot"></span>${t(lang, "mode_active_badge")}</small>` : nothing}
-          ${m.orphan ? html`<small>${t(lang, "mode_no_option")}</small>` : nothing}
-          ${follows ? html`<small><ha-icon icon="mdi:link-variant"></ha-icon>${t(lang, "mode_follows_short", { source: follows })}</small>` : nothing}</button>`;
-      })}
-    </div>`;
+    return html`<select class="modesel" aria-label=${t(lang, "profile")} ?disabled=${this._open !== null}
+        @change=${(e: Event) => this._pickMode((e.target as HTMLSelectElement).value)}>
+        ${modes.map((m) => {
+          const follows = this._programs.map((p) => p.profiles.find((x) => x.name === m.name)?.follows).find(Boolean);
+          const notes = [m.name === this.data.mode?.active ? t(lang, "mode_active_badge") : "", m.orphan ? t(lang, "mode_no_option") : "",
+            follows ? t(lang, "mode_follows_short", { source: follows }) : ""].filter(Boolean);
+          const text = notes.length ? `${m.name} (${notes.join(", ")})` : m.name;
+          return html`<option value=${m.name} ?selected=${m.name === open}>${text}</option>`;
+        })}
+      </select>
+      ${open !== null && open === this.data.mode?.active
+        ? callout("success", t(lang, "mode_active_now"), undefined, { role: "status", icon: "mdi:play-circle-outline" }) : nothing}`;
   }
 
   /** Other modes of the screen's programs that have schedules (sources of a copy). */
@@ -1220,6 +1246,18 @@ export class WpSchedule extends LitElement {
     </section>`;
   }
 
+  private _offNames?: () => void;
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    this._offNames = onServiceNames(() => this.requestUpdate());
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this._offNames?.();
+  }
+
   render() {
     if (!this.hass || !this.data || !this.scope) return nothing;
     const lang = this._lang;
@@ -1228,16 +1266,13 @@ export class WpSchedule extends LitElement {
     }
     const rows = this._rows();
     const first = !rows.length && this._focus === null && !this._modeOnly;
+    // With a mode selector, everything about the mode and everything about the schedule each sit in a fieldset.
+    const boxed = this._modes().length > 0;
+    const box = (cls: string, legend: string, body: unknown) => boxed ? html`<fieldset class="box ${cls}"><legend>${legend}</legend>${body}</fieldset>` : body;
     return html`
-      <wp-dialog open columns heading=${this._title}>
+      <wp-dialog open columns heading=${this._title} @escape=${(e: Event) => this._onEscape(e)}>
         <div class="cols">
         <div class="params">
-        ${this._renderModes()}
-        ${this._renderFollow()}
-        ${this._modeOnly ? this._renderInactive() : nothing}
-        <wp-mode-notice .hass=${this.hass} .data=${this.data}></wp-mode-notice>
-        ${!this._canEdit ? html`<p class="err" role="alert">${t(lang, "read_only")}</p>` : nothing}
-        ${this._error && !this._open ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
         ${this._open !== null || this._modeOnly ? nothing : html`<label class="switch">
           <span class="grow">${t(lang, "schedule_on")}</span>
           <span class="state">${this._stateText()}</span>
@@ -1245,6 +1280,13 @@ export class WpSchedule extends LitElement {
             @change=${(e: Event) => void this._setEnabled((e.target as HTMLInputElement).checked, e.target as HTMLInputElement)} />
           <span class="track"></span>
         </label>`}
+        ${box("modebox", t(lang, "profile"), html`${this._renderModes()}
+          ${this._modeOnly ? this._renderInactive() : nothing}
+          ${this._renderModeOptions()}
+          <wp-mode-notice .hass=${this.hass} .data=${this.data}></wp-mode-notice>`)}
+        ${!this._canEdit ? html`${callout("error", "", t(lang, "read_only"), { role: "alert" })}` : nothing}
+        ${this._error && !this._open ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
+        ${box("schedbox", t(lang, "schedules_legend"), html`
         ${this._renderDevices()}
         ${this._modeOnly ? nothing : html`<div class="rests">${this._renderRest()}</div>`}
         ${this._focus !== null && this._open === null ? html`<div class="focus">
@@ -1257,8 +1299,7 @@ export class WpSchedule extends LitElement {
           ${this._group && (this._open === "new" || (this._open !== null && !rows.some((r) => r.key === this._open))) ? this._renderEditor(this._programs.find((p) => p.id === this._programId) ?? this._programs[0], this._open!) : nothing}
           ${this._open === null ? html`<button class="row add ${first ? "first" : ""}" ?disabled=${!this._canEdit} @click=${() => this._add()}>
             <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${first ? t(lang, "create_setting") : this._focus === null ? t(lang, "w_add") : t(lang, "w_add_day", { day: strings(lang).days[this._focus].toLocaleLowerCase(lang) })}</span></button>` : nothing}
-          ${this._renderCopy()}
-        </div>
+        </div>`)}
         </div>
         <div class="area-week">${this._renderWeek()}</div>
         <div class="area-chart">${this._open !== null ? nothing : this._renderChart()}</div>
@@ -1292,103 +1333,100 @@ export class WpSchedule extends LitElement {
     .devices { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
     .devchip {
       display: inline-flex; align-items: center; gap: 8px; min-height: 48px; max-width: 100%; padding: 0 16px; border-radius: 24px;
-      border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); font: inherit; font-size: 15px; cursor: pointer;
+      border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem; cursor: pointer;
       --mdc-icon-size: 20px;
     }
     .devchip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .devchip.on { border: 2px solid var(--primary-color); font-weight: 600; }
+    .devchip.on { border: 2px solid var(--wp-primary-text); font-weight: 600; }
     .devchip:disabled:not(.on) { opacity: 0.5; cursor: default; }
     .who { margin-top: 8px; }
-    .who > span { display: block; font-size: 14px; font-weight: 600; color: var(--secondary-text-color); margin-bottom: 6px; }
+    .who > span { display: block; font-size: 0.875rem; font-weight: 600; color: var(--secondary-text-color); margin-bottom: 6px; }
     .who .seg { display: flex; flex-wrap: wrap; gap: 8px; }
     .who button {
       flex: 1 1 200px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; padding: 4px 12px;
       text-align: left;
-      border-radius: 24px; border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); font: inherit;
-      font-size: 15px; cursor: pointer; --mdc-icon-size: 20px;
+      border-radius: 24px; border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit;
+      font-size: 0.9375rem; cursor: pointer; --mdc-icon-size: 20px;
     }
-    .who button.on { border: 2px solid var(--primary-color); font-weight: 600; }
-    .modes, .copy-from { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .who button.on { border: 2px solid var(--wp-primary-text); font-weight: 600; }
+    fieldset.box { border: 1px solid var(--divider-color); border-radius: 12px; padding: 4px 12px 12px; margin: 0 0 12px; min-width: 0; }
+    fieldset.box legend { padding: 0 6px; font-size: 0.875rem; font-weight: 600; color: var(--secondary-text-color); }
+    .modesel { display: block; margin: 0 0 10px; width: 100%; min-height: 48px; box-sizing: border-box; padding: 0 12px; border-radius: 24px; border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 1rem; }
+    .copy-from { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .row.opts { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; margin: 0 0 8px; padding: 0 12px; border-radius: 12px;
+      border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem; cursor: pointer; text-align: left; }
+    .row.opts .txt { flex: 1; }
+    .row.opts small { color: var(--secondary-text-color); font-size: 0.75rem; }
+    .opts-body { margin: 0 0 12px; padding: 8px 0 0 12px; border-left: 3px solid var(--divider-color); }
     .modechip {
       display: inline-flex; align-items: center; gap: 6px; min-height: 48px; max-width: 100%; padding: 0 16px; border-radius: 24px;
-      border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); font: inherit; font-size: 15px; cursor: pointer;
+      border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem; cursor: pointer;
       --mdc-icon-size: 20px;
     }
     .modechip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .modechip.on { border: 1px solid var(--divider-color); border-bottom: 4px solid var(--primary-color); border-radius: 12px 12px 6px 6px; background: color-mix(in srgb, var(--primary-color) 14%, transparent); font-weight: 600; }
-    .modechip .live { display: inline-flex; align-items: center; gap: 4px; color: var(--success-color, #2e7d32); font-weight: 600; }
-    .modechip .live .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success-color, #2e7d32); }
-    .inactive { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--warning-color, #ff9800);
-      background: color-mix(in srgb, var(--warning-color, #ff9800) 16%, transparent); color: var(--primary-text-color); --mdc-icon-size: 24px; }
-    .inactive ha-icon { color: var(--warning-color, #ff9800); flex: none; }
-    .inactive b { font-size: 16px; }
-    .inactive p { margin: 2px 0 0; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
-    .modechip.orphan { color: var(--secondary-text-color); border-style: dashed; }
-    .modechip small { font-size: 12px; color: var(--secondary-text-color); display: inline-flex; align-items: center; gap: 2px; --mdc-icon-size: 14px; }
-    .follow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 15px; }
+    .follow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 0.9375rem; }
     .follow select {
-      min-height: 48px; max-width: 100%; padding: 0 12px; border-radius: 24px; font: inherit; font-size: 15px;
-      border: 1px solid var(--divider-color); background: var(--card-background-color, transparent); color: var(--primary-text-color);
+      min-height: 48px; max-width: 100%; padding: 0 12px; border-radius: 24px; font: inherit; font-size: 0.9375rem;
+      border: 1px solid var(--wp-field-border); background: var(--card-background-color, transparent); color: var(--primary-text-color);
     }
-    .follow select:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+    .follow select:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
     .modechip:disabled:not(.on) { opacity: 0.5; cursor: default; }
-    .modechip:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+    .modechip:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
     .copy-from { align-items: center; margin: 0; }
-    .copy-from > span { flex-basis: 100%; font-size: 14px; color: var(--secondary-text-color); }
-    .row.copy { border-style: dashed; color: var(--primary-color); font-weight: 500; }
+    .copy-from > span { flex-basis: 100%; font-size: 0.875rem; color: var(--secondary-text-color); }
+    .row.copy { border-style: dashed; color: var(--wp-primary-text); font-weight: 500; }
     .schematic { margin-bottom: 16px; }
     .schematic h4 { margin: 8px 0; }
     .schema-day { display: grid; grid-template-columns: ${TIMELINE.label}px minmax(0, 1fr); gap: ${TIMELINE.gap}px; align-items: center; min-height: 32px; }
-    .schema-day > span { font-size: 12px; color: var(--secondary-text-color); }
+    .schema-day > span { font-size: 0.75rem; color: var(--secondary-text-color); }
     .schema-day wp-day-bar { min-width: 0; }
     .list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
     .rests { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
     .rests:empty { display: none; }
     .row {
       display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 12px; border-radius: 12px; text-align: left;
-      border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); font: inherit; font-size: 16px;
+      border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 1rem;
       cursor: pointer; width: 100%; --mdc-icon-size: 22px;
     }
     .row .txt { flex: 1; min-width: 0; overflow-wrap: anywhere; line-height: 1.3; }
     .row .txt .l1, .row .txt .l2 { display: block; }
-    .row .txt .l2 { color: var(--secondary-text-color); font-size: 14px; }
-    .row.rest .txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15px; }
-    .row .txt small { display: block; color: var(--secondary-text-color); font-size: 12px; }
-    .row.add { border-style: dashed; color: var(--primary-color); font-weight: 500; }
-    .row.add.first:not(:disabled) { border-style: solid; background: var(--primary-color); color: var(--text-primary-color, #fff); }
+    .row .txt .l2 { color: var(--secondary-text-color); font-size: 0.875rem; }
+    .row.rest .txt { font-size: 0.9375rem; }
+    .row .txt small { display: block; color: var(--secondary-text-color); font-size: 0.75rem; }
+    .row.add { border-style: dashed; color: var(--wp-primary-text); font-weight: 500; }
+    .row.add.first:not(:disabled) { border-style: solid; background: var(--wp-primary-fill); color: #fff; }
     .row.rest { background: var(--secondary-background-color); }
     .row:disabled { opacity: 0.5; cursor: default; }
     .dot { width: 14px; height: 14px; border-radius: 7px; flex: none; }
-    .editor { border: 2px solid var(--primary-color); border-radius: 12px; padding: 12px; }
-    .editor h4 { margin: 0 0 8px; font-size: 15px; }
+    .editor { border: 2px solid var(--wp-primary-text); border-radius: 12px; padding: 12px; }
+    .editor h4 { margin: 0 0 8px; font-size: 0.9375rem; }
     .btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
     .btns .btn { flex: 1 1 120px; }
     .btn.alone { width: 100%; margin-top: 32px; }
     .btn.dup { width: 100%; margin-top: 8px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; --mdc-icon-size: 20px; }
     .editor { scroll-margin-top: 8px; }
-    .btn.danger-line { color: var(--error-color, #db4437); border-color: var(--error-color, #db4437); }
-    .btn.danger { background: var(--error-color, #db4437); border-color: var(--error-color, #db4437); color: #fff; }
-    .err { color: var(--error-color, #db4437); margin: 8px 0; }
+    .btn.danger-line { color: var(--wp-danger-text); border-color: var(--wp-danger-text); }
+    .btn.danger { background: var(--wp-danger-fill); border-color: var(--wp-danger-border); color: #fff; }
     .muted { color: var(--secondary-text-color); }
-    .note { margin: 0 0 8px; font-size: 14px; }
+    .note { margin: 0 0 8px; font-size: 0.875rem; }
     .focus { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
-    .focus h3 { margin: 0; font-size: 20px; font-weight: 600; }
+    .focus h3 { margin: 0; font-size: 1.25rem; font-weight: 600; }
     .chip.back {
-      display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 16px; border-radius: 24px; font: inherit; font-size: 15px;
-      border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color); cursor: pointer; --mdc-icon-size: 20px;
+      display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 16px; border-radius: 24px; font: inherit; font-size: 0.9375rem;
+      border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); cursor: pointer; --mdc-icon-size: 20px;
     }
     .chart { margin-top: 16px; }
-    .chart .nav { display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 500; }
+    .chart .nav { display: flex; align-items: center; justify-content: space-between; font-size: 0.9375rem; font-weight: 500; }
     .chart select { margin-bottom: 4px; }
-    .switch { position: relative; min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; margin-bottom: 8px; font-size: 16px; }
+    .switch { position: relative; min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; margin-bottom: 8px; font-size: 1rem; }
     .switch .grow { flex: 0 0 auto; margin-right: auto; }
-    .switch .state { flex: 0 1 auto; min-width: 0; text-align: right; overflow-wrap: anywhere; font-size: 14px; color: var(--secondary-text-color); }
+    .switch .state { flex: 0 1 auto; min-width: 0; text-align: right; overflow-wrap: anywhere; font-size: 0.875rem; color: var(--secondary-text-color); }
     .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
     .switch .track { position: relative; width: 44px; height: 24px; border-radius: 12px; background: var(--disabled-color, #bdbdbd); transition: background 0.2s; flex: none; }
     .switch .track::before { content: ""; position: absolute; width: 20px; height: 20px; left: 2px; top: 2px; border-radius: 50%; background: #fff; transition: transform 0.2s; }
-    .switch input:checked + .track { background: var(--primary-color); }
+    .switch input:checked + .track { background: var(--wp-primary-fill); }
     .switch input:checked + .track::before { transform: translateX(20px); }
-    .switch input:focus-visible + .track { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+    .switch input:focus-visible + .track { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
   `];
 }
 

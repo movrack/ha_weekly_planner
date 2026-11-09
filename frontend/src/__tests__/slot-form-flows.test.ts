@@ -14,7 +14,48 @@ const form = (slot: any, days = [0, 1, 2, 3, 4, 5, 6], props: Record<string, unk
     entityIds: [], dayOnly: null, group: { slot: { id: "s", label: "l", start: { time: "08:00" }, end: { time: "09:00" }, ...slot }, days, ids: {} } }, props);
   return { el, seen };
 };
+/** Clicks the "Advanced options" button of a rendered form. */
+const openFold = (el: any) => find(el.render(), "click", "advanced_options".length ? "opts" : "").fn();
 const sel = (r: any, ev: string, i: number, mark = "") => handlers(r).filter((h) => h.event === ev && h.before.includes(mark))[i];
+
+describe("slot form: advanced options fold", () => {
+  const SUN = "mdi:weather-sunset";
+  it("is closed by default for a plain slot and hides sun choice, random delay and limits", () => {
+    const html = flat(form({}).el.render());
+    expect(html).toContain("aria-expanded=");
+    expect(html).toContain('class="row opts"');
+    expect(html).not.toContain(SUN);
+    expect(html).not.toContain('type="checkbox"');
+    expect(html).toContain('type="time"');
+    expect(html).toContain("chip small");
+  });
+  it("opens by clicking and then shows the sun choice and random delay for start and end", () => {
+    const { el } = form({});
+    openFold(el);
+    const html = flat(el.render());
+    expect(html).toContain('class="opts-body"');
+    expect(html).toContain(SUN);
+    expect((html.match(/type="checkbox"/g) ?? []).length).toBe(2);
+    openFold(el);
+    expect(flat(el.render())).not.toContain(SUN);
+  });
+  it.each([
+    ["a sun time", { start: { sun: "sunset", offset: 0 } }],
+    ["a random delay", { end: { time: "09:00", random_minutes: 10 } }],
+    ["a time limit", { start: { sun: "sunrise", offset: 0, earliest: "06:00" } }],
+  ])("opens by itself when the slot uses %s", (_n, slot) => {
+    const html = flat(form(slot).el.render());
+    expect(html).toContain('class="opts-body"');
+    expect(html).toContain(SUN);
+  });
+  it("stays open when the last feature is removed while editing", () => {
+    const { el } = form({ start: { time: "08:00", random_minutes: 5 } });
+    el.willUpdate();
+    el.group = { ...el.group, slot: { ...el.group.slot, start: { time: "08:00" } } };
+    el.willUpdate();
+    expect(flat(el.render())).toContain('class="opts-body"');
+  });
+});
 
 describe("slot form", () => {
   it("renders nothing without a group", () => {
@@ -72,6 +113,8 @@ describe("slot form", () => {
     el._random("start", 30); expect(seen[1].slot.start.random_minutes).toBe(30);
     el._random("start", 999); el._random("start", 1.5); expect(seen).toHaveLength(2);
     const plain = form({});
+    expect(flat(plain.el.render())).not.toContain("checkbox");
+    openFold(plain.el);
     sel(plain.el.render(), "change", 0, "checkbox").fn({ target: { checked: true } });
     expect(plain.seen[0].slot.start.random_minutes).toBe(15);
   });
@@ -79,7 +122,7 @@ describe("slot form", () => {
     const { el, seen } = form({ end: null });
     const r = el.render();
     const clicks = handlers(r).filter((h) => h.event === "click");
-    const chips = clicks.slice(clicks.length - 12, clicks.length - 10);
+    const chips = clicks.slice(clicks.length - 13, clicks.length - 11);
     chips[0].fn(); expect(seen[0].slot.end).toBeNull();
     chips[1].fn(); expect(seen[1].slot.end).toEqual({ time: "09:00" });
     form({ start: { sun: "sunrise" }, end: null }).el._toggleEnd(true);

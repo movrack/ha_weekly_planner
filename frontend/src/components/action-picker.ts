@@ -9,7 +9,7 @@ import { ensureHaSelector } from "../planner";
 import { syncSelectValues } from "../select-value";
 import { LIST_ATTRIBUTE, deviceOptions, loadServiceNames, serviceDomains, serviceFields, servicesFor, serviceDescription, serviceLabel, startData } from "../services";
 import type { ServiceField } from "../services";
-import { editorStyles, langOf } from "../editors/shared";
+import { editorStyles, foldSection, langOf } from "../editors/shared";
 import type { Action, ActionValueSource, HomeAssistant } from "../types";
 
 @customElement("wp-action-picker")
@@ -21,10 +21,27 @@ export class WpActionPicker extends LitElement {
   /** Services offered for the device (undefined: all, empty: none); the chosen one stays visible. */
   @property({ attribute: false }) allowed?: string[];
 
+  /** Opens the "Advanced options" fold from outside (a parent that slots its own advanced controls in it). */
+  @property({ type: Boolean, attribute: "advanced-open" }) advancedOpen = false;
+  /** Inside another fold (the label form): no fold of its own, its advanced controls follow directly. */
+  @property({ type: Boolean, attribute: "no-fold" }) noFold = false;
+  @state() private _advOpen = false;
+  private _advTouched = false;
   @state() private _selector = Boolean(customElements.get("ha-selector"));
   private _loadedFor = "";
 
   private get _lang(): string { return langOf(this.hass); }
+
+  /** Upper / lower target temperature: rarely needed, kept in the fold unless the service requires them. */
+  private static readonly ADVANCED_KEYS = new Set(["target_temp_high", "target_temp_low"]);
+
+  private _isAdvanced(f: ServiceField): boolean { return WpActionPicker.ADVANCED_KEYS.has(f.key) && !f.required; }
+
+  private _advancedUsed(fields: ServiceField[], external: boolean): boolean {
+    const a = this.action?.kind === "service" ? this.action : undefined;
+    return external || this.advancedOpen || Object.keys(a?.data_sources ?? {}).length > 0
+      || fields.some((f) => this._isAdvanced(f) && (a?.data?.[f.key] !== undefined || a?.data_sources?.[f.key] !== undefined));
+  }
 
   private get _targetEntity(): string {
     return this.action?.kind === "service" ? this.action.target_entity_id ?? this.entityId : this.entityId;
@@ -70,8 +87,27 @@ export class WpActionPicker extends LitElement {
     this._emit({ ...this.action, data, data_sources });
   }
 
+  /** The value input of a field (fixed value), with its own label only. */
+  private _input(f: ServiceField, data: Record<string, unknown>) {
+    return this._selector ? html`<ha-selector class="fld" .hass=${this.hass} .selector=${this._selectorOf(f)} .context=${this._context(f)} .value=${data[f.key]} .label=${f.label}
+        .required=${f.required} ?disabled=${this.disabled}
+        @value-changed=${(e: CustomEvent<{ value?: unknown }>) => { e.stopPropagation(); this._setData(f.key, e.detail.value); }}></ha-selector>`
+      : html`<div class="field"><label>${f.label}</label><input type="text" .value=${String(data[f.key] ?? "")} ?disabled=${this.disabled}
+        @change=${(e: Event) => this._setData(f.key, (e.target as HTMLInputElement).value)} /></div>`;
+  }
+
+  private _sourceOf(f: ServiceField): ActionValueSource | undefined {
+    return this.action?.kind === "service" ? this.action.data_sources?.[f.key] : undefined;
+  }
+
+  /** A field in the main part: its input, unless its value comes from another entity (then it is in the advanced fold). */
   private _field(f: ServiceField, data: Record<string, unknown>) {
-    const source = this.action?.kind === "service" ? this.action.data_sources?.[f.key] : undefined;
+    return this._sourceOf(f) ? nothing : this._input(f, data);
+  }
+
+  /** Where the value of a field comes from (fixed / another entity): only in the advanced fold. */
+  private _sourceBlock(f: ServiceField) {
+    const source = this._sourceOf(f);
     const state = source ? this.hass.states[source.entity_id] : undefined;
     const value = source?.attribute ? state?.attributes[source.attribute] : state?.state;
     const available = state && !["unknown", "unavailable"].includes(state.state) && value !== undefined && value !== null;
@@ -95,12 +131,7 @@ export class WpActionPicker extends LitElement {
             ${attributes.map((a) => html`<option value=${a}>${a}</option>`)}
           </select></div>
         ${source.entity_id ? html`<p class="hint" role="status">${t(this._lang, "value_current", { value: preview })}</p>` : nothing}
-        <p class="hint">${t(this._lang, "value_at_execution")}</p>`
-        : this._selector ? html`<ha-selector class="fld" .hass=${this.hass} .selector=${this._selectorOf(f)} .context=${this._context(f)} .value=${data[f.key]} .label=${f.label}
-            .required=${f.required} ?disabled=${this.disabled}
-            @value-changed=${(e: CustomEvent<{ value?: unknown }>) => { e.stopPropagation(); this._setData(f.key, e.detail.value); }}></ha-selector>`
-          : html`<div class="field"><label>${f.label}</label><input type="text" .value=${String(data[f.key] ?? "")} ?disabled=${this.disabled}
-            @change=${(e: Event) => this._setData(f.key, (e.target as HTMLInputElement).value)} /></div>`}
+        <p class="hint">${t(this._lang, "value_at_execution")}</p>` : nothing}
     </div>`;
   }
 
@@ -134,7 +165,11 @@ export class WpActionPicker extends LitElement {
     const selected = this.action?.kind === "scene" ? this.action.scene : current;
     const description = current ? serviceDescription(this.hass, current) || t(lang, "action_no_description")
       : this.action?.kind === "scene" ? t(lang, "action_scene_description") : "";
-    return html`
+    const advanced = fields.filter((f) => this._isAdvanced(f));
+    const used = this._advancedUsed(advanced, external);
+    if (used && !this._advTouched) this._advOpen = true;
+    const advOpen = this._advTouched ? this._advOpen : used || this._advOpen;
+    const advancedBody = html`
       <div class="field"><label for="action-target-mode">${t(lang, "action_target")}</label>
         <select id="action-target-mode" data-value=${external ? "other" : "device"} ?disabled=${this.disabled}
           @change=${(e: Event) => this._setTarget((e.target as HTMLSelectElement).value === "other" ? "" : undefined)}>
@@ -144,6 +179,11 @@ export class WpActionPicker extends LitElement {
       ${external ? html`<wp-entity-picker .hass=${this.hass} .value=${target} .disabled=${this.disabled} .label=${t(lang, "action_target_entity")}
         @wp-change=${(e: CustomEvent<string>) => { e.stopPropagation(); this._setTarget(e.detail); }}></wp-entity-picker>
         <p class="hint">${t(lang, "action_target_hint")}</p>` : nothing}
+      ${fields.filter((f) => !this._isAdvanced(f) && this._sourceOf(f)).map((f) => this._sourceBlock(f))}
+      ${advanced.map((f) => html`${this._sourceOf(f) ? nothing : this._input(f, data)}${this._sourceBlock(f)}`)}
+      ${fields.filter((f) => !this._isAdvanced(f) && !this._sourceOf(f)).map((f) => this._sourceBlock(f))}
+      <slot name="advanced"></slot>`;
+    return html`
       ${this.allowed?.length === 0 ? html`<p class="hint" role="status">${t(lang, "action_none_allowed")}</p>` : nothing}
       <label class="action-label" for="action">${t(lang, "action")}</label>
       <select id="action" data-value=${selected || ""} aria-describedby="action-description" ?disabled=${this.disabled || !target}
@@ -162,16 +202,17 @@ export class WpActionPicker extends LitElement {
           title=${t(lang, "action_scene_description")}>${String(s.attributes.friendly_name ?? s.entity_id)}</option>`)}
       </select>
       <p id="action-description" class="description" aria-live="polite">${description}</p>
-      ${fields.map((f) => this._field(f, data))}`;
+      ${fields.filter((f) => !this._isAdvanced(f)).map((f) => this._field(f, data))}
+      ${this.noFold ? advancedBody : foldSection(lang, advOpen, () => { this._advTouched = true; this._advOpen = !advOpen; }, advancedBody)}`;
   }
 
   static styles = [editorStyles, css`
     :host { display: block; }
-    .action-label { display: block; margin-bottom: 6px; font-size: 14px; }
+    .action-label { display: block; margin-bottom: 6px; font-size: 0.875rem; }
     select { width: 100%; min-width: 0; min-height: 48px; padding: 10px 12px; box-sizing: border-box;
       font: inherit; color: var(--primary-text-color); background: var(--secondary-background-color);
       border: 1px solid var(--divider-color); border-radius: 12px; }
-    .description { margin: 8px 0; color: var(--secondary-text-color); font-size: 14px;
+    .description { margin: 8px 0; color: var(--secondary-text-color); font-size: 0.875rem;
       line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
     .fld { display: block; margin-top: 8px; }
   `];

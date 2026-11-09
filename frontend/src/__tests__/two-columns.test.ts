@@ -55,10 +55,10 @@ describe("two-column schedule modal (CSS only)", () => {
   });
   it("keeps the DOM in the phone order: switch, mode, rest, list, add, week, chart, delete", () => {
     const html = flat(screen().render());
-    const at = ['class="modes"', 'class="switch"', "[REST]", 'class="list"', "row add", "[WEEK]", "[CHART]", "wp-chart-options", "danger-line alone"].map((m) => html.indexOf(m));
+    const at = ['class="switch"', 'modebox', "[REST]", 'class="list"', "row add", "[WEEK]", "[CHART]", "wp-chart-options", "danger-line alone"].map((m) => html.indexOf(m));
     expect(at.every((i) => i >= 0)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
-    expect(html.indexOf('class="params"')).toBeLessThan(html.indexOf('class="modes"'));
+    expect(html.indexOf('class="params"')).toBeLessThan(html.indexOf('modebox'));
     expect(html.indexOf("row add")).toBeLessThan(html.indexOf('class="area-week"'));
     expect(html.indexOf('class="area-week"')).toBeLessThan(html.indexOf('class="area-chart"'));
     expect(html.indexOf('class="area-chart"')).toBeLessThan(html.indexOf('class="area-delete"'));

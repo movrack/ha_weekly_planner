@@ -1,5 +1,6 @@
 // A 24-hour bar of colored slots (read-only). Used in the week view and the day view.
 
+import { readableOn, tokenStyles } from "../styles";
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "./tip";
@@ -51,12 +52,16 @@ export class WpDayBar extends LitElement {
   @property({ type: Number }) now: number | null = null;
   @property({ type: Boolean }) thin = false;
   @property({ type: Boolean, attribute: "show-hours" }) showHours = false;
+  /** The markers are out of the tab order (the bar sits in a button whose name already lists them). */
+  @property({ type: Boolean, attribute: "no-tab" }) noTab = false;
   /** Hour lines inside the bar at 6, 12 and 18 h, behind the slots. */
   @property({ type: Boolean }) notches = false;
   /** Taller bar (direct editing). */
   @property({ type: Boolean }) tall = false;
   /** Language of the texts (set by the card). */
   @property() lang = "en";
+  /** Device the bar belongs to: said by the "now" marker so that several bars do not read the same. */
+  @property({ attribute: "device-name" }) deviceName = "";
 
   @state() private _width = 0;
   private _ro?: ResizeObserver;
@@ -107,7 +112,7 @@ export class WpDayBar extends LitElement {
       if (s.endSun && s.end < DAY) icons.push({ m: s.end, dir: s.endSun, spec: s.endSpec });
     }
     // While editing, the handles below keep the pointer; the icon is still read by keyboard and screen readers.
-    return icons.map((i) => html`<wp-tip class="sunic" ?passive=${this.tall}
+    return icons.map((i) => html`<wp-tip class="sunic" ?passive=${this.tall} ?no-tab=${this.noTab}
       text=${`${i.label ? `${i.label} · ` : ""}${sunTip(this.lang, i.spec, i.m)}`}
       style="left:clamp(16px, ${(i.m / DAY) * 100}%, calc(100% - 16px))" data-sun=${i.dir}>
       <span class="sunc"><ha-icon icon=${i.dir === "up" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down"}></ha-icon></span></wp-tip>`);
@@ -116,8 +121,22 @@ export class WpDayBar extends LitElement {
   /** A one-shot is a thin line: a wider invisible target over it shows its label and time. */
   private _markerTips() {
     return this.spans.filter((s) => s.marker && !s.startSun && !this.thin).map((s) => html`<wp-tip class="mktip" through
-      ?passive=${this.tall} text=${`${s.label} · ${fmtClock(this.lang, s.start)}`}
+      ?passive=${this.tall} ?no-tab=${this.noTab} text=${`${s.label} · ${fmtClock(this.lang, s.start)}`}
       style="left:clamp(12px, ${(s.start / DAY) * 100}%, calc(100% - 12px))"></wp-tip>`);
+  }
+
+  /** Names drawn on the bar (the ones that fit), left to right: the visible text of the bar, for the name of its zone. */
+  visibleText(): string {
+    return this.spans.filter((s) => this._labelBox(s)).map((s) => s.label).join(" ");
+  }
+
+  private _lastText: string | null = null;
+
+  protected updated(): void {
+    const text = this.visibleText();
+    if (text === this._lastText) return;
+    this._lastText = text;
+    this.dispatchEvent(new CustomEvent("visible-text", { detail: text }));
   }
 
   render() {
@@ -132,7 +151,7 @@ export class WpDayBar extends LitElement {
             const box = this._labelBox(s);
             return html`<div
               class="span ${s.ignored ? "ignored" : ""}"
-              style="left:${pct(s.start)};width:${pct(Math.max(s.end - s.start, 5))};--c:${s.color}"
+              style="left:${pct(s.start)};width:${pct(Math.max(s.end - s.start, 5))};--c:${s.color};--fg:${readableOn(s.color).fg};--sh:${readableOn(s.color).shadow}"
               title=${s.label}
             >${box ? html`<span class="name" style="left:${box.left}%;width:${box.width}%">${s.label}</span>` : nothing}</div>`;
           })}
@@ -140,15 +159,16 @@ export class WpDayBar extends LitElement {
         <div class="icons">${this._markerTips()}${this._sunIcons()}</div>
         <slot></slot>
         ${now !== null ? html`<div class="nowline" style="left:${pct(now)}">
-          <wp-tip class="nowic" text=${nowTip(this.lang, now)}><ha-icon icon="mdi:clock-outline"></ha-icon></wp-tip></div>` : nothing}
+          <wp-tip class="nowic" no-tab text=${nowTip(this.lang, now)} label=${this.deviceName ? `${nowTip(this.lang, now)}, ${this.deviceName}` : nowTip(this.lang, now)}><ha-icon icon="mdi:clock-outline"></ha-icon></wp-tip></div>` : nothing}
       </div>
       ${this.showHours
-        ? html`<div class="hours">${[0, 6, 12, 18, 24].map((h) => html`<span style="left:${pct(h * 60)}">${h === 24 ? "24 h" : fmtClock(this.lang, h * 60)}</span>`)}</div>`
+        ? html`<div class="hours" aria-hidden="true">${[0, 6, 12, 18, 24].map((h) => html`<span style="left:${pct(h * 60)}">${h === 24 ? "24 h" : fmtClock(this.lang, h * 60)}</span>`)}</div>`
         : nothing}
     `;
   }
 
   static styles = css`
+    ${tokenStyles}
     :host { display: block; }
     .wrap { position: relative; }
     .bar {
@@ -166,9 +186,9 @@ export class WpDayBar extends LitElement {
       opacity: 0.5;
     }
     .span span {
-      display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 14px; color: #fff;
-      color: #fff; font-size: 11px; font-weight: 600; white-space: nowrap;
-      text-shadow: 0 0 2px rgba(0, 0, 0, 0.6); padding: 0 6px; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+      display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 14px;
+      color: var(--fg, #fff); font-size: 0.6875rem; font-weight: 600; white-space: nowrap;
+      text-shadow: 0 0 2px var(--sh, rgba(0, 0, 0, 0.6)); padding: 0 6px; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
     }
     .span .name { position: absolute; top: 0; bottom: 0; justify-content: center; box-sizing: border-box; }
     /* Hour lines at 6, 12 and 18 h, drawn behind the slots. */
@@ -196,7 +216,7 @@ export class WpDayBar extends LitElement {
       color: var(--primary-text-color); margin-bottom: 0; align-items: flex-end;
     }
     .nowic::part(hit) { align-items: flex-end; }
-    .hours { position: relative; height: 20px; font-size: 12px; color: var(--secondary-text-color); }
+    .hours { position: relative; height: 20px; font-size: 0.75rem; color: var(--secondary-text-color); }
     .hours span { position: absolute; transform: translateX(-50%); top: 2px; white-space: nowrap; }
     .hours span:first-child { transform: none; }
     .hours span:last-child { transform: translateX(-100%); }

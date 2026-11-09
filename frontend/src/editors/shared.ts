@@ -3,6 +3,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { t } from "../i18n";
+import { calloutStyles } from "../styles";
 import { entityDomain, friendlyName } from "../planner";
 import type { Condition, HassEntity, HomeAssistant } from "../types";
 
@@ -10,21 +11,34 @@ export type K = Parameters<typeof t>[1];
 
 export const langOf = (hass?: HomeAssistant): string => hass?.locale?.language ?? hass?.language ?? "en";
 
+/** The "Advanced options" fold: a button (chevron, aria-expanded) and its body, closed unless `open`. */
+export function foldSection(lang: string, open: boolean, toggle: () => void, body: unknown) {
+  return html`<button class="row opts" aria-expanded=${open} @click=${toggle}>
+      <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
+      <span class="txt">${t(lang, "advanced_options")}</span></button>
+    ${open ? html`<div class="opts-body">${body}</div>` : nothing}`;
+}
+
 export const editorStyles = css`
-  :host { display: block; color: var(--primary-text-color); font-size: 14px; }
+  ${calloutStyles}
+  .row.opts { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; margin: 0 0 8px; padding: 0 12px; border-radius: 12px;
+    border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem; cursor: pointer; text-align: left; }
+  .row.opts .txt { flex: 1; }
+  .opts-body { margin: 0 0 12px; padding: 8px 0 0 12px; border-left: 3px solid var(--divider-color); }
+  :host { display: block; color: var(--primary-text-color); font-size: 0.875rem; }
   * { box-sizing: border-box; }
   .field { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; min-width: 0; }
-  .field > label, .label { font-size: 12px; color: var(--secondary-text-color); }
+  .field > label, .label { font-size: 0.75rem; color: var(--secondary-text-color); }
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .row > .field { flex: 1 1 140px; }
   input[type="text"], input[type="number"], input[type="time"], input[type="date"], input:not([type]),
   select, textarea {
     width: 100%; min-height: 48px; padding: 8px 10px; font: inherit; color: var(--primary-text-color);
-    background: var(--card-background-color, #fff); border: 1px solid var(--divider-color);
+    background: var(--card-background-color, #fff); border: 1px solid var(--wp-field-border);
     border-radius: 8px;
   }
   textarea { min-height: 72px; font-family: monospace; }
-  input[type="color"] { width: 56px; height: 48px; padding: 2px; border: 1px solid var(--divider-color);
+  input[type="color"] { width: 56px; height: 48px; padding: 2px; border: 1px solid var(--wp-field-border);
     border-radius: 8px; background: none; }
   input[type="checkbox"], input[type="radio"] { width: 20px; height: 20px; min-width: 20px; flex: none; margin: 0; accent-color: var(--primary-color); }
   label.check { display: flex; align-items: center; gap: 10px; min-height: 48px; cursor: pointer; }
@@ -35,23 +49,20 @@ export const editorStyles = css`
     background: none; color: var(--primary-text-color); cursor: pointer;
   }
   .btn:hover:not(:disabled) { background: var(--secondary-background-color); }
-  .btn.primary { background: var(--primary-color); border-color: var(--primary-color); color: var(--text-primary-color, #fff); }
-  .btn.danger { color: var(--error-color, #db4437); border-color: var(--error-color, #db4437); }
+  .btn.primary { background: var(--wp-primary-fill); border-color: var(--wp-primary-fill); color: #fff; }
+  .btn.danger { color: var(--wp-danger-text); border-color: var(--wp-danger-text); }
   .btn:disabled { opacity: 0.45; cursor: default; }
   .ibtn {
     min-width: 48px; min-height: 48px; border-radius: 24px; border: none; background: none; --mdc-icon-size: 20px;
-    color: inherit; cursor: pointer; font-size: 16px; display: inline-flex; align-items: center; justify-content: center;
+    color: inherit; cursor: pointer; font-size: 1rem; display: inline-flex; align-items: center; justify-content: center;
   }
   .ibtn:hover:not(:disabled) { background: var(--secondary-background-color); }
   .ibtn:disabled { opacity: 0.35; cursor: default; }
-  :is(button, input, select, textarea, [tabindex]):focus-visible {
-    outline: 2px solid var(--primary-color); outline-offset: 2px;
-  }
-  .error { color: var(--error-color, #db4437); color: color-mix(in srgb, var(--error-color, #db4437) 65%, var(--primary-text-color, #000));
-    font-size: 16px; font-weight: 500; margin: 8px 0; }
+  .error { color: var(--wp-danger-text);
+    font-size: 1rem; font-weight: 500; margin: 8px 0; }
   .field-error { margin: 2px 0 4px; }
-  input[aria-invalid="true"] { border-color: var(--error-color, #db4437); border-width: 2px; }
-  .hint { display: flex; align-items: center; gap: 4px; --mdc-icon-size: 16px; color: var(--secondary-text-color); font-size: 12px; margin: 4px 0; }
+  input[aria-invalid="true"] { border-color: var(--wp-danger-text); border-width: 2px; }
+  .hint { display: flex; align-items: center; gap: 4px; --mdc-icon-size: 16px; color: var(--secondary-text-color); font-size: 0.75rem; margin: 4px 0; }
   .card {
     border: 1px solid var(--divider-color); border-radius: 12px; padding: 8px 12px; margin: 8px 0;
   }

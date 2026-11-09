@@ -73,8 +73,8 @@ describe("random delay explanation", () => {
   const sunHass = (setting: string) => ({ states: { "sun.sun": { attributes: { next_setting: setting } } }, config: { time_zone: "UTC" } }) as any;
   const today = new Date().toISOString().slice(0, 11);
   it("says in plain words the fixed-time range, for a start and an end", () => {
-    expect(randomDelayRangeText("fr", { time: "16:45", random_minutes: 15 })).toBe("Chaque jour, démarre au hasard entre 16:45 et 17:00.");
-    expect(randomDelayRangeText("fr", { time: "16:45", random_minutes: 15 }, "end")).toBe("Chaque jour, se termine au hasard entre 16:45 et 17:00.");
+    expect(randomDelayRangeText("fr", { time: "16:45", random_minutes: 15 })).toBe("Chaque jour, démarre au hasard entre 16 h 45 et 17 h.");
+    expect(randomDelayRangeText("fr", { time: "16:45", random_minutes: 15 }, "end")).toBe("Chaque jour, se termine au hasard entre 16 h 45 et 17 h.");
   });
   it("describes a solar delay relative to the event when today's sun time is unknown", () => {
     expect(randomDelayRangeText("fr", { sun: "sunset", offset: 30, random_minutes: 15 }))
@@ -84,14 +84,14 @@ describe("random delay explanation", () => {
   });
   it("adds the bounds only in the relative wording, once", () => {
     expect(randomDelayRangeText("fr", { sun: "sunset", offset: 30, earliest: "18:00", latest: "19:00", random_minutes: 15 }))
-      .toBe("Chaque jour, démarre au hasard entre coucher + 30 min et 15 min plus tard, mais pas avant 18:00 ni après 19:00.");
+      .toBe("Chaque jour, démarre au hasard entre coucher + 30 min et 15 min plus tard, mais pas avant 18 h ni après 19 h.");
   });
   it("uses the resolved clock times of today, clamped and capped by the latest bound", () => {
     const hass = sunHass(`${today}17:30:00Z`);
     expect(randomDelayRangeText("fr", { sun: "sunset", offset: 30, earliest: "18:00", random_minutes: 15 }, "start", hass))
-      .toBe("Chaque jour, démarre au hasard entre 18:00 et 18:15.");
+      .toBe("Chaque jour, démarre au hasard entre 18 h et 18 h 15.");
     expect(randomDelayRangeText("fr", { sun: "sunset", offset: 30, earliest: "18:00", latest: "18:10", random_minutes: 15 }, "start", hass))
-      .toBe("Chaque jour, démarre au hasard entre 18:00 et 18:10.");
+      .toBe("Chaque jour, démarre au hasard entre 18 h et 18 h 10.");
   });
   it("ignores a sun time that is not today's", () => {
     expect(randomDelayRangeText("en", { sun: "sunset", random_minutes: 15 }, "start", sunHass("2001-01-01T17:30:00Z")))
@@ -99,11 +99,11 @@ describe("random delay explanation", () => {
   });
   it("marks the following day when the fixed delay crosses midnight", () => {
     expect(randomDelayRangeText("fr", { time: "23:50", random_minutes: 15 }))
-      .toBe("Chaque jour, démarre au hasard entre 23:50 et 00:05 (Jour suivant).");
+      .toBe("Chaque jour, démarre au hasard entre 23 h 50 et 0 h 05 (Jour suivant).");
   });
   it("localizes the range in English without losing minute precision", () => {
     expect(randomDelayRangeText("en", { time: "16:47", random_minutes: 17 }, "end"))
-      .toBe("Every day, ends at a random time between 16:47 and 17:04.");
+      .toBe("Every day, ends at a random time between 4:47 pm and 5:04 pm.");
   });
 });
 
@@ -111,13 +111,13 @@ describe("solar time help", () => {
   const hass = { states: { "sun.sun": { attributes: { next_setting: `${new Date().toISOString().slice(0, 11)}17:00:00Z` } } }, config: { time_zone: "UTC" } } as any;
   const spec = { sun: "sunset", offset: 30, earliest: "18:00", latest: "19:00" } as const;
   it("explains the real time with offset and only the bounds that are set", () => {
-    expect(solarMeaningText("fr", spec)).toBe("Heure réelle : coucher du soleil + 30 min, mais pas avant 18:00 ni après 19:00.");
-    expect(solarMeaningText("fr", { sun: "sunrise", offset: -15, latest: "08:00" })).toBe("Heure réelle : lever du soleil − 15 min, mais pas après 08:00.");
-    expect(solarMeaningText("en", { sun: "sunset", earliest: "18:00" })).toBe("Actual time: sunset, but not earlier than 18:00.");
+    expect(solarMeaningText("fr", spec)).toBe("Heure réelle : coucher du soleil + 30 min, mais pas avant 18 h ni après 19 h.");
+    expect(solarMeaningText("fr", { sun: "sunrise", offset: -15, latest: "08:00" })).toBe("Heure réelle : lever du soleil − 15 min, mais pas après 8 h.");
+    expect(solarMeaningText("en", { sun: "sunset", earliest: "18:00" })).toBe("Actual time: sunset, but not earlier than 6 pm.");
     expect(solarMeaningText("fr", { sun: "sunset" })).toBe("");
   });
   it("shows today's result only when computable", () => {
-    expect(solarTodayText("fr", hass, spec)).toBe("Aujourd’hui : 18:00");
+    expect(solarTodayText("fr", hass, spec)).toBe("Aujourd’hui : 18 h");
     expect(solarTodayText("fr", undefined, spec)).toBe("");
     expect(solarTodayText("fr", { states: {}, config: { time_zone: "UTC" } } as any, spec)).toBe("");
   });
