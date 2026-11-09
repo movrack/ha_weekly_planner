@@ -43,6 +43,7 @@ _Avoid_: créneau, plage, slot, planning
 **Réglage**:
 Ce que les appareils doivent faire, avec un nom et une couleur : par exemple « Confort = 20 °C ». Partagé par tous les modes et tous les programmes ; une valeur propre peut être donnée à un appareil.
 _Avoid_: label, étiquette, preset, action (pour le nom donné par l'utilisateur)
+_Note_: « Réglages » (pluriel) est aussi le nom du panneau de configuration (« Réglages des programmes ») ; « Réglage » (singulier) est toujours le réglage nommé.
 
 **Le reste du temps**:
 Le réglage appliqué à un appareil quand aucun horaire ne s'applique ou qu'un horaire se termine.
@@ -58,13 +59,13 @@ _Avoid_: ordre, importance
 
 ## Marche et arrêt
 
-**Pause**:
-Un programme arrêté pour une durée choisie (1 jour, 7 jours, x jours) : il reprend tout seul à la fin. Elle n'éteint pas les appareils.
+**Pause jusqu'au…**:
+Un programme arrêté pour une durée choisie (1 heure, 1 jour, 7 jours, x heures et jours) : il reprend tout seul à la fin. Le badge indique « Pause jusqu'au… » et la date de reprise. Elle n'éteint pas les appareils.
 _Avoid_: suspension, mise en veille
 
-**Désactivé**:
-Un programme arrêté sans limite de durée, jusqu'à ce qu'on le réactive.
-_Avoid_: inactif, éteint, suspendu
+**En pause**:
+Un programme arrêté sans limite de durée (choix « Jusqu'à la reprise »), jusqu'à ce qu'on le remette en marche. Le badge indique « En pause ». Remplace l'ancien terme « Désactivé ».
+_Avoid_: désactivé, inactif, éteint, suspendu
 
 **Suspension de tous les programmes**:
 Un interrupteur global qui arrête tous les programmes à la fois, quel que soit le mode, et remet les appareils à leur réglage de repos. Elle prime sur le mode et n'est pas le mode « Vacances ».

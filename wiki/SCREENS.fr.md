@@ -2,7 +2,7 @@
 
 [Lire le guide pas à pas](GUIDE.fr.md)
 
-Les captures de Weekly Planner ont été réalisées le 29 octobre 2026,
+Les captures de Weekly Planner ont été réalisées
 avec des programmes et appareils de démonstration du salon. Les écrans utilisent
 les vrais composants de l’application ; leurs données sont préparées pour
 expliquer les fonctions. Les vues d’historique et d’options sont celles
@@ -19,7 +19,7 @@ permet d’ouvrir l’image complète. Les écrans longs disposent de captures d
 
 ## Création, pièce, filtres et graphique
 
-S37 à S45 ont été capturés le 29 octobre 2026 à 360 × 780 pixels CSS, sur
+S37 à S45 sont capturés à 360 × 780 pixels CSS, sur
 l’instance locale, avec les vrais composants et des données préparées en mémoire.
 Aucune sauvegarde ni commande d’appareil n’a été exécutée. Les sélecteurs natifs
 utilisent les appareils de test. Les images d’action, de cadran et de graphique
@@ -37,17 +37,17 @@ Donner un nom, ajouter un appareil, puis cocher les commandes utiles. Aucune com
 
 ### S38 — Choisir ou préparer un mode
 
-Capture à refaire : elle montre un choix de mode qui n’existe plus dans les réglages du programme. Le mode se choisit désormais en dehors de Weekly Planner, et les horaires de chaque mode se préparent dans l’écran des horaires, un onglet par mode.
+Le mode se choisit en dehors de Weekly Planner. Les horaires de chaque mode se préparent dans l’écran des horaires, avec la liste **Mode** en haut ; l’onglet **Modes** des réglages du programme y renvoie par **Modifier les horaires de ce mode**.
 
 <a href="images/guide/s38-modes-manual.png"><img src="images/guide/s38-modes-manual.png" width="320" alt="Choisir ou préparer un mode" /></a>
 
 <a id="s39"></a>
 
-### S39 — Suivre une entité
+### S39 — Choisir l’entité qui donne le mode
 
-Capture à refaire : l’association des états d’une entité à un mode n’existe plus. Le sélecteur de mode se règle une fois dans les options de l’intégration ([S35](#s35)) et ses options sont les modes.
+Le sélecteur de mode se règle une fois dans les options de l’intégration ([S35](#s35)) et ses options sont les modes. Une entité qui change d’état, comme un capteur, ne donne pas le mode directement : une automatisation change le sélecteur ([recettes](MODES_COOKBOOK.fr.md)).
 
-<a href="images/guide/s39-modes-external.png"><img src="images/guide/s39-modes-external.png" width="320" alt="Suivre une entité" /></a>
+<a href="images/guide/s39-modes-external.png"><img src="images/guide/s39-modes-external.png" width="320" alt="Choisir l’entité qui donne le mode" /></a>
 
 <a id="s40"></a>
 
@@ -119,7 +119,7 @@ Une carte fixée sur le chauffage du salon donne accès à ses horaires sans pas
 
 ## S03 — Cadran de 24 heures
 
-Le cadran présente les plages du jour et leur légende. Un clic ouvre les horaires ; les arcs ne se déplacent pas directement.
+Le cadran présente les horaires du jour et leur légende. Un clic ou un appui long permet de modifier les arcs avec leurs poignées.
 
 <a href="images/guide/s03-radial.png"><img src="images/guide/s03-radial.png" width="320" alt="S03 — Cadran de 24 heures" /></a>
 
@@ -143,7 +143,7 @@ Le bouton Semaine affiche les sept jours. Le nom d’un jour ouvre ses horaires.
 
 ## S06 — Tous les horaires
 
-La fenêtre des horaires rassemble le schéma de la semaine, les plages et le réglage du reste du temps.
+La fenêtre des horaires rassemble l’interrupteur **Programme actif**, le cadre **Mode** (avec un sélecteur de mode), le cadre **Horaires** (la ligne **Le reste du temps** au-dessus de la liste des horaires) et le schéma de la semaine.
 
 <a href="images/guide/s06-schedules.png"><img src="images/guide/s06-schedules.png" width="320" alt="S06 — Tous les horaires" /></a>
 
@@ -157,11 +157,11 @@ Le jour sélectionné limite la liste affichée. Le retour à la semaine permet 
 
 <a id="s08"></a>
 
-## S08 — Modifier une plage
+## S08 — Modifier un horaire
 
-Le formulaire contient le début, la fin facultative, les jours et le réglage. La suite de la capture montre les contrôles placés plus bas.
+Le formulaire contient le début, la fin facultative, les jours (avec **En semaine** et **Week-end**), le **Réglage** et le repli **Options avancées**. La suite de la capture montre les contrôles placés plus bas.
 
-<a href="images/guide/s08-slot-form.png"><img src="images/guide/s08-slot-form.png" width="320" alt="S08 — Modifier une plage" /></a>
+<a href="images/guide/s08-slot-form.png"><img src="images/guide/s08-slot-form.png" width="320" alt="S08 — Modifier un horaire" /></a>
 
 Suite de l’écran :
 
@@ -171,7 +171,7 @@ Suite de l’écran :
 
 ## S09 — Utiliser le soleil
 
-Les choix Lever du soleil et Coucher du soleil remplacent l’heure fixe par un événement solaire. Les boutons − et + changent son décalage. Les champs facultatifs **Au plus tôt à** et **Au plus tard à** empêchent l’heure de sortir d’une plage ; une phrase dessous donne l’heure réelle (« coucher du soleil + 30 min, mais pas avant 18:00 ni après 19:00 ») et le résultat d’aujourd’hui.
+Dans **Options avancées**, les choix Lever et Coucher remplacent l’heure fixe par un événement solaire. Les boutons − et + changent son décalage. Les champs facultatifs **Au plus tôt à** et **Au plus tard à** empêchent l’heure de sortir de ces limites ; une phrase dessous donne l’heure réelle (« coucher du soleil + 30 min, mais pas avant 18:00 ni après 19:00 ») et le résultat d’aujourd’hui.
 
 <a href="images/guide/s09-solar-slot.png"><img src="images/guide/s09-solar-slot.png" width="320" alt="S09 — Utiliser le soleil" /></a>
 
@@ -187,7 +187,7 @@ Sans fin crée une action ponctuelle : elle est lancée au début, sans retour a
 
 ## S11 — Créer un réglage
 
-Le formulaire intégré définit le nom, la couleur et l’action. L’enregistrement se fait avec celui de l’horaire.
+Le formulaire intégré (**Nouveau réglage**) définit le nom, la couleur et l’action. L’enregistrement se fait avec celui de l’horaire.
 
 <a href="images/guide/s11-new-label.png"><img src="images/guide/s11-new-label.png" width="320" alt="S11 — Créer un réglage" /></a>
 
@@ -211,7 +211,7 @@ Une valeur propre adapte l’action pour cet appareil. Revenir à la valeur comm
 
 ## S14 — Le reste du temps
 
-Ce choix définit l’action par défaut de l’appareil. Ne rien changer signifie qu’aucune action par défaut n’est envoyée.
+Cette ligne, au-dessus de la liste des horaires, définit l’action par défaut de l’appareil. Laisser tel quel signifie qu’aucune action par défaut n’est envoyée.
 
 <a href="images/guide/s14-rest-of-time.png"><img src="images/guide/s14-rest-of-time.png" width="320" alt="S14 — Le reste du temps" /></a>
 
@@ -219,7 +219,7 @@ Ce choix définit l’action par défaut de l’appareil. Ne rien changer signif
 
 ## S15 — Graphique du jour
 
-Le bouton **Graphique du jour** ouvre le graphique sous l’appareil, avec sa légende (Programme, En marche ou ouvert). Le graphique rapproche les actions prévues et l’historique disponible ; une bande colorée marque les moments où l’appareil était en marche (ou le volet ouvert).
+Le bouton **Graphique du jour** ouvre le graphique sous l’appareil, avec sa légende (**Prévu**, **Mesuré**, **Demandé**, avec la grandeur de l’appareil). Le graphique rapproche les actions prévues et l’historique disponible ; une bande colorée marque les moments où l’appareil était en marche (ou le volet ouvert).
 
 <a href="images/guide/s15-chart.png"><img src="images/guide/s15-chart.png" width="320" alt="S15 — Graphique du jour" /></a>
 
@@ -235,7 +235,7 @@ Un toucher du graphique ouvre l’historique natif de l’entité dans Home Assi
 
 ## S17 — Fenêtre agrandie sur ordinateur
 
-Un clic sur le titre élargit la fenêtre. Sur téléphone, la fenêtre utilise déjà tout l’écran.
+Le bouton **Agrandir / réduire** (flèches, à côté de la croix) élargit la fenêtre. Sur téléphone, la fenêtre utilise déjà tout l’écran.
 
 <a href="images/guide/s17-expanded-dialog.png"><img src="images/guide/s17-expanded-dialog.png" width="900" alt="S17 — Fenêtre agrandie sur ordinateur" /></a>
 
@@ -243,17 +243,17 @@ Un clic sur le titre élargit la fenêtre. Sur téléphone, la fenêtre utilise 
 
 ## S18 — Édition directe sur une barre
 
-Un clic à la souris ou un appui long au doigt affiche les poignées et les actions de la plage sélectionnée.
+Un clic à la souris ou un appui long au doigt affiche les poignées et les actions de l’horaire sélectionné : **Couper en deux**, **Copier sur d’autres jours**, **Effacer** et le choix du réglage.
 
 <a href="images/guide/s18-bar-edit.png"><img src="images/guide/s18-bar-edit.png" width="320" alt="S18 — Édition directe sur une barre" /></a>
 
 <a id="s19"></a>
 
-## S19 — Copier vers d’autres jours
+## S19 — Copier sur d’autres jours
 
-Choisir les jours de destination prépare la copie de la plage sélectionnée.
+Choisir les jours de destination prépare la copie de l’horaire sélectionné.
 
-<a href="images/guide/s19-copy-days.png"><img src="images/guide/s19-copy-days.png" width="320" alt="S19 — Copier vers d’autres jours" /></a>
+<a href="images/guide/s19-copy-days.png"><img src="images/guide/s19-copy-days.png" width="320" alt="S19 — Copier sur d’autres jours" /></a>
 
 <a id="s20"></a>
 
@@ -315,7 +315,7 @@ Les boutons Annuler la modification et Rétablir parcourent le brouillon local. 
 
 ## S29 — Conditions du programme
 
-Une condition compare l’état ou un attribut d’une entité. Toutes les conditions du programme doivent être satisfaites pour ses plages.
+Une condition compare l’état ou un attribut d’une entité. Toutes les conditions du programme doivent être satisfaites pour ses horaires.
 
 <a href="images/guide/s29-program-conditions.png"><img src="images/guide/s29-program-conditions.png" width="320" alt="S29 — Conditions du programme" /></a>
 
@@ -331,15 +331,15 @@ La liste limite les services proposés pour cet appareil. Toutes signifie que le
 
 ## S31 — Gérer les modes
 
-Capture à refaire : la gestion des modes (ajouter, renommer, copier, supprimer) a quitté les réglages du programme. Les modes sont les options du sélecteur ; « Copier depuis un autre mode » se trouve dans l’écran des horaires.
+Les modes sont les options du sélecteur. Sous **Options avancées** de l’écran des horaires se trouvent « Reprendre les horaires d’un autre mode » (copie) et « Mêmes horaires que » (le mode suit un autre mode : ses horaires restent partagés jusqu’à **Arrêter de suivre**).
 
 <a href="images/guide/s31-season-management.png"><img src="images/guide/s31-season-management.png" width="320" alt="S31 — Gérer les modes" /></a>
 
 <a id="s32"></a>
 
-## S32 — Nom de mode en cours
+## S32 — Nom de mode
 
-Capture à refaire : un nom de mode ne se saisit plus. Il vient de l’option du sélecteur.
+Un nom de mode ne se saisit pas : il vient de l’option du sélecteur. Un mode qui n’est plus une option est marqué « n’existe plus » ; l’écran des horaires propose alors la nouvelle option (**Est-ce devenu… ?**) ou **Effacer ses horaires**.
 
 <a href="images/guide/s32-season-name-draft.png"><img src="images/guide/s32-season-name-draft.png" width="320" alt="S32 — Nom de mode en cours" /></a>
 
@@ -347,7 +347,7 @@ Capture à refaire : un nom de mode ne se saisit plus. Il vient de l’option du
 
 ## S33 — Changer le mode actif
 
-Capture à refaire : le programme n’a plus de sélecteur propre. Pour changer de mode, utiliser le sélecteur Home Assistant choisi dans les options de l’intégration.
+Le programme n’a pas de sélecteur propre. Pour changer de mode, utiliser le sélecteur Home Assistant choisi dans les options de l’intégration.
 
 <a href="images/guide/s33-active-season-ha.png"><img src="images/guide/s33-active-season-ha.png" width="320" alt="S33 — Changer le mode actif" /></a>
 
@@ -355,7 +355,7 @@ Capture à refaire : le programme n’a plus de sélecteur propre. Pour changer 
 
 ## S34 — Confirmation
 
-Les opérations concernées demandent confirmation. Cette capture montre la boîte avant toute validation.
+Les opérations concernées demandent confirmation, avec les boutons **Oui, supprimer** et **Non, garder**. Cette capture montre la boîte avant toute validation.
 
 <a href="images/guide/s34-confirmation.png"><img src="images/guide/s34-confirmation.png" width="320" alt="S34 — Confirmation" /></a>
 
@@ -363,7 +363,7 @@ Les opérations concernées demandent confirmation. Cette capture montre la boî
 
 ## S35 — Options de l’intégration
 
-Ces options Home Assistant concernent l’intégration entière : droits d’édition, sélecteur de mode (capture à refaire : l’écran montre encore l’ancienne liste d’options, sans le sélecteur de mode ni le mode par défaut), réapplication par défaut, notifications et délai des conditions.
+Ces options Home Assistant concernent l’intégration entière : droits d’édition, sélecteur de mode (puis mode par défaut), réapplication par défaut, notifications et délai des conditions.
 
 <a href="images/guide/s35-integration-options.png"><img src="images/guide/s35-integration-options.png" width="320" alt="S35 — Options de l’intégration" /></a>
 
@@ -374,6 +374,58 @@ Ces options Home Assistant concernent l’intégration entière : droits d’éd
 Home Assistant refuse une seconde configuration de Weekly Planner. Pour ajouter un programme, utiliser Réglages des programmes dans la carte ; il n’est pas nécessaire d’ajouter une autre intégration. Cette capture est prise sur l’instance de test déjà configurée, sans supprimer l’intégration pour simuler une première installation.
 
 <a href="images/guide/s36-single-instance.png"><img src="images/guide/s36-single-instance.png" width="320" alt="S36 — Une seule intégration suffit" /></a>
+
+<a id="nouveautes"></a>
+
+## Pause, onglets, modes et notices
+
+<a id="s46"></a>
+
+### S46 — Fenêtre Pause
+
+La fenêtre **Pause** demande **Jusqu’à quand ?** avec deux choix, **Jusqu’à la reprise** et **Pour une durée**. Avec **Pour une durée**, vous choisissez **1 heure**, **1 jour** ou **7 jours**, ou vous remplissez les champs **Nombre d’heures** et **Nombre de jours**, puis **Confirmer**.
+
+<a href="images/guide/s46-pause-dialog.png"><img src="images/guide/s46-pause-dialog.png" width="320" alt="S46 — Fenêtre Pause" /></a>
+
+<a id="s47"></a>
+
+### S47 — Carte avec onglets d’appareils
+
+Sur la carte, un seul appareil est affiché à la fois ; des onglets permettent de passer de l’un à l’autre. La ligne **Mode : …** en haut indique le mode actif de la maison.
+
+<a href="images/guide/s47-device-tabs.png"><img src="images/guide/s47-device-tabs.png" width="320" alt="S47 — Carte avec onglets d’appareils" /></a>
+
+<a id="s48"></a>
+
+### S48 — Liste des modes de l’écran des horaires
+
+La liste **Mode** de l’écran des horaires montre un mode qui a les mêmes horaires qu’un autre (**Mêmes horaires que :**, sous **Options avancées**) et la notice **Ce mode n’est pas actif** quand les horaires affichés ne sont pas ceux du mode actuel de la maison.
+
+<a href="images/guide/s48-mode-select.png"><img src="images/guide/s48-mode-select.png" width="320" alt="S48 — Liste des modes de l’écran des horaires" /></a>
+
+<a id="s49"></a>
+
+### S49 — Éditeur d’horaire avec les options avancées
+
+L’éditeur d’horaire avec le repli **Options avancées** ouvert : lever ou coucher du soleil, limite d’heure (**Limiter l’heure (au plus tôt / au plus tard)**) et **Délai aléatoire**.
+
+<a href="images/guide/s49-advanced-options.png"><img src="images/guide/s49-advanced-options.png" width="320" alt="S49 — Éditeur d’horaire avec les options avancées" /></a>
+
+<a id="s50"></a>
+
+### S50 — Éditeur d’un réglage
+
+L’éditeur d’un réglage (nom, couleur, réglage à appliquer) avec ses **Options avancées** ouvertes.
+
+<a href="images/guide/s50-setting-editor.png"><img src="images/guide/s50-setting-editor.png" width="320" alt="S50 — Éditeur d’un réglage" /></a>
+
+<a id="s51"></a>
+
+### S51 — Les trois sortes de notice côte à côte
+
+Les trois sortes de notice côte à côte (montage de trois fragments, pas un seul écran). Toutes partagent le même aspect : succès (**Mode actif : ces horaires s’appliquent maintenant**), information (**Ce mode n’est pas actif**) et erreur.
+
+<a href="images/guide/s51-notifications.png"><img src="images/guide/s51-notifications.png" width="320" alt="S51 — Les trois sortes de notice côte à côte" /></a>
 
 <a id="variantes"></a>
 
@@ -405,9 +457,9 @@ Ces états complètent les mêmes écrans sans ajouter une nouvelle façon de pr
 
 <a href="images/guide/s02-paused.png"><img src="images/guide/s02-paused.png" width="320" alt="Programme en pause" /></a>
 
-### Indicateur Vacances
+### Indicateur de suspension
 
-<a href="images/guide/s01-vacation.png"><img src="images/guide/s01-vacation.png" width="320" alt="Indicateur Vacances" /></a>
+<a href="images/guide/s01-vacation.png"><img src="images/guide/s01-vacation.png" width="320" alt="Indicateur de suspension" /></a>
 
 ### Horaires en lecture seule
 
@@ -416,9 +468,5 @@ Ces états complètent les mêmes écrans sans ajouter une nouvelle façon de pr
 ### Validation d’un nouveau programme incomplet
 
 <a href="images/guide/s27-validation.png"><img src="images/guide/s27-validation.png" width="320" alt="Validation d’un nouveau programme incomplet" /></a>
-
-### Validation d’un nom de mode
-
-<a href="images/guide/s32-validation.png"><img src="images/guide/s32-validation.png" width="320" alt="Validation d’un nom de mode" /></a>
 
 [Retour au guide pas à pas](GUIDE.fr.md)

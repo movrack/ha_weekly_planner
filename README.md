@@ -4,6 +4,7 @@ English | [Français](README.fr.md)
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Quality scale: Bronze (self-declared)](https://img.shields.io/badge/Quality%20scale-Bronze%20(self--declared)-cd7f32.svg)](custom_components/weekly_planner/quality_scale.yaml)
 
 A Home Assistant integration with a bundled Lovelace card for weekly scheduling.
 It schedules compatible Home Assistant service calls or scenes through shared
@@ -146,9 +147,10 @@ The week is expanded interactively.
 The dial displays the same resolved schedule data as the bars and opens the
 existing editor. The inner 12-hour ring covers midnight–noon and the outer ring noon–midnight.
 Both dial variants use the bars’ colours, hourly marks and solar markers.
-Their arcs are not draggable. In a compact list, clicking a row expands its bar
-inline. Click a dialog title to expand its
-desktop width. Mobile dialogs already occupy the full screen.
+Click or long-press a dial to edit its arcs with the handles. In a compact list,
+clicking a row expands its bar inline. A dialog has an **Expand / collapse** button
+(arrows, next to the close cross) to widen it on desktop. Mobile dialogs already occupy
+the full screen; a downward swipe on the header closes them.
 
 ## Scheduling model and runtime behavior
 
@@ -181,7 +183,7 @@ that moves a cover to its own stored favourite position:
 {"kind":"service","service":"button.press","target_entity_id":"button.example_favourite"}
 ```
 
-Choose **Another entity** in the setting action editor. Services and fields are
+Under **Advanced options** of the setting action editor, choose **Another entity**. Services and fields are
 discovered from that target; `target_entity_id` is the only target override.
 The relevant service must also be selected in the program device’s offered actions.
 
@@ -221,7 +223,7 @@ changes may be shown in the chart; that display does not change engine behavior.
   Overnight intervals end on the next day only when the end is earlier than the
   start **and before noon**. `24:00` is valid as an end.
 - **Solar times:** stored formulas can represent dawn, sunrise, sunset or dusk,
-  offsets and bounds. The current visual form exposes sunrise and sunset with offsets.
+  offsets and bounds. The current visual form exposes sunrise and sunset with offsets and optional earliest/latest limits, under **Advanced options**.
 
 Service choices and field selectors come from HA descriptions and entity
 attributes. New devices start with `restrict_services: true` and
@@ -245,10 +247,13 @@ mode, which the card does not show.
 - **Selector unavailable or in an unknown state**: the last valid mode is kept; with none known yet, the
   default mode applies. A program with no schedules for the active mode applies “the rest of the time”.
 - **Renamed option**: if exactly one option is renamed, the schedules follow it in every program (with an
-  Undo for a week). Otherwise the old mode stays “no option”, nothing is erased and the schedules screen
-  proposes the new options (or deleting the mode).
-- **Schedules screen**: one tab per mode, opening on the active one; editing another mode never activates it.
-  “Copy from another mode” copies its schedules.
+  Undo for a week). Otherwise the old mode stays, marked “no longer exists”, nothing is erased and the schedules screen
+  proposes the new options (or deleting the mode). The rename notice (with **Undo** and **OK**)
+  is shown in the schedules screen only.
+- **Schedules screen**: a **Mode** drop-down at the top, opening on the active mode (marked “Active”); editing another mode never activates it.
+  Under **Advanced options**, “Reuse the schedules of another mode” copies its schedules, and
+  “Same schedules as” makes the mode follow another one: it then uses the schedules of that mode, which stay
+  shared (editing one changes both), until you choose **Stop following** (the mode keeps a copy).
 - **Switching mode** = change the selector entity (dashboard, alarm, automation). The suspension of all
   programs is a separate control and wins over the mode.
 
@@ -271,15 +276,15 @@ do not assume a generated English entity ID on another installation.
 
 | Entity | Integration behavior |
 |---|---|
-| Program `switch` | Enable/suspend the program. Attributes include `program_id`, the active mode, current slots and next actions. |
-| Global pause `switch` | Suspend programs globally and apply the applicable defaults once. |
+| Program `switch` | Enable/suspend the program. Attributes: `program_id`, `no_schedule_for_mode`, `current_slots`, `next_change`, `skip_next`, `skip_next_targets`, `next_actions`, and when relevant `paused_until` and `verification`. There is no active-mode attribute: read the mode on the selector entity. |
+| Global suspension `switch` (all programs) | Suspend all programs and apply the applicable defaults once. |
 
 | Action | Fields | Who can call it |
 |---|---|---|
 | `weekly_planner.apply_now` | `program_id` (required) | Anyone; administrators only if `admin_only` is on |
 | `weekly_planner.skip_next` | `program_id` (required), `cancel` (optional, default `false`) | Same as `apply_now` |
-| `weekly_planner.pause` | `program_id` (required), `days` (required, whole number 1 to 365) | Same as `apply_now` |
-| `weekly_planner.resume` | `program_id` (required) | Same as `apply_now` |
+| `weekly_planner.pause` | `program_id` (required), `days` and/or `hours` (whole numbers, at least one; 1 hour to 365 days in total) | Same as `apply_now` |
+| `weekly_planner.resume` | `program_id` (required); cancels a timed pause only (a program switched off with its switch stays off) | Same as `apply_now` |
 | `weekly_planner.reload` | none | Administrators |
 
 `program_id` is the `program_id` attribute of the program switch.
@@ -299,7 +304,7 @@ data:
 ```
 
 ```yaml
-# Pause a program for 1 to 365 days; it resumes by itself (even after a restart).
+# Pause a program for 1 hour to 365 days (`days`, `hours`, or both); it resumes by itself (even after a restart).
 action: weekly_planner.pause
 data:
   program_id: YOUR_PROGRAM_ID
@@ -330,7 +335,7 @@ action enables its triggers; it is not the same as `automation.trigger`.
 |---|---|---|
 | `admin_only` | `false` | Restricts program/setting mutations. Program/vacation switches remain separate controls; choosing the mode is done on the selector entity, not in Weekly Planner. |
 | `mode_selector` | none | Optional `input_select` or `select` entity whose state is the active mode, then a default mode among its options. Changing them is reserved to administrators. |
-| `reapply_default` | `true` | Exposed in options, but currently not consumed by new-program creation; the card initializes `reapply: true`. Set it explicitly per program. |
+| `reapply_default` | `true` | Starting value of **Reapply** for every new program (card, WebSocket, or a YAML file program without `reapply`). |
 | `notify_delay_min` | `30` | Unavailable-entity notification delay, 1–1440 minutes. |
 | `debounce_min` | `2` | Condition stability delay, 0–60 minutes. |
 
@@ -357,7 +362,8 @@ is the source of truth:
 | Command family | Purpose |
 |---|---|
 | `weekly_planner/get`, `weekly_planner/subscribe` | Snapshot and live updates. |
-| `weekly_planner/program/save`, `program/delete`, `program/set_enabled` | Program mutations. All suffixes shown are under `weekly_planner/`. |
+| `weekly_planner/program/save`, `program/delete`, `program/set_enabled`, `program/pause`, `program/mode_follow` | Program mutations. All suffixes shown are under `weekly_planner/`. |
+| `weekly_planner/mode/set`, `mode/resolve`, `mode/undo_rename`, `mode/dismiss_rename` | Mode answers and rename notices. |
 | `weekly_planner/label/save`, `label/delete` | Global setting mutations. |
 | `weekly_planner/preview` | Resolve a program's occurrences (for a mode) for a date. |
 | `weekly_planner/journal` | Recorded decisions, up to 14 days. |
@@ -388,7 +394,7 @@ labels:
 programs:
   - id: living
     name: Living room
-    entities: [{entity_id: climate.living, default_label: eco, label_overrides: {}}]
+    entities: [{entity_id: climate.living, default_label: comfort, label_overrides: {}}]
     modes:            # the schedules of each mode, keyed by mode name
       Home: {mon: [...], tue: [...]}   # 7 day lists; the first mode is the default one without a selector
 ```
@@ -432,9 +438,12 @@ first if you may reinstall: restoring them brings the programs back.
 ## Known UI limits and diagnostics
 
 - The area filter matches program metadata, not HA entity areas.
-- The slot model supports conditions and solar bounds, but the slot form does not
-  expose a slot-condition builder or a solar-bound editor.
-- `reapply_default` is displayed but new programs still start with reapply enabled.
+- The slot model supports conditions, but the slot form does not expose a slot-condition
+  builder (program conditions are edited in **General**).
+- Validation limits: program name 60 characters, setting name 30, mode name 40; 20 modes per
+  program, 50 schedules per day, 100 devices per program, 10 conditions per schedule; priority 1–100;
+  sun offset −240 to +240 minutes; random delay 0–240 minutes; 100 highlighted states and a 60-character
+  alias per chart source.
 - History/manual-change display depends on Recorder/logbook data and attribution;
   attribute-only changes have attribution limits.
 
@@ -444,7 +453,11 @@ History failures do not hide planned actions.
 If the card has no rows, inspect its filters and program ID. If an action is
 missing, inspect the service target, supported features, entity attributes and
 `allowed_services`. Use the program switch attributes, Repairs, notifications and
-HA logs for runtime investigation. Failed service calls use bounded retries;
+HA logs for runtime investigation. Repairs raised by the integration:
+`missing_entities`, `yaml_invalid`, `modes_now_global` and `mode_option_missing`.
+Persistent notifications report an unavailable entity whose action is still waiting,
+an action that could not run, and an unreadable configuration file (programs are
+paused and nothing is overwritten). Failed service calls use bounded retries;
 validation errors are reported without retrying the invalid value.
 
 ## Development and deployment
@@ -467,6 +480,26 @@ its sources. Run `scripts/dev_ha.sh` for the local HA instance on port 8124, the
 `scripts/dev_onboard.py` to initialize it. The onboarding helper prints a development
 token: keep its output and `dev/` runtime data out of Git and published logs.
 
+
+### Review agents (optional)
+
+The project uses shared review agents kept in their own repository,
+[`movrack/AI`](https://github.com/movrack/AI): `john-117` (orchestrator), `nemesis` (devil's advocate of specs and
+plans), `mamy` (novice screen tester), `ally` (accessibility), `stryker` (mutation testing), `heimdall`
+(delivery gatekeeper), `parker` (screenshots), `iris` (CSS and visual consistency) and `c3po` (translations). They work on request only, change no production code and write
+their reports to `reports/ai/<agent>/` (git-ignored). To use them:
+
+```bash
+git clone https://github.com/movrack/AI.git ~/Dev/AI
+```
+
+The agent files use neutral tool names (`read`, `search`, `execute`, `edit`, `mcp:<server>/<tool>`), so a plain
+symlink into your assistant's agents folder is not enough: translate the `tools` line to the names of your
+assistant (for Claude Code, `Read`, `Grep`/`Glob`, `Bash`, `Edit`/`Write`, `mcp__<server>__<tool>`) and copy the
+file into `~/.claude/agents/` (all your projects) or `.claude/agents/` (this project only), or generate them with
+a sync script that does the translation. The `AI` repository explains both ways in its README ("Install").
+`mamy`, `ally` and `parker` need the Chrome DevTools MCP server. Do not add copies of these agents to this
+repository: change them in `movrack/AI`.
 
 Further references: [specification](docs/SPEC.md), [decisions](docs/DECISIONS.md),
 [screen inventory](docs/SCREEN_INVENTORY.md), [changelog](CHANGELOG.md).

@@ -35,12 +35,12 @@ Source : <https://developers.home-assistant.io/docs/core/integration-quality-sca
 | fichier de suivi | **à faire** | créer `custom_components/weekly_planner/quality_scale.yaml` |
 
 ## Tâches Bronze (à valider par le propriétaire avant de coder)
-- [ ] Créer `quality_scale.yaml` avec les 20 règles Bronze (`done` / `exempt` motivé), puis l’étendre aux niveaux supérieurs en `todo`.
-- [ ] Extraire un socle d’entité commun (`entity.py` : `has_entity_name`, `device_info`, abonnement au moteur) utilisé par `switch.py` et `select.py` ; tests inchangés verts.
-- [ ] Ajouter la section de désinstallation (retirer l’entrée dans Appareils et services, supprimer la carte du tableau de bord, désinstaller via HACS, ce qui reste dans `.storage`) en anglais et en français.
+- [x] Créer `quality_scale.yaml` avec les 20 règles Bronze (`done` / `exempt` motivé), puis l’étendre aux niveaux supérieurs en `todo`.
+- [x] Extraire un socle d’entité commun (`entity.py` : `has_entity_name`, `device_info`, abonnement au moteur) utilisé par `switch.py` et `select.py` ; tests inchangés verts.
+- [x] Ajouter la section de désinstallation (retirer l’entrée dans Appareils et services, supprimer la carte du tableau de bord, désinstaller via HACS, ce qui reste dans `.storage`) en anglais et en français.
 - [ ] Relire « HA actions » : chaque action (`apply_now`, `skip_next`, `reload`) avec ses champs et un exemple.
 - [ ] Vérifier `hassfest` et HACS en CI (déjà présents dans `validate.yml`) ; ajouter un test qui échoue si `quality_scale.yaml` est incohérent (règle inconnue, `exempt` sans commentaire).
-- [ ] Conserver le résultat dans `docs/DECISIONS.md` (niveau visé, exemptions, auto-déclaration) et dans le README (une ligne).
+- [x] Conserver le résultat dans `docs/DECISIONS.md` (niveau visé, exemptions, auto-déclaration) et dans le README (une ligne).
 
 ## Silver — étude (pas un objectif)
 Règles supplémentaires : `action-exceptions`, `config-entry-unloading`, `docs-configuration-parameters`, `docs-installation-parameters`, `entity-unavailable`, `integration-owner`, `log-when-unavailable`, `parallel-updates`, `reauthentication-flow`, `test-coverage`.

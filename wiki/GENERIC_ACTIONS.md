@@ -30,7 +30,7 @@ modes are a separate action and list. A missing preset is not synthesized.
 A favourite-position button performs an action; it does not necessarily expose
 its stored percentage. To use one while keeping the blind in the program:
 
-1. Create or edit a setting and choose **Another entity** as the action target.
+1. Create or edit a setting; under **Advanced options** of the action editor, choose **Another entity** as the action target.
 2. Select the button exposed by HA and its `button.press` action.
 3. Ensure that service is selected in the program device’s offered actions.
 4. Schedule the setting without an end for a one-shot press.
@@ -48,7 +48,7 @@ exposes no corresponding action, Weekly Planner cannot invent one.
 
 ## Read a value from an entity
 
-For a service field, select **Value from an entity**, choose the source and then
+For a service field, under **Advanced options** of the action editor, select **Value from an entity**, choose the source and then
 its state or attribute. The preview is the current value; execution reads it again.
 For example, a helper can supply a cover position:
 

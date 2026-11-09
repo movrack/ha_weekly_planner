@@ -158,13 +158,19 @@ Nine mobile light fixtures use real components and read-only synthetic drafts on
 |---|---|---|
 | S37 | `s37-create-actions.png` | Créer un programme |
 | S38 | `s38-modes-manual.png` | Choisir ou préparer un mode (capture à refaire : contrôle supprimé) |
-| S39 | `s39-modes-external.png` | Suivre une entité (capture à refaire : contrôle supprimé) |
+| S39 | `s39-modes-external.png` | Choisir l’entité qui donne le mode (capture à refaire : contrôle supprimé) |
 | S40 | `s40-program-area.png` | Zone du programme |
 | S41 | `s41-card-filter.png` | Filtres et présentation |
 | S42 | `s42-action-target.png` | Appuyer sur un autre bouton |
 | S43 | `s43-action-source.png` | Lire une valeur dans une entité |
 | S44 | `s44-radial-double.png` | Double cadran de 12 heures |
 | S45 | `s45-chart-empty.png` | Graphique sans données |
+| S46 | `s46-pause-dialog.png` | Fenêtre Pause : Jusqu’à quand ? |
+| S47 | `s47-device-tabs.png` | Carte avec onglets d’appareils |
+| S48 | `s48-mode-select.png` | Liste Mode des horaires, mode qui suit un autre, notice Ce mode n’est pas actif |
+| S49 | `s49-advanced-options.png` | Éditeur d’horaire, Options avancées ouvertes |
+| S50 | `s50-setting-editor.png` | Éditeur d’un réglage, Options avancées ouvertes |
+| S51 | `s51-notifications.png` | Les trois sortes de notice côte à côte (montage) |
 
 Not every 0.16.2 state has been recaptured: compact expansion, disabled badges, solar markers, creation success and external mapping continuation still rely on source descriptions and earlier checks. The older 49-image integrity record applies only to the historical set.
 

@@ -17,7 +17,7 @@ entité, puis une **action par défaut** à la fin.
 | Point faible ailleurs | Réponse de Weekly Planner |
 |---|---|
 | La fin d'un créneau n'exécute rien | Chaque horaire avec fin déclenche, à sa fin, l'**action par défaut** de l'appareil (« le reste du temps ») |
-| Tout est rejoué après une coupure de courant | État voulu **recalculé** ; réglage « refaire l'action en cours au redémarrage » |
+| Tout est rejoué après une coupure de courant | État voulu **recalculé** ; réglage « refaire le réglage en cours au redémarrage » |
 | Un type d'appareil = un vocabulaire à apprendre | **Un seul fonctionnement** : toute entité, mêmes écrans, actions = services HA |
 | Une planification = un appareil + une action | Un programme = plusieurs entités, chacune son action |
 | Pas de vue semaine lisible | Vue semaine en barres + liste + graphique (historique HA et actions prévues) |
@@ -126,7 +126,7 @@ service `override` ni `resume`. Seul l'**affichage** du graphique montre les cha
   bas est dans un horaire, l'entité reçoit l'action de cet horaire, pas le défaut.
 
 ### 5.5 Redémarrage, activation, modification (D10)
-- Réglage par programme `reapply` (« refaire l'action en cours au redémarrage », oui par défaut).
+- Réglage par programme `reapply` (« refaire le réglage en cours au redémarrage », oui par défaut).
 - Au démarrage de HA (après une **stabilisation** de 30 s), à l'activation du programme, au changement de profil,
   à la fin de Vacances ou **après une modification du programme** : si `reapply = oui`, l'action du **segment en cours**
   (l'action de l'horaire, ou l'action par défaut hors horaire) est renvoyée ; sinon on attend la prochaine transition.
@@ -738,14 +738,14 @@ Plan détaillé : [PLAN_CHART_ALIGNMENT.md](PLAN_CHART_ALIGNMENT.md).
 Ces trois demandes sont **non implémentées**. Chaque point ci-dessous reste une question ouverte : ne rien coder avant la réponse du propriétaire, puis enregistrer la décision dans `docs/DECISIONS.md`.
 
 ### 37.1 Mettre un programme en pause (1 jour, 7 jours, x jours)
-- [x] Bouton « Mettre en pause » avec trois durées : 1 jour, 7 jours, un nombre de jours libre (1 à 365), plus « Sans limite » (backend et interface de la carte faits).
+- [x] Bouton « Mettre en pause » avec trois durées : 1 jour, 7 jours, un nombre de jours libre (1 à 365), plus « Indéterminé » (backend et interface de la carte faits).
 - Comportement décidé (2026-11-07, `engine.async_pause`) :
   - Portée : un seul programme ; la pause est l’état « suspendu » existant (`enabled: false`, défaut appliqué une fois aux appareils libérés) plus `paused_until` (UTC ISO, dans la configuration, miroir YAML compris). Les autres programmes, le mode Vacances et l’interrupteur global ne sont pas touchés.
   - Début : maintenant ; fin : exactement 1, 2, 7 ou 14 × 24 h plus tard ; toute autre durée est refusée. Pauser un programme déjà suspendu change seulement l’échéance.
   - Reprise automatique à l’échéance (un minuteur par programme), même après un redémarrage (échéance passée : reprise à la fin de la stabilisation) ; chemin identique à une activation manuelle, l’état voulu est réappliqué.
   - Activer ou désactiver à la main (interrupteur, carte, `set_enabled`) efface l’échéance ; annuler = activer. Une désactivation manuelle est une pause sans fin.
   - API : `weekly_planner/program/pause` `{program_id, days: 1..365|null}` (`null` = reprendre), services `weekly_planner.pause` et `weekly_planner.resume` ; `paused_until` dans chaque programme et dans `status[id]` du snapshot et les attributs de l’interrupteur.
-  - Carte (fait) : l’interrupteur ouvre un choix de durée (1 jour, 7 jours, x jours, Sans limite) ; « Pause jusqu'au <jour date, heure> » remplace « Désactivé » / « À l’arrêt » ; reprendre = remettre l’interrupteur, sans confirmation ; mêmes droits que l’interrupteur.
+  - Carte (fait) : l’interrupteur ouvre un choix de durée (1 jour, 7 jours, x jours, Indéterminé) ; « Pause jusqu'au <jour date, heure> » remplace « Désactivé » / « À l’arrêt » ; reprendre = remettre l’interrupteur, sans confirmation ; mêmes droits que l’interrupteur.
 
 ### 37.2 Mode global choisi par un sélecteur externe (décidé le 2026-11-08, `docs/adr/0001-mode-global-par-selecteur-externe.md`)
 Vocabulaire : voir `GLOSSARY.md` (« mode » seulement ; « profil » et « saison » sont à éviter partout).
@@ -753,9 +753,9 @@ Vocabulaire : voir `GLOSSARY.md` (« mode » seulement ; « profil » et « sais
 - [x] **Moteur** : le mode actif de tous les programmes est l'état du sélecteur ; les modes sont ses options. Indisponible ou inconnu : dernier mode valide gardé (un message au journal à la perte, un au retour) ; sans mode valide connu : option par défaut. Un programme sans horaires pour le mode actif applique « le reste du temps ». La suspension globale prime sur le mode.
 - [x] **Migration** : un mode se rattache à une option par son nom ; sans correspondance il est conservé, inactif (« sans option ») ; sans sélecteur le premier mode de chaque programme devient le mode par défaut. Les horaires du mode par défaut passent sous l'option par défaut choisie. `mode_source` par programme retiré.
 - [x] **Entités** : suppression de l'entité `select` de chaque programme, avec une réparation qui nomme les programmes concernés et une note dans le CHANGELOG.
-- [x] **Renommage** (moteur, API et boutons de l'écran des horaires faits et testés) : détecté seulement sans ambiguïté (même nombre d'options, même ordre, une seule différente) → horaires reportés sous le nouveau nom dans tous les programmes, journal, mention « Le mode X a été renommé en Y » et bouton pour défaire. Sinon : ancien mode « sans option » et correspondance proposée (réparation et boutons dans l'écran des horaires, un par nouvelle option, plus « Non, le supprimer »). Rien n'est modifié sans réponse ; jamais d'effacement automatique.
+- [x] **Renommage** (moteur, API et boutons de l'écran des horaires faits et testés) : détecté seulement sans ambiguïté (même nombre d'options, même ordre, une seule différente) → horaires reportés sous le nouveau nom dans tous les programmes, journal, mention « Le mode X a été renommé en Y » et bouton pour défaire. Sinon : ancien mode « sans option » et correspondance proposée (réparation et boutons dans l'écran des horaires, un par nouvelle option, plus « Effacer ses horaires »). Rien n'est modifié sans réponse ; jamais d'effacement automatique.
 - [x] **Carte** : le mode actif s'affiche **une seule fois en haut**, en texte non touchable (une fois aussi dans une liste) ; rien s'il n'y a qu'un mode. « Aucun horaire pour ce mode » sous un programme concerné. Plus de choix de mode sur la carte.
-- [x] **Écran des horaires** : ouvre sur le mode actif ; choix de mode en haut ; « Ce mode n'est pas actif » pour un autre mode ; « Copier depuis un autre mode » (confirmation si le mode ouvert a déjà des horaires). Plus d'ajout, copie ni renommage de mode dans les réglages du programme.
+- [x] **Écran des horaires** : ouvre sur le mode actif ; choix de mode en haut ; « Ce mode n'est pas actif » pour un autre mode ; « Reprendre les horaires d’un autre mode » (confirmation si le mode ouvert a déjà des horaires). Plus d'ajout, copie ni renommage de mode dans les réglages du programme.
 - [x] **Fichier de configuration** (code et documentation faits) : `mode_selector` (global) et option par défaut ; par programme `modes: {nom: [...]}`. Mettre à jour `AI_GUIDE.md`, `example.yml`, `llms.txt`, les README et le wiki (MODES.md, GUIDE.fr.md).
 - [ ] Mêmes droits que l'interrupteur de programme (tous, sauf option `admin_only`). **Non fait** : le choix du sélecteur et du mode par défaut, la résolution d'un mode « sans option » et le défaire d'un renommage sont réservés aux administrateurs (`websocket.py`, `ws_set_mode`, `ws_resolve_mode`, `ws_undo_mode_rename`) ; l'enregistrement des horaires d'un mode suit `admin_only`. Écart à trancher par le propriétaire (voir DECISIONS).
 - [x] **Un mode suit un autre** (ADR 0002) : par programme et par mode, `follows: <mode>` (renvoi dynamique, un seul cran, ni chaîne, ni boucle, pas soi-même ; un mode qui suit n'a pas d'horaires propres). Commande `weekly_planner/program/mode_follow {program_id, mode, follows|null}` (`null` = arrêter de suivre avec copie). Écran des horaires : champ « Ce mode suit », « suit <source> » sur l'onglet, confirmation avant de supprimer des horaires propres, choix « Modifier <source> » ou « Arrêter de suivre » à l'édition ; barres de la carte en lecture seule pour un mode actif qui suit. Source supprimée : copie des derniers horaires + avertissement (`mode.follow_lost`) ; renommage : les `follows` suivent. Fichier : `modes: {nom: {follows: autre}}`.

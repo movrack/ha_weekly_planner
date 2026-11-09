@@ -4,6 +4,7 @@
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
 [![Licence : MIT](https://img.shields.io/badge/Licence-MIT-yellow.svg)](LICENSE)
+[![Échelle de qualité : Bronze (auto-déclaré)](https://img.shields.io/badge/Échelle%20de%20qualité-Bronze%20(auto--déclaré)-cd7f32.svg)](custom_components/weekly_planner/quality_scale.yaml)
 
 Une intégration Home Assistant avec sa carte Lovelace pour planifier les appels de
 service et les scènes. Les horaires utilisent des réglages partagés, une fin
@@ -14,7 +15,8 @@ Ce README s’adresse aux intégrateurs Home Assistant. Pour les utilisateurs de
 maison : [guide illustré pas à pas](wiki/GUIDE.fr.md) et
 [atlas des écrans](wiki/SCREENS.fr.md).
 
-<a href="wiki/GUIDE.fr.md"><img src="wiki/images/guide/s01-overview.png" width="300" alt="Vue d’ensemble de Weekly Planner" /></a>
+<a href="wiki/SCREENS.fr.md#s01"><img src="wiki/images/guide/s01-overview.png" width="300" alt="Vue d’ensemble de Weekly Planner" /></a>
+<a href="wiki/SCREENS.fr.md#s03"><img src="wiki/images/guide/s03-radial.png" width="300" alt="Cadran de 24 heures d’un programme" /></a>
 
 Ce projet a été réalisé avec l’aide d’agents d’intelligence artificielle.
 
@@ -38,7 +40,7 @@ elle est chargée par le mécanisme des modules JavaScript supplémentaires de H
 Le module servi est `/weekly_planner_static/weekly-planner-card.js?v=<empreinte>`.
 
 Pour un autre programme, utiliser **Réglages des programmes → Nouveau programme**,
-pas une nouvelle instance de l’intégration.
+pas une nouvelle instance de l’intégration. Voir [S36](wiki/SCREENS.fr.md#s36).
 
 ## Sources complémentaires du graphique
 
@@ -68,13 +70,13 @@ non appliquées. L’historique repart à zéro après un enregistrement réussi
 rappelle pas une commande déjà envoyée à un appareil. Un programme nouvellement
 créé est sélectionné automatiquement et **Définir les horaires** ouvre ses horaires.
 
-Un programme avec double cadran :
+Un programme avec vue d’ensemble radiale :
 
 ```yaml
 type: custom:weekly-planner-card
 program: YOUR_PROGRAM_ID
 title: Salon
-schedule_view: radial_12h
+schedule_view: radial
 show_chart: true
 ```
 
@@ -90,6 +92,7 @@ filter:
 
 | Option | Comportement |
 |---|---|
+| `type` | `custom:weekly-planner-card`. |
 | `program` | Identifiant interne existant, ou nom de programme (voir ci-dessous). Une valeur non vide affiche ce programme au lieu d’appliquer les filtres. |
 | `filter.types` | Domaines d’entités présents dans les programmes. Absent ou vide = tous les domaines. Les domaines inconnus restent utilisables. |
 | `filter.area` | Correspondance exacte avec la pièce du programme, définie dans Général. Les pièces HA des appareils ne sont pas déduites. |
@@ -140,10 +143,11 @@ regrouper les programmes, indépendant des pièces des appareils.
 
 Les cadrans partagent les couleurs, repères horaires et marqueurs solaires des
 barres. Le double cadran affiche minuit–midi à l’intérieur et midi–minuit à
-l’extérieur. Toucher un cadran ouvre les horaires ; ses arcs ne se déplacent pas.
+l’extérieur. Un clic ou un appui long sur un cadran permet de modifier ses arcs avec les poignées.
 En liste compacte, toucher une ligne déplie sa barre. La semaine se déplie à la
-demande. Toucher le titre d’une modale agrandit sa largeur sur ordinateur ;
-sur téléphone elle occupe déjà l’écran.
+demande. Une modale a un bouton **Agrandir / réduire** (flèches, à côté de la croix)
+qui élargit sa largeur sur ordinateur ; sur téléphone elle occupe déjà l’écran et
+un balayage vers le bas sur son en-tête la ferme.
 
 ## Modèle et exécution
 
@@ -155,7 +159,7 @@ des appareils. Un programme peut en contenir plusieurs.
 | Programme | Entités, priorité, conditions, réapplication et une semaine d’horaires par mode. |
 | Réglage | Nom, couleur et action partagés globalement. |
 | Horaire | Début, fin facultative, jours, référence de réglage et, au besoin, les appareils visés (`entities` ; absent = tous les appareils du programme, y compris ceux ajoutés plus tard). |
-| Défaut d’entité | `default_label`, appliqué hors des plages bornées selon les règles de priorité. |
+| Défaut d’entité | `default_label`, appliqué hors des horaires bornés selon les règles de priorité. |
 | Valeur propre | `label_overrides[label_id]`, action propre à cette entité dans ce programme. |
 | Mode | L’état de toute la maison (Maison, Absent, Vacances…), le même pour tous les programmes et choisi en dehors de Weekly Planner. Chaque programme a sa propre semaine d’horaires pour chaque mode ; Vacances est un mode ordinaire. Appareils, défauts, conditions et priorité restent communs. |
 
@@ -169,12 +173,12 @@ continu l’état observé et ne détecte pas les réglages manuels pour les cor
 Leur affichage dans le graphique ne modifie pas cette règle.
 
 - **Avec fin** : action au début, puis défaut éligible ou action du programme qui reprend la main à la fin.
-- **Sans fin** : action ponctuelle, aucun événement de fin, jamais rejouée après son heure. Une plage bornée prioritaire peut la supprimer.
-- **Priorité** : le plus petit numéro gagne entre les plages éligibles actives ; le programme le plus ancien départage les égalités. Sans plage active, le programme activé le plus prioritaire contenant l’entité fournit son défaut facultatif.
+- **Sans fin** : action ponctuelle, aucun événement de fin, jamais rejouée après son heure. Un horaire borné prioritaire peut la supprimer.
+- **Priorité** : le plus petit numéro gagne entre les horaires éligibles actifs ; le programme le plus ancien départage les égalités. Sans horaire actif, le programme activé le plus prioritaire contenant l’entité fournit son défaut facultatif.
 - **Conditions** : toutes les conditions du programme doivent être satisfaites pour ses horaires. Une condition fausse n’est pas une commande d’arrêt générique ; les règles des défauts comptent encore.
 - **Redémarrage** : stabilisation de 30 s, puis réapplication facultative de l’action bornée ou du défaut en cours. Les fins manquées sont rattrapées, pas les actions ponctuelles passées.
-- **Temps** : construction en heure locale HA, comparaisons en UTC. Une plage passe au lendemain si sa fin est antérieure au début **et avant midi**. `24:00` est accepté en fin.
-- **Soleil** : le modèle accepte aube, lever, coucher, crépuscule, décalages et bornes. Le formulaire actuel expose lever et coucher avec décalages.
+- **Temps** : construction en heure locale HA, comparaisons en UTC. Un horaire passe au lendemain si sa fin est antérieure au début **et avant midi**. `24:00` est accepté en fin.
+- **Soleil** : le modèle accepte aube, lever, coucher, crépuscule, décalages et bornes. Le formulaire actuel expose lever et coucher avec décalages et des limites facultatives (au plus tôt / au plus tard), sous **Options avancées**.
 
 ## Actions des réglages
 
@@ -199,7 +203,7 @@ sont masqués. Les presets viennent des attributs de l’entité, sans modes de 
 inventés.
 
 Pour appeler un bouton qui déplace un volet vers son favori enregistré, choisir
-**Une autre entité** comme cible de l’action :
+**Une autre entité** (sous **Options avancées** de l’éditeur d’action) comme cible de l’action :
 
 ```json
 {"kind":"service","service":"button.press","target_entity_id":"button.example_favourite"}
@@ -233,10 +237,13 @@ n’affiche pas.
 - **Sélecteur indisponible ou état inconnu** : le dernier mode valide est gardé ; sans mode connu, le mode par
   défaut s’applique. Un programme sans horaires pour le mode actif applique « le reste du temps ».
 - **Option renommée** : si une seule option est renommée, les horaires la suivent dans tous les programmes (avec
-  un bouton pour défaire pendant une semaine). Sinon l’ancien mode reste « sans option », rien n’est effacé et
-  l’écran des horaires propose les nouvelles options (ou la suppression du mode).
-- **Écran des horaires** : un onglet par mode, ouvert sur le mode actif ; modifier un autre mode ne l’active jamais.
-  « Copier depuis un autre mode » recopie ses horaires.
+  un bouton pour défaire pendant une semaine). Sinon l’ancien mode reste, marqué « n’existe plus », rien n’est effacé et
+  l’écran des horaires propose les nouvelles options (ou la suppression du mode). L’avis de renommage
+  (boutons **Annuler** et **OK**) n’apparaît que dans l’écran des horaires.
+- **Écran des horaires** : une liste **Mode** en haut, ouverte sur le mode actif (marqué « Actif ») ; modifier un autre mode ne l’active jamais.
+  Sous **Options avancées**, « Reprendre les horaires d’un autre mode » recopie ses horaires, et
+  « Mêmes horaires que » fait suivre un autre mode : il utilise alors les horaires de ce mode, qui restent
+  partagés (modifier l’un change les deux), jusqu’à **Arrêter de suivre** (le mode garde une copie).
 - **Changer de mode** = changer l’entité sélecteur (tableau de bord, alarme, automatisation). L’interrupteur global
   **Suspension de tous les programmes** est une commande distincte et l’emporte sur le mode.
 
@@ -249,7 +256,7 @@ data:
   option: Absent
 ```
 
-Voir la [référence des modes](wiki/MODES.md) et les
+Voir les [exemples de modes](wiki/MODES_COOKBOOK.fr.md) et les
 [exemples d’actions natives](wiki/GENERIC_ACTIONS.md).
 
 ## Entités et services HA
@@ -260,15 +267,15 @@ un identifiant anglais généré sur une autre installation.
 
 | Entité | Comportement |
 |---|---|
-| Interrupteur de programme | Active ou suspend. Attributs : `program_id`, mode actif, plages en cours et prochaines actions. |
+| Interrupteur de programme | Active ou suspend. Attributs : `program_id`, `no_schedule_for_mode`, `current_slots`, `next_change`, `skip_next`, `skip_next_targets`, `next_actions` et, selon le cas, `paused_until` et `verification`. Il n’y a pas d’attribut du mode actif : le mode se lit sur l’entité sélecteur. |
 | Interrupteur global | Suspend les programmes et applique une fois les défauts éligibles. |
 
 | Action | Champs | Qui peut l’appeler |
 |---|---|---|
 | `weekly_planner.apply_now` | `program_id` (obligatoire) | Tout le monde ; administrateurs seulement si `admin_only` est actif |
 | `weekly_planner.skip_next` | `program_id` (obligatoire), `cancel` (facultatif, `false` par défaut) | Comme `apply_now` |
-| `weekly_planner.pause` | `program_id` (obligatoire), `days` (obligatoire, entier de 1 à 365) | Comme `apply_now` |
-| `weekly_planner.resume` | `program_id` (obligatoire) | Comme `apply_now` |
+| `weekly_planner.pause` | `program_id` (obligatoire), `days` et/ou `hours` (entiers, au moins un ; de 1 heure à 365 jours au total) | Comme `apply_now` |
+| `weekly_planner.resume` | `program_id` (obligatoire) ; annule seulement une pause temporisée (un programme arrêté avec son interrupteur reste arrêté) | Comme `apply_now` |
 | `weekly_planner.reload` | aucun | Administrateurs |
 
 `program_id` est l’attribut `program_id` de l’interrupteur du programme.
@@ -288,7 +295,7 @@ data:
 ```
 
 ```yaml
-# Mettre un programme en pause de 1 à 365 jours ; il reprend tout seul (même après un redémarrage)
+# Mettre un programme en pause de 1 heure à 365 jours (`days`, `hours` ou les deux) ; il reprend tout seul (même après un redémarrage)
 action: weekly_planner.pause
 data:
   program_id: YOUR_PROGRAM_ID
@@ -319,7 +326,7 @@ Les interrupteurs utilisent `switch.turn_on` et `switch.turn_off`. Planifier
 |---|---|---|
 | `admin_only` | `false` | Limite les modifications des programmes et réglages. Les interrupteurs restent des commandes séparées ; le mode se choisit sur l’entité sélecteur, pas dans Weekly Planner. |
 | `mode_selector` | aucun | Entité `input_select` ou `select` facultative dont l’état est le mode actif, puis un mode par défaut parmi ses options. Réservé aux administrateurs. |
-| `reapply_default` | `true` | Présent dans les options, mais la création initialise actuellement `reapply: true` sans le consommer. Régler ce choix dans chaque programme. |
+| `reapply_default` | `true` | Valeur de départ de **Réappliquer** pour tout nouveau programme (carte, WebSocket, programme d’un fichier YAML sans `reapply`). |
 | `notify_delay_min` | `30` | Notification d’entité indisponible, 1 à 1440 minutes. |
 | `debounce_min` | `2` | Délai de stabilité des conditions, 0 à 60 minutes. |
 
@@ -345,7 +352,8 @@ client tiers, [websocket.py](custom_components/weekly_planner/websocket.py) fait
 | Commandes | But |
 |---|---|
 | `weekly_planner/get`, `weekly_planner/subscribe` | État initial et mises à jour. |
-| `weekly_planner/program/save`, `program/delete`, `program/set_enabled` | Mutations de programme ; tous les suffixes sont sous `weekly_planner/`. |
+| `weekly_planner/program/save`, `program/delete`, `program/set_enabled`, `program/pause`, `program/mode_follow` | Mutations de programme ; tous les suffixes sont sous `weekly_planner/`. |
+| `weekly_planner/mode/set`, `mode/resolve`, `mode/undo_rename`, `mode/dismiss_rename` | Réponses sur les modes et avis de renommage. |
 | `weekly_planner/label/save`, `label/delete` | Réglages globaux. |
 | `weekly_planner/preview` | Résoudre les occurrences d’un programme (pour un mode) pour une date. |
 | `weekly_planner/journal` | Décisions enregistrées, jusqu’à 14 jours. |
@@ -376,7 +384,7 @@ labels:
 programs:
   - id: living
     name: Salon
-    entities: [{entity_id: climate.living, default_label: eco, label_overrides: {}}]
+    entities: [{entity_id: climate.living, default_label: comfort, label_overrides: {}}]
     modes:            # les horaires de chaque mode, rangés par nom de mode
       Maison: {mon: [...], tue: [...]}   # 7 listes de jours ; le premier mode est celui utilisé sans sélecteur
 ```
@@ -423,15 +431,15 @@ réinstallation est possible : les remettre en place rétablit les programmes.
 ## Limites et diagnostic
 
 - Le filtre Pièce vise les métadonnées du programme, pas les pièces HA.
-- Le modèle accepte des conditions par horaire et des bornes solaires, mais le formulaire n’a pas de constructeur de conditions par horaire ni d’éditeur de bornes solaires.
-- `reapply_default` est affiché, mais les nouveaux programmes démarrent encore avec réapplication activée.
+- Le modèle accepte des conditions par horaire, mais le formulaire n’a pas de constructeur de conditions par horaire (les conditions du programme se règlent dans **Général**).
+- Limites de validation : nom de programme 60 caractères, de réglage 30, de mode 40 ; 20 modes par programme, 50 horaires par jour, 100 appareils par programme, 10 conditions par horaire ; priorité de 1 à 100 ; décalage solaire de −240 à +240 minutes ; délai aléatoire de 0 à 240 minutes ; 100 états mis en évidence et un nom affiché de 60 caractères au plus par source de graphique.
 - L’historique et les changements manuels dépendent de Recorder/logbook ; l’attribution des modifications d’attributs seuls a des limites.
 
 Le graphique distingue historique absent, futur ou indisponible et absence
 d’action prévue. Un échec d’historique ne masque pas les prévisions. Une liste vide
 invite à vérifier les types, pièces et programmes filtrés. Si une action manque,
 vérifier sa cible, les fonctions supportées, les attributs et `allowed_services`.
-Utiliser les attributs de l’interrupteur, Repairs, notifications et journaux HA.
+Utiliser les attributs de l’interrupteur, Repairs, notifications et journaux HA. Réparations créées par l’intégration : `missing_entities`, `yaml_invalid`, `modes_now_global` et `mode_option_missing`. Les notifications persistantes signalent une entité indisponible dont l’action reste en attente, une action qui n’a pas pu être exécutée et un fichier de configuration illisible (programmes en pause, rien n’est écrasé).
 Les appels échoués ont des reprises bornées ; une valeur invalide est signalée
 sans répétition de la même valeur refusée.
 
@@ -456,6 +464,27 @@ local sur le port 8124, puis `scripts/dev_onboard.py` pour l’initialiser. Ce d
 affiche un jeton de développement : garder sa sortie et les données `dev/` hors de
 Git et des journaux publiés.
 
+
+### Agents de revue (facultatif)
+
+Le projet utilise des agents de revue partagés, gardés dans leur propre dépôt,
+[`movrack/AI`](https://github.com/movrack/AI) : `john-117` (chef d’orchestre), `nemesis` (avocat du diable des
+specs et des plans), `mamy` (testeur d’écrans novice), `ally` (accessibilité), `stryker` (mutation testing),
+`heimdall` (gardien de livraison), `parker` (captures d’écran), `iris` (CSS et cohérence visuelle) et `c3po` (traductions). Ils travaillent sur demande seulement, ne
+modifient aucun code de production et écrivent leurs rapports dans `reports/ai/<agent>/` (ignoré par Git). Pour
+les utiliser :
+
+```bash
+git clone https://github.com/movrack/AI.git ~/Dev/AI
+```
+
+Les fichiers d’agents utilisent des noms d’outils neutres (`read`, `search`, `execute`, `edit`,
+`mcp:<serveur>/<outil>`) : un simple lien symbolique dans le dossier d’agents de l’assistant ne suffit pas. Il
+faut traduire la ligne `tools` vers les noms de l’assistant (pour Claude Code : `Read`, `Grep`/`Glob`, `Bash`,
+`Edit`/`Write`, `mcp__<serveur>__<outil>`) et copier le fichier dans `~/.claude/agents/` (tous vos projets) ou
+`.claude/agents/` (ce projet seulement), ou les générer avec un script de synchronisation qui fait la traduction.
+Le README du dépôt `AI` décrit les deux méthodes (« Install »). `mamy`, `ally` et `parker` demandent le serveur
+MCP Chrome DevTools. Ne pas ajouter de copie de ces agents à ce dépôt : les modifier dans `movrack/AI`.
 
 Références : [spécification](docs/SPEC.md), [décisions](docs/DECISIONS.md),
 [inventaire des captures](docs/SCREEN_INVENTORY.md),
