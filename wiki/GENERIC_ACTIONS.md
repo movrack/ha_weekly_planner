@@ -76,6 +76,48 @@ This enables its triggers during the slot; it does not run the automation now.
 Priorities, conditions, global pause and reapply still follow the normal program
 rules. Vacation is an ordinary weekly mode, separate from the global pause switch.
 
+## Run a sequence with delays
+
+A slot carries one action for one device. To chain several steps with delays (for
+example at 07:39 power on an amplifier, then a minute later set the volume and play
+a track), keep the chain in a Home Assistant **script** and let the program start it.
+A script is the native object for an ordered list of actions: it supports `delay`,
+`wait_template`, `wait_for_trigger` and `repeat`.
+
+1. In Home Assistant, create the script, for example `script.wake_up_music`:
+
+   ```yaml
+   sequence:
+     - action: media_player.turn_on
+       target: { entity_id: media_player.example_amplifier }
+     - delay: "00:01:00"
+     - action: media_player.volume_set
+       target: { entity_id: media_player.example_amplifier }
+       data: { volume_level: 0.44 }
+     - action: music_assistant.play_media
+       target: { entity_id: media_player.example_amplifier }
+       data: { media_id: "Example playlist", media_type: playlist }
+   ```
+
+   A free-text step such as the track name stays in the script: the action editor
+   hides services that need raw text, but a script has no such limit.
+2. In the program, add the `script.*` entity as a device and allow `script.turn_on`
+   in its offered actions.
+3. Create a setting that calls `script.turn_on`, with no end time (a one-shot start).
+4. Add a slot at the start time, for example 07:39, on the days wanted.
+
+Instead of a script, an automation without a trigger works the same way: allow
+`automation.trigger` and the program runs its actions at the slot time. To wait on a
+state rather than a fixed time, use `wait_template` in the script (for example until a
+player is idle) instead of tuning a delay.
+
+Weekly Planner only starts the script. Once started, the sequence is Home Assistant's:
+it is not shown step by step on the card, it is not cancelled when the program is
+switched off or the mode changes, and the script's own `mode` option (`single`,
+`restart`, `queued`) decides what a second start does. Services in the `homeassistant`
+domain and a few others stay reserved to administrators; `script` and `automation`
+are not among them.
+
 ## Verification limits
 
 Automated checks cover metadata discovery, unknown domains, service restrictions,
