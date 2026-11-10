@@ -3539,7 +3539,10 @@ var H = class extends S {
 	}
 	render() {
 		if (!this.hass || !this.data) return x;
-		let e = this._lang, t = Dr(this.hass, this.data, this.entityIds, this.program), n = B(this.data, this.value), r = (e, t, n, r) => y`
+		let e = this._lang, t = [...Dr(this.hass, this.data, this.entityIds, this.program)].sort((t, n) => V(this.hass, t).localeCompare(V(this.hass, n), e, {
+			numeric: !0,
+			sensitivity: "base"
+		})), n = B(this.data, this.value), r = (e, t, n, r) => y`
       <button class="chip ${t ? "on" : ""}" role="radio" aria-checked=${t} ?disabled=${this.disabled} @click=${n}>
         ${r ? y`<i class="dot" style="background:${r}"></i>` : x}<span>${e}</span></button>`;
 		return y`
@@ -5483,6 +5486,10 @@ var ya, ba = 450, xa = 22, Sa = 8, Ca = 700, wa = /* @__PURE__ */ new Map(), Ta 
     .act:hover:not(:disabled) { background: var(--secondary-background-color); }
     .act.on { border: 2px solid var(--wp-primary-text); background: color-mix(in srgb, var(--wp-primary-text) 12%, transparent); }
     .act:disabled { opacity: 0.4; cursor: default; }
+    /* edit actions (erase, cut, copy): flat text buttons in a row, not pills, so they differ from the setting chips */
+    .strip > .acts { gap: 0; padding-bottom: 6px; border-bottom: 1px solid var(--divider-color); }
+    .strip > .acts .act { border: 0; border-radius: 8px; padding: 0 10px; color: var(--wp-primary-text); font-weight: 500; }
+    .strip > .acts .act.on { border: 0; }
     .act.go { background: var(--wp-primary-fill); border-color: var(--wp-primary-fill); color: #fff; }
     .copy-hint { flex-basis: 100%; font-size: 0.875rem; color: var(--secondary-text-color); }
     .copy { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
