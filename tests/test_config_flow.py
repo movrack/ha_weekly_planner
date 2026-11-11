@@ -156,3 +156,37 @@ def test_translations_cover_the_mode_fields() -> None:
         assert set(options["step"]["default_mode"]["data"]) == {"default_mode"}
         assert set(options["error"]) == {"invalid_mode_selector_domain", "circular_mode_selector",
                                          "invalid_default_mode", "unknown_default_mode"}
+
+
+# -- the "Resync the devices" step (issue #52): covered here too, the Bronze check runs this file only ------------------
+
+PLAN = [{"entity_id": "cover.s1", "send": True}]
+
+
+async def test_resync_step_lists_the_plan_then_sends_on_validation(hass: HomeAssistant, hass_storage) -> None:
+    entry = await _options_entry(hass, hass_storage)
+    engine = entry.runtime_data
+    flow = hass.config_entries.options
+    result = await flow.async_init(entry.entry_id)
+    assert result["type"] is FlowResultType.MENU
+    with patch.object(engine, "async_plan_resync", return_value=PLAN) as plan, \
+            patch.object(engine, "async_resync", return_value={"sent": ["cover.s1"], "skipped": []}) as send, \
+            patch("custom_components.weekly_planner.config_flow.resync_lines", return_value="cover.s1: close"):
+        result = await flow.async_configure(result["flow_id"], {"next_step_id": "resync"})
+        assert result["type"] is FlowResultType.FORM and result["step_id"] == "resync"
+        assert result["description_placeholders"] == {"plan": "cover.s1: close"}
+        send.assert_not_called()  # nothing is sent before the confirmation
+        result = await flow.async_configure(result["flow_id"], {})
+    plan.assert_called_once()
+    send.assert_called_once()
+    assert result["type"] is FlowResultType.ABORT and result["reason"] == "resync_done"
+    assert result["description_placeholders"] == {"count": "1"}
+
+
+async def test_resync_step_with_nothing_to_send_aborts(hass: HomeAssistant, hass_storage) -> None:
+    entry = await _options_entry(hass, hass_storage)
+    flow = hass.config_entries.options
+    result = await flow.async_init(entry.entry_id)
+    with patch.object(entry.runtime_data, "async_plan_resync", return_value=[{"entity_id": "cover.s1", "send": False}]):
+        result = await flow.async_configure(result["flow_id"], {"next_step_id": "resync"})
+    assert result["type"] is FlowResultType.ABORT and result["reason"] == "resync_nothing"
