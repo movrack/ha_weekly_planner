@@ -9457,6 +9457,8 @@ var ys = 8e3, Z = class extends S {
     }
     button.create:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
     button.hours:hover { background: var(--secondary-background-color); }
+    button.hours:disabled { opacity: 0.4; cursor: default; }
+    button.hours:disabled:hover { background: none; }
     wp-bar-editor { margin-top: 2px; }
     .toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }
     .weekbtn {
@@ -10621,8 +10623,10 @@ var ec = class extends S {
       display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 16px; padding: 0 8px; border-radius: 10px;
       background: var(--wp-primary-fill); color: #fff; font-size: 1rem; font-weight: 600; line-height: 24px;
     }
-    li.done .main { color: var(--wp-times-detail); }
-    li.current { background: color-mix(in srgb, var(--wp-primary-fill) 8%, transparent); border-radius: 8px; }
+    /* a finished row: lighter weight and a softer grey (still >= 4.5:1), and the word "done" says it, so colour is never the only cue */
+    li.done .main { color: color-mix(in srgb, var(--primary-text-color) 68%, var(--card-background-color, transparent)); }
+    li.done .time { font-weight: 400; }
+    li.current { background: color-mix(in srgb, var(--wp-primary-fill) 16%, transparent); border-radius: 8px; box-shadow: inset 4px 0 0 var(--wp-primary-fill); }
     .msg { margin: 0; padding: 12px 4px; display: flex; flex-direction: column; gap: 2px; color: var(--primary-text-color); }
     .msg span { font-size: 1rem; color: var(--wp-times-detail); }
     .action {

@@ -729,6 +729,8 @@ export class WeeklyPlannerCard extends LitElement {
     }
     button.create:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
     button.hours:hover { background: var(--secondary-background-color); }
+    button.hours:disabled { opacity: 0.4; cursor: default; }
+    button.hours:disabled:hover { background: none; }
     wp-bar-editor { margin-top: 2px; }
     .toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }
     .weekbtn {
