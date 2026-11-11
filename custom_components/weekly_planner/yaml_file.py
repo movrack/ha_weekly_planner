@@ -160,10 +160,14 @@ def _write_atomic(path: Path, data: bytes, known_hash: str | None) -> tuple[int,
     return _stat_key(path)
 
 
+# The C parser is about 8x faster; a Python build of PyYAML without libyaml falls back to the pure one.
+_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+
+
 def _parse(data: bytes) -> dict[str, Any]:
     """Parse and check the shape of the file; raises ``ValueError``/``TypeError`` with a readable reason."""
     try:
-        raw = yaml.safe_load(data.decode())
+        raw = yaml.load(data.decode(), Loader=_LOADER)  # noqa: S506 (a safe loader)
     except (yaml.YAMLError, UnicodeDecodeError) as err:
         raise ValueError(f"YAML syntax: {err}") from err
     if not isinstance(raw, dict):
@@ -319,7 +323,7 @@ class YamlSync:
 
     async def _async_validate(self, data: bytes) -> tuple[list[dict], list[dict], bool, dict | None]:
         """Same rules as ``label/save`` and ``program/save``; nothing is modified."""
-        raw = _parse(data)
+        raw = await self.hass.async_add_executor_job(_parse, data)  # pure: no Home Assistant state in the thread
         descriptions = await self._descriptions(self.hass)
         labels: dict[str, dict] = {}
         for item in raw["labels"]:
@@ -329,6 +333,7 @@ class YamlSync:
             if label["id"] in labels:
                 raise ValueError(f"duplicate label id {label['id']}")
             labels[label["id"]] = label
+            await asyncio.sleep(0)  # let the event loop breathe: the checks stay on the loop (they read hass)
         programs: list[dict] = []
         seen: set[str] = set()
         for item in raw["programs"]:
@@ -346,6 +351,7 @@ class YamlSync:
             program = keep_pause(existing, self._clean_slot_entities(existing, program), keep_enabled=False)
             programs.append(check_program(program, labels, self.hass, descriptions,
                                           self.engine.reapply_default))
+            await asyncio.sleep(0)
         mode = None
         if "mode_selector" in raw or "default_mode" in raw:  # a file without them leaves the settings alone
             selector = raw.get("mode_selector") or None

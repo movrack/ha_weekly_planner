@@ -17,7 +17,11 @@ def applies(slot: Mapping, entity_id: str) -> bool:
 
 def applicable_ids(slot: Mapping, entity_ids: Iterable[str]) -> tuple[str, ...]:
     """Devices of the program (in program order) the slot applies to."""
-    return tuple(eid for eid in entity_ids if applies(slot, eid))
+    targets = slot.get("entities")
+    if targets is None:
+        return tuple(entity_ids)
+    wanted = set(targets)  # one set per slot: constant-time lookup for each device
+    return tuple(eid for eid in entity_ids if eid in wanted)
 
 
 def subsets(day_slots: Iterable[Mapping], entity_ids: Iterable[str]) -> list[tuple[str, ...]]:

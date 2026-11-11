@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import lru_cache
 from hashlib import sha256
 import json
 from datetime import date, datetime, time, timedelta, tzinfo, UTC
@@ -46,6 +47,7 @@ class Occurrence:
         return self.ignored is None
 
 
+@lru_cache(maxsize=2048)  # pure; an invalid value raises and is never cached
 def parse_clock(value: str) -> tuple[int, int]:
     """'HH:MM' → (hours, minutes); '24:00' is allowed."""
     hours, minutes = (int(part) for part in value.split(":"))
