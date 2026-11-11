@@ -136,7 +136,8 @@ service `override` ni `resume`. Seul l'**affichage** du graphique montre les cha
 - Désactivation d'un programme pendant un horaire : l'action par défaut est envoyée (comme une fin d'horaire).
 - Activation / désactivation **pendant la stabilisation** : la configuration est enregistrée et publiée tout de suite
   (abonnés, switch HA), mais aucune action n'est envoyée aux appareils avant la fin de la stabilisation.
-- `apply_now` (§ 9) ne renvoie l'action qu'aux entités dont le segment en cours appartient à ce programme.
+- `apply_now` (§ 9) renvoie l'action en cours aux entités dont le segment en cours appartient à ce programme et, par exception
+  (resynchronisation, § 5.8), le dernier ponctuel de moins de 24 h.
 
 ### 5.6 Conditions et Vacances (D9)
 - Condition = `entité` (+ attribut facultatif) `=`, `≠`, `<`, `>` `valeur` ; toutes vraies (ET) ; niveaux programme et horaire.
@@ -176,6 +177,15 @@ service `override` ni `resume`. Seul l'**affichage** du graphique montre les cha
 - Entité `unavailable`/`unknown` : action en attente (sauf ponctuelle) ; au retour de l'entité, l'action voulue est
   **recalculée** et envoyée. Exception : une cible explicite (`target_entity_id`, § 6) n'est en attente que si elle est
   `unavailable` ; `unknown` reste commandable (un bouton jamais pressé n'a pas d'état). Notification persistante si l'entité reste indisponible plus de X min (30 par défaut).
+- **Resynchronisation (exception, décision du 2026-11-11).** Un ponctuel n'est jamais mis en attente : après une panne, il est perdu.
+  Pour le rattraper, un administrateur lance **« Resynchroniser les appareils »** depuis la configuration de l'intégration
+  (globale, tous les programmes ; jamais depuis la carte), ou un service appelle `apply_now`. L'écran affiche d'abord la liste de ce qui
+  serait envoyé et n'envoie rien avant validation. État attendu d'un appareil : pour un horaire avec fin, l'horaire en cours ;
+  pour un ponctuel sans fin, le dernier commencé il y a moins de 24 h, sauf intervention manuelle visible dans l'historique HA
+  depuis son début (changement par une personne, passages par `unavailable` ignorés ; sans intervention visible, on applique).
+  La commande est envoyée même si l'appareil est déjà dans l'état attendu (trace dans le journal). Programmes en pause ou éteints
+  ignorés ; mode actif avec repli sur le mode par défaut ; une commande par appareil, espacées, sans doublon dans un lot ;
+  le résultat liste ce qui est envoyé et ignoré. Aucun horaire plus ancien n'est rejoué.
 - **Erreur d'appel** (hors `ServiceValidationError`) : reprises après 1, 2, 5, 10 puis 15 min tant que le segment est
   le même, puis notification persistante. `ServiceValidationError` (l'appareil refuse l'action) : **pas de reprise**,
   notification tout de suite.
@@ -208,7 +218,7 @@ service `override` ni `resume`. Seul l'**affichage** du graphique montre les cha
   Le statut expose l’état courant et la correspondance. Les sources Weekly Planner sont refusées pour éviter les boucles.
 - Sous contrôle externe, le sélecteur manuel ne peut pas forcer un autre mode. Repasser en manuel conserve le dernier mode actif.
 - Au moins un mode ; le mode actif ne peut pas être supprimé. Les associations vers un mode supprimé doivent être retirées.
-- L’activation reste un état d’exécution, hors `revision`. Les changements respectent `reapply` et ne rejouent pas les actions ponctuelles passées.
+- L’activation reste un état d’exécution, hors `revision`. Les changements de mode respectent `reapply` et ne rejouent pas les actions ponctuelles passées (la resynchronisation explicite du § 5.8 est une autre action).
 - Les horaires d’un mode inactif sont modifiables sans l’activer. Une édition en cours reste attachée à son mode même si la source change ;
   un mode supprimé à distance ne peut pas recevoir une écriture. Les horaires enregistrés sont conservés lors des modifications des réglages.
 - **Vacances est un mode ordinaire**, sans traitement de suspension. L’interrupteur global (`switch.weekly_planner_vacation`) est présenté comme « Suspension de tous les programmes » ;
@@ -367,7 +377,8 @@ Planner » (`integration_type: service`) ; un `select` par programme nommé « M
 
 **Services** (`weekly_planner.*`) :
 - `apply_now` (programme) : envoie l'action en cours aux entités du programme dont le segment en cours appartient à ce
-  programme, quel que soit `reapply` ;
+  programme, quel que soit `reapply`, et le dernier ponctuel de moins de 24 h sauf intervention manuelle visible
+  (§ 5.8) ; renvoie la liste des entités envoyées et ignorées ;
 - `skip_next` (programme) : la prochaine transition du programme n'est pas appliquée (persisté, une seule fois, annulable) ;
 - `reload` (admin).
 
