@@ -104,6 +104,9 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
 - Reference screen: 360 × 780 px CSS (a common phone), then ≥ 1400 px; light and dark themes.
 - Keep text to the minimum; a non-technical person must understand every screen. No duplicate or
   ambiguous buttons; never more than one "Save / Cancel" pair visible at a time.
+- General owner rule (2026-11-12): every new text is the **shortest wording that stays clear** to a
+  novice, so the screen is not loaded at 360 px; a clarification must be visible, not hidden in a tooltip.
+  Ask `c3po` for the wording of a new text (FR and EN) when it is not obvious.
 - The card must always stay up to date by itself (`weekly_planner/subscribe`); never ask the user to
   reload. A save is rebuilt on fresh data (one retry on a revision conflict) and must not fail because of
   stale data.
