@@ -26,6 +26,14 @@ export class WpTimesDay extends LitElement {
     this.dispatchEvent(new CustomEvent("open-day", { bubbles: true, composed: true }));
   }
 
+  private _retry(): void {
+    this.dispatchEvent(new CustomEvent("retry", { bubbles: true, composed: true }));
+  }
+
+  private _button(text: string, icon: string, click: () => void) {
+    return html`<button class="action" @click=${click}><ha-icon icon=${icon}></ha-icon>${text}</button>`;
+  }
+
   private _primary(r: TimesRow): string {
     return r.carry ? t(this.lang, "times_since_yesterday", { time: fmtClock(this.lang, r.startMin) }) : fmtClock(this.lang, r.startMin);
   }
@@ -59,17 +67,22 @@ export class WpTimesDay extends LitElement {
 
   render() {
     if (this.state === "loading") return html`<p class="msg" role="status">${t(this.lang, "times_loading")}</p>`;
-    if (this.state === "failed") return html`<p class="msg" role="status">${t(this.lang, "times_failed")}</p>`;
+    if (this.state === "failed") {
+      return html`<p class="msg" role="status">${t(this.lang, "times_failed")}</p>
+        ${this._button(t(this.lang, "times_retry"), "mdi:refresh", () => this._retry())}`;
+    }
     if (!this.rows.length) {
       return html`<p class="msg" role="status"><strong>${t(this.lang, "times_none")}</strong>
-        ${this.rest ? html`<span>${t(this.lang, "times_rest", { name: this.rest })}</span>` : nothing}</p>`;
+        ${this.rest ? html`<span>${t(this.lang, "times_rest", { name: this.rest })}</span>` : nothing}</p>
+        ${this.editable ? this._button(t(this.lang, "times_add"), "mdi:plus", () => this._open()) : nothing}`;
     }
-    return html`<ul aria-label=${t(this.lang, "times_list_label")}>${this.rows.map((r) => this._row(r))}</ul>`;
+    return html`<ul aria-label=${t(this.lang, "times_list_label")}>${this.rows.map((r) => this._row(r))}</ul>
+      ${this.editable ? this._button(t(this.lang, "times_edit"), "mdi:calendar-edit", () => this._open()) : nothing}`;
   }
 
   static styles = css`
     ${tokenStyles}
-    :host { display: block; }
+    :host { display: block; --wp-times-detail: color-mix(in srgb, var(--primary-text-color) 75%, var(--card-background-color, transparent)); }
     ul { list-style: none; margin: 0; padding: 0; }
     li + li { border-top: 1px solid var(--divider-color, rgba(127, 127, 127, 0.2)); }
     .row {
@@ -84,14 +97,20 @@ export class WpTimesDay extends LitElement {
     .main { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 10px; line-height: 24px; font-size: 1rem; }
     .time { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
     .label { min-width: 0; overflow-wrap: anywhere; }
-    .more { display: flex; flex-wrap: wrap; column-gap: 12px; font-size: 0.875rem; line-height: 20px; color: var(--secondary-text-color); overflow-wrap: anywhere; }
+    .more { display: flex; flex-wrap: wrap; column-gap: 12px; font-size: 1rem; line-height: 24px; color: var(--wp-times-detail); overflow-wrap: anywhere; }
     .sun { display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 16px; }
     .now {
       display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 16px; padding: 0 8px; border-radius: 10px;
-      background: var(--wp-primary-fill); color: #fff; font-size: 0.75rem; font-weight: 600; line-height: 20px;
+      background: var(--wp-primary-fill); color: #fff; font-size: 1rem; font-weight: 600; line-height: 24px;
     }
     li.current { background: color-mix(in srgb, var(--wp-primary-fill) 8%, transparent); border-radius: 8px; }
     .msg { margin: 0; padding: 12px 4px; display: flex; flex-direction: column; gap: 2px; color: var(--primary-text-color); }
-    .msg span { font-size: 0.875rem; color: var(--secondary-text-color); }
+    .msg span { font-size: 1rem; color: var(--wp-times-detail); }
+    .action {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px; box-sizing: border-box; max-width: 100%; min-height: 48px; margin: 8px 0 0;
+      padding: 8px 16px; border: 1px solid var(--wp-field-border); border-radius: 8px; background: none; color: var(--wp-primary-text);
+      font: inherit; font-weight: 600; text-align: center; overflow-wrap: anywhere; cursor: pointer; --mdc-icon-size: 20px;
+    }
+    .action:hover { background: var(--secondary-background-color); }
   `;
 }

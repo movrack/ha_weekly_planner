@@ -23,6 +23,8 @@ export interface BarSpan {
   ignored?: string | null;
   /** Slot this span comes from (spill: the part of the previous day's slot that crosses midnight). */
   slotId?: string;
+  /** Setting (label id) of the span. */
+  labelId?: string;
   spill?: boolean;
   /** A one-shot (no end): drawn as a small marker. */
   marker?: boolean;

@@ -7,7 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [Unreleased]
 
 ### Added
-- New card layout `schedule_view: times` (“Daily times”): today as a plain list, one row per time with its setting, until when and a “Now” mark; a row opens today in the schedule window when editing is allowed (#51).
+- New card layout `schedule_view: times` (“Daily times”): today as a plain list, one row per time with its setting, until when and a “Now” mark; a row opens today in the schedule window when editing is allowed (#51). After the review by the novice tester: neighbouring stretches of the same setting are one row; sun rules in words (“30 min before sunset”, “at sunset”); “varies, a few minutes apart”; every text at least 16 px with a darker secondary grey; an “Edit the day” button under the list; an empty day says “Nothing planned today” with an “Add a schedule” button; a failure says what to do and offers “Try again”.
 
 ## [0.28.0] - 2026-11-09
 

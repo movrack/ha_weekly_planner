@@ -63,8 +63,12 @@ describe("daily times rows", () => {
   it("gives the resolved time and the rule of a sun time, never a range", () => {
     const rows = timesRows([span(405, 480, { startSun: "up", startSpec: { sun: "sunrise", offset: -15 }, sun: true })], ctx);
     expect(rows[0]).toMatchObject({ startMin: 405, sun: "up", rule: { sun: "sunrise", offset: -15 }, random: false });
-    expect(sunRuleText("en", rows[0].rule!)).toBe("Sunrise − 15 min");
-    expect(sunRuleText("en", { sun: "sunset" })).toBe("Sunset");
+    expect(sunRuleText("en", rows[0].rule!)).toBe("15 min before sunrise");
+    expect(sunRuleText("en", { sun: "sunset", offset: 30 })).toBe("30 min after sunset");
+    expect(sunRuleText("fr", { sun: "sunset", offset: -30 })).toBe("30 min avant le coucher du soleil");
+    expect(sunRuleText("fr", { sun: "sunrise", offset: 15 })).toBe("15 min après le lever du soleil");
+    expect(sunRuleText("fr", { sun: "sunset" })).toBe("au coucher du soleil");
+    expect(sunRuleText("en", { sun: "sunset" })).toBe("at sunset");
     expect(sunRuleText("en", { time: "07:00" })).toBe("");
   });
 
@@ -127,5 +131,40 @@ describe("daily times rows", () => {
   it("a one-shot under a winner is hidden too", () => {
     const shot = span(100, 110, { slotId: "shot", marker: true });
     expect(ids(timesRows([shot, span(60, 200, { slotId: "win" })], ctx))).toEqual(["win"]);
+  });
+});
+
+describe("daily times: neighbours of the same setting", () => {
+  const sp = (start: number, end: number, labelId: string, extra: Partial<BarSpan> = {}) => span(start, end, { labelId, label: "Turn on", ...extra });
+
+  it("merges 17:00-22:30 then 22:30-24:00 of the same setting into one row", () => {
+    const rows = timesRows([sp(1020, 1350, "on", { startMs: iso(17), endMs: iso(22, 30) }), sp(1350, 1440, "on", { startMs: iso(22, 30), endMs: iso(24) })], ctx);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ startMin: 1020, until: { day: "today", min: 1440 } });
+  });
+
+  it("merges a chain of three and keeps 'now' from any part", () => {
+    const rows = timesRows([sp(60, 120, "on"), sp(120, 180, "on"), sp(180, 240, "on")], { tz: "UTC", nowMin: 150 });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ startMin: 60, until: { day: "today", min: 240 }, now: true });
+  });
+
+  it("does not merge another setting, even with the same name", () => {
+    expect(timesRows([sp(60, 120, "a"), sp(120, 180, "b")], ctx)).toHaveLength(2);
+  });
+
+  it("does not merge when there is a gap, or when the id is unknown", () => {
+    expect(timesRows([sp(60, 120, "a"), sp(121, 180, "a")], ctx)).toHaveLength(2);
+    expect(timesRows([span(60, 120), span(120, 180)], ctx)).toHaveLength(2);
+  });
+
+  it("does not merge a one-shot, and uses real instants when known", () => {
+    expect(timesRows([sp(60, 70, "a", { marker: true }), sp(70, 120, "a")], ctx)).toHaveLength(2);
+    // a carried-over row keeps "since yesterday" when the same setting goes on
+    const carried = timesRows([sp(0, 120, "a", { spill: true, startMs: iso(0, 0, 10) - 3_600_000, endMs: iso(2) }), sp(120, 180, "a", { startMs: iso(2), endMs: iso(3) })], ctx);
+    expect(carried).toHaveLength(1);
+    expect(carried[0]).toMatchObject({ carry: "from_yesterday", until: { day: "today", min: 180 } });
+    // same minutes but the instants differ (25-hour day): not one stretch
+    expect(timesRows([sp(150, 200, "a", { startMs: iso(1, 30), endMs: iso(3, 20) }), sp(200, 260, "a", { startMs: iso(4), endMs: iso(5) })], ctx)).toHaveLength(2);
   });
 });

@@ -40,21 +40,21 @@ describe("wp-times-day", () => {
     ] }).render());
     expect(html).toContain("since yesterday 10 pm");
     expect(html).toContain("until tomorrow 6 am");
-    expect(html).toContain("Sunrise − 15 min");
-    expect(html).toContain("random time");
+    expect(html).toContain("15 min before sunrise");
+    expect(html).toContain("varies, a few minutes apart");
   });
 
   it("an empty day says so and gives the rest-of-time setting, only when ready", () => {
     const ready = flat(comp({ rows: [], state: "ready", rest: "Eco" }).render());
-    expect(ready).toContain("No times today");
+    expect(ready).toContain("Nothing planned today");
     expect(ready).toContain("The rest of the time: Eco");
     for (const state of ["loading", "failed"] as const) {
       const html = flat(comp({ rows: [], state, rest: "Eco" }).render());
-      expect(html).not.toContain("No times today");
+      expect(html).not.toContain("Nothing planned today");
       expect(html).not.toContain("The rest of the time");
     }
     expect(flat(comp({ state: "loading" }).render())).toContain("Loading");
-    expect(flat(comp({ state: "failed" }).render())).toContain("could not be loaded");
+    expect(flat(comp({ state: "failed" }).render())).toContain("Cannot show the times right now");
   });
 
   it("emits open-day on a tap, and nothing when read-only", () => {
@@ -70,13 +70,52 @@ describe("wp-times-day", () => {
   });
 });
 
+describe("wp-times-day: buttons and sizes", () => {
+  it("shows 'Edit the day' under the list only when editing is allowed, and opens like a row", () => {
+    expect(flat(comp({ rows: [row()], editable: true }).render())).toContain("Edit the day");
+    expect(flat(comp({ rows: [row()], editable: false }).render())).not.toContain("Edit the day");
+    const on = vi.fn();
+    const c = comp({ rows: [row()], editable: true });
+    c.dispatchEvent = on;
+    find(c.render(), "click", 'class="action"').fn();
+    expect(on.mock.calls[0][0].type).toBe("open-day");
+  });
+
+  it("an empty day says what is planned for the rest and offers 'Add a schedule' when editable", () => {
+    const html = flat(comp({ rows: [], state: "ready", rest: "Eco", editable: true }).render());
+    expect(html).toContain("Add a schedule");
+    expect(flat(comp({ rows: [], state: "ready", rest: "Eco", editable: false }).render())).not.toContain("Add a schedule");
+    expect(flat(comp({ rows: [], state: "loading", editable: true }).render())).not.toContain("Add a schedule");
+  });
+
+  it("a failure offers 'Try again', which asks the card to reload; loading has no button", () => {
+    const html = flat(comp({ state: "failed" }).render());
+    expect(html).toContain("Try again");
+    const on = vi.fn();
+    const c = comp({ state: "failed" });
+    c.dispatchEvent = on;
+    find(c.render(), "click", 'class="action"').fn();
+    expect(on.mock.calls[0][0].type).toBe("retry");
+    expect(flat(comp({ state: "loading" }).render())).not.toContain("<button");
+  });
+
+  it("uses the same words for the row and the button, and every text is at least 16 px", () => {
+    expect(strings("fr").times_row_open).toContain(strings("fr").edit_bar);
+    expect(strings("en").times_row_open).toContain(strings("en").edit_bar);
+    expect(strings("fr").times_edit).toBe(strings("fr").edit_bar);
+    const css = String((WpTimesDay as any).styles?.cssText ?? (WpTimesDay as any).styles);
+    expect(css).not.toMatch(/font-size:\s*0\.(75|8\d*)rem/);
+    expect(css).not.toContain("secondary-text-color");
+  });
+});
+
 describe("times: config, editor and texts", () => {
   it("accepts schedule_view times", () => {
     expect(normalizeConfig({ type: "x", schedule_view: "times" }).schedule_view).toBe("times");
   });
   it("has the same keys in English and French", () => {
     for (const k of ["ce_times", "times_none", "times_rest", "times_loading", "times_failed", "times_until", "times_until_tomorrow",
-      "times_since_yesterday", "times_random", "times_now", "times_list_label", "times_row_open"]) {
+      "times_since_yesterday", "times_retry", "times_edit", "times_add", "sun_rule_before", "sun_rule_after", "sun_np_sunset", "sun_at_sunset", "times_random", "times_now", "times_list_label", "times_row_open"]) {
       expect((strings("en") as any)[k]).toBeTruthy();
       expect((strings("fr") as any)[k]).toBeTruthy();
     }
@@ -146,6 +185,17 @@ describe("the card with schedule_view times", () => {
     const editable = (cc: any) => cc._todayBlock("switch.a", cc._data.programs[0], () => {}).values[3];
     expect(editable(c)).toBe(false);
     expect(editable(card([program("p", ["switch.a"])]))).toBe(true);
+  });
+
+  it("a retry lifts the wait, goes back to loading and reloads once", () => {
+    const c = card([program("p", ["switch.a"])], {}, "failed");
+    c._previewRetryAt = Date.now() + 5000;
+    c._loadPreviews = vi.fn();
+    c.requestUpdate = vi.fn();
+    find(c._bySchedule(c._data.programs), "retry", "wp-times-day").fn();
+    expect(c._previewRetryAt).toBe(0);
+    expect(c._previewState(c._data.programs[0], "switch.a")).toBe("loading");
+    expect(c._loadPreviews).toHaveBeenCalledTimes(1);
   });
 
   it("never says 'no times' while the preview is loading, and tells a failure apart", () => {

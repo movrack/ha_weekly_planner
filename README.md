@@ -112,7 +112,7 @@ filter:
 | `filter.area` | Exact match against the program’s `area`, assigned in General settings. The editor offers existing program areas and retains missing selections. Device rooms are not inferred. |
 | `filter.programs` | Optional list of program IDs or names (see below), intersected with type/area filters. Missing means all programs, including future ones; `[]` means none. |
 | `title` | Optional card title. |
-| `schedule_view` | `bars` (default), `list`, `radial` (24-hour dial), `radial_12h` (concentric 12-hour dials), or `times` (**Daily times**: today as a plain list, one row per time with its setting, until when, and a “Now” mark; tapping a row opens today in the schedule window). All work with single-program and filtered cards. |
+| `schedule_view` | `bars` (default), `list`, `radial` (24-hour dial), `radial_12h` (concentric 12-hour dials), or `times` (**Daily times**: today as a plain list, one row per stretch with its setting, until when, and a “Now” mark; a “Edit the day” button, or a tap on a row, opens today in the schedule window). All work with single-program and filtered cards. |
 | `show_chart` | Boolean, default `true`. On: a **Today’s chart** button under each device on the card, and the chart in the schedule window. Off: no button and no chart anywhere on this card. In the editor: “Chart button under each device”. |
 | `chart_collapsed` | Boolean, default `true`: the chart under each device starts closed (`false`: starts open). Only matters when `show_chart` is on. In the editor: the switch “Chart open by default” (the inverse). A choice made with the chart button is remembered per browser, per card and per device, and wins afterwards. |
 

@@ -3,7 +3,7 @@
 
 import type { BarSpan } from "./components/day-bar";
 import { DAY, localMinutes, nominal } from "./time";
-import { strings } from "./i18n";
+import { t } from "./i18n";
 import type { TimeSpec } from "./types";
 
 export interface TimesContext {
@@ -21,6 +21,10 @@ export interface TimesRow {
   /** Minutes of the start (of the previous day for a carried-over row). */
   startMin: number;
   startMs?: number;
+  /** Real instant of the end (ms), when known: used to tell that two spans touch. */
+  endMs?: number | null;
+  /** The setting (label id) the span applies; two neighbours merge only when it is the same one. */
+  labelId?: string;
   color: string;
   label: string;
   slotId?: string;
@@ -85,7 +89,7 @@ export function timesRows(spans: readonly BarSpan[], ctx: TimesContext): TimesRo
     items.push({
       span: s,
       row: {
-        key, startMin, startMs: s.startMs, color: s.color, label: s.label, slotId: s.slotId, carry, until,
+        key, startMin, startMs: s.startMs, endMs: s.endMs, labelId: s.labelId, color: s.color, label: s.label, slotId: s.slotId, carry, until,
         oneShot: Boolean(s.marker), sun: carry ? null : s.startSun ?? null,
         rule: !carry && s.startSun && spec && "sun" in spec ? spec : null,
         random: Boolean(spec?.random_minutes), now: false,
@@ -98,13 +102,34 @@ export function timesRows(spans: readonly BarSpan[], ctx: TimesContext): TimesRo
     ? a.row.startMs - b.row.startMs : dayMin(a.row) - dayMin(b.row)));
   const current = items.filter((x) => isNow(x.span, ctx)).pop();
   if (current) current.row.now = true;
-  return items.map((x) => x.row);
+  return mergeNeighbours(items.map((x) => x.row));
 }
 
-/** "Sunrise − 15 min" / "Sunset + 30 min": the rule of a sun-based start. */
+/** Whether `b` is the same setting as `a`, starting exactly where `a` ends (same day): one stretch for the reader. */
+function continues(a: TimesRow, b: TimesRow): boolean {
+  if (b.carry || a.oneShot || b.oneShot || !a.until || a.until.day !== "today" || a.until.min === null) return false;
+  if (a.labelId === undefined || a.labelId !== b.labelId) return false;
+  if (a.endMs != null && b.startMs !== undefined) return a.endMs === b.startMs;
+  return a.until.min === b.startMin;
+}
+
+/** Consecutive rows of the same setting that touch become one row (start of the first, end of the last). */
+function mergeNeighbours(rows: TimesRow[]): TimesRow[] {
+  const out: TimesRow[] = [];
+  for (const r of rows) {
+    const last = out[out.length - 1];
+    if (last && continues(last, r)) out[out.length - 1] = { ...last, until: r.until, endMs: r.endMs, now: last.now || r.now };
+    else out.push(r);
+  }
+  return out;
+}
+
+/** The rule of a sun-based start in words: "30 min before sunset", "15 min after sunrise", "at sunset". */
 export function sunRuleText(lang: string, spec: TimeSpec): string {
   if (!("sun" in spec)) return "";
   const offset = spec.offset ?? 0;
-  const name = strings(lang)[`sun_${spec.sun}` as "sun_sunset"] ?? spec.sun;
-  return offset ? `${name} ${offset > 0 ? "+" : "−"} ${Math.abs(offset)} min` : name;
+  const ev = (["dawn", "sunrise", "sunset", "dusk"] as const).includes(spec.sun) ? spec.sun : "sunset";
+  if (!offset) return t(lang, `sun_at_${ev}` as "sun_at_sunset");
+  const sun = t(lang, `sun_np_${ev}` as "sun_np_sunset");
+  return t(lang, offset < 0 ? "sun_rule_before" : "sun_rule_after", { min: String(Math.abs(offset)), sun });
 }

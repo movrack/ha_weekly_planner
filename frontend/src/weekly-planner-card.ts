@@ -209,6 +209,14 @@ export class WeeklyPlannerCard extends LitElement {
     }
   }
 
+  /** "Try again" of a failed preview: lifts the wait and runs the same loading as any other reload. */
+  private _retryPreviews(): void {
+    this._previewRetryAt = 0;
+    this._failedPreviewKey = ""; // back to "loading" until the answer
+    this.requestUpdate();
+    void this._loadPreviews();
+  }
+
   /* ---- blocks ---- */
 
   private _spanCache = new Map<string, BarSpan[]>();
@@ -239,7 +247,7 @@ export class WeeklyPlannerCard extends LitElement {
       const of = (slot: Slot) => appliedAction(this.hass, program, entityId, labelOf(data, slot.label), slot);
       const mk = (slot: Slot, start: number, end: number, extra: Partial<BarSpan> = {}): BarSpan => {
         const label = labelOf(data, slot.label)!;
-        return { start, end, color: label.color, label: labelName(this.hass, label), slotId: slot.id, startSun: sunDir(slot.start),
+        return { start, end, color: label.color, label: labelName(this.hass, label), labelId: label.id, slotId: slot.id, startSun: sunDir(slot.start),
           endSun: slot.end ? sunDir(slot.end) : null, startSpec: slot.start, endSpec: slot.end ?? null, marker: !slot.end, ...extra };
       };
       const date = localDateIso(at, this._tz);
@@ -474,7 +482,7 @@ export class WeeklyPlannerCard extends LitElement {
     const rest = labelOf(this._data!, program.entities.find((e) => e.entity_id === entityId)?.default_label);
     return html`<wp-times-day .rows=${rows} state=${state} .rest=${rest ? labelName(this.hass, rest) : t(this._lang, "rest_none")}
       ?editable=${editable} lang=${this._lang} device-name=${this._deviceLabel(program, entityId)}
-      @open-day=${open}></wp-times-day>`;
+      @open-day=${open} @retry=${() => this._retryPreviews()}></wp-times-day>`;
   }
 
   private _line(entityId: string, programs: Program[], opts: { name: string | null; icon?: string; button: Scope | null; open: Scope }) {
