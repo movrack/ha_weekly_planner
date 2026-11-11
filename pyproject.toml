@@ -49,7 +49,7 @@ output = "coverage.xml"
 directory = "htmlcov"
 
 [tool.mutmut]
-paths_to_mutate = [
+source_paths = [
   "custom_components/weekly_planner/timeline.py",
   "custom_components/weekly_planner/resolver.py",
   "custom_components/weekly_planner/validation.py",
@@ -63,7 +63,6 @@ pytest_add_cli_args_test_selection = [
   "tests/test_action_targets.py",
   "tests/test_actions.py",
   "tests/test_defaults_and_repairs.py",
-  "tests/test_mode_sources.py",
   "tests/test_validation.py",
 ]
 also_copy = ["custom_components/", "tests/", "pyproject.toml"]
