@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import voluptuous as vol
 
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import config_validation as cv
 
@@ -40,9 +40,9 @@ async def _is_admin(hass: HomeAssistant, call: ServiceCall) -> bool:
 
 
 def async_register(hass: HomeAssistant) -> None:
-    async def apply_now(call: ServiceCall) -> None:
+    async def apply_now(call: ServiceCall) -> dict:
         await _check_edit(hass, call)
-        await _engine(hass).async_apply_now(call.data["program_id"])
+        return await _engine(hass).async_apply_now(call.data["program_id"])
 
     async def skip_next(call: ServiceCall) -> None:
         await _check_edit(hass, call)
@@ -63,7 +63,8 @@ def async_register(hass: HomeAssistant) -> None:
         if entries:
             await hass.config_entries.async_reload(entries[0].entry_id)
 
-    hass.services.async_register(DOMAIN, "apply_now", apply_now, schema=PROGRAM)
+    hass.services.async_register(DOMAIN, "apply_now", apply_now, schema=PROGRAM,
+                                 supports_response=SupportsResponse.OPTIONAL)
     hass.services.async_register(DOMAIN, "skip_next", skip_next, schema=PROGRAM)
     hass.services.async_register(DOMAIN, "pause", pause, schema=PAUSE)
     hass.services.async_register(DOMAIN, "resume", resume, schema=RESUME)

@@ -40,6 +40,7 @@ from .const import (
     MODE_NAME_MAX,
     MODE_SELECTOR_DOMAINS,
 )
+from .messages import resync_lines
 from .validation import check_mode_config
 
 
@@ -73,8 +74,22 @@ class WeeklyPlannerOptionsFlow(OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Manage the options."""
-        return await self.async_step_settings(user_input)
+        """Menu: the settings, or the resynchronisation of the devices (administrators: the options flow is admin-only)."""
+        return self.async_show_menu(step_id="init", menu_options=["settings", "resync"])
+
+    async def async_step_resync(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """List what would be sent to the devices; nothing is sent before the confirmation (issue #52)."""
+        if user_input is not None:
+            result = await self._engine.async_resync()
+            return self.async_abort(reason="resync_done", description_placeholders={"count": str(len(result["sent"]))})
+        plan = await self._engine.async_plan_resync()
+        if not any(item["send"] for item in plan):
+            return self.async_abort(reason="resync_nothing")
+        lines = resync_lines(self.hass, plan, self._engine.tz)
+        return self.async_show_form(
+            step_id="resync", data_schema=vol.Schema({}), description_placeholders={"plan": lines})
 
     @property
     def _engine(self) -> Any:
@@ -128,7 +143,7 @@ class WeeklyPlannerOptionsFlow(OptionsFlow):
                 selector_key: EntitySelector(EntitySelectorConfig(domain=list(MODE_SELECTOR_DOMAINS))),
             }
         )
-        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)
+        return self.async_show_form(step_id="settings", data_schema=schema, errors=errors)
 
     async def _save_mode(self, selector: str | None, default_mode: str | None) -> None:
         """Save the global mode now: changed options reload the entry, which reads the store again."""

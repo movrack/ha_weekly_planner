@@ -291,7 +291,7 @@ do not assume a generated English entity ID on another installation.
 
 | Action | Fields | Who can call it |
 |---|---|---|
-| `weekly_planner.apply_now` | `program_id` (required) | Anyone; administrators only if `admin_only` is on |
+| `weekly_planner.apply_now` | `program_id` (required); returns `sent` and `skipped` (with the reason); also resends the last one-shot of less than 24 h unless a person changed the device since | Anyone; administrators only if `admin_only` is on |
 | `weekly_planner.skip_next` | `program_id` (required), `cancel` (optional, default `false`) | Same as `apply_now` |
 | `weekly_planner.pause` | `program_id` (required), `days` and/or `hours` (whole numbers, at least one; 1 hour to 365 days in total) | Same as `apply_now` |
 | `weekly_planner.resume` | `program_id` (required); cancels a timed pause only (a program switched off with its switch stays off) | Same as `apply_now` |

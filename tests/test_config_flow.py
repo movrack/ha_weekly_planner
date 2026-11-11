@@ -40,6 +40,13 @@ async def _options_entry(hass: HomeAssistant, hass_storage):
     return entry
 
 
+async def _open_settings(flow, entry):
+    """The options flow opens on a menu: choose the settings."""
+    result = await flow.async_init(entry.entry_id)
+    assert result["type"] is FlowResultType.MENU and result["menu_options"] == ["settings", "resync"]
+    return await flow.async_configure(result["flow_id"], {"next_step_id": "settings"})
+
+
 BASE = {"admin_only": True, "reapply_default": True, "notify_delay_min": 30, "debounce_min": 2}
 
 
@@ -47,8 +54,8 @@ async def test_options_form_is_the_settings(hass: HomeAssistant, hass_storage) -
     """Without selector the flow ends at once and keeps a single mode."""
     entry = await _options_entry(hass, hass_storage)
     flow = hass.config_entries.options
-    result = await flow.async_init(entry.entry_id)
-    assert result["type"] is FlowResultType.FORM and result["step_id"] == "init"
+    result = await _open_settings(flow, entry)
+    assert result["type"] is FlowResultType.FORM and result["step_id"] == "settings"
     result = await flow.async_configure(result["flow_id"], dict(BASE))
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options["admin_only"] is True
@@ -61,7 +68,7 @@ async def test_options_choose_selector_and_default_mode(hass: HomeAssistant, has
     entry = await _options_entry(hass, hass_storage)
     hass.states.async_set("input_select.mode", "Home", {"options": ["Home", "Away"]})
     flow = hass.config_entries.options
-    result = await flow.async_init(entry.entry_id)
+    result = await _open_settings(flow, entry)
     result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "input_select.mode"})
     assert result["type"] is FlowResultType.FORM and result["step_id"] == "default_mode"
     result = await flow.async_configure(result["flow_id"], {"default_mode": "Away"})
@@ -70,7 +77,7 @@ async def test_options_choose_selector_and_default_mode(hass: HomeAssistant, has
     assert (config["mode_selector"], config["default_mode"]) == ("input_select.mode", "Away")
     assert "mode_selector" not in entry.options and "default_mode" not in entry.options
     # reopened: the current choice is the suggestion; a current default outside the options falls back
-    result = await flow.async_init(entry.entry_id)
+    result = await _open_settings(flow, entry)
     hass.states.async_set("input_select.mode", "Home", {"options": ["Home", "Out"]})
     result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "input_select.mode"})
     assert result["type"] is FlowResultType.FORM
@@ -82,7 +89,7 @@ async def test_options_clearing_the_selector_keeps_the_default(hass: HomeAssista
     entry = await _options_entry(hass, hass_storage)
     await entry.runtime_data.async_set_mode_config("input_select.mode", "Away")
     flow = hass.config_entries.options
-    result = await flow.async_init(entry.entry_id)
+    result = await _open_settings(flow, entry)
     result = await flow.async_configure(result["flow_id"], dict(BASE))
     assert result["type"] is FlowResultType.CREATE_ENTRY
     config = entry.runtime_data.store.config
@@ -93,7 +100,7 @@ async def test_options_default_mode_free_text_when_no_options_known(hass: HomeAs
     entry = await _options_entry(hass, hass_storage)
     await entry.runtime_data.async_set_mode_config("select.x", "Winter")
     flow = hass.config_entries.options
-    result = await flow.async_init(entry.entry_id)
+    result = await _open_settings(flow, entry)
     result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "select.x"})
     assert result["step_id"] == "default_mode"
     with pytest.raises(InvalidData):
@@ -108,7 +115,7 @@ async def test_options_default_mode_free_text_when_no_options_known(hass: HomeAs
 async def test_options_free_text_without_current_default(hass: HomeAssistant, hass_storage) -> None:
     entry = await _options_entry(hass, hass_storage)
     flow = hass.config_entries.options
-    result = await flow.async_init(entry.entry_id)
+    result = await _open_settings(flow, entry)
     result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "select.x"})
     result = await flow.async_configure(result["flow_id"], {"default_mode": "Home"})
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -119,7 +126,7 @@ async def test_options_default_mode_no_longer_an_option(hass: HomeAssistant, has
     entry = await _options_entry(hass, hass_storage)
     hass.states.async_set("input_select.mode", "Home", {"options": ["Home", "Away"]})
     flow = hass.config_entries.options
-    result = await flow.async_init(entry.entry_id)
+    result = await _open_settings(flow, entry)
     result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "input_select.mode"})
     hass.states.async_set("input_select.mode", "Home", {"options": ["Home"]})
     result = await flow.async_configure(result["flow_id"], {"default_mode": "Away"})
@@ -130,11 +137,11 @@ async def test_options_default_mode_no_longer_an_option(hass: HomeAssistant, has
 async def test_options_selector_error_is_shown_on_the_field(hass: HomeAssistant, hass_storage) -> None:
     entry = await _options_entry(hass, hass_storage)
     flow = hass.config_entries.options
-    result = await flow.async_init(entry.entry_id)
+    result = await _open_settings(flow, entry)
     with patch("custom_components.weekly_planner.config_flow.check_mode_config",
                side_effect=ProgramError("circular_mode_selector")):
         result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "select.x"})
-    assert result["type"] is FlowResultType.FORM and result["step_id"] == "init"
+    assert result["type"] is FlowResultType.FORM and result["step_id"] == "settings"
     assert result["errors"] == {"mode_selector": "circular_mode_selector"}
 
 
@@ -144,8 +151,8 @@ def test_translations_cover_the_mode_fields() -> None:
     folder = Path(__file__).parents[1] / "custom_components" / "weekly_planner" / "translations"
     for name in ("en", "fr"):
         options = json.loads((folder / f"{name}.json").read_text())["options"]
-        assert "mode_selector" in options["step"]["init"]["data"]
-        assert "mode_selector" in options["step"]["init"]["data_description"]
+        assert "mode_selector" in options["step"]["settings"]["data"]
+        assert "mode_selector" in options["step"]["settings"]["data_description"]
         assert set(options["step"]["default_mode"]["data"]) == {"default_mode"}
         assert set(options["error"]) == {"invalid_mode_selector_domain", "circular_mode_selector",
                                          "invalid_default_mode", "unknown_default_mode"}

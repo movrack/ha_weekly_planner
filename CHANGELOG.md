@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [Unreleased]
 
 ### Added
+- Resynchronise the devices after an outage (#52): a global step in the integration options (administrators only, never on the card) first lists what would be sent and what is left alone, and sends nothing before you confirm. Expected state: the running timed schedule, or the last one-shot started less than 24 h ago unless a person changed the device since (read from the history); paused or off programs are ignored; one spaced command per device, never the same command twice. `weekly_planner.apply_now` follows the same rules and returns the entities sent and skipped.
 - New card layout `schedule_view: times` (“Daily times”): today as a plain list, one row per time with its setting, until when and a “Now” mark; a row opens today in the schedule window when editing is allowed (#51). After the review by the novice tester: neighbouring stretches of the same setting are one row; sun rules in words (“30 min before sunset”, “at sunset”); “varies, a few minutes apart”; every text at least 16 px with a darker secondary grey; an “Edit the day” button under the list; an empty day says “Nothing planned today” with an “Add a schedule” button; a failure says what to do and offers “Try again”.
 
 ### Changed

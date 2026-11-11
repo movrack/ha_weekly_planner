@@ -44,6 +44,7 @@ from .modes import (
     MAX_RENAMES, NO_PROFILE, apply_default_mode, delete_profile, detach_followers, mode_proposals, orphan_modes,
     profile_for_mode, rename_profile, set_follow, unambiguous_rename,
 )
+from .resync import RecorderManualChanges, expected_state, settle_manual_change
 from .registry import async_check_missing, async_track_registry
 from .resolver import (
     OccurrenceCache,
@@ -60,6 +61,8 @@ from .validation import service_accepts
 _LOGGER = logging.getLogger(__name__)
 
 STABILIZATION = timedelta(seconds=30)
+RESYNC_SPACING_S = 2.0  # pause between two commands of a resynchronisation (cloud devices refuse bursts)
+RESYNC_CALL_TIMEOUT_S = 30.0  # longest wait for one command before moving on
 RETRY_STEPS = (1, 2, 5, 10, 15)  # minutes after a failed service call, then give up
 UNAVAILABLE = ("unavailable", "unknown")
 
@@ -230,6 +233,7 @@ class PlannerEngine:
         self._pause_timers: dict[str, tuple[str, CALLBACK_TYPE]] = {}  # program -> (paused_until, resume timer)
         self._verify_timers: dict[str, CALLBACK_TYPE] = {}  # owner -> settle check of its last send
         self._verifying: dict[str, set[str]] = {}  # watched entity -> owners with a pending verification
+        self.history: Any = RecorderManualChanges(hass)  # manual changes of a device, replaceable (tests)
         self.descriptions: dict | None = None  # service descriptions, to know which entity a service suits
 
     # ------------------------------------------------------------------ lifecycle
@@ -1120,20 +1124,91 @@ class PlannerEngine:
 
     # ------------------------------------------------------------------ commands
 
-    async def async_apply_now(self, program_id: str) -> None:
-        async with self._lock:
-            await self._async_apply_now(program_id)
+    async def async_apply_now(self, program_id: str) -> dict[str, Any]:
+        """Send what the devices of one program should be doing now (resynchronisation, spec § 5.8)."""
+        return await self.async_resync(program_id)
 
-    async def _async_apply_now(self, program_id: str) -> None:
-        program = self.store.program(program_id)
-        if not program:
-            return
-        for entity in program["entities"]:
-            eid = entity["entity_id"]
+    async def async_plan_resync(self, program_id: str | None = None) -> list[dict[str, Any]]:
+        """What a resynchronisation would send (``send`` true) or leave alone (with a ``reason``), nothing is sent.
+
+        One entry per device of the program (every program with ``program_id`` None), highest priority
+        program first. The same definition of the expected state serves the configuration step and the
+        ``apply_now`` service (see ``resync.expected_state``).
+        """
+        now = dt_util.utcnow()
+        programs = self.store.programs
+        profiles = self._profiles()
+        vacation = bool(self.store.config.get("vacation"))
+        cache = OccurrenceCache()
+        items: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        sent_calls: set[tuple] = set()
+        for program in sorted(programs, key=lambda p: (p.get("priority", DEFAULT_PRIORITY), p.get("created_at", ""))):
+            for entity in program["entities"]:
+                eid = entity["entity_id"]
+                if eid in seen:
+                    continue
+                if program_id is not None and not any(
+                        p["id"] == program_id and any(e["entity_id"] == eid for e in p["entities"]) for p in programs):
+                    continue
+                seen.add(eid)
+                decision = expected_state(eid, programs, self.resolve, now, self.tz, self.sun, self.conditions.check,
+                                          vacation=vacation, active_profiles=profiles, cache=cache)
+                decision = await settle_manual_change(decision, eid, now, self.history)
+                item: dict[str, Any] = {"entity_id": eid, "send": False, "reason": decision.reason}
+                expected = decision.expected
+                if expected is not None:
+                    item.update(program_id=expected.program_id, slot_id=expected.slot_id, label=expected.label,
+                                kind=expected.kind, action=expected.action,
+                                start=expected.start.isoformat() if expected.start else None)
+                    target = expected.action.get("target_entity_id", eid)
+                    state = self.hass.states.get(target)
+                    unavailable = ("unavailable",) if expected.action.get("target_entity_id") else UNAVAILABLE
+                    if program_id is not None and expected.program_id != program_id:
+                        item["reason"] = "other_program"
+                    elif state is None or state.state in unavailable:
+                        item["reason"] = "unavailable"
+                    else:
+                        key = self._command_key(eid, expected.action)
+                        if key in sent_calls:  # never the same command twice to the same device in a batch
+                            item["reason"] = "duplicate"
+                        else:
+                            sent_calls.add(key)
+                            item["send"] = True
+                items.append(item)
+        return items
+
+    def _command_key(self, entity_id: str, action: dict) -> tuple:
+        try:
+            call = call_for(entity_id, action, self.hass.states.get)
+            return (call.target_entity_id, call.domain, call.service, repr(sorted(call.service_data().items())))
+        except Exception:  # noqa: BLE001 - an action that cannot be built is compared as it is
+            return (entity_id, repr(sorted(action.items(), key=lambda kv: kv[0])))
+
+    async def async_resync(self, program_id: str | None = None) -> dict[str, Any]:
+        """Plan, then send one command per device, spaced; returns ``{"sent": [...], "skipped": [...]}``."""
+        plan = await self.async_plan_resync(program_id)
+        sent: list[str] = []
+        for item in (i for i in plan if i["send"]):
+            if sent:
+                await asyncio.sleep(RESYNC_SPACING_S)
+            async with self._lock:
+                await self._async_resync_one(item)
+            sent.append(item["entity_id"])
+        return {"sent": sent,
+                "skipped": [{"entity_id": i["entity_id"], "reason": i["reason"]} for i in plan if not i["send"]]}
+
+    async def _async_resync_one(self, item: dict[str, Any]) -> None:
+        eid, action = item["entity_id"], item["action"]
+        if item["kind"] == "one_shot":  # an event: no segment change, never pending, never verified
+            await self._async_send(eid, action, "resync", oneshot=True)
+        else:  # the running schedule or default: the entity enters its current segment and verifies as usual
             seg = self.segment(eid)
-            if seg.program_id == program_id:
-                self._enter_segment(eid, seg, list(seg.key), dt_util.utcnow())
-                await self.async_apply(eid, "apply_now")
+            self._enter_segment(eid, seg, list(seg.key), dt_util.utcnow())
+            await self._async_send(eid, action, "resync")
+        task = self._tasks.get(eid)
+        if task is not None:
+            await asyncio.wait({task}, timeout=RESYNC_CALL_TIMEOUT_S)
 
     def skip_next(self, program_id: str, cancel: bool = False) -> None:
         prt = self.store.runtime["programs"].setdefault(program_id, {})

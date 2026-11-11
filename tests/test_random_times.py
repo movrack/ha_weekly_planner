@@ -138,10 +138,12 @@ async def test_random_one_shot_fires_once_without_recompute_replay(hass, hass_st
     assert rec.calls == [("climate.set_preset_mode", {"preset_mode": "boost"})]
     for reason in ("startup", "modification", "profile"):
         await engine.async_recompute(reason)
-    await engine.async_apply_now("office")
+    assert [c for c in rec.calls if c[0] == "climate.set_preset_mode"] == [
+        ("climate.set_preset_mode", {"preset_mode": "boost"})]  # nothing replays it by itself
+    await engine.async_apply_now("office")  # the resynchronisation exception (spec 5.8): the last one-shot, < 24 h
     await hass.async_block_till_done()
-    assert [call for call in rec.calls if call[0] == "climate.set_preset_mode"] == [
-        ("climate.set_preset_mode", {"preset_mode": "boost"})]
+    assert [c for c in rec.calls if c[0] == "climate.set_preset_mode"] == [
+        ("climate.set_preset_mode", {"preset_mode": "boost"})] * 2
 
 
 def test_sun_bounds_accept_either_or_both_ordered():

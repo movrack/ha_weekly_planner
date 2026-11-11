@@ -282,7 +282,7 @@ un identifiant anglais généré sur une autre installation.
 
 | Action | Champs | Qui peut l’appeler |
 |---|---|---|
-| `weekly_planner.apply_now` | `program_id` (obligatoire) | Tout le monde ; administrateurs seulement si `admin_only` est actif |
+| `weekly_planner.apply_now` | `program_id` (obligatoire) ; renvoie `sent` et `skipped` (avec la raison) ; renvoie aussi le dernier ponctuel de moins de 24 h sauf intervention d'une personne depuis | Tout le monde ; administrateurs seulement si `admin_only` est actif |
 | `weekly_planner.skip_next` | `program_id` (obligatoire), `cancel` (facultatif, `false` par défaut) | Comme `apply_now` |
 | `weekly_planner.pause` | `program_id` (obligatoire), `days` et/ou `hours` (entiers, au moins un ; de 1 heure à 365 jours au total) | Comme `apply_now` |
 | `weekly_planner.resume` | `program_id` (obligatoire) ; annule seulement une pause temporisée (un programme arrêté avec son interrupteur reste arrêté) | Comme `apply_now` |

@@ -14,6 +14,14 @@
     "step": {
       "init": {
         "title": "Weekly Planner",
+        "description": "Que voulez-vous faire ?",
+        "menu_options": {
+          "settings": "Réglages",
+          "resync": "Resynchroniser les appareils"
+        }
+      },
+      "settings": {
+        "title": "Weekly Planner",
         "data": {
           "admin_only": "Seuls les administrateurs peuvent modifier les programmes",
           "reapply_default": "Refaire le réglage en cours après un redémarrage ou une modification (valeur par défaut des nouveaux programmes)",
@@ -27,6 +35,10 @@
           "mode_selector": "Un sélecteur de Home Assistant (input_select ou select) dont le choix actuel est le Mode actif de la maison, par exemple Maison, Absent ou Vacances. Weekly Planner le lit seulement, il ne le change jamais. Laisser vide pour n'avoir qu'un seul Mode."
         }
       },
+      "resync": {
+        "title": "Resynchroniser les appareils",
+        "description": "À utiliser après une panne. Tous les programmes sont examinés. Rien n'a encore été envoyé : appuyez sur Valider pour envoyer les commandes ci-dessous, un appareil à la fois. Les programmes en pause ou éteints, et les appareils modifiés par une personne depuis leur dernier ponctuel, sont laissés tels quels.\n\n{plan}"
+      },
       "default_mode": {
         "title": "Mode par défaut",
         "description": "Choisissez le Mode utilisé quand le sélecteur n'a aucun choix utilisable.",
@@ -39,7 +51,9 @@
       }
     },
     "abort": {
-      "not_loaded": "Weekly Planner n'est pas chargé."
+      "not_loaded": "Weekly Planner n'est pas chargé.",
+      "resync_done": "Terminé : {count} commande(s) envoyée(s).",
+      "resync_nothing": "Rien à envoyer : tous les appareils sont laissés tels quels."
     },
     "error": {
       "invalid_mode_selector_domain": "Choisissez un input_select ou un select.",
@@ -58,7 +72,7 @@
   "services": {
     "apply_now": {
       "name": "Appliquer maintenant",
-      "description": "Applique tout de suite ce que le programme demande à ses entités.",
+      "description": "Envoie tout de suite ce que les appareils du programme doivent faire, même s'ils sont déjà dans cet état ; envoie aussi le dernier ponctuel commencé il y a moins de 24 heures, sauf si une personne a modifié l'appareil depuis. Renvoie les appareils envoyés et laissés tels quels.",
       "fields": {
         "program_id": {
           "name": "Programme",

@@ -5,6 +5,7 @@
     "frontend",
     "logbook",
     "lovelace",
+    "recorder",
     "repairs"
   ],
   "codeowners": [

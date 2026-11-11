@@ -187,7 +187,7 @@ EVENTS = {  # (day, hour, minute) -> what happens then, before the step is recor
     (26, 12, 30): [_set("cover.kitchen", "open")],
     (26, 13, 30): [_call("skip_next", "heat")],
     (26, 15, 0): [_call("async_set_enabled", "lights", False)],
-    (26, 16, 0): [_call("async_set_enabled", "lights", True), _call("async_apply_now", "cover")],
+    (26, 16, 0): [_call("async_set_enabled", "lights", True)],  # apply_now left the reference: see test_resync.py
     (26, 16, 30): [_config_changed],
     (26, 17, 10): [_inactive_edit],
     (26, 21, 0): [_call("async_set_vacation", True)],
