@@ -25,6 +25,7 @@ import { loadServiceNames, onServiceNames, serviceNamesVersion } from "./service
 import { reloadIfOutdated } from "./update";
 import { deviceDays, fetchPreviewResponse } from "./preview-cache";
 import { applies } from "./slots";
+import { timesRows } from "./times-list";
 import { configDefaults, normalizeConfig } from "./config";
 import { activeFollow, activeProfile, filterPrograms, friendlyName, subscribePlanner } from "./planner";
 import { dayBounds, addDaysIso } from "./components/chart";
@@ -258,7 +259,7 @@ export class WeeklyPlannerCard extends LitElement {
         const end = endMs === null ? null : endMs >= bounds.endMs ? DAY : localMinutes(r.end!, this._tz);
         spans.push(mk(slot, start, end === null ? Math.min(DAY, start + 10) : end, {
           spill, startSun: spill ? null : sunDir(slot.start), ignored: r.ignored ?? null,
-          sun: "sun" in slot.start || Boolean(slot.end && "sun" in slot.end),
+          sun: "sun" in slot.start || Boolean(slot.end && "sun" in slot.end), startMs, endMs,
         }));
       }
       // Until a preview arrives, only exact fixed schedules have an honest fallback.
@@ -457,6 +458,25 @@ export class WeeklyPlannerCard extends LitElement {
       @open-day=${openDay} @edited=${(e: CustomEvent<{ undo: () => Promise<boolean> }>) => this._showSnack(e.detail.undo)}></wp-bar-editor>`;
   }
 
+  /** Where today's preview stands for a device: "ready" once it arrived (only then may the day be called empty), "failed" after an error. */
+  private _previewState(program: Program, entityId: string): "ready" | "failed" | "loading" {
+    const date = localDateIso(this._now, this._tz);
+    if (this._deviceDays(program.id, date, entityId).today !== undefined) return "ready";
+    return this._failedPreviewKey ? "failed" : "loading";
+  }
+
+  /** Today as "daily times" (`schedule_view: times`): a reading list; a row opens the editor on today only when editing is allowed. */
+  private _todayBlock(entityId: string, program: Program, open: () => void) {
+    const state = this._previewState(program, entityId);
+    const editable = Boolean(this._data?.can_edit) && !this._data?.read_only && !activeFollow(program, this._data!);
+    const rows = state === "ready" ? timesRows(this._spans(entityId, [program], 0), {
+      tz: this._tz, nowMin: localMinutes(this._now, this._tz), nowMs: this._now.getTime() }) : [];
+    const rest = labelOf(this._data!, program.entities.find((e) => e.entity_id === entityId)?.default_label);
+    return html`<wp-times-day .rows=${rows} state=${state} .rest=${rest ? labelName(this.hass, rest) : t(this._lang, "rest_none")}
+      ?editable=${editable} lang=${this._lang} device-name=${this._deviceLabel(program, entityId)}
+      @open-day=${open}></wp-times-day>`;
+  }
+
   private _line(entityId: string, programs: Program[], opts: { name: string | null; icon?: string; button: Scope | null; open: Scope }) {
     const lang = this._lang;
     const data = this._data!;
@@ -489,7 +509,7 @@ export class WeeklyPlannerCard extends LitElement {
             <button class="hours" aria-label=${t(lang, "hours_of", { name: opts.name ?? friendlyName(this.hass, entityId) })} title=${t(lang, "hours")} @click=${open}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
           </div></div>` : nothing}
         </div>
-        ${create ? this._createButton(opts.open) : (this._config.schedule_view === "radial" || this._config.schedule_view === "radial_12h") ? this._bar(entityId, programs[0], 0, "today", open) : html`<div class="today">
+        ${create ? this._createButton(opts.open) : this._config.schedule_view === "times" ? this._todayBlock(entityId, programs[0], open) : (this._config.schedule_view === "radial" || this._config.schedule_view === "radial_12h") ? this._bar(entityId, programs[0], 0, "today", open) : html`<div class="today">
           <span class="wname" title=${t(lang, "today")}>${t(lang, "today_short")}</span>
           ${this._bar(entityId, programs[0], 0, "today", open)}
         </div>`}
@@ -592,7 +612,8 @@ export class WeeklyPlannerCard extends LitElement {
           ${p.entities.filter((e) => p.entities.length < 2 || e.entity_id === this._shownDevice(p)).map((e) => {
             const own: Scope = p.entities.length > 1 ? { ...scope, entityId: e.entity_id } : scope;
             return html`
-            ${this._needsCreate(p, e.entity_id) ? this._createButton(own) : html`<div class="today"><span class="wname" title=${t(this._lang, "today")}>${t(this._lang, "today_short")}</span>
+            ${this._needsCreate(p, e.entity_id) ? this._createButton(own) : this._config.schedule_view === "times"
+              ? html`${this._todayBlock(e.entity_id, p, () => this._open(own))}${this._extras(own, e.entity_id, [p])}` : html`<div class="today"><span class="wname" title=${t(this._lang, "today")}>${t(this._lang, "today_short")}</span>
               ${this._bar(e.entity_id, p, 0, "today", () => this._open(own))}</div>
             ${this._extras(own, e.entity_id, [p])}`}`;
           })}

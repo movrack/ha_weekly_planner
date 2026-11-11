@@ -184,7 +184,7 @@ export interface CardConfig {
   title?: string;
   program?: string;
   filter?: { types?: string[]; area?: string; programs?: string[] };
-  schedule_view?: "bars" | "radial" | "radial_12h" | "list";
+  schedule_view?: "bars" | "radial" | "radial_12h" | "list" | "times";
   /** Deprecated: accepted and ignored (the week list is always collapsible); kept so existing YAML never breaks. */
   show_week?: boolean;
   show_chart?: boolean;

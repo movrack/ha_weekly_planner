@@ -26,6 +26,9 @@ export interface BarSpan {
   spill?: boolean;
   /** A one-shot (no end): drawn as a small marker. */
   marker?: boolean;
+  /** Real instants (ms) of the resolved start / end, when the span comes from a resolved preview (absent from the fallbacks). */
+  startMs?: number;
+  endMs?: number | null;
 }
 
 /** Icon side of a time that follows the sun: sunrise side ("up") or sunset side ("down"), null for a fixed time. */

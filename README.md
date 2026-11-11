@@ -82,6 +82,16 @@ schedule_view: radial
 show_chart: true
 ```
 
+### Today as a list of times
+
+```yaml
+type: custom:weekly-planner-card
+program: YOUR_PROGRAM_ID
+schedule_view: times
+```
+
+The week and the chart under each device stay as bars. An old card bundle that does not know `times` shows bars.
+
 ### Several programs in a compact list
 
 ```yaml
@@ -102,7 +112,7 @@ filter:
 | `filter.area` | Exact match against the program’s `area`, assigned in General settings. The editor offers existing program areas and retains missing selections. Device rooms are not inferred. |
 | `filter.programs` | Optional list of program IDs or names (see below), intersected with type/area filters. Missing means all programs, including future ones; `[]` means none. |
 | `title` | Optional card title. |
-| `schedule_view` | `bars` (default), `list`, `radial` (24-hour dial), or `radial_12h` (concentric 12-hour dials). All work with single-program and filtered cards. |
+| `schedule_view` | `bars` (default), `list`, `radial` (24-hour dial), `radial_12h` (concentric 12-hour dials), or `times` (**Daily times**: today as a plain list, one row per time with its setting, until when, and a “Now” mark; tapping a row opens today in the schedule window). All work with single-program and filtered cards. |
 | `show_chart` | Boolean, default `true`. On: a **Today’s chart** button under each device on the card, and the chart in the schedule window. Off: no button and no chart anywhere on this card. In the editor: “Chart button under each device”. |
 | `chart_collapsed` | Boolean, default `true`: the chart under each device starts closed (`false`: starts open). Only matters when `show_chart` is on. In the editor: the switch “Chart open by default” (the inverse). A choice made with the chart button is remembered per browser, per card and per device, and wins afterwards. |
 
@@ -110,7 +120,7 @@ filter:
 effect, and switching between both keeps all keys (including keys this card does not know). Types:
 `title`, `program`, `filter.area` are strings; `filter.types` and `filter.programs` are lists of strings
 (a single string is accepted as a one-item list); `schedule_view` is one of `bars`, `list`, `radial`,
-`radial_12h`; `show_chart` and `chart_collapsed` are booleans. A value of the wrong type is ignored and
+`radial_12h`, `times`; `show_chart` and `chart_collapsed` are booleans. A value of the wrong type is ignored and
 the default applies; a configuration that is not a YAML mapping shows a clear error card. In the visual
 editor, the type and program switches write `filter.programs` (and only ever widen or, for an empty type,
 remove an entry of `filter.types`), so a YAML `filter.types`-only configuration keeps working.
@@ -126,7 +136,7 @@ list; the visual editor rewrites the selection as IDs (stable) on the first chan
 ```yaml
 type: custom:weekly-planner-card
 title: Schedules                # default: none
-schedule_view: bars             # bars | list | radial | radial_12h
+schedule_view: bars             # bars | list | radial | radial_12h | times
 show_chart: true                # default true
 chart_collapsed: true           # default true (collapsed)
 filter:                         # ignored when `program` is set

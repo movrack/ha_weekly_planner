@@ -80,6 +80,16 @@ schedule_view: radial
 show_chart: true
 ```
 
+La journée d’aujourd’hui en liste d’horaires :
+
+```yaml
+type: custom:weekly-planner-card
+program: ID_DU_PROGRAMME
+schedule_view: times
+```
+
+La semaine et le graphique sous chaque appareil restent en barres. Un ancien fichier de la carte qui ne connaît pas `times` affiche des barres.
+
 Une liste filtrée :
 
 ```yaml
@@ -98,14 +108,14 @@ filter:
 | `filter.area` | Correspondance exacte avec la pièce du programme, définie dans Général. Les pièces HA des appareils ne sont pas déduites. |
 | `filter.programs` | Liste facultative d’identifiants ou de noms de programmes (voir ci-dessous), croisée avec les autres filtres. Absent = tous, futurs compris ; `[]` = aucun. |
 | `title` | Titre facultatif. |
-| `schedule_view` | `bars` par défaut, `list`, `radial` pour 24 h, ou `radial_12h` pour deux cercles de 12 h. Disponibles pour un programme ou une liste filtrée. |
+| `schedule_view` | `bars` par défaut, `list`, `radial` pour 24 h, `radial_12h` pour deux cercles de 12 h, ou `times` (**Horaires du jour** : la journée d’aujourd’hui en liste, une ligne par horaire avec son réglage, sa fin et un repère « Maintenant » ; toucher une ligne ouvre la journée dans la fenêtre des horaires). Disponibles pour un programme ou une liste filtrée. |
 | `show_chart` | Booléen, `true` par défaut. Actif : un bouton **Graphique du jour** sous chaque appareil sur la carte, et le graphique dans la fenêtre des horaires. Éteint : ni bouton ni graphique nulle part sur cette carte. Dans l’éditeur : « Bouton Graphique sous chaque appareil ». |
 | `chart_collapsed` | Booléen, `true` par défaut : le graphique sous chaque appareil démarre fermé (`false` : ouvert). N’a d’effet que si `show_chart` est actif. Dans l’éditeur : l’interrupteur « Graphique ouvert d’office » (l’inverse). Un choix fait avec le bouton du graphique est mémorisé par navigateur, par carte et par appareil, et prime ensuite. |
 
 **Référence YAML.** Toutes les options de l’éditeur visuel se règlent aussi dans l’éditeur de code YAML,
 avec le même effet ; passer de l’un à l’autre conserve toutes les clés (même inconnues). Types : `title`,
 `program`, `filter.area` = texte ; `filter.types` et `filter.programs` = listes de textes (un texte seul
-vaut une liste d’un élément) ; `schedule_view` = `bars`, `list`, `radial` ou `radial_12h` ; `show_chart` et
+vaut une liste d’un élément) ; `schedule_view` = `bars`, `list`, `radial`, `radial_12h` ou `times` ; `show_chart` et
 `chart_collapsed` = booléens. Une valeur du mauvais type est ignorée et la valeur par défaut s’applique ;
 une configuration qui n’est pas un mapping YAML affiche une carte d’erreur explicite. Dans l’éditeur
 visuel, les interrupteurs de type et de programme écrivent `filter.programs` (et ne font qu’élargir, ou
@@ -123,7 +133,7 @@ en identifiants (stables) au premier changement.
 ```yaml
 type: custom:weekly-planner-card
 title: Horaires                 # défaut : aucun
-schedule_view: bars             # bars | list | radial | radial_12h
+schedule_view: bars             # bars | list | radial | radial_12h | times
 show_chart: true                # défaut true
 chart_collapsed: true           # défaut true (replié)
 filter:                         # ignoré si `program` est renseigné

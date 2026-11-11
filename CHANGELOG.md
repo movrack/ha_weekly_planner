@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+- New card layout `schedule_view: times` (“Daily times”): today as a plain list, one row per time with its setting, until when and a “Now” mark; a row opens today in the schedule window when editing is allowed (#51).
+
 ## [0.28.0] - 2026-11-09
 
 ### Added

@@ -2,7 +2,7 @@
 // visual editor and for other tools); known keys with a wrong type fall back to their safe default.
 import type { CardConfig } from "./types";
 
-const VIEWS = ["bars", "radial", "radial_12h", "list"] as const;
+const VIEWS = ["bars", "radial", "radial_12h", "list", "times"] as const;
 const strings = (v: unknown): string[] | undefined => {
   if (typeof v === "string") return v ? [v] : [];
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x !== "") : undefined;

@@ -380,6 +380,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
           <option value="radial">${this._tr("ce_radial")}</option>
           <option value="radial_12h">${this._tr("ce_radial_12h")}</option>
           <option value="list">${this._tr("ce_list")}</option>
+          <option value="times">${this._tr("ce_times")}</option>
         </select>
       </div>
       <div class="switch-row"><span class="grow">${this._tr("ce_show_chart")}</span>

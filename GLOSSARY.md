@@ -40,6 +40,10 @@ _Avoid_: mode orphelin, mode supprimé
 Une règle « de telle heure à telle heure, tels jours, tel réglage » d'un programme pour un mode. Sans heure de fin, c'est une action unique.
 _Avoid_: créneau, plage, slot, planning
 
+**Horaires du jour**:
+La vue de lecture de la journée d'aujourd'hui : une ligne par tronçon (heure, réglage, jusqu'à quand). Distincte de la « Liste compacte », qui liste les programmes.
+_Avoid_: créneau, planning
+
 **Réglage**:
 Ce que les appareils doivent faire, avec un nom et une couleur : par exemple « Confort = 20 °C ». Partagé par tous les modes et tous les programmes ; une valeur propre peut être donnée à un appareil.
 _Avoid_: label, étiquette, preset, action (pour le nom donné par l'utilisateur)

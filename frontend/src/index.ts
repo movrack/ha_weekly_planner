@@ -1,6 +1,7 @@
 // Entry point: registers the card and its editor, announces it to the card picker.
 import "./weekly-planner-card";
 import "./card-editor";
+import "./components/times-day";
 
 declare global {
   interface Window {

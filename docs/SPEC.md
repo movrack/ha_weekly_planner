@@ -421,14 +421,24 @@ l'entrée. Instance unique.
 ### 10.1 Configuration de la carte (éditeur visuel)
 Options réelles : `title` ; `program: <id>` **ou** `filter: {types: [domaines], area: <zone du programme>, programs:
 [ids]}` (`programs` absent = tous, futurs compris ; liste vide = aucun ; intersection avec type et zone) ;
-`schedule_view: bars | radial | radial_12h | list` (défaut `bars`) ; `show_chart` (défaut vrai).
+`schedule_view: bars | radial | radial_12h | list | times` (défaut `bars`) ; `show_chart` (défaut vrai).
 `chart_collapsed` (défaut vrai) donne l'état initial du graphique. Les clés inconnues ou obsolètes (`show_week`,
 `show_advanced`) sont acceptées et ignorées ; la semaine est toujours repliable.
 Éditeur visuel Lovelace : onglets « Affichage de la carte » et « Réglages des programmes » (ce dernier pour les
 administrateurs) ; filtres de types dynamiques (§ 14.12), zone, programmes à afficher (section repliable), vue, graphique.
 
 ### 10.2 Consultation (par défaut)
-- Quatre vues : barres (défaut), cadran 24 h, double cadran 12 h, liste compacte (un programme déplié à la fois, chevron).
+- Cinq vues : barres (défaut), cadran 24 h, double cadran 12 h, liste compacte (un programme déplié à la fois, chevron), horaires du jour (§ 10.2.1).
+
+#### 10.2.1 Horaires du jour (`schedule_view: times`)
+Vue de **lecture** de la journée d'aujourd'hui ; elle remplace la barre / le cadran du jour (la semaine et le graphique restent en barres).
+- Une ligne par **tronçon** déjà calculé pour les barres, triée par instant réel (jour de 23 h ou 25 h compris). Deux niveaux : heure + réglage, puis « jusqu'à … » / « jusqu'à demain … », la règle solaire (« Lever du soleil − 15 min ») et « heure aléatoire ». Jamais de plage pour une heure solaire ou aléatoire : seule l'heure résolue du jour est affichée. Format de l'heure : celui des barres (hors périmètre, issue #53).
+- Report de minuit : une ligne « depuis hier 22 h » en tête ; « jusqu'à demain 6 h » sur la ligne de départ. Horaire ponctuel : sans fin, jamais « maintenant ».
+- Absents : programme désactivé (comme les barres), horaires ignorés, et tronçons de priorité plus basse entièrement recouverts par un gagnant.
+- Repère « Maintenant » (texte + `aria-current`, pas la couleur seule) sur une seule ligne et seulement aujourd'hui.
+- Journée vide, **seulement quand l'aperçu est arrivé** : « Aucun horaire aujourd'hui » + « Le reste du temps : {réglage} ». Chargement et échec ont leur propre message.
+- Plusieurs appareils : onglets comme pour les barres, une liste par appareil. Vraie liste `<ul>` ; une ligne est un bouton (≥ 44 px) **seulement** si l'édition est permise (ni lecture seule, ni mode qui en suit un autre) ; elle ouvre l'écran d'horaires sur aujourd'hui.
+- Un ancien fichier de la carte retombe sur les barres (valeur inconnue ignorée).
 - Une ligne par appareil : **icône, nom du programme, état traduit** (`formatEntityState`), et
   « → libellé de la prochaine action + heure » (« demain » si c'est demain) ; ligne « Mode : … » quand le programme a
   plusieurs modes ou une source de mode.

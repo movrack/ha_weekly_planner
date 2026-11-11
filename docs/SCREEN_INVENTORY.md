@@ -171,6 +171,7 @@ Nine mobile light fixtures use real components and read-only synthetic drafts on
 | S49 | `s49-advanced-options.png` | Éditeur d’horaire, Options avancées ouvertes |
 | S50 | `s50-setting-editor.png` | Éditeur d’un réglage, Options avancées ouvertes |
 | S51 | `s51-notifications.png` | Les trois sortes de notice côte à côte (montage) |
+| S52 | `s52-times.png` | Horaires du jour (`schedule_view: times`) | Une carte `schedule_view: times` avec un programme à plusieurs horaires dont un solaire et un qui passe minuit. Montrer la ligne « Maintenant », « jusqu'à demain », la règle solaire ; à 360 px, clair et sombre. |
 
 Not every 0.16.2 state has been recaptured: compact expansion, disabled badges, solar markers, creation success and external mapping continuation still rely on source descriptions and earlier checks. The older 49-image integrity record applies only to the historical set.
 
