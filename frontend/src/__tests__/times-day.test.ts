@@ -8,7 +8,7 @@ import type { TimesRow } from "../times-list";
 
 const row = (extra: Partial<TimesRow> = {}): TimesRow => ({
   key: "a|480", startMin: 480, color: "#0a0", label: "Heat", slotId: "a", carry: null, until: { day: "today", min: 540 },
-  oneShot: false, sun: null, rule: null, random: false, now: false, ...extra,
+  oneShot: false, sun: null, rule: null, random: false, now: false, done: false, ...extra,
 });
 function comp(props: Partial<WpTimesDay>): any {
   const c = new WpTimesDay() as any;
@@ -226,3 +226,59 @@ describe("the card with schedule_view times", () => {
     expect(html).toContain("chartbtn");
   });
 });
+
+describe("times: approximate start, done rows, header icon, next line, week icon", () => {
+  it("a random start is said 'around', with the variable mention kept", () => {
+    const en = flat(comp({ rows: [row({ startMin: 425, random: true })] }).render());
+    expect(en).toContain("around 7:05 am");
+    expect(en).toContain("varies, a few minutes apart");
+    const fr = flat(comp({ lang: "fr", rows: [row({ startMin: 425, random: true })] }).render());
+    expect(fr).toContain("vers 7 h 05");
+    expect(fr).toContain("heure variable, quelques minutes d’écart");
+    expect(flat(comp({ rows: [row({ startMin: 425 })] }).render())).not.toContain("around");
+  });
+
+  it("a carried-over row keeps its real start (no 'around')", () => {
+    const html = flat(comp({ rows: [row({ carry: "from_yesterday", startMin: 1320, random: true })] }).render());
+    expect(html).toContain("since yesterday 10 pm");
+    expect(html).not.toContain("around");
+  });
+
+  it("a done row says 'done' in words (not by colour only), in both languages, and a normal one does not", () => {
+    const done = flat(comp({ rows: [row({ done: true })] }).render());
+    expect(done).toContain("done");
+    expect(done).toContain("class=done");
+    expect(flat(comp({ lang: "fr", rows: [row({ done: true })] }).render())).toContain("terminé");
+    expect(flat(comp({ rows: [row()] }).render())).not.toContain("done");
+    expect(flat(comp({ rows: [row({ now: true })] }).render())).not.toContain("done");
+  });
+
+  it("the card hides the header icon only when the 'Edit the day' button is there", () => {
+    const icon = (c: any) => flat(c._bySchedule(c._data.programs)).includes("mdi:calendar-edit\"></ha-icon></button>");
+    const c = card([program("p", ["switch.a"])]);
+    expect(flat(c._bySchedule(c._data.programs))).toContain("wp-times-day");
+    expect(icon(c)).toBe(false);
+    // read-only, no edit right, loading, failed: no button under the list, so the icon stays (the only way to open the hours)
+    expect(icon(card([program("p", ["switch.a"])], { read_only: true }))).toBe(true);
+    expect(icon(card([program("p", ["switch.a"])], { can_edit: false }))).toBe(true);
+    expect(icon(card([program("p", ["switch.a"])], {}, false))).toBe(true);
+    expect(icon(card([program("p", ["switch.a"])], {}, "failed"))).toBe(true);
+    // other views keep it
+    const bar = card([program("p", ["switch.a"])]);
+    bar._config = { schedule_view: "bar" };
+    expect(icon(bar)).toBe(true);
+  });
+
+  it("the header says 'Next:' instead of an arrow, and the week button has an icon", () => {
+    const c = card([program("p", ["switch.a"])]);
+    c._data.status = { p: { next_actions: { "switch.a": { at: "2026-11-10T09:00:00Z", label: "l" } } } };
+    c.hass.states["switch.a"] = { entity_id: "switch.a", state: "on", attributes: {} };
+    const html = flat(c._bySchedule(c._data.programs));
+    expect(html).toContain("Next:");
+    expect(html).not.toContain("→");
+    expect(strings("fr").next_then).toBe("Ensuite :");
+    const extras = flat(c._extras({ kind: "program", programId: "p" }, "switch.a", c._data.programs));
+    expect(extras).toContain("mdi:calendar-week");
+  });
+});
+

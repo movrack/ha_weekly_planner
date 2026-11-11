@@ -86,6 +86,9 @@ const en = {
   times_since_yesterday: "since yesterday {time}",
   times_random: "varies, a few minutes apart",
   times_now: "Now",
+  times_around: "around {time}",
+  times_done: "done",
+  next_then: "Next:",
   times_list_label: "Today’s times",
   times_row_open: "Edit the day, {name}",
 
@@ -526,6 +529,9 @@ const fr: typeof en = {
   times_since_yesterday: "depuis hier {time}",
   times_random: "heure variable, quelques minutes d’écart",
   times_now: "Maintenant",
+  times_around: "vers {time}",
+  times_done: "terminé",
+  next_then: "Ensuite :",
   times_list_label: "Horaires du jour",
   times_row_open: "Modifier la journée, {name}",
 

@@ -439,13 +439,16 @@ Vue de **lecture** de la journée d'aujourd'hui ; elle remplace la barre / le ca
 - Journée vide, **seulement quand l'aperçu est arrivé** : « Rien de prévu aujourd'hui » + « Le reste du temps : {réglage} » + bouton « Ajouter un horaire » (si l'édition est permise) qui ouvre l'écran d'horaires sur aujourd'hui. Échec : « Impossible d'afficher les horaires pour le moment. Réessayez dans un instant. » + bouton « Réessayer » qui relance le chargement de l'aperçu (même mécanisme que le chargement normal, état « chargement » pendant ce temps). Chargement : message simple, sans bouton.
 - Lisibilité : tout texte de la vue (détails, « Maintenant », messages, boutons) ≥ 16 px ; gris secondaire = texte du thème mélangé à 75 % avec le fond de la carte (jetons existants), pas `--secondary-text-color`. Bouton visible « Modifier la journée » (même libellé que le bouton de la barre) sous la liste quand l'édition est permise ; les lignes restent touchables, leur infobulle dit « Modifier la journée, {nom} ».
 - Plusieurs appareils : onglets comme pour les barres, une liste par appareil. Vraie liste `<ul>` ; une ligne est un bouton (≥ 44 px) **seulement** si l'édition est permise (ni lecture seule, ni mode qui en suit un autre) ; elle ouvre l'écran d'horaires sur aujourd'hui.
+- **Heure variable** : l'heure résolue du jour est précédée de « vers » (« vers 7 h 05 », EN « around 7:05 am ») ; la ligne secondaire « heure variable, quelques minutes d'écart » reste. Une ligne reportée d'hier (« depuis hier 22 h ») garde son heure réelle, sans « vers ».
+- **Ligne déjà terminée** (aujourd'hui seulement, fin ≤ maintenant, report d'hier compris) : le mot « terminé » (EN « done ») en tête de la ligne secondaire et texte atténué (gris secondaire du thème, contraste ≥ 4,5:1 en clair et en sombre, ≥ 16 px) ; jamais la couleur seule. Jamais « terminé » pour la ligne « Maintenant », un ponctuel (sans fin) ou un autre jour que aujourd'hui.
+- **Icône de l'en-tête** (`mdi:calendar-edit`) : masquée dans cette vue seulement quand le bouton « Modifier la journée » est visible sous la liste (édition permise, liste prête, appareil avec horaires). Elle reste en lecture seule, sans droit d'édition, mode qui en suit un autre, chargement, échec et « Créer un réglage » : c'est alors le seul accès à l'écran d'horaires. Les autres vues la gardent.
 - Un ancien fichier de la carte retombe sur les barres (valeur inconnue ignorée).
 - Une ligne par appareil : **icône, nom du programme, état traduit** (`formatEntityState`), et
-  « → libellé de la prochaine action + heure » (« demain » si c'est demain) ; ligne « Mode : … » quand le programme a
+  « Ensuite : libellé de la prochaine action + heure » (« demain » si c'est demain ; EN « Next: » ; plus de flèche) ; ligne « Mode : … » quand le programme a
   plusieurs modes ou une source de mode.
 - À droite : interrupteur du programme (arrêt confirmé, double envoi bloqué, désactivé en lecture seule), bouton
   calendrier (`mdi:calendar-edit`) qui ouvre l'**écran d'horaires**, badge rouge « Désactivé » sous les contrôles.
-- Dessous : barre du jour avec trait « maintenant » (heure du **serveur**), « Semaine » repliable (7 barres, lundi →
+- Dessous : barre du jour avec trait « maintenant » (heure du **serveur**), « Semaine » repliable (icône `mdi:calendar-week`, 7 barres, lundi →
   dimanche, chaque nom de jour est un bouton qui ouvre l'écran d'horaires sur ce jour). Aucune commande immédiate (c'est un planificateur).
 - La ligne elle-même **n'est pas cliquable** : un appui court au doigt sur une barre ouvre l'écran d'horaires ; un appui
   long (doigt) ou un clic (souris) entre dans l'édition sur place (§ 10.8).

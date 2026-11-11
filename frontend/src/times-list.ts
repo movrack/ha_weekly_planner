@@ -40,6 +40,8 @@ export interface TimesRow {
   /** The start has a random delay: only said, the base time is not known to the card. */
   random: boolean;
   now: boolean;
+  /** Today only: the span already ended (its end is not after the instant now). Said in words, never by colour alone. */
+  done: boolean;
 }
 
 const endOf = (s: BarSpan): number => (s.marker ? s.start : s.end);
@@ -92,7 +94,7 @@ export function timesRows(spans: readonly BarSpan[], ctx: TimesContext): TimesRo
         key, startMin, startMs: s.startMs, endMs: s.endMs, labelId: s.labelId, color: s.color, label: s.label, slotId: s.slotId, carry, until,
         oneShot: Boolean(s.marker), sun: carry ? null : s.startSun ?? null,
         rule: !carry && s.startSun && spec && "sun" in spec ? spec : null,
-        random: Boolean(spec?.random_minutes), now: false,
+        random: Boolean(spec?.random_minutes), now: false, done: false,
       },
     });
   });
@@ -102,7 +104,14 @@ export function timesRows(spans: readonly BarSpan[], ctx: TimesContext): TimesRo
     ? a.row.startMs - b.row.startMs : dayMin(a.row) - dayMin(b.row)));
   const current = items.filter((x) => isNow(x.span, ctx)).pop();
   if (current) current.row.now = true;
-  return mergeNeighbours(items.map((x) => x.row));
+  return mergeNeighbours(items.map((x) => x.row)).map((r) => ({ ...r, done: isDone(r, ctx) }));
+}
+
+/** Whether a row of today already ended (never on another day, never a one-shot, never the current row). */
+function isDone(r: TimesRow, ctx: TimesContext): boolean {
+  if (ctx.nowMin === null || r.now || !r.until || r.until.day !== "today" || r.until.min === null) return false;
+  if (ctx.nowMs != null && r.endMs != null) return r.endMs <= ctx.nowMs;
+  return r.until.min <= ctx.nowMin;
 }
 
 /** Whether `b` is the same setting as `a`, starting exactly where `a` ends (same day): one stretch for the reader. */

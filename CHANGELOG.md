@@ -9,6 +9,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Added
 - New card layout `schedule_view: times` (“Daily times”): today as a plain list, one row per time with its setting, until when and a “Now” mark; a row opens today in the schedule window when editing is allowed (#51). After the review by the novice tester: neighbouring stretches of the same setting are one row; sun rules in words (“30 min before sunset”, “at sunset”); “varies, a few minutes apart”; every text at least 16 px with a darker secondary grey; an “Edit the day” button under the list; an empty day says “Nothing planned today” with an “Add a schedule” button; a failure says what to do and offers “Try again”.
 
+### Changed
+- Daily times: a random start reads “around 7:05 am” (“vers 7 h 05”) with “varies, a few minutes apart” kept; a row already over today is dimmed and says “done” (“terminé”); the header calendar icon is hidden in this view when the “Edit the day” button is shown (it stays in read-only and while loading or failed). On every layout the header says “Next: …” (“Ensuite : …”) instead of an arrow, and the “Week” button has a calendar icon.
+
 ## [0.28.0] - 2026-11-09
 
 ### Added

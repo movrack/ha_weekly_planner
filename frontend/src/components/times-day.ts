@@ -35,11 +35,15 @@ export class WpTimesDay extends LitElement {
   }
 
   private _primary(r: TimesRow): string {
-    return r.carry ? t(this.lang, "times_since_yesterday", { time: fmtClock(this.lang, r.startMin) }) : fmtClock(this.lang, r.startMin);
+    const time = fmtClock(this.lang, r.startMin);
+    if (r.carry) return t(this.lang, "times_since_yesterday", { time });
+    // a random start: the time shown is the one drawn for today, so it is said as approximate
+    return r.random ? t(this.lang, "times_around", { time }) : time;
   }
 
   private _details(r: TimesRow) {
     const parts: unknown[] = [];
+    if (r.done) parts.push(t(this.lang, "times_done"));
     if (r.until) {
       const time = r.until.min === null ? "" : fmtClock(this.lang, r.until.min);
       parts.push(r.until.day === "tomorrow" ? t(this.lang, "times_until_tomorrow", { time }) : t(this.lang, "times_until", { time }));
@@ -60,7 +64,7 @@ export class WpTimesDay extends LitElement {
         ${this._details(r)}
       </span>`;
     const name = this.deviceName ? `${this.deviceName}, ${r.label}` : r.label;
-    return html`<li class=${r.now ? "current" : ""} aria-current=${r.now ? "time" : nothing}>${this.editable
+    return html`<li class=${r.now ? "current" : r.done ? "done" : ""} aria-current=${r.now ? "time" : nothing}>${this.editable
       ? html`<button class="row" title=${t(this.lang, "times_row_open", { name })} @click=${() => this._open()}>${content}</button>`
       : html`<div class="row">${content}</div>`}</li>`;
   }
@@ -103,6 +107,7 @@ export class WpTimesDay extends LitElement {
       display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 16px; padding: 0 8px; border-radius: 10px;
       background: var(--wp-primary-fill); color: #fff; font-size: 1rem; font-weight: 600; line-height: 24px;
     }
+    li.done .main { color: var(--wp-times-detail); }
     li.current { background: color-mix(in srgb, var(--wp-primary-fill) 8%, transparent); border-radius: 8px; }
     .msg { margin: 0; padding: 12px 4px; display: flex; flex-direction: column; gap: 2px; color: var(--primary-text-color); }
     .msg span { font-size: 1rem; color: var(--wp-times-detail); }

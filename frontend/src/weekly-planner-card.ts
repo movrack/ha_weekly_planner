@@ -495,6 +495,11 @@ export class WeeklyPlannerCard extends LitElement {
     const icon = opts.icon ?? stateObj?.attributes.icon ?? "mdi:calendar-clock";
     const open = () => this._open(opts.open);
     const create = this._needsCreate(programs[0], entityId);
+    // times view: the labelled "Edit the day" button under the list already opens the editor, so the header icon would be a second,
+    // unlabelled control. It stays whenever that button is not there (read-only, follow, loading, failed, create).
+    const times = this._config.schedule_view === "times";
+    const dayButton = times && !create && Boolean(this._data?.can_edit) && !this._data?.read_only && !activeFollow(programs[0], data)
+      && this._previewState(programs[0], entityId) === "ready";
     return html`
       <div class="block">
         <div class="line">
@@ -507,14 +512,14 @@ export class WeeklyPlannerCard extends LitElement {
             ${opts.button ? this._disabledBadge(paused, programs) : nothing}
             <span class="now">
               <span class="state">${stateObj ? (this.hass.formatEntityState?.(stateObj) ?? stateObj.state) : "—"}</span>
-              ${next ? html`<span class="next"><span class="arrow">→</span> <span class="lbl">${nextLabel ? labelName(this.hass, nextLabel) : actionText(this.hass, lang, next.action)}</span>
+              ${next ? html`<span class="next"><span class="arrow">${t(lang, "next_then")}</span> <span class="lbl">${nextLabel ? labelName(this.hass, nextLabel) : actionText(this.hass, lang, next.action)}</span>
                 <span class="when nw">${nb(formatWhen(next.at, this._tz, lang, this._now))}</span></span>` : nothing}
             </span>
             ${this._skipped(entityId, programs)}
           </div>
           ${opts.button ? html`<div class="header-actions"><div class="header-icons">
             ${programs.length === 1 ? this._programToggle(programs[0]) : nothing}
-            <button class="hours" aria-label=${t(lang, "hours_of", { name: opts.name ?? friendlyName(this.hass, entityId) })} title=${t(lang, "hours")} @click=${open}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
+            ${dayButton ? nothing : html`<button class="hours" aria-label=${t(lang, "hours_of", { name: opts.name ?? friendlyName(this.hass, entityId) })} title=${t(lang, "hours")} @click=${open}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>`}
           </div></div>` : nothing}
         </div>
         ${create ? this._createButton(opts.open) : this._config.schedule_view === "times" ? this._todayBlock(entityId, programs[0], open) : (this._config.schedule_view === "radial" || this._config.schedule_view === "radial_12h") ? this._bar(entityId, programs[0], 0, "today", open) : html`<div class="today">
@@ -557,7 +562,7 @@ export class WeeklyPlannerCard extends LitElement {
     return html`
       <div class="toggles">
         <button class="weekbtn" aria-label=${t(lang, "week_of", { name: who })} aria-expanded=${weekOpen} @click=${toggleWeek}>
-          <ha-icon icon=${weekOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>${t(lang, "week")}</button>
+          <ha-icon icon="mdi:calendar-week"></ha-icon>${t(lang, "week")}<ha-icon class="after" icon=${weekOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>
         ${showChart ? html`<button class="weekbtn chartbtn" aria-label=${t(lang, "chart_day_of", { name: who })} aria-expanded=${chartOpen} @click=${toggleChart}>
           <ha-icon icon="mdi:chart-line"></ha-icon>${t(lang, "chart_day")}<ha-icon class="after" icon=${chartOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>` : nothing}
       </div>
@@ -730,7 +735,7 @@ export class WeeklyPlannerCard extends LitElement {
       display: inline-flex; align-items: center; gap: 4px; min-height: 48px; min-width: 48px; padding: 0 8px 0 0; border: none;
       background: none; color: var(--wp-primary-text); font: inherit; font-size: 1rem; cursor: pointer; --mdc-icon-size: 22px;
     }
-    .chartbtn .after { --mdc-icon-size: 20px; }
+    .weekbtn .after { --mdc-icon-size: 20px; }
     .chartbox { padding: 4px 0 8px; }
     .week { display: flex; flex-direction: column; gap: 0; padding-bottom: 4px; }
     .wday { display: flex; align-items: flex-start; gap: ${TIMELINE.gap}px; min-height: 48px; width: 100%; }

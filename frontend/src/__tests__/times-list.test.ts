@@ -168,3 +168,28 @@ describe("daily times: neighbours of the same setting", () => {
     expect(timesRows([sp(150, 200, "a", { startMs: iso(1, 30), endMs: iso(3, 20) }), sp(200, 260, "a", { startMs: iso(4), endMs: iso(5) })], ctx)).toHaveLength(2);
   });
 });
+
+describe("daily times: done rows", () => {
+  const now = (h: number, m = 0) => ({ tz: "UTC", nowMin: h * 60 + m, nowMs: iso(h, m) });
+  it("marks past rows of today as done, not the running or the coming one", () => {
+    const rows = timesRows([span(60, 120, { startMs: iso(1), endMs: iso(2) }), span(480, 600, { startMs: iso(8), endMs: iso(10) }),
+      span(900, 960, { startMs: iso(15), endMs: iso(16) })], now(9));
+    expect(rows.map((r) => r.done)).toEqual([true, false, false]);
+  });
+  it("marks a carried-over row that ended this morning, not one that runs until tomorrow", () => {
+    const rows = timesRows([span(0, 60, { spill: true, startMs: iso(22, 0, 9), endMs: iso(1) }),
+      span(1320, 1440, { startMs: iso(22), endMs: iso(1, 0, 11) })], now(23, 48));
+    expect(rows.map((r) => [r.carry, r.done])).toEqual([["from_yesterday", true], [null, false]]);
+  });
+  it("is never done on another day (no 'now' instant)", () => {
+    expect(timesRows([span(60, 120)], ctx).every((r) => !r.done)).toBe(true);
+  });
+  it("falls back to minutes without instants, and an end exactly now is done", () => {
+    expect(timesRows([span(60, 120)], { tz: "UTC", nowMin: 120 })[0].done).toBe(true);
+    expect(timesRows([span(60, 120)], { tz: "UTC", nowMin: 119 })[0].done).toBe(false);
+  });
+  it("a one-shot has no end, so is never done", () => {
+    expect(timesRows([span(60, 60, { marker: true })], now(9))[0].done).toBe(false);
+  });
+});
+
