@@ -2,7 +2,7 @@
 
 import { t } from "./i18n";
 import { newId } from "./planner";
-import { DAY, STEP, fmtClock } from "./time";
+import { DAY, STEP, fmtClock, fmtDayEnd } from "./time";
 import type { Profile, Slot, TimeSpec } from "./types";
 
 export const NBSP = " ";
@@ -25,7 +25,7 @@ export function specText(lang: string, spec: TimeSpec, minutes?: number): string
   const random = spec.random_minutes ? ` · ${t(lang, "random_window", { n: String(spec.random_minutes) })}` : "";
   if ("time" in spec) {
     const [h, m] = spec.time.split(":").map(Number);
-    return nb((h * 60 + m >= DAY ? "24 h" : fmtClock(lang, h * 60 + m)) + random);
+    return nb((h * 60 + m >= DAY ? fmtDayEnd(lang) : fmtClock(lang, h * 60 + m)) + random);
   }
   const name = t(lang, (spec.sun === "sunrise" || spec.sun === "sunset" ? `sun_${spec.sun}_short` : `sun_${spec.sun}`) as never);
   const off = spec.offset ? ` ${offsetWord(lang, spec.offset)}` : "";

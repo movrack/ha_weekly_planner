@@ -10,7 +10,7 @@ import { applicable, sunBoundsInvalid } from "../slots";
 import { devicesOf, forDevices } from "../device-edits";
 import { friendlyName } from "../planner";
 import { compatibleDevices, labelOf } from "../labels";
-import { DAY, clockToMinutes, fmtClock, localDateIso, localMinutes, minutesToClock } from "../time";
+import { DAY, clockToMinutes, fmtClock, fmtDayEnd, localDateIso, localMinutes, minutesToClock } from "../time";
 import { editorStyles, foldSection, langOf } from "../editors/shared";
 import type { HomeAssistant, PlannerData, Program, TimeSpec } from "../types";
 
@@ -32,7 +32,7 @@ function sunWord(lang: string, spec: Extract<TimeSpec, { sun: string }>, long: b
 
 /** ", mais pas avant 18:00 ni après 19:00" for the bounds that are set, or an empty string. */
 function boundsText(lang: string, spec: Extract<TimeSpec, { sun: string }>): string {
-  const shown = (clock: string) => { const m = clockToMinutes(clock); return m >= DAY ? "24 h" : fmtClock(lang, m); };
+  const shown = (clock: string) => { const m = clockToMinutes(clock); return m >= DAY ? fmtDayEnd(lang) : fmtClock(lang, m); };
   const a = spec.earliest ? shown(spec.earliest) : "", b = spec.latest ? shown(spec.latest) : "";
   if (spec.earliest && spec.latest) return t(lang, "sun_limits_both", { a, b });
   if (spec.earliest) return t(lang, "sun_limits_earliest", { a });

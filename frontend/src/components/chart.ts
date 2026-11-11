@@ -15,7 +15,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { t } from "../i18n";
 import { actionValue, appliedAction, labelOf } from "../labels";
 import { activeProfile, entityDomain, fmtNum, friendlyName } from "../planner";
-import { addDaysIso, dateFormat, fmtClock, localMinutes, localDateIso, localWeekday, nominal, spillover } from "../time";
+import { addDaysIso, currentTimeFormat, fmtTick12, dateFormat, fmtClock, fmtDayEnd, setTimeFormat, localMinutes, localDateIso, localWeekday, nominal, spillover } from "../time";
 import { fetchPreviewResponse, deviceSpans } from "../preview-cache";
 import { applies } from "../slots";
 import { nowTip, sunDir, sunTip } from "./day-bar";
@@ -243,6 +243,7 @@ export class WpChart extends LitElement {
   }
 
   willUpdate(changed: Map<string, unknown>): void {
+    setTimeFormat(this.hass);
     if (!this.hass || !this.program || !this.data || !this.date) return;
     const source = `${this.entityId}|${this.date}|${this._tz}|${this.program.id}|${Math.max(this.program.revision, this._displayProgram?.id === this.program.id ? this._displayProgram.revision : 0)}|${activeProfile(this.program, this.data).id}`;
     if (changed.has("entityId") || changed.has("date")) {
@@ -766,10 +767,15 @@ export class WpChart extends LitElement {
 
   /** Clock at a minute of the day ("22 h 30" in French); with a date when the window leaves the day. */
   private _clock(m: number, span: number): string {
-    if (m === span && span === 1440 && this._win.from >= 0 && this._win.to <= span) return "24 h";
+    if (m === span && span === 1440 && this._win.from >= 0 && this._win.to <= span) return fmtDayEnd(this._lang);
     const { startMs } = dayBounds(this.date, this._tz);
     const dated = this._win.from < 0 || this._win.to > span;
     const at = new Date(startMs + m * 60_000);
+    const format = currentTimeFormat();
+    if (dated && format !== "language") {
+      const [h, min] = dateFormat("en-GB", { timeZone: this._tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at).split(":").map(Number);
+      return `${dateFormat(this._lang, { timeZone: this._tz, day: "numeric", month: "numeric" }).format(at)} ${fmtClock(this._lang, h * 60 + min)}`;
+    }
     if (dated) return dateFormat("en-GB", { timeZone: this._tz, day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at);
     // same spoken clock as the rest of the card ("22 h 30" in French)
     const [h, min] = dateFormat("en-GB", { timeZone: this._tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at).split(":").map(Number);
@@ -912,12 +918,19 @@ export class WpChart extends LitElement {
     const axisY = (v: number, axis: { lo: number; hi: number }) => PAD.t + (1 - (v - axis.lo) / (axis.hi - axis.lo || 1)) * (H - PAD.t - PAD.b);
     const y = (v: number) => axisY(v, primary);
     const { startMs } = dayBounds(this.date, this._tz);
-    const step = tickStep(win.to - win.from);
+    const twelve = currentTimeFormat() === "12";
+    // "12:30 am" is wider than "12:30": in 12 h, fewer sub-hour labels so they never touch at 360 px
+    const step = twelve && tickStep(win.to - win.from) < 60 ? tickStep(win.to - win.from, 6) : tickStep(win.to - win.from);
     const tickFmt = dateFormat("en-GB", { timeZone: this._tz, hour: "2-digit", ...(step < 60 ? { minute: "2-digit" } : {}), hourCycle: "h23" });
     const tickText = (m: number) => {
       // the end of the day reads "24h", never a second "0h"
-      if (Math.abs(m - model.span) < 1e-6 && win.from >= 0 && win.to <= model.span) return step < 60 ? "24:00" : "24h";
+      if (Math.abs(m - model.span) < 1e-6 && win.from >= 0 && win.to <= model.span) return twelve ? fmtTick12(0, 0) : step < 60 ? "24:00" : "24h";
       const instant = new Date(startMs + m * 60_000);
+      if (twelve) {
+        const at = localMinutes(instant, this._tz);
+        const label = fmtTick12(Math.floor(at / 60), at % 60, step < 60);
+        return at === 0 && (win.from < 0 || win.to > model.span) ? `${dateFormat(lang, { timeZone: this._tz, day: "numeric", month: "numeric" }).format(instant)} ${label}` : label;
+      }
       const s = tickFmt.format(instant);
       if (localMinutes(instant, this._tz) === 0 && (win.from < 0 || win.to > model.span)) return `${dateFormat(lang, { timeZone: this._tz, day: "numeric", month: "numeric" }).format(instant)} ${s}h`;
       return step < 60 ? s : `${Number(s)}h`;

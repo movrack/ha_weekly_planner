@@ -28,7 +28,7 @@ import { appliedAction, labelName, labelOf, labelsFor } from "../labels";
 import { onServiceNames } from "../services";
 import { activeProfile, newId } from "../planner";
 import { applicable, applies, normaliseEntities, shiftTimeSpec, specMinutes } from "../slots";
-import { DAY, clockToMinutes, fmtClock, localMinutes } from "../time";
+import { DAY, clockToMinutes, fmtClock, fmtDayEnd, localMinutes } from "../time";
 import { selectedTimeText } from "../selected-time";
 import type { HomeAssistant, PlannerData, PreviewSlot, Program, Slot } from "../types";
 
@@ -1023,7 +1023,7 @@ export class WpBarEditor extends LitElement {
   }
 
   private _clock(m: number): string {
-    return m >= DAY ? "24 h" : fmtClock(this.lang, m);
+    return m >= DAY ? fmtDayEnd(this.lang) : fmtClock(this.lang, m);
   }
 
   /** Text of a handle on a sun boundary (the icon under it does not catch the pointer while editing). */
@@ -1140,7 +1140,7 @@ export class WpBarEditor extends LitElement {
 
   /** Hour axis under the bar: outside the zone (a button), so its ticks are not visible text of the button (2.5.3). */
   private _hoursAxis() {
-    return html`<div class="hours" aria-hidden="true">${[0, 6, 12, 18, 24].map((h) => html`<span style="left:${(h / 24) * 100}%">${h === 24 ? "24 h" : fmtClock(this.lang, h * 60)}</span>`)}</div>`;
+    return html`<div class="hours" aria-hidden="true">${[0, 6, 12, 18, 24].map((h) => html`<span style="left:${(h / 24) * 100}%">${h === 24 ? fmtDayEnd(this.lang) : fmtClock(this.lang, h * 60)}</span>`)}</div>`;
   }
 
   render() {

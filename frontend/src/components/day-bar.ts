@@ -5,7 +5,7 @@ import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "./tip";
 import { strings, t } from "../i18n";
-import { DAY, fmtClock } from "../time";
+import { DAY, fmtClock, fmtDayEnd } from "../time";
 import type { TimeSpec } from "../types";
 
 export interface BarSpan {
@@ -167,7 +167,7 @@ export class WpDayBar extends LitElement {
           <wp-tip class="nowic" no-tab text=${nowTip(this.lang, now)} label=${this.deviceName ? `${nowTip(this.lang, now)}, ${this.deviceName}` : nowTip(this.lang, now)}><ha-icon icon="mdi:clock-outline"></ha-icon></wp-tip></div>` : nothing}
       </div>
       ${this.showHours
-        ? html`<div class="hours" aria-hidden="true">${[0, 6, 12, 18, 24].map((h) => html`<span style="left:${pct(h * 60)}">${h === 24 ? "24 h" : fmtClock(this.lang, h * 60)}</span>`)}</div>`
+        ? html`<div class="hours" aria-hidden="true">${[0, 6, 12, 18, 24].map((h) => html`<span style="left:${pct(h * 60)}">${h === 24 ? fmtDayEnd(this.lang) : fmtClock(this.lang, h * 60)}</span>`)}</div>`
         : nothing}
     `;
   }

@@ -3,7 +3,7 @@
 export interface HomeAssistant {
   states: Record<string, HassEntity>;
   language: string;
-  locale?: { language: string };
+  locale?: { language: string; time_format?: string };
   config: { time_zone: string; unit_system?: { temperature?: string } };
   user?: { is_admin: boolean; name: string };
   themes?: { darkMode?: boolean };

@@ -428,6 +428,7 @@ Options réelles : `title` ; `program: <id>` **ou** `filter: {types: [domaines],
 administrateurs) ; filtres de types dynamiques (§ 14.12), zone, programmes à afficher (section repliable), vue, graphique.
 
 ### 10.2 Consultation (par défaut)
+- **Format de l'heure** : toute heure affichée suit `hass.locale.time_format` (aucune option propre à la carte). « 12 » : am/pm (« 7 pm », « 6:05 am ») dans toutes les langues ; « 24 » : « 19:00 » (français : « 19 h », « 6 h 05 ») ; « language » ou absent : selon la langue (français « 22 h », autres Intl). Fin de journée : « 24 h », « 12 am » en 12 h. Graphique : repères « 7 am » en 12 h, moins nombreux sous l'heure. Le stockage et les calculs restent en 24 h / UTC / fuseau du serveur.
 - Cinq vues : barres (défaut), cadran 24 h, double cadran 12 h, liste compacte (un programme déplié à la fois, chevron), horaires du jour (§ 10.2.1).
 
 #### 10.2.1 Horaires du jour (`schedule_view: times`)

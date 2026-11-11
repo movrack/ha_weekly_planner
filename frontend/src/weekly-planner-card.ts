@@ -29,7 +29,7 @@ import { timesRows } from "./times-list";
 import { configDefaults, normalizeConfig } from "./config";
 import { activeFollow, activeProfile, filterPrograms, friendlyName, subscribePlanner } from "./planner";
 import { dayBounds, addDaysIso } from "./components/chart";
-import { formatPauseEnd, formatWhen, localDateIso, localMinutes, localWeekday, nominal, pauseEnd, spillover, DAY } from "./time";
+import { formatPauseEnd, formatWhen, setTimeFormat, localDateIso, localMinutes, localWeekday, nominal, pauseEnd, spillover, DAY } from "./time";
 import type { CardConfig, HomeAssistant, PlannerData, PreviewResponse, Program, Slot } from "./types";
 
 /** How long a confirmation message stays (ms), counted from the end of any hover or focus on it. */
@@ -149,6 +149,10 @@ export class WeeklyPlannerCard extends LitElement {
     this._unsub?.();
     this._unsub = undefined;
     window.clearInterval(this._clock);
+  }
+
+  willUpdate(): void {
+    setTimeFormat(this.hass);
   }
 
   updated(): void {

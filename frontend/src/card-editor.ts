@@ -11,6 +11,7 @@ import { domainIcon, programDomains, type DomainLocalize } from "./domains";
 import { normalizeConfig, withDefaults } from "./config";
 import { allPrograms, isOn, selectCreated, toggleAllOff, toggleProgram, programRows, toggleType, typeGroups, typeState, type FilterConfig, type FilterPatch } from "./filter-editor";
 import { t } from "./i18n";
+import { setTimeFormat } from "./time";
 import { callout } from "./styles";
 import type { CardConfig, HomeAssistant, PlannerData, Program } from "./types";
 import { editorStyles, langOf } from "./editors/shared";
@@ -75,6 +76,10 @@ export class WeeklyPlannerCardEditor extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     this.requestUpdate();
+  }
+
+  willUpdate(): void {
+    setTimeFormat(this.hass);
   }
 
   updated(): void {
