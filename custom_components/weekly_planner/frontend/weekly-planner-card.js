@@ -875,7 +875,7 @@ var wt = {
 	pe_area: "Program room (optional)",
 	pe_area_hint: "Choose an existing name or enter a new one. This groups programs in card filters; the rooms of the devices are not used automatically.",
 	ce_all_areas: "All rooms",
-	ce_area_hint: "Set each program’s room in Program settings > General.",
+	ce_area_hint: "Choose each program’s room in its settings.",
 	no_matching_program: "Nothing to show here. Ask the person who set up the card (type, room or program selection in the card settings).",
 	chart_no_history: "No history recorded for this day.",
 	chart_future_history: "History will appear after the device reports its state.",
@@ -937,6 +937,7 @@ var wt = {
 	ce_sort_name: "Name (A→Z)",
 	ce_sort_custom: "Custom",
 	ce_order_list: "Custom order",
+	ce_sort_custom_hint: "Use the arrows to put your programs in the order you want.",
 	ce_move_up: "Move {name} up",
 	ce_move_down: "Move {name} down",
 	ce_drag: "Drag {name}",
@@ -1340,7 +1341,7 @@ var wt = {
 	pe_area: "Pièce du programme (facultatif)",
 	pe_area_hint: "Choisissez un nom existant ou saisissez-en un nouveau. Cette pièce regroupe les programmes dans les filtres des cartes ; les pièces des appareils ne sont pas reprises automatiquement.",
 	ce_all_areas: "Toutes les pièces",
-	ce_area_hint: "Définissez la pièce de chaque programme dans Réglages des programmes > Général.",
+	ce_area_hint: "Choisissez la pièce de chaque programme dans ses réglages.",
 	no_matching_program: "Rien à afficher ici. Demandez à la personne qui a installé la carte (types, pièce ou programmes choisis dans les réglages de la carte).",
 	chart_no_history: "Aucun historique enregistré pour cette journée.",
 	chart_future_history: "L’historique apparaîtra quand l’appareil aura communiqué son état.",
@@ -1402,6 +1403,7 @@ var wt = {
 	ce_sort_name: "Nom (A→Z)",
 	ce_sort_custom: "Personnalisé",
 	ce_order_list: "Ordre personnalisé",
+	ce_sort_custom_hint: "Utilisez les flèches pour placer vos programmes dans l'ordre que vous voulez.",
 	ce_move_up: "Monter {name}",
 	ce_move_down: "Descendre {name}",
 	ce_drag: "Glisser {name}",
@@ -9642,7 +9644,7 @@ var Is = 8e3, Z = class extends x {
       min-height: 48px; padding: 0 12px; border: none; background: none; font: inherit; font-weight: 600; cursor: pointer;
       color: inherit; text-decoration: underline; border-radius: 24px;
     }
-    .group { margin: 12px 0 0; padding: 0 0 4px; font-size: 0.8125rem; font-weight: 600; color: var(--secondary-text-color); overflow-wrap: anywhere; }
+    .group { margin: 12px 0 0; padding: 0 0 4px; font-size: 0.875rem; font-weight: 700; color: var(--primary-text-color); overflow-wrap: anywhere; }
     .empty { color: var(--primary-text-color); opacity: 0.8; padding: 16px 0; text-align: center; }
   `];
 	}
@@ -10412,7 +10414,7 @@ function mc(e, t, n) {
 // src/card-editor.ts
 var hc = 1500, gc = (e) => JSON.stringify(e, (e, t) => t && typeof t == "object" && !Array.isArray(t) ? Object.fromEntries(Object.entries(t).sort(([e], [t]) => e.localeCompare(t))) : t), $ = class extends x {
 	constructor(...e) {
-		super(...e), this._config = { type: "custom:weekly-planner-card" }, this._programs = [], this._section = "display", this._editing = null, this._leftAll = !1, this._typeIcons = /* @__PURE__ */ new Map(), this._iconKey = "", this._createdName = "", this._createdProgramId = null, this._scheduleProgramId = null, this._editors = /* @__PURE__ */ new Map(), this._domainLoadKey = "", this._tabKey = (e) => {
+		super(...e), this._config = { type: "custom:weekly-planner-card" }, this._programs = [], this._section = "display", this._editing = null, this._leftAll = !1, this._typeIcons = /* @__PURE__ */ new Map(), this._iconKey = "", this._createdName = "", this._createdProgramId = null, this._scheduleProgramId = null, this._editors = /* @__PURE__ */ new Map(), this._domainLoadKey = "", this._moved = "", this._tabKey = (e) => {
 			[
 				"ArrowLeft",
 				"ArrowRight",
@@ -10643,7 +10645,7 @@ var hc = 1500, gc = (e) => JSON.stringify(e, (e, t) => t && typeof t == "object"
 		this._set("order", [...e, ...t]);
 	}
 	_move(e, t, n) {
-		n < 0 || n >= e.length || n === t || (this._setOrder(As(e, t, n)), this.updateComplete.then(() => this.renderRoot.querySelector(`[data-order="${e[t]}"] .${n < t ? "up" : "down"}:not([disabled])`)?.focus()));
+		n < 0 || n >= e.length || n === t || (this._moved = e[t], clearTimeout(this._movedTimer), this._movedTimer = setTimeout(() => this._moved = "", 1e3), this._setOrder(As(e, t, n)), this.updateComplete.then(() => this.renderRoot.querySelector(`[data-order="${e[t]}"] .${n < t ? "up" : "down"}:not([disabled])`)?.focus()));
 	}
 	_drag(e, t, n) {
 		let r = e.currentTarget, i = r.closest(".order-list");
@@ -10663,12 +10665,12 @@ var hc = 1500, gc = (e) => JSON.stringify(e, (e, t) => t && typeof t == "object"
 	}
 	_sortField() {
 		let e = Ss(this._config.sort), t = e === "custom" ? this._customRows() : [], n = t.map((e) => e.id);
-		return v`<div class="field"><label for="ce-sort">${this._tr("ce_sort")}</label>
+		return v`<div class="field"><label class="big" for="ce-sort">${this._tr("ce_sort")}</label>
         <select id="ce-sort" data-value=${e} @change=${(e) => this._set("sort", e.target.value)}>
           ${bs.map((t) => v`<option value=${t} ?selected=${t === e}>${this._tr(`ce_sort_${t}`)}</option>`)}
         </select></div>
-      ${e === "custom" ? v`<ol class="order-list" aria-label=${this._tr("ce_order_list")}>
-        ${t.map((e, t) => v`<li class="order-row" data-order=${e.id}>
+      ${e === "custom" ? v`<p class="hint">${this._tr("ce_sort_custom_hint")}</p><ol class="order-list" aria-label=${this._tr("ce_order_list")}>
+        ${t.map((e, t) => v`<li class="order-row ${e.id === this._moved ? "moved" : ""}" data-order=${e.id}>
           <button class="handle" aria-label=${this._tr("ce_drag", { name: e.name })} @pointerdown=${(e) => this._drag(e, n, t)}><ha-icon icon="mdi:drag"></ha-icon></button>
           <span class="grow titles"><span class="type-title">${e.name}</span>
             <span class="type-names"><ha-icon class="mini" icon=${this._typeIcons.get(e.type) ?? "mdi:shape-outline"}></ha-icon>${e.type ? this._typeLabel(e.type) : this._tr("sort_other")}</span></span>
@@ -10748,10 +10750,10 @@ var hc = 1500, gc = (e) => JSON.stringify(e, (e, t) => t && typeof t == "object"
 		}}></wp-schedule>` : b}`;
 	}
 	static {
-		this.styles = [qr, l`:host { display: block; padding: 4px 0; } h3 { margin: 12px 0; font-size: 1rem; } .program-settings { padding-top: 4px; } nav { display: flex; border-bottom: 1px solid var(--divider-color); margin-bottom: 12px; } nav button { flex: 1; min-height: 48px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--secondary-text-color); cursor: pointer; } nav button[aria-selected="true"] { color: var(--wp-primary-text); border-bottom-color: var(--wp-primary-text); font-weight: 600; } .hint { line-height: 1.5; } .display-programs { margin: 12px 0; border: 1px solid var(--wp-field-border); border-radius: 8px; padding: 8px 12px; } summary { min-height: 44px; align-content: center; cursor: pointer; } .display-programs .check { min-height: 44px; overflow-wrap: anywhere; } .switch-row { display: flex; align-items: center; gap: 8px; min-height: 48px; overflow-wrap: anywhere; } .type-head { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; min-height: 48px; border: 0; background: none; color: inherit; text-align: start; cursor: pointer; } .type-body[hidden] { display: none; } ha-switch { padding: 12px 8px; margin: -12px -8px; flex: none; } ha-switch.partial { --mdc-theme-secondary: var(--warning-color, #ffa600); } .type-icon { flex: none; color: var(--secondary-text-color); } .titles { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; } .type-title { font-size: 1rem; overflow-wrap: normal; word-break: keep-all; } .type-names { font-size: 0.875rem; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .mini { --mdc-icon-size: 16px; vertical-align: -3px; margin-inline-end: 4px; } .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; } .chip { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 12px; border: 1px solid var(--wp-field-border); border-radius: 22px; background: none; color: var(--primary-text-color); font: inherit; cursor: pointer; } .chip.on { background: var(--wp-primary-fill); border-color: var(--wp-primary-fill); color: #fff; } .chip.partial { border: 2px dashed var(--wp-primary-text); } .chip .count { font-size: 0.8125rem; opacity: .85; color: inherit; } .chip.on .count { opacity: 1; color: #fff; } .quick .hint { margin: 0; } .count { font-size: 0.875rem; color: var(--secondary-text-color); } .count b { color: var(--primary-text-color); } .type-head.static { cursor: default; } .chev-space { flex: none; width: 24px; } .order-list { list-style: none; margin: 0 0 12px; padding: 0; } .order-row { display: flex; align-items: center; gap: 4px; min-height: 56px; border-bottom: 1px solid var(--divider-color); } .order-row.target { border-top: 2px solid var(--wp-primary-text); } .order-row button { flex: none; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 0; background: none; color: var(--primary-text-color); cursor: pointer; } .order-row button[disabled] { opacity: .35; cursor: default; } .order-row .handle { touch-action: none; cursor: grab; } .order-row .grow { flex: 1 1 0; min-width: 0; } .program-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }`];
+		this.styles = [qr, l`:host { display: block; padding: 4px 0; } h3 { margin: 12px 0; font-size: 1rem; } .program-settings { padding-top: 4px; } nav { display: flex; border-bottom: 1px solid var(--divider-color); margin-bottom: 12px; } nav button { flex: 1; min-height: 48px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--secondary-text-color); cursor: pointer; } nav button[aria-selected="true"] { color: var(--wp-primary-text); border-bottom-color: var(--wp-primary-text); font-weight: 600; } .hint { line-height: 1.5; } .display-programs { margin: 12px 0; border: 1px solid var(--wp-field-border); border-radius: 8px; padding: 8px 12px; } summary { min-height: 44px; align-content: center; cursor: pointer; } .display-programs .check { min-height: 44px; overflow-wrap: anywhere; } .switch-row { display: flex; align-items: center; gap: 8px; min-height: 48px; overflow-wrap: anywhere; } .type-head { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; min-height: 48px; border: 0; background: none; color: inherit; text-align: start; cursor: pointer; } .type-body[hidden] { display: none; } ha-switch { padding: 12px 8px; margin: -12px -8px; flex: none; } ha-switch.partial { --mdc-theme-secondary: var(--warning-color, #ffa600); } .type-icon { flex: none; color: var(--secondary-text-color); } .titles { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; } .type-title { font-size: 1rem; overflow-wrap: normal; word-break: keep-all; } .type-names { font-size: 0.875rem; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .mini { --mdc-icon-size: 16px; vertical-align: -3px; margin-inline-end: 4px; } .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; } .chip { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 12px; border: 1px solid var(--wp-field-border); border-radius: 22px; background: none; color: var(--primary-text-color); font: inherit; cursor: pointer; } .chip.on { background: var(--wp-primary-fill); border-color: var(--wp-primary-fill); color: #fff; } .chip.partial { border: 2px dashed var(--wp-primary-text); } .chip .count { font-size: 0.8125rem; opacity: .85; color: inherit; } .chip.on .count { opacity: 1; color: #fff; } .quick .hint { margin: 0; } .count { font-size: 0.875rem; color: var(--secondary-text-color); } .count b { color: var(--primary-text-color); } .type-head.static { cursor: default; } .chev-space { flex: none; width: 24px; } .order-list { list-style: none; margin: 0 0 12px; padding: 0; } .order-row { display: flex; align-items: center; gap: 4px; min-height: 56px; border-bottom: 1px solid var(--divider-color); } .order-row.target { border-top: 2px solid var(--wp-primary-text); } .field > label.big { font-size: 1rem; } .order-row.moved { background: var(--wp-field-border); } .order-row button.move { width: 48px; height: 48px; } .order-row button { flex: none; width: 44px; height: 48px; display: inline-flex; align-items: center; justify-content: center; border: 0; background: none; color: var(--primary-text-color); cursor: pointer; } .order-row button[disabled] { opacity: .35; cursor: default; } .order-row .handle { touch-action: none; cursor: grab; } .order-row .grow { flex: 1 1 0; min-width: 0; } .program-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }`];
 	}
 };
-E([w({ attribute: !1 })], $.prototype, "hass", void 0), E([T()], $.prototype, "_config", void 0), E([T()], $.prototype, "_programs", void 0), E([T()], $.prototype, "_data", void 0), E([T()], $.prototype, "_section", void 0), E([T()], $.prototype, "_editing", void 0), E([T()], $.prototype, "_leftAll", void 0), E([T()], $.prototype, "_typeIcons", void 0), E([T()], $.prototype, "_createdName", void 0), E([T()], $.prototype, "_createdProgramId", void 0), E([T()], $.prototype, "_scheduleProgramId", void 0), $ = E([C("weekly-planner-card-editor")], $);
+E([w({ attribute: !1 })], $.prototype, "hass", void 0), E([T()], $.prototype, "_config", void 0), E([T()], $.prototype, "_programs", void 0), E([T()], $.prototype, "_data", void 0), E([T()], $.prototype, "_section", void 0), E([T()], $.prototype, "_editing", void 0), E([T()], $.prototype, "_leftAll", void 0), E([T()], $.prototype, "_typeIcons", void 0), E([T()], $.prototype, "_createdName", void 0), E([T()], $.prototype, "_createdProgramId", void 0), E([T()], $.prototype, "_scheduleProgramId", void 0), E([T()], $.prototype, "_moved", void 0), $ = E([C("weekly-planner-card-editor")], $);
 // src/components/times-day.ts
 var _c = class extends x {
 	constructor(...e) {

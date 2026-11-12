@@ -127,6 +127,15 @@ describe("editor order list", () => {
     e._config.sort = "type";
     expect(flat(e._sortField())).not.toContain("order-list");
   });
+  it("shows the custom hint only for Custom and marks the moved row", () => {
+    const { e } = editor();
+    expect(flat(e._sortField())).toContain("Use the arrows");
+    e._move(["b", "a", "c"], 0, 1);
+    expect(e._moved).toBe("b");
+    expect(flat(e._sortField())).toContain("moved");
+    e._config.sort = "name";
+    expect(flat(e._sortField())).not.toContain("Use the arrows");
+  });
   it("ignores a move outside the list", () => {
     const { e, sent } = editor();
     e._move(["b", "a"], 0, -1);

@@ -804,7 +804,7 @@ export class WeeklyPlannerCard extends LitElement {
       min-height: 48px; padding: 0 12px; border: none; background: none; font: inherit; font-weight: 600; cursor: pointer;
       color: inherit; text-decoration: underline; border-radius: 24px;
     }
-    .group { margin: 12px 0 0; padding: 0 0 4px; font-size: 0.8125rem; font-weight: 600; color: var(--secondary-text-color); overflow-wrap: anywhere; }
+    .group { margin: 12px 0 0; padding: 0 0 4px; font-size: 0.875rem; font-weight: 700; color: var(--primary-text-color); overflow-wrap: anywhere; }
     .empty { color: var(--primary-text-color); opacity: 0.8; padding: 16px 0; text-align: center; }
   `];
 }
