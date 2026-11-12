@@ -51,7 +51,8 @@ async def test_file_created_at_start(hass, hass_storage, freezer, yaml_in_tmp):
     assert text.startswith("# Weekly Planner configuration")
     assert "/local/weekly_planner.yml" in text and "WITHOUT authentication" in text
     doc = _doc(yaml_in_tmp)
-    assert list(doc) == ["version", "vacation", "mode_selector", "default_mode", "labels", "programs"]
+    assert list(doc) == ["version", "vacation", "mode_selector", "default_mode", "holiday_entity", "holiday_invert",
+                         "labels", "programs"]
     assert doc["version"] == 1 and doc["programs"][0]["id"] == "office"
     assert "runtime" not in text and "entities" in doc["programs"][0]
     assert engine.store.runtime["yaml_hash"] == yaml_file.digest(yaml_in_tmp.read_bytes())

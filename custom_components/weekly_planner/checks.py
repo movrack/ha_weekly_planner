@@ -7,6 +7,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 
 from .const import VERIFY_MAX_TRIES
+from .modes import profile_slots
 from .slots import applies
 
 
@@ -41,7 +42,7 @@ def program_warnings(
         if engine is not None:
             labels = engine.labels
             # only the slots that apply to this device (#34): a cover slot never warns the thermostat
-            used = ({s["label"] for p in program["profiles"] for d in p["days"] for s in d if applies(s, eid)}
+            used = ({s["label"] for p in program["profiles"] for s in profile_slots(p) if applies(s, eid)}
                     | {entity.get("default_label")})
             skipped = sorted(
                 labels[lid]["name"] for lid in used

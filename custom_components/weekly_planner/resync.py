@@ -21,7 +21,14 @@ from typing import Protocol
 
 from .const import DEFAULT_PRIORITY
 from .resolver import (
-    ConditionCheck, OccurrenceCache, Resolve, active_profile, occurrences_around, resolve_entity,
+    NO_HOLIDAY,
+    ConditionCheck,
+    Holiday,
+    OccurrenceCache,
+    Resolve,
+    active_profile,
+    occurrences_around,
+    resolve_entity,
 )
 from .slots import applies
 from .timeline import SunProvider
@@ -82,6 +89,7 @@ def expected_state(
     vacation: bool = False,
     active_profiles: dict[str, str] | None = None,
     cache: OccurrenceCache | None = None,
+    holiday: Holiday = NO_HOLIDAY,
 ) -> Decision:
     """What ``entity_id`` should be doing at ``now`` (UTC), before any history check."""
     active_profiles = active_profiles or {}
@@ -94,7 +102,7 @@ def expected_state(
         return Decision(reason="paused" if any(p.get("paused_until") for p in owners) else "off")
 
     seg = resolve_entity(entity_id, programs, resolve, now, tz, sun, conditions_ok,
-                         active_profiles=active_profiles, cache=cache)
+                         active_profiles=active_profiles, cache=cache, holiday=holiday)
     by_id = {p["id"]: p for p in enabled}
     running = seg.program_id if seg.in_slot else None
     running_rank = _rank(by_id[running])[0] if running in by_id else None
@@ -112,7 +120,7 @@ def expected_state(
             continue
         profile = active_profile(program, active_profiles)
         for occ, slot in occurrences_around(profile, now, tz, sun, days=(-2, -1, 0), program_id=program["id"],
-                                            cache=cache, entity_id=entity_id):
+                                            cache=cache, entity_id=entity_id, holiday=holiday):
             if not occ.runs or not applies(slot, entity_id):
                 continue
             if occ.end is not None:

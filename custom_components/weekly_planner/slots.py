@@ -41,18 +41,25 @@ def subsets(day_slots: Iterable[Mapping], entity_ids: Iterable[str]) -> list[tup
 
 
 def _rewrite_slots(program: Mapping, rewrite) -> dict:
-    """Copy of ``program`` where ``rewrite(slot)`` returns the new slot, or None to delete it."""
+    """Copy of ``program`` where ``rewrite(slot)`` returns the new slot, or None to delete it.
+
+    The own day of a day-off setting (issue #54) is rewritten like the seven days.
+    """
+    def rewrite_day(day: list) -> list:
+        kept = []
+        for slot in day:
+            new = rewrite(slot) if slot.get("entities") is not None else slot
+            if new is not None:
+                kept.append(new)
+        return kept
+
     profiles = []
     for profile in program["profiles"]:
-        days = []
-        for day in profile["days"]:
-            kept = []
-            for slot in day:
-                new = rewrite(slot) if slot.get("entities") is not None else slot
-                if new is not None:
-                    kept.append(new)
-            days.append(kept)
-        profiles.append({**profile, "days": days})
+        new_profile = {**profile, "days": [rewrite_day(day) for day in profile["days"]]}
+        holiday = profile.get("holiday")
+        if isinstance(holiday, Mapping) and isinstance(holiday.get("day"), list):
+            new_profile["holiday"] = {**holiday, "day": rewrite_day(holiday["day"])}
+        profiles.append(new_profile)
     return {**program, "profiles": profiles}
 
 

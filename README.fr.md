@@ -274,6 +274,24 @@ data:
 Voir les [exemples de modes](wiki/MODES_COOKBOOK.fr.md) et les
 [exemples d’actions natives](wiki/GENERIC_ACTIONS.md).
 
+### Jour férié
+
+Une entité facultative, une seule pour toute la maison, dit si aujourd’hui est un jour férié ou de congé : un
+`binary_sensor`, `input_boolean`, `switch` ou `calendar` (par exemple l’intégration Holiday), choisie par un
+administrateur dans **Configurer → Jour férié ou congé**. Cochez **Cette entité est « on » un jour travaillé** pour un
+capteur Workday. Les entités de Weekly Planner et celles qu’un programme commande sont refusées.
+
+- Chaque mode peut avoir un réglage « Jour férié » : les mêmes horaires qu’un jour de la semaine (lien vivant vers ce
+  jour) ou des horaires propres. Un jour férié, il **remplace** le jour de la semaine du mode actif ; un mode sans
+  réglage garde son jour normal, et un mode qui en suit un autre utilise le jour férié de sa source. Les priorités ne
+  changent pas.
+- Un jour férié va de 00:00 à 24:00 : à côté d’un jour férié, les horaires s’arrêtent à minuit. Hier et demain sont
+  toujours des jours normaux.
+- Seul « on » ou « off » compte. Indisponible ou inconnu garde la valeur du jour ; sans valeur connue, le jour est
+  normal. Un changement attend 30 secondes (un retour en arrière dans ce délai est ignoré), puis s’applique comme un
+  changement de mode. Juste après minuit, les programmes qui ont un réglage attendent l’entité jusqu’à 2 minutes.
+- Une entité absente ouvre un problème dans Réparations ; les réglages sont gardés et chaque jour est normal.
+
 ## Entités et services HA
 
 L’intégration crée un interrupteur global de suspension, et un interrupteur
@@ -282,7 +300,7 @@ un identifiant anglais généré sur une autre installation.
 
 | Entité | Comportement |
 |---|---|
-| Interrupteur de programme | Active ou suspend. Attributs : `program_id`, `no_schedule_for_mode`, `current_slots`, `next_change`, `skip_next`, `skip_next_targets`, `next_actions` et, selon le cas, `paused_until` et `verification`. Il n’y a pas d’attribut du mode actif : le mode se lit sur l’entité sélecteur. |
+| Interrupteur de programme | Active ou suspend. Attributs : `program_id`, `no_schedule_for_mode`, `current_slots`, `next_change`, `skip_next`, `skip_next_targets`, `next_actions` et, selon le cas, `paused_until`, `verification` et `holiday` (le jour férié remplace le jour de la semaine : `{copy: 0..6}` ou `{own: true}`). Il n’y a pas d’attribut du mode actif : le mode se lit sur l’entité sélecteur. |
 | Interrupteur global | Suspend les programmes et applique une fois les défauts éligibles. |
 
 | Action | Champs | Qui peut l’appeler |
@@ -341,6 +359,7 @@ Les interrupteurs utilisent `switch.turn_on` et `switch.turn_off`. Planifier
 |---|---|---|
 | `admin_only` | `false` | Limite les modifications des programmes et réglages. Les interrupteurs restent des commandes séparées ; le mode se choisit sur l’entité sélecteur, pas dans Weekly Planner. |
 | `mode_selector` | aucun | Entité `input_select` ou `select` facultative dont l’état est le mode actif, puis un mode par défaut parmi ses options. Réservé aux administrateurs. |
+| `holiday_entity`, `holiday_invert` | aucune, `false` | Entité jour férié facultative de la maison et « on un jour travaillé ». Réservé aux administrateurs ; rangé avec le sélecteur de mode, pas dans les options de l’entrée. |
 | `reapply_default` | `true` | Valeur de départ de **Réappliquer** pour tout nouveau programme (carte, WebSocket, programme d’un fichier YAML sans `reapply`). |
 | `notify_delay_min` | `30` | Notification d’entité indisponible, 1 à 1440 minutes. |
 | `debounce_min` | `2` | Délai de stabilité des conditions, 0 à 60 minutes. |
@@ -367,10 +386,10 @@ client tiers, [websocket.py](custom_components/weekly_planner/websocket.py) fait
 | Commandes | But |
 |---|---|
 | `weekly_planner/get`, `weekly_planner/subscribe` | État initial et mises à jour. |
-| `weekly_planner/program/save`, `program/delete`, `program/set_enabled`, `program/pause`, `program/mode_follow` | Mutations de programme ; tous les suffixes sont sous `weekly_planner/`. |
+| `weekly_planner/program/save`, `program/delete`, `program/set_enabled`, `program/pause`, `program/mode_follow`, `program/holiday` | Mutations de programme ; tous les suffixes sont sous `weekly_planner/`. `program/holiday` règle (`{copy: 0..6}` ou `{day: [...]}`) ou efface (`null`) le jour férié d’un mode ; un profil enregistré sans `holiday` le garde. |
 | `weekly_planner/mode/set`, `mode/resolve`, `mode/undo_rename`, `mode/dismiss_rename` | Réponses sur les modes et avis de renommage. |
 | `weekly_planner/label/save`, `label/delete` | Réglages globaux. |
-| `weekly_planner/preview` | Résoudre les occurrences d’un programme (pour un mode) pour une date. |
+| `weekly_planner/preview` | Résoudre les occurrences d’un programme (pour un mode) pour une date ; `holiday` dit si cette date est le jour férié d’aujourd’hui. L’instantané porte `holiday_entity`, `holiday_invert` et `holiday_today`. |
 | `weekly_planner/journal` | Décisions enregistrées, jusqu’à 14 jours. |
 
 Une modification porte la `revision` courante ; une révision obsolète provoque
@@ -391,6 +410,8 @@ version: 1
 vacation: false
 mode_selector: input_select.house_mode   # null = un seul mode
 default_mode: Maison                     # une option du sélecteur
+holiday_entity: binary_sensor.workday    # null = pas de jour férié
+holiday_invert: true                     # l’entité est « on » un jour travaillé
 labels:
   - id: comfort
     name: Confort
@@ -401,7 +422,7 @@ programs:
     name: Salon
     entities: [{entity_id: climate.living, default_label: comfort, label_overrides: {}}]
     modes:            # les horaires de chaque mode, rangés par nom de mode
-      Maison: {mon: [...], tue: [...]}   # 7 listes de jours ; le premier mode est celui utilisé sans sélecteur
+      Maison: {mon: [...], tue: [...], holiday: {copy: sun}}   # 7 listes de jours ; holiday : {copy: <jour>} ou {day: [...]}
 ```
 
 - **Modification dans la carte** : le fichier est écrit environ 2 secondes après l'enregistrement
@@ -415,11 +436,13 @@ programs:
   fichier n'est pas touché et un problème de réparation affiche l'erreur ; il disparaît quand le
   fichier redevient valide. Si vous enregistrez dans la carte entre-temps, le fichier invalide est
   d'abord conservé sous `weekly_planner.yml.invalid`.
+- Un fichier sans `holiday_entity` ou `holiday_invert` laisse ces réglages tels quels. Un mode sans `holiday` n’a
+  pas de réglage « Jour férié » ; un mode avec `follows` ne peut pas en avoir.
 - La suppression de l'intégration supprime le fichier.
 
 > **Attention :** `/config/www` est servi **sans authentification** à l'adresse
-> `http://<votre-ha>/local/weekly_planner.yml`. Les horaires révèlent quand la maison est occupée ou
-> vide. N'exposez pas cette adresse sur Internet (reverse proxy, redirection de port).
+> `http://<votre-ha>/local/weekly_planner.yml`. Les horaires, y compris ceux des jours fériés, révèlent
+> quand la maison est occupée ou vide. N'exposez pas cette adresse sur Internet (reverse proxy, redirection de port).
 
 ## Pour les agents IA
 

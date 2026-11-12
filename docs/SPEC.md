@@ -224,6 +224,37 @@ service `override` ni `resume`. Seul l'**affichage** du graphique montre les cha
 - **Vacances est un mode ordinaire**, sans traitement de suspension. L’interrupteur global (`switch.weekly_planner_vacation`) est présenté comme « Suspension de tous les programmes » ;
   son identifiant stable préserve les automatisations existantes.
 
+### 5.11 Jour férié (#54, partie serveur)
+- **Entité** : facultative, une seule pour la maison, choisie par un administrateur dans les options de l'intégration
+  (même chemin que le sélecteur de mode : `store.config`, pas `entry.options`) : `holiday_entity` (domaines `binary_sensor`,
+  `input_boolean`, `switch`, `calendar`) et `holiday_invert` (l'entité est « on » un jour **travaillé**, ex. Workday).
+  Refusées : les entités de Weekly Planner (`circular_holiday_entity`) et celles qu'un programme commande (appareils, cibles
+  explicites : `driven_holiday_entity`). Sans entité, tout est ignoré ; les réglages restent stockés.
+- **Réglage par mode** : clé facultative `holiday` du profil : absente/`null` (aucun réglage), `{"copy": 0..6}` (référence
+  **vivante** à un jour de la semaine, 0 = lundi) ou `{"day": [horaires]}` (journée propre, même forme qu'un jour,
+  horaires par appareil permis). Un mode qui en suit un autre n'a pas de réglage propre : il utilise celui du mode copié ;
+  « Arrêter de suivre » et la disparition de la source copient aussi le réglage (nouveaux id, graine gardée).
+- **Un seul calcul** : `resolver.day_slots(profil, date, is_holiday)` choisit le jour, utilisé par le moteur, l'aperçu,
+  le statut et la resynchronisation. Le férié **remplace** le jour de la semaine dans le mode actif (pas de mélange).
+  Un programme sans réglage garde son jour normal ; priorités et « le reste du temps » inchangés (le défaut reste au
+  programme de plus haute priorité).
+- **Hier et demain sont toujours des jours normaux.** Un jour férié va de 00:00 à 24:00 : à côté d'un férié, les
+  horaires s'arrêtent à minuit (la veille d'un férié, le férié lui-même, et le lendemain d'un férié connu : la valeur
+  d'hier est gardée avec sa date). Un horaire qui ne garde rien avant minuit est ignoré (`holiday_cut` / `too_short`).
+  Pas de contrôle de chevauchement entre un férié et ses voisins ; la journée propre est contrôlée seule.
+  « Ensuite : demain … » ignore un férié possible demain (limite connue).
+- **Valeur** : seul le booléen compte (`on`/`off`, inversé si demandé) ; `unavailable`/`unknown`/absente garde la valeur
+  connue **pour aujourd'hui** (persistée avec sa date dans le runtime) ; sans valeur du jour, jour normal.
+  Réparation `holiday_entity_missing` si l'entité n'existe pas ; un renommage met le réglage à jour.
+- **Changement en journée** : anti-rebond de 30 s (`HOLIDAY_DEBOUNCE_S`), un retour en arrière dans ce délai est ignoré ;
+  ensuite, chemin d'un changement de mode pour les programmes dont le mode actif a un réglage : état recalculé,
+  `reapply` respecté, ponctuels passés de `(last_tick, now]` jamais rejoués, `skip_next` en attente annulé.
+- **Minuit** : après minuit local, tant que l'entité n'a pas parlé depuis minuit (puis 30 s sans changement), les ordres
+  et ponctuels des programmes ayant un réglage attendent, au plus 2 min (`HOLIDAY_SETTLE_S`) ; à la fin de l'attente la
+  valeur du jour est prise, les ordres partent une fois et les ponctuels de l'attente sont exécutés une fois.
+  Au démarrage (après la stabilisation de 30 s), l'état valide de l'entité remplace la valeur du jour.
+- **Cache** : la clé de `OccurrenceCache` contient les drapeaux du jour (férié, coupé à minuit).
+
 ## 6. Actions (un seul modèle pour toute entité)
 
 - Une **action** est :
@@ -263,13 +294,19 @@ service `override` ni `resume`. Seul l'**affichage** du graphique montre les cha
 ## 8. Données et stockage
 
 `.storage/weekly_planner` (`Store`, `version` + `minor_version`, `atomic_writes`, écriture différée 1 s, migrations testées).
-**Version 2, minor 1** (`STORAGE_VERSION = 2`, `STORAGE_MINOR_VERSION = 1`) ; la version 1 est migrée
-automatiquement (voir ci-dessous). Runtime : version 2 (migration depuis la 1), écriture différée 1 s. Journal : version 1,
+**Version 3, minor 2** (`STORAGE_VERSION = 3`, `STORAGE_MINOR_VERSION = 2`) ; les versions 1 et 2 sont migrées
+automatiquement (voir ci-dessous). Minor 2 (#54) ajoute les clés facultatives `holiday_entity`, `holiday_invert` et
+`profiles[].holiday` : un fichier 3.1 se charge tel quel et est réécrit en 3.2 ; un fichier d'un minor **plus récent**
+que celui du code est refusé (entrée non chargée, fichier intact, comme un fichier illisible) au lieu de perdre ce
+qu'une version ancienne ne connaît pas. Les versions publiées avant le minor 2 ne contiennent pas ce refus : un retour
+en arrière se fait en restaurant la sauvegarde. Runtime : version 2 (migration depuis la 1), écriture différée 1 s. Journal : version 1,
 écriture différée 5 s.
 
 ```text
 racine
 ├─ vacation        : bool
+├─ mode_selector?, default_mode? : sélecteur de mode global et mode par défaut (§ 37.2)
+├─ holiday_entity? : entité jour férié (§ 5.11) ; holiday_invert : bool
 ├─ labels[]        : id, name (1–30 car.), color, action
 └─ programs[]      : id, revision, created_at, name (1–60 car.), icon?, area?, priority (1–100, défaut 10), enabled, reapply,
                      entities[] (1–100) : entity_id, default_label? (id de réglage), label_overrides{ label_id: action },
@@ -279,8 +316,10 @@ racine
                      active_profile, profiles[] (1–20) : id, name (1–40 car., unique),
                        days[0..6] : slots[] (≤ 50 par jour) : id, start, end?, conditions[] (≤ 10), color?, label (id de réglage),
                                          entities? (appareils visés, § 8.2), seed? (graine du délai, § 8.2)
+                       follows? (§ 37.2, ADR 0002), holiday? : {copy: 0..6} | {day: slots[]} (§ 5.11)
 runtime (`weekly_planner.runtime`) : par entité → segment courant, action en attente, reprises ; par programme → profil actif,
-                     skip_at ; `conditions` → dernières valeurs connues des conditions (persistées pour le démarrage, § 5.5)
+                     skip_at ; `conditions` → dernières valeurs connues des conditions (persistées pour le démarrage, § 5.5) ;
+                     `holiday` → {date, on, previous?: {date, on}} : drapeau férié du jour et de la veille (§ 5.11)
 journal (`weekly_planner.journal`) : 14 jours glissants, deux sortes d'entrées : segment décidé
                      (`at, entity_id, segment, program_id, slot_id, action`) et action réellement envoyée (`at, entity_id, sent: true, action, reason`)
 ```
@@ -388,18 +427,27 @@ Planner » (`integration_type: service`) ; un `select` par programme nommé « M
   (`defaults` : champ additif, valeurs par défaut du serveur — option `reapply_default`, `DEFAULT_PRIORITY` = 10 — dont la carte
   initialise les nouveaux programmes, avec repli vrai / 10) ; `get` ajoute `is_admin` ;
   `subscribe` renvoie l'instantané à chaque changement ; `can_edit` est calculé par connexion.
+  Champs additifs (#54) : `holiday_entity` (null = fonction masquée), `holiday_invert`, `holiday_today` (aujourd'hui est
+  férié, après anti-rebond ou attente de minuit) ; `status{programme}.holiday` présent seulement quand le férié change la
+  journée du programme : `{copy: 0..6}` ou `{own: true}`.
 - `program/save` (édition ; `revision` vérifiée) · `program/delete` (édition) · `label/save` · `label/delete` (suppression
   refusée tant qu'un programme l'utilise, erreur `in_use` avec la liste).
 - `program/set_enabled` et `program/set_profile` : **ouverts à tous** (comme le switch et le select HA), même avec `admin_only` ;
   `set_profile` est refusé (`invalid`) sous contrôle d'une source de mode.
-- `preview {program_id, date? (AAAA-MM-JJ, défaut aujourd'hui), profile_id?}` → `{date, slots: [{slot_id, start, end, ignored, sun}]}`
-  (heures résolues, raison d'ignorance § 5.7).
+- `preview {program_id, date? (AAAA-MM-JJ, défaut aujourd'hui), profile_id?}` → `{date, holiday, slots: [{slot_id, start, end, ignored, sun}]}`
+  (heures résolues, raison d'ignorance § 5.7 ; `holiday` : la date est aujourd'hui et aujourd'hui est férié, les horaires
+  sont alors ceux qui tournent vraiment, § 5.11).
+- `program/holiday {program_id, profile_id, holiday: null | {copy} | {day}, revision?}` (#54) : règle ou efface le férié
+  d'un mode ; mêmes droits et contrôles que `program/save` (`admin_only`, actions sensibles, validation, `conflict`).
+  `program/save` sans clé `holiday` dans un profil garde le réglage stocké ; `holiday: null` l'efface.
 - `journal {entity_id?, days? (1–14, défaut 1)}` → `{segments: […]}` (les deux sortes d'entrées du journal, § 8).
 - Codes d'erreur : `conflict` (révision changée), `invalid` (validation), `unauthorized`, `not_found`, `in_use`, `not_loaded`.
 - Codes de validation (dans le message de `invalid`) : `unknown_service`, `invalid_service_data`, `service_not_for_entity`,
   `unknown_label`, `unknown_mode_profile`, `empty_mode_state`, `circular_mode_source`, `duplicate_profile_name`,
   `overlapping_slots`, `random_window_too_short`, `earliest_after_latest`, `service_data_target`, `invalid_random_minutes`,
-  `invalid_service_data_sources`.
+  `invalid_service_data_sources`, `invalid_holiday` / `invalid_holiday_copy` (forme du férié), « … has its own day off »
+  (mode qui suit avec un férié propre). Options : `invalid_holiday_entity_domain`, `circular_holiday_entity`,
+  `driven_holiday_entity`, `invalid_holiday_invert`.
 
 **Droits**
 - `admin_only` (option globale, désactivée par défaut) : si actif, seule l'édition des programmes et réglages est réservée
@@ -412,7 +460,8 @@ actif sur la même entité), `automation` (automatisation active qui la vise), `
 `incompatible_label` (réglages ignorées pour cette entité), `missing` (entité absente).
 
 **Options** : `admin_only` ; délai d'alerte `notify_delay_min` (1–1440 min, 30 par défaut) ; `reapply_default` (valeur
-proposée aux nouveaux programmes) ; anti-rebond `debounce_min` (0–60 min, 2 par défaut). Une modification des options recharge
+proposée aux nouveaux programmes) ; anti-rebond `debounce_min` (0–60 min, 2 par défaut) ; sélecteur de mode et entité
+jour férié (`holiday_entity`, `holiday_invert`, § 5.11), rangés dans `store.config` et non dans les options de l'entrée. Une modification des options recharge
 l'entrée. Instance unique.
 **Désinstallation** (`async_remove_entry`) : retrait de la ressource Lovelace, des entités et du stockage.
 

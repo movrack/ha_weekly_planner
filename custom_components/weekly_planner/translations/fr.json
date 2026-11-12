@@ -27,12 +27,16 @@
           "reapply_default": "Refaire le réglage en cours après un redémarrage ou une modification (valeur par défaut des nouveaux programmes)",
           "notify_delay_min": "Alerte si un appareil est indisponible depuis",
           "debounce_min": "Attendre avant d'appliquer un changement de condition",
-          "mode_selector": "Sélecteur de mode (facultatif)"
+          "mode_selector": "Sélecteur de mode (facultatif)",
+          "holiday_entity": "Jour férié ou congé (facultatif)",
+          "holiday_invert": "Cette entité est « on » un jour travaillé"
         },
         "data_description": {
           "notify_delay_min": "Si un appareil piloté par un horaire reste indisponible plus longtemps que cette durée, Home Assistant affiche une notification. Le réglage est renvoyé tout seul au retour de l'appareil.",
           "debounce_min": "Un programme peut avoir des conditions que vous ajoutez vous-même, par exemple « quelqu'un est présent » ou « température > 24 °C ». Quand l'une d'elles change, Weekly Planner attend cette durée avant d'agir, pour ignorer les oscillations brèves. 0 = tout de suite.",
-          "mode_selector": "Un sélecteur de Home Assistant (input_select ou select) dont le choix actuel est le Mode actif de la maison, par exemple Maison, Absent ou Vacances. Weekly Planner le lit seulement, il ne le change jamais. Laisser vide pour n'avoir qu'un seul Mode."
+          "mode_selector": "Un sélecteur de Home Assistant (input_select ou select) dont le choix actuel est le Mode actif de la maison, par exemple Maison, Absent ou Vacances. Weekly Planner le lit seulement, il ne le change jamais. Laisser vide pour n'avoir qu'un seul Mode.",
+          "holiday_entity": "Une entité de Home Assistant (binary_sensor, input_boolean, switch ou calendar) qui est « on » un jour férié ou de congé. Ce jour-là, un Mode qui a un réglage Jour férié l'utilise à la place du jour de la semaine. Laisser vide pour ignorer les jours fériés.",
+          "holiday_invert": "À cocher pour un capteur Workday : il est « on » les jours travaillés."
         }
       },
       "resync": {
@@ -59,7 +63,11 @@
       "invalid_mode_selector_domain": "Choisissez un input_select ou un select.",
       "circular_mode_selector": "Cette entité appartient à Weekly Planner. Choisissez-en une autre.",
       "invalid_default_mode": "Saisissez un nom de Mode de 1 à 40 caractères.",
-      "unknown_default_mode": "Ce Mode n'est pas une option du sélecteur. Choisissez-en un dans la liste."
+      "unknown_default_mode": "Ce Mode n'est pas une option du sélecteur. Choisissez-en un dans la liste.",
+      "invalid_holiday_entity_domain": "Choisissez un binary_sensor, un input_boolean, un switch ou un calendar.",
+      "circular_holiday_entity": "Cette entité appartient à Weekly Planner. Choisissez-en une autre.",
+      "driven_holiday_entity": "Un programme commande cette entité. Choisissez-en une autre.",
+      "invalid_holiday_invert": "Cochez la case ou laissez-la vide."
     }
   },
   "entity": {
@@ -143,6 +151,10 @@
     "mode_option_missing": {
       "title": "Weekly Planner : un mode ne correspond à aucune option",
       "description": "Ces modes ont des horaires mais ne sont plus une option du sélecteur de mode : {modes}. Ils sont conservés, inactifs, et rien n'a été effacé. Options qu'aucun programme n'utilise encore : {options}. Ouvrez l'écran des horaires pour rattacher chaque mode à une option, ou le supprimer."
+    },
+    "holiday_entity_missing": {
+      "title": "Weekly Planner : entité de jour férié absente",
+      "description": "L'entité de jour férié {entity} n'existe pas. Les réglages Jour férié sont gardés, mais chaque jour est un jour normal. Choisissez une autre entité dans les réglages de Weekly Planner, ou rétablissez-la."
     }
   },
   "exceptions": {

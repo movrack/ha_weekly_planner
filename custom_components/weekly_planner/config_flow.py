@@ -31,17 +31,20 @@ from .const import (
     CONF_NOTIFY_DELAY_MIN,
     CONF_REAPPLY_DEFAULT,
     CONF_DEFAULT_MODE,
+    CONF_HOLIDAY_ENTITY,
+    CONF_HOLIDAY_INVERT,
     CONF_MODE_SELECTOR,
     DEFAULT_ADMIN_ONLY,
     DEFAULT_DEBOUNCE_MIN,
     DEFAULT_NOTIFY_DELAY_MIN,
     DEFAULT_REAPPLY,
     DOMAIN,
+    HOLIDAY_DOMAINS,
     MODE_NAME_MAX,
     MODE_SELECTOR_DOMAINS,
 )
 from .messages import resync_lines
-from .validation import check_mode_config
+from .validation import check_holiday_config, check_mode_config, driven_entities
 
 
 class WeeklyPlannerConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -65,11 +68,15 @@ class WeeklyPlannerConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class WeeklyPlannerOptionsFlow(OptionsFlow):
-    """Global options: the settings, then the global mode (selector and default mode)."""
+    """Global options: the settings, then the global mode (selector and default mode).
+
+    The mode selector and the day-off entity live in the store (``store.config``), not in the entry options.
+    """
 
     def __init__(self) -> None:
         self._settings: dict[str, Any] = {}
         self._selector: str | None = None
+        self._holiday: dict[str, Any] = {}
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -103,13 +110,20 @@ class WeeklyPlannerOptionsFlow(OptionsFlow):
         config = self._engine.store.config
         if user_input is not None:
             selector = user_input.pop(CONF_MODE_SELECTOR, None) or None
+            holiday = user_input.pop(CONF_HOLIDAY_ENTITY, None) or None
+            invert = user_input.pop(CONF_HOLIDAY_INVERT, False)
             for key in (CONF_NOTIFY_DELAY_MIN, CONF_DEBOUNCE_MIN):  # number selectors give floats (both are required)
                 user_input[key] = int(user_input[key])
             try:
                 check_mode_config(selector, None, self.hass)
             except vol.Invalid as err:
                 errors[CONF_MODE_SELECTOR] = str(err)
-            else:
+            try:
+                self._holiday = check_holiday_config(
+                    holiday, invert, self.hass, driven_entities(self._engine.store.programs, self._engine.labels))
+            except vol.Invalid as err:
+                errors[CONF_HOLIDAY_ENTITY] = str(err)
+            if not errors:
                 self._settings = user_input
                 self._selector = selector
                 if selector:
@@ -141,13 +155,17 @@ class WeeklyPlannerOptionsFlow(OptionsFlow):
                 ): NumberSelector(NumberSelectorConfig(
                     min=0, max=60, step=1, mode=NumberSelectorMode.SLIDER, unit_of_measurement="min")),
                 selector_key: EntitySelector(EntitySelectorConfig(domain=list(MODE_SELECTOR_DOMAINS))),
+                vol.Optional(CONF_HOLIDAY_ENTITY, description={"suggested_value": config.get(CONF_HOLIDAY_ENTITY)}):
+                    EntitySelector(EntitySelectorConfig(domain=list(HOLIDAY_DOMAINS))),
+                vol.Required(CONF_HOLIDAY_INVERT, default=bool(config.get(CONF_HOLIDAY_INVERT, False))): bool,
             }
         )
         return self.async_show_form(step_id="settings", data_schema=schema, errors=errors)
 
     async def _save_mode(self, selector: str | None, default_mode: str | None) -> None:
-        """Save the global mode now: changed options reload the entry, which reads the store again."""
+        """Save the global mode and the day off now: changed options reload the entry, which reads the store again."""
         await self._engine.async_set_mode_config(selector, default_mode)
+        await self._engine.async_set_holiday_config(self._holiday["holiday_entity"], self._holiday["holiday_invert"])
         await self._engine.store.async_flush_config()  # a delayed save would be lost by the reload
 
     def _known_options(self) -> list[str]:

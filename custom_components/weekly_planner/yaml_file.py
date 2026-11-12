@@ -24,10 +24,17 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_call_later, async_track_time_interval
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN
+from .const import CONF_HOLIDAY_ENTITY, CONF_HOLIDAY_INVERT, DOMAIN
 from .slots import normalise_slot_entities, remove_device_from_slots
 from .store import PlannerStore, new_id
-from .validation import check_label, check_mode_config, check_program, keep_pause
+from .validation import (
+    check_holiday_config,
+    check_label,
+    check_mode_config,
+    check_program,
+    driven_entities,
+    keep_pause,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,7 +47,7 @@ HEADER = (
     "# Edit by hand if you like: a valid change is imported within 30 seconds. Every save made in the\n"
     "# interface rewrites this file, so comments and ordering are not kept.\n"
     "# WARNING: /config/www is served WITHOUT authentication at /local/weekly_planner.yml.\n"
-    "# Schedules reveal when the house is empty: do not publish this address.\n"
+    "# Schedules (day-off times included) reveal when the house is empty: do not publish this address.\n"
 )
 
 
@@ -58,14 +65,40 @@ def remove_files(path: Path) -> None:
 DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 
 
+def holiday_to_file(holiday: dict) -> dict:
+    """A day-off setting as written in the file: ``{copy: mon}`` (a weekday's name) or ``{day: [...]}``."""
+    return {"copy": DAYS[holiday["copy"]]} if "copy" in holiday else {"day": holiday["day"]}
+
+
+def holiday_from_file(name: str, value: Any) -> dict | None:
+    """A day-off setting of the file as stored (``copy`` becomes the weekday index, 0 = Monday)."""
+    if value is None:
+        return None
+    if not isinstance(value, dict) or len(value) != 1 or not set(value) <= {"copy", "day"}:
+        raise TypeError(f"mode {name}: 'holiday' must be {{copy: <day>}} or {{day: [...]}}")
+    if "copy" in value:
+        day = value["copy"]
+        if day not in DAYS:
+            raise TypeError(f"mode {name}: 'holiday: copy' must be one of {', '.join(DAYS)}")
+        return {"copy": DAYS.index(day)}
+    return {"day": value["day"] or []}
+
+
+def _mode_to_file(profile: dict) -> dict:
+    if profile.get("follows"):
+        return {"follows": profile["follows"]}
+    out: dict[str, Any] = dict(zip(DAYS, profile["days"], strict=True))
+    if profile.get("holiday"):
+        out["holiday"] = holiday_to_file(profile["holiday"])
+    return out
+
+
 def program_to_file(program: dict[str, Any]) -> dict[str, Any]:
-    """A program as written in the file: ``profiles`` become ``modes: {name: {mon..sun: [...]}}``."""
+    """A program as written in the file: ``profiles`` become ``modes: {name: {mon..sun: [...], holiday}}``."""
     out: dict[str, Any] = {}
     for key, value in program.items():
         if key == "profiles":
-            out["modes"] = {
-                p["name"]: {"follows": p["follows"]} if p.get("follows") else dict(zip(DAYS, p["days"], strict=True))
-                for p in value}
+            out["modes"] = {p["name"]: _mode_to_file(p) for p in value}
         else:
             out[key] = value
     return out
@@ -92,9 +125,12 @@ def program_from_file(item: dict[str, Any], existing: dict[str, Any] | None) -> 
             raise TypeError(f"mode name {name!r} must be text")
         if days is None:
             days = {}
-        if not isinstance(days, dict) or set(days) - set(DAYS) - {"follows"}:
-            raise TypeError(f"mode {name}: expected the days {', '.join(DAYS)}, or follows: <mode>")
+        if not isinstance(days, dict) or set(days) - set(DAYS) - {"follows", "holiday"}:
+            raise TypeError(f"mode {name}: expected the days {', '.join(DAYS)} and holiday, or follows: <mode>")
         profile = {"id": ids.get(name) or new_id(), "name": name, "days": [days.get(day) or [] for day in DAYS]}
+        holiday = holiday_from_file(name, days.get("holiday"))
+        if holiday is not None:
+            profile["holiday"] = holiday  # check_program refuses it on a mode that follows
         if days.get("follows") is not None:
             if not isinstance(days["follows"], str):
                 raise TypeError(f"mode {name}: 'follows' must be the name of a mode")
@@ -113,6 +149,8 @@ def render(config: dict[str, Any]) -> bytes:
         "vacation": plain.get("vacation", False),
         "mode_selector": plain.get("mode_selector"),
         "default_mode": plain.get("default_mode"),
+        "holiday_entity": plain.get(CONF_HOLIDAY_ENTITY),
+        "holiday_invert": bool(plain.get(CONF_HOLIDAY_INVERT, False)),
         "labels": plain.get("labels", []),
         "programs": [program_to_file(p) for p in plain.get("programs", [])],
     }
@@ -179,9 +217,11 @@ def _parse(data: bytes) -> dict[str, Any]:
             raise TypeError(f"'{key}' must be a list")
     if not isinstance(raw.get("vacation", False), bool):
         raise TypeError("'vacation' must be true or false")
-    for key in ("mode_selector", "default_mode"):
+    for key in ("mode_selector", "default_mode", CONF_HOLIDAY_ENTITY):
         if raw.get(key) is not None and not isinstance(raw[key], str):
             raise TypeError(f"'{key}' must be text or empty")
+    if not isinstance(raw.get(CONF_HOLIDAY_INVERT, False), bool):
+        raise TypeError(f"'{CONF_HOLIDAY_INVERT}' must be true or false")
     return raw
 
 
@@ -297,13 +337,13 @@ class YamlSync:
 
     async def _async_import(self, data: bytes, file_hash: str) -> None:
         try:
-            labels, programs, vacation, mode = await self._async_validate(data)
+            labels, programs, vacation, mode, holiday = await self._async_validate(data)
         except (ValueError, vol.Invalid, TypeError, KeyError, AttributeError) as err:
             self._reject(file_hash, str(err))
             return
         self._importing = True
         try:
-            await self._async_apply(labels, programs, vacation, mode)
+            await self._async_apply(labels, programs, vacation, mode, holiday)
         finally:
             self._importing = False
         self._remember(file_hash)
@@ -321,7 +361,7 @@ class YamlSync:
             translation_key=ISSUE, translation_placeholders={"error": error[:500]},
         )
 
-    async def _async_validate(self, data: bytes) -> tuple[list[dict], list[dict], bool, dict | None]:
+    async def _async_validate(self, data: bytes) -> tuple[list[dict], list[dict], bool, dict | None, dict | None]:
         """Same rules as ``label/save`` and ``program/save``; nothing is modified."""
         raw = await self.hass.async_add_executor_job(_parse, data)  # pure: no Home Assistant state in the thread
         descriptions = await self._descriptions(self.hass)
@@ -358,7 +398,13 @@ class YamlSync:
             state = self.hass.states.get(selector) if selector else None
             options = [o for o in state.attributes.get("options") or [] if isinstance(o, str)] if state else None
             mode = check_mode_config(selector, raw.get("default_mode"), self.hass, options)
-        return list(labels.values()), programs, raw.get("vacation", False), mode
+        holiday = None
+        if CONF_HOLIDAY_ENTITY in raw or CONF_HOLIDAY_INVERT in raw:  # a file without them leaves them alone
+            config = self.store.config
+            entity = raw.get(CONF_HOLIDAY_ENTITY) if CONF_HOLIDAY_ENTITY in raw else config.get(CONF_HOLIDAY_ENTITY)
+            invert = raw[CONF_HOLIDAY_INVERT] if CONF_HOLIDAY_INVERT in raw else bool(config.get(CONF_HOLIDAY_INVERT))
+            holiday = check_holiday_config(entity or None, invert, self.hass, driven_entities(programs, labels))
+        return list(labels.values()), programs, raw.get("vacation", False), mode, holiday
 
     @staticmethod
     def _clean_slot_entities(existing: dict | None, program: dict) -> dict:
@@ -374,7 +420,7 @@ class YamlSync:
             return program
 
     async def _async_apply(self, labels: list[dict], programs: list[dict], vacation: bool,
-                           mode: dict | None = None) -> None:
+                           mode: dict | None = None, holiday: dict | None = None) -> None:
         store = self.store
         new_ids = {p["id"] for p in programs}
         removed = [p for p in store.programs if p["id"] not in new_ids]
@@ -405,6 +451,8 @@ class YamlSync:
                     store.runtime.pop(key, None)  # remembered for the former selector
                 store.save_runtime()
             store.config.update(mode)
+        if holiday is not None:
+            store.config.update(holiday)  # the engine reads the new entity on the change below
         store.save_config(mirror=False)
         for program in removed:
             await self.engine.async_remove_program_entities(program)

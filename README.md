@@ -283,6 +283,23 @@ data:
 
 See the [mode reference](wiki/MODES.md) and [native-action examples](wiki/GENERIC_ACTIONS.md).
 
+### Day off
+
+One optional entity for the whole house says whether today is a holiday or day off: a `binary_sensor`,
+`input_boolean`, `switch` or `calendar` (for example the Holiday integration), chosen by an administrator in
+**Configure → Holiday or day off**. Tick **This entity is “on” on a working day** for a Workday sensor.
+Entities of Weekly Planner and entities a program controls are refused.
+
+- Each mode can have a day-off setting: the same times as a weekday (a live link to that day) or its own day.
+  On a day off it **replaces** the weekday of the active mode; a mode without one keeps its normal day, and
+  a mode that follows another uses the day off of its source. Priorities do not change.
+- A day off is a whole day, 00:00 to 24:00: next to a day off, schedules stop at midnight. Yesterday and
+  tomorrow are always normal days.
+- Only on/off counts. Unavailable or unknown keeps today’s value; with none known, the day is normal.
+  A change waits 30 seconds (a flip back within that time is ignored), then applies like a mode change.
+  Just after midnight, programs with a day-off setting wait up to 2 minutes for the entity.
+- A missing entity raises a repair issue; the settings are kept and every day is normal.
+
 ## Created entities and HA actions
 
 The integration creates one global suspension switch, and one program switch per
@@ -291,7 +308,7 @@ do not assume a generated English entity ID on another installation.
 
 | Entity | Integration behavior |
 |---|---|
-| Program `switch` | Enable/suspend the program. Attributes: `program_id`, `no_schedule_for_mode`, `current_slots`, `next_change`, `skip_next`, `skip_next_targets`, `next_actions`, and when relevant `paused_until` and `verification`. There is no active-mode attribute: read the mode on the selector entity. |
+| Program `switch` | Enable/suspend the program. Attributes: `program_id`, `no_schedule_for_mode`, `current_slots`, `next_change`, `skip_next`, `skip_next_targets`, `next_actions`, and when relevant `paused_until`, `verification` and `holiday` (today's day off replaces the weekday: `{copy: 0..6}` or `{own: true}`). There is no active-mode attribute: read the mode on the selector entity. |
 | Global suspension `switch` (all programs) | Suspend all programs and apply the applicable defaults once. |
 
 | Action | Fields | Who can call it |
@@ -350,6 +367,7 @@ action enables its triggers; it is not the same as `automation.trigger`.
 |---|---|---|
 | `admin_only` | `false` | Restricts program/setting mutations. Program/vacation switches remain separate controls; choosing the mode is done on the selector entity, not in Weekly Planner. |
 | `mode_selector` | none | Optional `input_select` or `select` entity whose state is the active mode, then a default mode among its options. Changing them is reserved to administrators. |
+| `holiday_entity`, `holiday_invert` | none, `false` | Optional day-off entity of the house and “on on a working day”. Reserved to administrators; stored with the mode selector, not in the entry options. |
 | `reapply_default` | `true` | Starting value of **Reapply** for every new program (card, WebSocket, or a YAML file program without `reapply`). |
 | `notify_delay_min` | `30` | Unavailable-entity notification delay, 1–1440 minutes. |
 | `debounce_min` | `2` | Condition stability delay, 0–60 minutes. |
@@ -377,10 +395,10 @@ is the source of truth:
 | Command family | Purpose |
 |---|---|
 | `weekly_planner/get`, `weekly_planner/subscribe` | Snapshot and live updates. |
-| `weekly_planner/program/save`, `program/delete`, `program/set_enabled`, `program/pause`, `program/mode_follow` | Program mutations. All suffixes shown are under `weekly_planner/`. |
+| `weekly_planner/program/save`, `program/delete`, `program/set_enabled`, `program/pause`, `program/mode_follow`, `program/holiday` | Program mutations. All suffixes shown are under `weekly_planner/`. `program/holiday` sets (`{copy: 0..6}` or `{day: [...]}`) or clears (`null`) the day off of one mode; a profile saved without `holiday` keeps it. |
 | `weekly_planner/mode/set`, `mode/resolve`, `mode/undo_rename`, `mode/dismiss_rename` | Mode answers and rename notices. |
 | `weekly_planner/label/save`, `label/delete` | Global setting mutations. |
-| `weekly_planner/preview` | Resolve a program's occurrences (for a mode) for a date. |
+| `weekly_planner/preview` | Resolve a program's occurrences (for a mode) for a date; `holiday` says whether that date is today's day off. The snapshot carries `holiday_entity`, `holiday_invert` and `holiday_today`. |
 | `weekly_planner/journal` | Recorded decisions, up to 14 days. |
 
 Updates to an existing program must carry its current `revision`; stale revisions
@@ -401,6 +419,8 @@ version: 1
 vacation: false
 mode_selector: input_select.house_mode   # null = a single mode
 default_mode: Home                       # an option of the selector
+holiday_entity: binary_sensor.workday    # null = no day off
+holiday_invert: true                     # the entity is on on a working day
 labels:
   - id: comfort
     name: Comfort
@@ -411,7 +431,7 @@ programs:
     name: Living room
     entities: [{entity_id: climate.living, default_label: comfort, label_overrides: {}}]
     modes:            # the schedules of each mode, keyed by mode name
-      Home: {mon: [...], tue: [...]}   # 7 day lists; the first mode is the default one without a selector
+      Home: {mon: [...], tue: [...], holiday: {copy: sun}}   # 7 day lists; holiday: {copy: <day>} or {day: [...]}
 ```
 
 - **Edit in the card**: the file is written about 2 seconds after the save (and created at startup
@@ -422,11 +442,13 @@ programs:
 - **Invalid file** (syntax, unknown setting, overlap, empty file...): nothing changes, the file is
   left as is and a repair issue shows the error. It disappears once the file is valid. If you save in
   the card meanwhile, the invalid file is first kept as `weekly_planner.yml.invalid`.
+- A file without `holiday_entity` or `holiday_invert` leaves these settings unchanged. A mode without
+  `holiday` has no day-off setting; a mode with `follows` cannot have one.
 - Removing the integration deletes the file.
 
 > **Warning:** `/config/www` is served **without authentication** at
-> `http://<your-ha>/local/weekly_planner.yml`. The schedules reveal when the house is occupied or
-> empty. Do not expose this address to the internet (reverse proxy, port forwarding).
+> `http://<your-ha>/local/weekly_planner.yml`. The schedules, day-off times included, reveal when the
+> house is occupied or empty. Do not expose this address to the internet (reverse proxy, port forwarding).
 
 ## For AI agents
 

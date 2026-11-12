@@ -30,10 +30,14 @@ from homeassistant.util import dt as dt_util
 from .actions import call_for, resolve_action
 from .conditions import ConditionTracker, condition_key
 from .const import (
+    CONF_HOLIDAY_ENTITY,
+    CONF_HOLIDAY_INVERT,
     CONF_REAPPLY_DEFAULT,
     DEFAULT_PRIORITY,
     DEFAULT_REAPPLY,
     DOMAIN,
+    HOLIDAY_DEBOUNCE_S,
+    HOLIDAY_SETTLE_S,
     VERIFY_MAX_TRIES,
     VERIFY_MIN_INTERVAL_S,
     VERIFY_SETTLE_S,
@@ -42,20 +46,24 @@ from .const import (
 from .messages import async_reason, message, validation_error
 from .modes import (
     MAX_RENAMES, NO_PROFILE, apply_default_mode, delete_profile, detach_followers, mode_proposals, orphan_modes,
-    profile_for_mode, rename_profile, set_follow, unambiguous_rename,
+    profile_for_mode, profile_slots, rename_profile, set_follow, unambiguous_rename,
 )
 from .resync import RecorderManualChanges, expected_state, settle_manual_change
 from .registry import async_check_missing, async_track_registry
 from .resolver import (
+    NO_HOLIDAY,
+    Holiday,
     OccurrenceCache,
     Segment,
     active_profile,
     default_label,
+    has_holiday,
     next_transition,
     occurrences_around,
     resolve_entity,
 )
 from .store import PlannerStore
+from .timeline import local_datetime
 from .validation import service_accepts
 
 _LOGGER = logging.getLogger(__name__)
@@ -111,7 +119,7 @@ class _Pass:
     """
 
     __slots__ = ("programs", "labels", "profiles", "vacation", "effective", "check", "descriptions",
-                 "occurrences", "actions", "tz", "_sun", "_suns", "_by_id", "_owners", "_lookups")
+                 "occurrences", "actions", "tz", "holiday", "_sun", "_suns", "_by_id", "_owners", "_lookups")
 
     def __init__(self, engine: PlannerEngine, occurrences: OccurrenceCache | None = None) -> None:
         store = engine.store
@@ -129,6 +137,7 @@ class _Pass:
         self.occurrences = occurrences or OccurrenceCache()
         self.actions: dict[tuple, dict | None] = {}
         self.tz = engine.tz
+        self.holiday: Holiday = engine.holiday_view()  # which dates are days off for this pass (issue #54)
         self._sun = engine.sun
         self._suns: dict[tuple[str, date], datetime | None] = {}  # every program shares the sun times
 
@@ -173,7 +182,7 @@ class _Pass:
             len(programs) == len(self.programs) and all(a is b for a, b in zip(programs, self.programs, strict=True))
             and engine.labels == self.labels and engine.store.config.get("vacation", False) == self.vacation
             and engine._profiles() == self.profiles and engine.conditions.effective() == self.effective  # noqa: SLF001
-            and engine.descriptions is self.descriptions
+            and engine.descriptions is self.descriptions and engine.holiday_view() == self.holiday
         )
 
     def accepts(self, entity_id: str, action: dict) -> bool:
@@ -235,6 +244,12 @@ class PlannerEngine:
         self._verifying: dict[str, set[str]] = {}  # watched entity -> owners with a pending verification
         self.history: Any = RecorderManualChanges(hass)  # manual changes of a device, replaceable (tests)
         self.descriptions: dict | None = None  # service descriptions, to know which entity a service suits
+        # Day off (issue #54): configuration seen last, debounce of a change of the flag, the local date whose
+        # flag was taken (start of the day), and the programs held while a new day waits for the entity.
+        self._holiday_key: tuple[str | None, bool] = (None, False)
+        self._holiday_timer: CALLBACK_TYPE | None = None
+        self._holiday_started: date | None = None
+        self._held: dict[str, datetime] = {}  # held program -> last tick before the hold (its one-shots)
 
     # ------------------------------------------------------------------ lifecycle
 
@@ -249,6 +264,7 @@ class PlannerEngine:
         for prt in self.store.runtime["programs"].values():
             prt.pop("active_profile", None)  # per-program modes no longer exist
         self._mode = self._remembered_mode()  # until the selector is read: last valid mode, else default
+        self._holiday_key = self._holiday_config()
         self._last_profiles = self._profiles()
         self._subscribe()
         self._sync_pauses()
@@ -282,6 +298,7 @@ class PlannerEngine:
             async_check_missing(self.hass, self)
             self._observe_all_conditions()
             self._sync_mode()
+            self._holiday_start_of_day(dt_util.utcnow(), startup=True)
             await self._async_recompute("startup")
 
     async def async_stop(self) -> None:
@@ -293,6 +310,7 @@ class PlannerEngine:
         if self._timer:
             self._timer()
             self._timer = None
+        self._cancel_holiday_timer()
         for task in self._tasks.values():
             task.cancel()
         self._tasks.clear()
@@ -402,13 +420,14 @@ class PlannerEngine:
         return resolve_entity(
             entity_id, self.store.programs, self.resolve, at, self.tz, self.sun, self.conditions.check,
             vacation=self.store.config.get("vacation", False), active_profiles=self._profiles(),
+            holiday=self.holiday_view(),
         )
 
     def _segment_in(self, ctx: _Pass, entity_id: str, at: datetime) -> Segment:
         # Only the programs of the entity: resolve_entity ignores the others anyway.
         return resolve_entity(
             entity_id, ctx.programs_of(entity_id), ctx.resolve, at, ctx.tz, ctx.sun, ctx.check,
-            vacation=ctx.vacation, active_profiles=ctx.profiles, cache=ctx.occurrences,
+            vacation=ctx.vacation, active_profiles=ctx.profiles, cache=ctx.occurrences, holiday=ctx.holiday,
         )
 
     def rt(self, entity_id: str) -> dict[str, Any]:
@@ -448,8 +467,12 @@ class PlannerEngine:
             seg = self.rt(eid).get("segment") or []
             if seg and seg[0] == "slot" and seg[1] == program_id:
                 current[eid] = seg[2]
-        nxt = next_transition([program], now, ctx.tz, ctx.sun, active_profiles=ctx.profiles, cache=ctx.occurrences)
+        nxt = next_transition([program], now, ctx.tz, ctx.sun, active_profiles=ctx.profiles, cache=ctx.occurrences,
+                              holiday=ctx.holiday)
         prt = self.store.runtime["programs"].get(program_id, {})
+        # Day off (issue #54): what replaces today in this program, only while today is a day off and the
+        # active mode has a setting: {"copy": weekday} (0 = Monday) or {"own": true}.
+        setting = active_profile(program, ctx.profiles).get("holiday") if ctx.holiday.day is not None else None
         skip_at = prt.get("skip_at")
         verification = {entity["entity_id"]: v for entity in program["entities"]
                         if (v := self.rt(entity["entity_id"]).get("verification"))}
@@ -458,6 +481,7 @@ class PlannerEngine:
             "no_schedule_for_mode": ctx.profiles.get(program_id) == NO_PROFILE,
             **({"verification": verification} if verification else {}),
             **({"paused_until": program["paused_until"]} if program.get("paused_until") else {}),
+            **({"holiday": {"copy": setting["copy"]} if "copy" in setting else {"own": True}} if setting else {}),
             "current_slots": current,
             "next_change": nxt.isoformat() if nxt else None,
             "skip_next": skip_at,
@@ -484,7 +508,7 @@ class PlannerEngine:
         for entity in program["entities"]:
             eid = entity["entity_id"]
             timeline = occurrences_around(profile, moment, ctx.tz, ctx.sun, days=(-1, 0), program_id=program["id"],
-                                          cache=ctx.occurrences, entity_id=eid)
+                                          cache=ctx.occurrences, entity_id=eid, holiday=ctx.holiday)
             if not any(occ.runs and moment in (occ.start, occ.end) for occ, _slot in timeline):
                 continue
             seg = self._segment_in(ctx, eid, moment)
@@ -510,7 +534,8 @@ class PlannerEngine:
                 continue
             profile = active_profile(program, ctx.profiles)
             found = occurrences_around(profile, now, ctx.tz, ctx.sun, days=range(-1, 8),
-                                       program_id=program["id"], cache=ctx.occurrences, entity_id=entity_id)
+                                       program_id=program["id"], cache=ctx.occurrences, entity_id=entity_id,
+                                       holiday=ctx.holiday)
             for occ, slot in found:
                 if not occ.runs:
                     continue
@@ -549,6 +574,8 @@ class PlannerEngine:
         watched |= self._conditions_by_entity.keys()
         if selector := self.store.config.get("mode_selector"):
             watched.add(selector)
+        if holiday := self._holiday_config()[0]:
+            watched.add(holiday)
         if watched:
             self._unsubs.append(async_track_state_change_event(self.hass, sorted(watched), self._on_state))
 
@@ -557,9 +584,8 @@ class PlannerEngine:
         for program in self.store.programs:
             conds += program.get("conditions", [])
             for profile in program["profiles"]:
-                for day in profile["days"]:
-                    for slot in day:
-                        conds += slot.get("conditions", [])
+                for slot in profile_slots(profile):  # the own day of a day off too
+                    conds += slot.get("conditions", [])
         return conds
 
     def _observe_all_conditions(self) -> None:
@@ -608,6 +634,8 @@ class PlannerEngine:
                 old is None or new is None or old.state != new.state
                 or old.attributes.get("options") != new.attributes.get("options")):
             yield self._async_mode_changed_locked
+        if entity_id == self._holiday_config()[0]:
+            yield self._async_holiday_event
         cond_changed = False
         conditions = self._conditions_by_entity.get(entity_id, [])
         before_settle = self.conditions.next_settle() if conditions else None
@@ -659,19 +687,33 @@ class PlannerEngine:
         self._slice_start = time.perf_counter()
         now = dt_util.utcnow()
         self.conditions.settle(now)
+        self._holiday_start_of_day(now)  # a new day takes its day-off flag once the entity settled
+        waiting = self._holiday_settles_at(now) is not None
         affected = profile_program_ids if profile_program_ids is not None else ({program_id} if program_id else set())
         # A mode change never replays the one-shots of the programs it switched (see _sync_mode).
         excluded = set(affected) | self._mode_changed if reason == "profile" else set(self._mode_changed)
         self._mode_changed = set()
         ctx = _Pass(self)
+        # Day off (issue #54): just after midnight, the programs with a day-off setting send nothing until the
+        # entity settled (at most HOLIDAY_SETTLE_S); then their orders and one-shots of the wait go out at once.
+        held = self._holiday_programs(ctx) if waiting else set()
+        last_tick = self.store.parse(self.store.runtime.get("last_tick")) or now
+        for pid in held:
+            self._held.setdefault(pid, last_tick)
+        released = {pid: since for pid, since in self._held.items() if pid not in held}
+        for pid in released:
+            del self._held[pid]
+        held_entities = {e["entity_id"] for p in ctx.programs if p["id"] in held for e in p["entities"]}
         entities = sorted(ctx.owners)  # every managed entity
         segments: dict[str, Segment] = {}
         for entity_id in entities:
             segments[entity_id] = self._segment_in(ctx, entity_id, now)
             if not await self._pause():
                 return
-        await self._fire_one_shots(now, excluded, ctx=ctx, segments=segments)
+        await self._fire_one_shots(now, excluded | held, ctx=ctx, segments=segments, since=released)
         for entity_id in entities:
+            if entity_id in held_entities:
+                continue  # decided again when the wait ends
             await self._process_entity(entity_id, reason, now, affected, segments[entity_id], ctx.by_id)
             if not await self._pause():
                 return
@@ -771,17 +813,20 @@ class PlannerEngine:
         return False
 
     async def _fire_one_shots(self, now: datetime, excluded: set[str] | None = None, *,
-                              ctx: _Pass | None = None, segments: dict[str, Segment] | None = None) -> None:
+                              ctx: _Pass | None = None, segments: dict[str, Segment] | None = None,
+                              since: dict[str, datetime] | None = None) -> None:
         """Run the slots without an end whose time came since the last tick (spec § 5.2).
 
         ``segments`` are the segments of this recompute at ``now`` (the same values a fresh
-        lookup gives: sending an action changes none of their inputs).
+        lookup gives: sending an action changes none of their inputs). ``since``: programs whose
+        one-shots waited (day-off settle, issue #54) and the tick they wait from.
         """
         last = self.store.parse(self.store.runtime.get("last_tick"))
         ctx = ctx or _Pass(self)
         if last is None or ctx.vacation:
             return
         excluded = excluded or set()
+        since = since or {}
         due: list[tuple[str, dict]] = []
 
         def due_for(program: dict, eid: str, slot: dict) -> None:
@@ -793,8 +838,8 @@ class PlannerEngine:
             if not higher:  # skipped under a higher priority slot (Q-L)
                 due.append((eid, action))
 
-        def fires(occ, slot: dict) -> bool:
-            return (occ.end is None and occ.runs and last < occ.start <= now
+        def fires(occ, slot: dict, after: datetime) -> bool:
+            return (occ.end is None and occ.runs and after < occ.start <= now
                     and ctx.check(slot.get("conditions", [])))
 
         local_day = now.astimezone(ctx.tz).date()
@@ -803,18 +848,20 @@ class PlannerEngine:
                 continue
             profile = active_profile(program, ctx.profiles)
             eids = [entity["entity_id"] for entity in program["entities"]]
+            after = min(since.get(program["id"], last), last)
             for delta in (-1, 0, 1):
-                day = ctx.occurrences.entry(profile, local_day + timedelta(days=delta), ctx.tz, ctx.sun, program["id"])
+                day = ctx.occurrences.entry(profile, local_day + timedelta(days=delta), ctx.tz, ctx.sun, program["id"],
+                                            ctx.holiday)
                 if not day.lists:  # one timeline for every device: same order as before lists existed
                     for occ, slot in day.all():
-                        if fires(occ, slot):
+                        if fires(occ, slot, after):
                             for eid in eids:
                                 due_for(program, eid, slot)
                     continue
                 # Per-device timelines (#34): a one-shot of the cover inside a thermostat slot runs for
                 # the cover, a one-shot never reaches a device it does not apply to.
                 found = [(occ.start, index, eid, slot) for index, eid in enumerate(eids)
-                         for occ, slot in day.device(eid) if fires(occ, slot)]
+                         for occ, slot in day.device(eid) if fires(occ, slot, after)]
                 found.sort(key=lambda item: (item[0], item[1]))  # by time, then program order of devices
                 for _start, _index, eid, slot in found:
                     due_for(program, eid, slot)
@@ -843,9 +890,10 @@ class PlannerEngine:
         now = dt_util.utcnow()
         candidates = [
             next_transition(self.store.programs, now, self.tz, self.sun, active_profiles=self._profiles(),
-                            cache=occurrences),
+                            cache=occurrences, holiday=self.holiday_view(now)),
             self.conditions.next_settle(),
             self._next_local_midnight(now),
+            self._holiday_settles_at(now),
         ]
         for rt in self.store.runtime["entities"].values():
             candidates.append(self.store.parse(rt.get("retry_at")))
@@ -1153,7 +1201,8 @@ class PlannerEngine:
                     continue
                 seen.add(eid)
                 decision = expected_state(eid, programs, self.resolve, now, self.tz, self.sun, self.conditions.check,
-                                          vacation=vacation, active_profiles=profiles, cache=cache)
+                                          vacation=vacation, active_profiles=profiles, cache=cache,
+                                          holiday=self.holiday_view(now))
                 decision = await settle_manual_change(decision, eid, now, self.history)
                 item: dict[str, Any] = {"entity_id": eid, "send": False, "reason": decision.reason}
                 expected = decision.expected
@@ -1217,7 +1266,7 @@ class PlannerEngine:
         else:
             program = self.store.program(program_id)
             nxt = next_transition([program], dt_util.utcnow(), self.tz, self.sun,
-                                  active_profiles=self._profiles()) if program else None
+                                  active_profiles=self._profiles(), holiday=self.holiday_view()) if program else None
             if nxt:
                 prt["skip_at"] = nxt.isoformat()
         self._persist()
@@ -1600,10 +1649,12 @@ class PlannerEngine:
         self._observe_all_conditions()
         if self._ready:
             async_check_missing(self.hass, self)  # programs/entities edited: refresh the repair issue
+        holiday_changed = self._sync_holiday_config()
         changed = self._sync_mode()
-        if not reapply and changed:
-            await self._async_recompute("profile", profile_program_ids=set(changed))
+        if not reapply and (changed or holiday_changed):
+            await self._async_recompute("profile", profile_program_ids=set(changed) | holiday_changed)
         else:
+            self._mode_changed |= holiday_changed  # the one-shots of the former day are not replayed
             await self._async_recompute("modification" if reapply else "inactive_mode_edit")
 
     def _release_removed(self) -> None:
@@ -1619,6 +1670,213 @@ class PlannerEngine:
         entity_id = registry.async_get_entity_id("switch", DOMAIN, f"{self.entry_id}_program_{program['id']}")
         if entity_id:
             registry.async_remove(entity_id)
+
+    # ------------------------------------------------------------------ day off (issue #54)
+
+    def _holiday_config(self) -> tuple[str | None, bool]:
+        """(day-off entity or None, invert): chosen once for the house in the integration settings."""
+        config = self.store.config
+        return config.get(CONF_HOLIDAY_ENTITY) or None, bool(config.get(CONF_HOLIDAY_INVERT, False))
+
+    def _local_midnight(self, day: date) -> datetime:
+        return local_datetime(day, 0, 0, self.tz)[0].astimezone(dt_util.UTC)
+
+    def holiday_view(self, now: datetime | None = None) -> Holiday:
+        """Which dates are days off for the schedules: today when the flag stored for today is on, and
+        yesterday when it was a day off (its slots stop at midnight). Tomorrow is always a normal day."""
+        if not self._holiday_config()[0]:
+            return NO_HOLIDAY
+        today = (now or dt_util.utcnow()).astimezone(self.tz).date()
+        record = self.store.runtime.get("holiday") or {}
+        day = today if record.get("date") == today.isoformat() and record.get("on") else None
+        yesterday = today - timedelta(days=1)
+        previous = record if record.get("date") == yesterday.isoformat() else (record.get("previous") or {})
+        after = yesterday if previous.get("date") == yesterday.isoformat() and previous.get("on") else None
+        if day is None and after is None:
+            return NO_HOLIDAY
+        return Holiday(day, after)
+
+    @property
+    def holiday_today(self) -> bool:
+        """Today is a day off for the house (the entity said so, after its debounce or settle)."""
+        return self.holiday_view().day is not None
+
+    def _holiday_programs(self, ctx: _Pass | None = None) -> set[str]:
+        """Programs whose active mode has a day-off setting: the only ones a day off changes."""
+        programs = ctx.programs if ctx is not None else self.store.programs
+        profiles = ctx.profiles if ctx is not None else self._profiles()
+        return {p["id"] for p in programs if has_holiday(active_profile(p, profiles))}
+
+    def _holiday_raw(self) -> bool | None:
+        """The flag the entity gives now (``on`` = day off, unless inverted); None when it is unavailable,
+        unknown or missing: the value already known for today is then kept."""
+        entity, invert = self._holiday_config()
+        state = self.hass.states.get(entity) if entity else None
+        if state is None or state.state not in ("on", "off"):
+            return None
+        return (state.state == "on") != invert
+
+    def _holiday_known(self, today: date) -> bool | None:
+        """The flag stored for ``today``; None when there is none yet (a normal day applies)."""
+        record = self.store.runtime.get("holiday") or {}
+        return bool(record.get("on")) if record.get("date") == today.isoformat() else None
+
+    def _store_holiday(self, today: date, on: bool) -> None:
+        """Persist the flag of ``today`` with its date; the last flag of an earlier day becomes ``previous``."""
+        record = self.store.runtime.get("holiday") or {}
+        if record.get("date") == today.isoformat():
+            if record.get("on") == on:
+                return
+            previous = record.get("previous")
+        else:
+            previous = {"date": record["date"], "on": bool(record.get("on"))} if record.get("date") else None
+        self.store.runtime["holiday"] = {"date": today.isoformat(), "on": on, **({"previous": previous} if previous else {})}
+        self.store.save_runtime()
+
+    def _holiday_settles_at(self, now: datetime) -> datetime | None:
+        """While a new day waits for the entity: when the wait ends; None when nothing waits.
+
+        A day waits when it has no flag yet, its start was not taken, and it is less than HOLIDAY_SETTLE_S
+        after local midnight. The entity settles once it changed (or reported) after midnight and then stayed
+        HOLIDAY_DEBOUNCE_S unchanged.
+        """
+        entity = self._holiday_config()[0]
+        if not entity:
+            return None
+        today = now.astimezone(self.tz).date()
+        if self._holiday_started == today or self._holiday_known(today) is not None:
+            return None
+        midnight = self._local_midnight(today)
+        limit = midnight + timedelta(seconds=HOLIDAY_SETTLE_S)
+        if now >= limit:
+            return None
+        state = self.hass.states.get(entity)
+        if state is not None:
+            spoke = max(state.last_updated, getattr(state, "last_reported", None) or state.last_updated)
+            if spoke >= midnight:
+                settled = spoke + timedelta(seconds=HOLIDAY_DEBOUNCE_S)
+                return None if now >= settled else min(settled, limit)
+        return limit
+
+    def _holiday_start_of_day(self, now: datetime, *, startup: bool = False) -> None:
+        """Take the flag of a new day once the entity had its chance to speak after midnight.
+
+        ``startup``: the entity's valid state replaces the flag stored for today (the 30 s stabilisation has
+        passed). An unavailable, unknown or missing entity keeps the flag stored for today; without one, the
+        day is a normal day.
+        """
+        entity = self._holiday_config()[0]
+        if not entity:
+            self._holiday_started = None
+            if self.store.runtime.pop("holiday", None) is not None:
+                self.store.save_runtime()
+            return
+        today = now.astimezone(self.tz).date()
+        if (self._holiday_started == today and not startup) or self._holiday_settles_at(now) is not None:
+            return
+        self._holiday_started = today
+        raw = self._holiday_raw()
+        if raw is not None and (startup or self._holiday_known(today) is None):
+            self._store_holiday(today, raw)
+
+    def _cancel_holiday_timer(self) -> None:
+        if self._holiday_timer is not None:
+            self._holiday_timer()
+            self._holiday_timer = None
+
+    async def _async_holiday_event(self) -> None:
+        """The day-off entity changed (the caller holds the engine lock).
+
+        Only the boolean counts (off -> unavailable is no change). A change waits HOLIDAY_DEBOUNCE_S and a
+        flip back inside that time is ignored. Before the start of a new day, the wait of the day decides.
+        """
+        now = dt_util.utcnow()
+        today = now.astimezone(self.tz).date()
+        if self._holiday_settles_at(now) is not None:
+            self._arm_timer()  # the end of the wait moves with the entity
+            return
+        if self._holiday_started != today:
+            await self._async_recompute("timer")  # the wait just ended: start the day now
+            return
+        raw = self._holiday_raw()
+        if raw is None:
+            return  # unavailable or unknown: the flag of today is kept
+        known = self._holiday_known(today)
+        if raw == bool(known):
+            self._cancel_holiday_timer()  # back to the applied value: the change is ignored
+            if known is None:
+                self._store_holiday(today, raw)  # first valid reading of the day: nothing to change
+            return
+        if self._holiday_timer is None:
+            self._holiday_timer = async_track_point_in_utc_time(
+                self.hass, self._on_holiday_debounce, now + timedelta(seconds=HOLIDAY_DEBOUNCE_S))
+
+    @callback
+    def _on_holiday_debounce(self, _now: datetime) -> None:
+        self._holiday_timer = None
+        if not self._stopped:
+            self.hass.async_create_task(self._async_locked(self._async_holiday_settled))
+
+    async def _async_holiday_settled(self) -> None:
+        """The flag stayed changed for HOLIDAY_DEBOUNCE_S: today becomes (or stops being) a day off."""
+        now = dt_util.utcnow()
+        today = now.astimezone(self.tz).date()
+        if self._stopped or self._holiday_started != today:
+            return  # a new day began meanwhile: it takes its own flag
+        raw = self._holiday_raw()
+        if raw is None or raw == bool(self._holiday_known(today)):
+            return
+        self._store_holiday(today, raw)
+        _LOGGER.info("Day off today: %s", raw)
+        await self._async_holiday_changed()
+
+    async def _async_holiday_changed(self) -> None:
+        """Today's flag changed during the day: like a mode change of the programs with a day-off setting
+        (current state recomputed, ``reapply`` respected, past one-shots not replayed, pending skip cleared)."""
+        programs = self._holiday_programs()
+        for pid in programs:
+            if prt := self.store.runtime["programs"].get(pid):
+                prt.pop("skip_at", None)  # it aimed at a change of the former day
+        if programs and self._ready:
+            await self._async_recompute("profile", profile_program_ids=programs)
+            return
+        self._persist()
+        self._arm_timer()
+        self._notify_listeners()
+
+    def _sync_holiday_config(self) -> set[str]:
+        """The day-off entity or its inversion changed: forget the stored flag and read the new entity.
+
+        Returns the programs whose day changes now (handled like a mode change by the caller).
+        """
+        key = self._holiday_config()
+        if key == self._holiday_key:
+            return set()
+        before = self.holiday_view()
+        self._holiday_key = key
+        self._cancel_holiday_timer()
+        if self.store.runtime.pop("holiday", None) is not None:
+            self.store.save_runtime()
+        self._holiday_started = None
+        if self._ready:
+            self._holiday_start_of_day(dt_util.utcnow(), startup=True)
+        if self.holiday_view() == before:
+            return set()
+        programs = self._holiday_programs()
+        for pid in programs:
+            if prt := self.store.runtime["programs"].get(pid):
+                prt.pop("skip_at", None)
+        return programs
+
+    async def async_set_holiday_config(self, entity: str | None, invert: bool) -> None:
+        """Set the day-off entity of the house and its inversion (integration settings, administrators)."""
+        async with self._lock:
+            if self._holiday_config() == (entity, invert):
+                return
+            self.store.config[CONF_HOLIDAY_ENTITY] = entity
+            self.store.config[CONF_HOLIDAY_INVERT] = invert
+            self.store.save_config()
+            await self._async_config_changed(reapply=False)
 
     # ------------------------------------------------------------------ logbook
 

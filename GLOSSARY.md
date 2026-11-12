@@ -61,6 +61,10 @@ _Avoid_: garde, filtre
 Quand plusieurs programmes pilotent le même appareil, le programme au numéro le plus bas l'emporte. Les modes n'ajoutent pas de priorité.
 _Avoid_: ordre, importance
 
+**Jour férié** (EN : Day off):
+Un jour déclaré spécial par une entité externe de Home Assistant (jour férié ou congé), choisie une fois pour toute la maison. Ce jour-là, dans le mode actif, le réglage « Jour férié » du mode remplace le jour de la semaine : mêmes horaires qu'un autre jour, ou horaires propres. Sans réglage, le jour normal s'applique. Ce n'est ni un mode, ni le mode « Vacances », ni la suspension de tous les programmes ; hier et demain restent des jours normaux.
+_Avoid_: vacances, congés (seul), jour spécial, mode férié
+
 ## Marche et arrêt
 
 **Pause jusqu'au…**:

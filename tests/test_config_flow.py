@@ -155,7 +155,46 @@ def test_translations_cover_the_mode_fields() -> None:
         assert "mode_selector" in options["step"]["settings"]["data_description"]
         assert set(options["step"]["default_mode"]["data"]) == {"default_mode"}
         assert set(options["error"]) == {"invalid_mode_selector_domain", "circular_mode_selector",
-                                         "invalid_default_mode", "unknown_default_mode"}
+                                         "invalid_default_mode", "unknown_default_mode",
+                                         "invalid_holiday_entity_domain", "circular_holiday_entity",
+                                         "driven_holiday_entity", "invalid_holiday_invert"}
+        for field in ("holiday_entity", "holiday_invert"):  # day off (issue #54)
+            assert field in options["step"]["settings"]["data"]
+            assert field in options["step"]["settings"]["data_description"]
+
+
+# -- day off (issue #54): the entity of the house lives in the store, like the mode selector ------------------------
+
+
+async def test_options_choose_the_day_off_entity(hass: HomeAssistant, hass_storage) -> None:
+    entry = await _options_entry(hass, hass_storage)
+    flow = hass.config_entries.options
+    result = await _open_settings(flow, entry)
+    result = await flow.async_configure(
+        result["flow_id"], {**BASE, "holiday_entity": "binary_sensor.workday", "holiday_invert": True})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    config = entry.runtime_data.store.config
+    assert (config["holiday_entity"], config["holiday_invert"]) == ("binary_sensor.workday", True)
+    assert "holiday_entity" not in entry.options and "holiday_invert" not in entry.options
+    # cleared again
+    result = await _open_settings(flow, entry)
+    result = await flow.async_configure(result["flow_id"], dict(BASE))
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.runtime_data.store.config["holiday_entity"] is None
+
+
+async def test_options_day_off_errors_are_shown_on_the_field(hass: HomeAssistant, hass_storage) -> None:
+    entry = await _options_entry(hass, hass_storage)
+    flow = hass.config_entries.options
+    result = await _open_settings(flow, entry)
+    with pytest.raises(InvalidData):  # the entity selector already refuses another domain
+        await flow.async_configure(result["flow_id"], {**BASE, "holiday_entity": "light.kitchen"})
+    with patch("custom_components.weekly_planner.config_flow.check_holiday_config",
+               side_effect=ProgramError("driven_holiday_entity")):
+        result = await flow.async_configure(result["flow_id"], {**BASE, "holiday_entity": "switch.boiler"})
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"holiday_entity": "driven_holiday_entity"}
+    assert entry.runtime_data.store.config.get("holiday_entity") is None
 
 
 # -- the "Resync the devices" step (issue #52): covered here too, the Bronze check runs this file only ------------------

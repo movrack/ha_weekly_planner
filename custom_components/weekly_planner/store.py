@@ -35,7 +35,8 @@ def new_id() -> str:
 
 def empty_config() -> dict[str, Any]:
     """Fresh configuration."""
-    return {"vacation": False, "mode_selector": None, "default_mode": None, "labels": [], "programs": []}
+    return {"vacation": False, "mode_selector": None, "default_mode": None, "holiday_entity": None,
+            "holiday_invert": False, "labels": [], "programs": []}
 
 
 class ConfigStoreError(Exception):
@@ -52,6 +53,12 @@ class _VersionedStore(Store):
         self.active_profiles: dict[str, str] = {}  # runtime: program id -> active profile id (migration 2 -> 3)
 
     async def _async_migrate_func(self, old_major: int, old_minor: int, old_data: dict) -> dict:
+        if old_major == self.version and old_minor > self.minor_version and self.key == DOMAIN:
+            # Written by a newer Weekly Planner (for example 3.2 adds the day off, issue #54): this version
+            # would drop what it does not know at its next save. Refuse it: read-only, nothing is lost.
+            raise ConfigStoreError(
+                f"{self.key} was saved by a newer version ({old_major}.{old_minor} > "
+                f"{self.version}.{self.minor_version}); restore the backup or update Weekly Planner")
         _LOGGER.info("Migrating %s from %s.%s", self.key, old_major, old_minor)
         if old_major < self.version and self._migrate is not None:
             path = Path(self.path)
