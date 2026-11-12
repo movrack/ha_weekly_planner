@@ -23,7 +23,7 @@ from .store import new_id
 from .actions import needs_admin
 from .modes import apply_default_mode, profile_slots
 from .validation import (
-    PROGRAM, ProgramError, admin_required, check_label, check_mode_config, check_program, keep_pause, label_users, with_defaults,
+    PROGRAM, ProgramError, admin_required, check_holiday_loop, check_label, check_mode_config, check_program, keep_pause, label_users, with_defaults,
 )
 
 
@@ -174,6 +174,17 @@ def _clean_slot_entities(existing: dict | None, program: dict) -> dict:
         return program
 
 
+def _check_loop(engine: PlannerEngine, *, program: dict | None = None, label: dict | None = None) -> None:
+    """Refuse a save that would make a program command the day-off entity (``driven_holiday_entity``)."""
+    programs = [p for p in engine.store.programs if program is None or p["id"] != program["id"]]
+    labels = dict(engine.labels)
+    if program is not None:
+        programs.append(program)
+    if label is not None:
+        labels[label["id"]] = label
+    check_holiday_loop(engine.store.config.get(CONF_HOLIDAY_ENTITY), programs, labels, engine.hass)
+
+
 def _keep_holidays(existing: dict | None, program: dict) -> dict:
     """A profile sent without a ``holiday`` key keeps its stored day-off setting (a card that does not know
     the key never erases it); ``holiday: null`` clears it. A mode that now follows another keeps none."""
@@ -234,6 +245,7 @@ async def ws_program_save(hass, connection, msg) -> None:
         descriptions = await _descriptions(hass)
         program = _clean_slot_entities(existing, _keep_holidays(existing, program))
         program = check_program(program, engine.labels, hass, descriptions, engine.reapply_default)
+        _check_loop(engine, program=program)
     except vol.Invalid as err:
         connection.send_error(msg["id"], "invalid", str(err))
         return
@@ -303,6 +315,7 @@ async def ws_label_save(hass, connection, msg) -> None:
     label.setdefault("id", new_id())
     try:
         label = check_label(label, hass, await _descriptions(hass))
+        _check_loop(engine, label=label)
     except vol.Invalid as err:
         connection.send_error(msg["id"], "invalid", str(err))
         return
@@ -599,6 +612,7 @@ async def ws_holiday(hass, connection, msg) -> None:
         descriptions = await _descriptions(hass)
         program = check_program(_clean_slot_entities(existing, program), engine.labels, hass, descriptions,
                                 engine.reapply_default)
+        _check_loop(engine, program=program)
     except vol.Invalid as err:
         connection.send_error(msg["id"], "invalid", str(err))
         return

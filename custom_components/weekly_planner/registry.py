@@ -83,6 +83,7 @@ def async_track_registry(hass: HomeAssistant, engine) -> callback:
         data = event.data
         if data["action"] == "update" and "old_entity_id" in data:
             if rename_entity(engine.store.config, data["old_entity_id"], data["entity_id"]):
+                engine.note_holiday_rename(data["old_entity_id"], data["entity_id"])
                 rt = engine.store.runtime["entities"].pop(data["old_entity_id"], None)
                 if rt is not None:
                     engine.store.runtime["entities"][data["entity_id"]] = rt

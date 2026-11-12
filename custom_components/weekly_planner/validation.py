@@ -323,13 +323,26 @@ def check_holiday_config(entity: Any, invert: Any, hass: Any = None, driven: Any
     return {"holiday_entity": entity, "holiday_invert": invert}
 
 
-def driven_entities(programs: list[dict], labels: Any) -> set[str]:
-    """Entities a program can command: its devices and the explicit targets of the actions it can send."""
+def driven_entities(programs: list[dict], labels: Any, hass: Any = None) -> set[str]:
+    """Entities a program can command: its devices, the explicit targets of the actions it can send and,
+    with ``hass``, the entities of the scenes it can turn on."""
     driven = {e["entity_id"] for p in programs for e in p["entities"]}
     actions = [label["action"] for label in (labels.values() if isinstance(labels, dict) else labels)]
     actions += [a for p in programs for e in p["entities"] for a in e.get("label_overrides", {}).values()]
     driven |= {a["target_entity_id"] for a in actions if a.get("target_entity_id")}
+    if hass is not None:
+        for action in actions:
+            if action.get("kind") == "scene" and (state := hass.states.get(action.get("scene", ""))) is not None:
+                members = state.attributes.get("entity_id")
+                driven |= {eid for eid in members if isinstance(eid, str)} if isinstance(members, list) else set()
     return driven
+
+
+def check_holiday_loop(holiday_entity: str | None, programs: list[dict], labels: Any, hass: Any = None) -> None:
+    """The day-off entity of the house may never become something a program commands (issue #54, no loop):
+    checked on every program, day-off and label save, not only when the entity is chosen."""
+    if holiday_entity and holiday_entity in driven_entities(programs, labels, hass):
+        raise ProgramError("driven_holiday_entity")
 
 
 def check_program(program: dict, labels: dict[str, dict], hass: Any = None, descriptions: dict | None = None,

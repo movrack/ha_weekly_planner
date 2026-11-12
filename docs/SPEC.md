@@ -229,7 +229,10 @@ service `override` ni `resume`. Seul l'**affichage** du graphique montre les cha
   (même chemin que le sélecteur de mode : `store.config`, pas `entry.options`) : `holiday_entity` (domaines `binary_sensor`,
   `input_boolean`, `switch`, `calendar`) et `holiday_invert` (l'entité est « on » un jour **travaillé**, ex. Workday).
   Refusées : les entités de Weekly Planner (`circular_holiday_entity`) et celles qu'un programme commande (appareils, cibles
-  explicites : `driven_holiday_entity`). Sans entité, tout est ignoré ; les réglages restent stockés.
+  explicites, membres d'une scène : `driven_holiday_entity`), contrôle refait à chaque `program/save`, `program/holiday`
+  et `label/save`. Avec Workday et « inverser », les week-ends sont aussi fériés (aide affichée ; source conseillée :
+  calendrier Holiday). Sans entité, tout est ignoré ; les réglages restent stockés. Un renommage de l'entité garde les
+  valeurs stockées ; le choix d'une autre entité relit la valeur du jour et garde celle d'hier.
 - **Réglage par mode** : clé facultative `holiday` du profil : absente/`null` (aucun réglage), `{"copy": 0..6}` (référence
   **vivante** à un jour de la semaine, 0 = lundi) ou `{"day": [horaires]}` (journée propre, même forme qu'un jour,
   horaires par appareil permis). Un mode qui en suit un autre n'a pas de réglage propre : il utilise celui du mode copié ;
@@ -242,6 +245,9 @@ service `override` ni `resume`. Seul l'**affichage** du graphique montre les cha
   horaires s'arrêtent à minuit (la veille d'un férié, le férié lui-même, et le lendemain d'un férié connu : la valeur
   d'hier est gardée avec sa date). Un horaire qui ne garde rien avant minuit est ignoré (`holiday_cut` / `too_short`).
   Pas de contrôle de chevauchement entre un férié et ses voisins ; la journée propre est contrôlée seule.
+  **Conséquence assumée (propriétaire, 2026-11-12)** : un horaire de nuit (« Fermé 21:00 → 07:00 ») est coupé à minuit la
+  veille et le lendemain d'un férié, donc « le reste du temps » part vers 00:00 (fin de l'attente de minuit). Conseil
+  documenté : une journée férié propre qui commence à 00:00 avec le réglage de nuit.
   « Ensuite : demain … » ignore un férié possible demain (limite connue).
 - **Valeur** : seul le booléen compte (`on`/`off`, inversé si demandé) ; `unavailable`/`unknown`/absente garde la valeur
   connue **pour aujourd'hui** (persistée avec sa date dans le runtime) ; sans valeur du jour, jour normal.
@@ -252,7 +258,13 @@ service `override` ni `resume`. Seul l'**affichage** du graphique montre les cha
 - **Minuit** : après minuit local, tant que l'entité n'a pas parlé depuis minuit (puis 30 s sans changement), les ordres
   et ponctuels des programmes ayant un réglage attendent, au plus 2 min (`HOLIDAY_SETTLE_S`) ; à la fin de l'attente la
   valeur du jour est prise, les ordres partent une fois et les ponctuels de l'attente sont exécutés une fois.
-  Au démarrage (après la stabilisation de 30 s), l'état valide de l'entité remplace la valeur du jour.
+  Au démarrage (après la stabilisation de 30 s), la valeur stockée pour aujourd'hui s'applique ; une lecture valide
+  différente ne la remplace qu'après le même anti-rebond de 30 s (sans valeur du jour, la lecture est prise aussitôt).
+- **Limites connues** : l'attente de minuit retient tous les appareils d'un programme qui a un réglage (même ceux
+  partagés avec un programme sans réglage) et dure 2 min quand l'entité confirme sa valeur sans la changer ; l'attente
+  n'est pas persistée (un redémarrage pendant l'attente perd les ponctuels de 00:00) ; une bascule juste avant un
+  ponctuel du jour normal le laisse partir (anti-rebond) ; `program/holiday` accepte `revision` sans l'exiger, comme
+  `program/mode_follow`.
 - **Cache** : la clé de `OccurrenceCache` contient les drapeaux du jour (férié, coupé à minuit).
 
 ## 6. Actions (un seul modèle pour toute entité)

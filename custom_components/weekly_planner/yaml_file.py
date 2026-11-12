@@ -403,7 +403,7 @@ class YamlSync:
             config = self.store.config
             entity = raw.get(CONF_HOLIDAY_ENTITY) if CONF_HOLIDAY_ENTITY in raw else config.get(CONF_HOLIDAY_ENTITY)
             invert = raw[CONF_HOLIDAY_INVERT] if CONF_HOLIDAY_INVERT in raw else bool(config.get(CONF_HOLIDAY_INVERT))
-            holiday = check_holiday_config(entity or None, invert, self.hass, driven_entities(programs, labels))
+            holiday = check_holiday_config(entity or None, invert, self.hass, driven_entities(programs, labels, self.hass))
         return list(labels.values()), programs, raw.get("vacation", False), mode, holiday
 
     @staticmethod

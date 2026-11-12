@@ -1776,8 +1776,16 @@ class PlannerEngine:
             return
         self._holiday_started = today
         raw = self._holiday_raw()
-        if raw is not None and (startup or self._holiday_known(today) is None):
-            self._store_holiday(today, raw)
+        if raw is None:
+            return
+        known = self._holiday_known(today)
+        if known is None:
+            self._store_holiday(today, raw)  # first value of the day
+        elif startup and raw != known and self._holiday_timer is None:
+            # A valid reading can be wrong just after a restart (a template whose source is not loaded yet):
+            # it changes today's stored flag only after the same 30 s debounce as a change during the day.
+            self._holiday_timer = async_track_point_in_utc_time(
+                self.hass, self._on_holiday_debounce, now + timedelta(seconds=HOLIDAY_DEBOUNCE_S))
 
     def _cancel_holiday_timer(self) -> None:
         if self._holiday_timer is not None:
@@ -1844,8 +1852,27 @@ class PlannerEngine:
         self._arm_timer()
         self._notify_listeners()
 
+    def note_holiday_rename(self, old: str, new: str) -> None:
+        """The day-off entity was renamed in the registry: same entity, its stored flags stay valid."""
+        if self._holiday_key[0] == old:
+            self._holiday_key = (new, self._holiday_key[1])
+
+    def _forget_today(self) -> None:
+        """Drop the flag stored for today only; yesterday's flag (its slots stop at midnight) is kept."""
+        record = self.store.runtime.get("holiday")
+        today = dt_util.utcnow().astimezone(self.tz).date().isoformat()
+        if not record or record.get("date") != today:
+            return
+        previous = record.get("previous")
+        if previous:
+            self.store.runtime["holiday"] = {"date": previous["date"], "on": bool(previous.get("on"))}
+        else:
+            self.store.runtime.pop("holiday")
+        self.store.save_runtime()
+
     def _sync_holiday_config(self) -> set[str]:
-        """The day-off entity or its inversion changed: forget the stored flag and read the new entity.
+        """Another day-off entity or inversion was chosen: today's flag is read from it again; yesterday's
+        flag is kept. (A rename of the same entity is not a change, see ``note_holiday_rename``.)
 
         Returns the programs whose day changes now (handled like a mode change by the caller).
         """
@@ -1855,8 +1882,7 @@ class PlannerEngine:
         before = self.holiday_view()
         self._holiday_key = key
         self._cancel_holiday_timer()
-        if self.store.runtime.pop("holiday", None) is not None:
-            self.store.save_runtime()
+        self._forget_today()
         self._holiday_started = None
         if self._ready:
             self._holiday_start_of_day(dt_util.utcnow(), startup=True)

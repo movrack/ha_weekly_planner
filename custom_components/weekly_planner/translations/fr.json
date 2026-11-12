@@ -36,7 +36,7 @@
           "debounce_min": "Un programme peut avoir des conditions que vous ajoutez vous-même, par exemple « quelqu'un est présent » ou « température > 24 °C ». Quand l'une d'elles change, Weekly Planner attend cette durée avant d'agir, pour ignorer les oscillations brèves. 0 = tout de suite.",
           "mode_selector": "Un sélecteur de Home Assistant (input_select ou select) dont le choix actuel est le Mode actif de la maison, par exemple Maison, Absent ou Vacances. Weekly Planner le lit seulement, il ne le change jamais. Laisser vide pour n'avoir qu'un seul Mode.",
           "holiday_entity": "Une entité de Home Assistant (binary_sensor, input_boolean, switch ou calendar) qui est « on » un jour férié ou de congé. Ce jour-là, un Mode qui a un réglage Jour férié l'utilise à la place du jour de la semaine. Laisser vide pour ignorer les jours fériés.",
-          "holiday_invert": "À cocher pour un capteur Workday : il est « on » les jours travaillés."
+          "holiday_invert": "Pour un capteur Workday, « on » les jours travaillés. Les week-ends comptent alors aussi comme jours fériés : préférez un calendrier des jours fériés (intégration Holiday)."
         }
       },
       "resync": {

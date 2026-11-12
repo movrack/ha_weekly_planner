@@ -287,18 +287,26 @@ See the [mode reference](wiki/MODES.md) and [native-action examples](wiki/GENERI
 
 One optional entity for the whole house says whether today is a holiday or day off: a `binary_sensor`,
 `input_boolean`, `switch` or `calendar` (for example the Holiday integration), chosen by an administrator in
-**Configure → Holiday or day off**. Tick **This entity is “on” on a working day** for a Workday sensor.
-Entities of Weekly Planner and entities a program controls are refused.
+**Configure → Holiday or day off**. Tick **This entity is “on” on a working day** for a Workday sensor; with
+its default options weekends then count as days off too, so prefer a public-holiday calendar (Holiday
+integration).
+Entities of Weekly Planner and entities a program controls are refused, also when a program or a setting
+is saved.
 
 - Each mode can have a day-off setting: the same times as a weekday (a live link to that day) or its own day.
   On a day off it **replaces** the weekday of the active mode; a mode without one keeps its normal day, and
   a mode that follows another uses the day off of its source. Priorities do not change.
 - A day off is a whole day, 00:00 to 24:00: next to a day off, schedules stop at midnight. Yesterday and
-  tomorrow are always normal days.
+  tomorrow are always normal days. **Consequence:** a night slot (for example “Closed 21:00 → 07:00”) is cut
+  at midnight the night before and the night after a day off, so “the rest of the time” (shutters open,
+  day temperature) is sent around 00:00. Give the day off its own schedule that starts at 00:00 with the
+  night setting, and make sure the next morning's setting is right.
 - Only on/off counts. Unavailable or unknown keeps today’s value; with none known, the day is normal.
   A change waits 30 seconds (a flip back within that time is ignored), then applies like a mode change.
   Just after midnight, programs with a day-off setting wait up to 2 minutes for the entity.
 - A missing entity raises a repair issue; the settings are kept and every day is normal.
+- Going back to 0.28 or older: restore `.storage/weekly_planner` from the backup taken before the update
+  (that version does not know the day off and refuses to save a program that has one).
 - **On the card**: when today is a day off that changes a program, a line under “Mode” says “Day off: like Sunday, not Monday” or “Day off: own schedule, not Monday’s” (hidden when the copied day is the real one). Today’s bar, today’s row of the week and the Daily times view show what really runs today; they cannot be edited in place that day (use the **Day off** section of the schedules window; the “Edit the day” button still opens the window). “Next: tomorrow …” ignores a possible day off tomorrow.
 - **In the schedules window**: a collapsible **Day off** section, closed by default and hidden when there is no entity, with three choices: *No special setting* (asks before clearing), *Same schedules as* a weekday, or *Own schedule* (a day edited like the others, per-device schedules allowed; a schedule that passes midnight is cut at 24:00). A mode that follows another shows the day off of its source, read-only.
 

@@ -279,18 +279,25 @@ Voir les [exemples de modes](wiki/MODES_COOKBOOK.fr.md) et les
 Une entité facultative, une seule pour toute la maison, dit si aujourd’hui est un jour férié ou de congé : un
 `binary_sensor`, `input_boolean`, `switch` ou `calendar` (par exemple l’intégration Holiday), choisie par un
 administrateur dans **Configurer → Jour férié ou congé**. Cochez **Cette entité est « on » un jour travaillé** pour un
-capteur Workday. Les entités de Weekly Planner et celles qu’un programme commande sont refusées.
+capteur Workday ; avec ses options par défaut, les week-ends comptent alors aussi comme jours fériés : préférez un
+calendrier des jours fériés (intégration Holiday). Les entités de Weekly Planner et celles qu’un programme commande
+sont refusées, aussi lors de l’enregistrement d’un programme ou d’un réglage.
 
 - Chaque mode peut avoir un réglage « Jour férié » : les mêmes horaires qu’un jour de la semaine (lien vivant vers ce
   jour) ou des horaires propres. Un jour férié, il **remplace** le jour de la semaine du mode actif ; un mode sans
   réglage garde son jour normal, et un mode qui en suit un autre utilise le jour férié de sa source. Les priorités ne
   changent pas.
 - Un jour férié va de 00:00 à 24:00 : à côté d’un jour férié, les horaires s’arrêtent à minuit. Hier et demain sont
-  toujours des jours normaux.
+  toujours des jours normaux. **Conséquence :** un horaire de nuit (par exemple « Fermé 21:00 → 07:00 ») est coupé à
+  minuit la veille et le lendemain d’un jour férié ; « le reste du temps » (volets ouverts, température de jour) est
+  alors envoyé vers 00:00. Donnez au jour férié des horaires propres qui commencent à 00:00 avec le réglage de nuit,
+  et vérifiez le réglage du lendemain matin.
 - Seul « on » ou « off » compte. Indisponible ou inconnu garde la valeur du jour ; sans valeur connue, le jour est
   normal. Un changement attend 30 secondes (un retour en arrière dans ce délai est ignoré), puis s’applique comme un
   changement de mode. Juste après minuit, les programmes qui ont un réglage attendent l’entité jusqu’à 2 minutes.
 - Une entité absente ouvre un problème dans Réparations ; les réglages sont gardés et chaque jour est normal.
+- Revenir à la 0.28 ou avant : restaurez `.storage/weekly_planner` depuis la sauvegarde faite avant la mise à jour
+  (cette version ne connaît pas le jour férié et refuse d’enregistrer un programme qui en a un).
 - **Sur la carte** : quand aujourd’hui est un jour férié qui change un programme, une ligne sous « Mode » dit « Férié : comme dimanche, pas lundi » ou « Férié : horaires propres, pas lundi » (masquée si le jour copié est le vrai jour). La barre d’aujourd’hui, la ligne d’aujourd’hui de la semaine et la vue Horaires du jour montrent ce qui tourne vraiment ; elles ne se modifient pas directement ce jour-là (utilisez la section **Jour férié** de la fenêtre des horaires ; le bouton « Modifier la journée » ouvre toujours la fenêtre). « Ensuite : demain … » ignore un éventuel jour férié demain.
 - **Dans la fenêtre des horaires** : une section repliable **Jour férié**, fermée par défaut et masquée sans entité, avec trois choix : *Aucun réglage spécial* (demande confirmation avant d’effacer), *Mêmes horaires que* un jour de la semaine, ou *Horaires propres* (une journée réglée comme les autres, horaires par appareil permis ; un horaire qui passe minuit est coupé à 24 h). Un mode qui en suit un autre montre le jour férié de sa source, en lecture seule.
 

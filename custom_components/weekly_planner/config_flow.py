@@ -120,7 +120,7 @@ class WeeklyPlannerOptionsFlow(OptionsFlow):
                 errors[CONF_MODE_SELECTOR] = str(err)
             try:
                 self._holiday = check_holiday_config(
-                    holiday, invert, self.hass, driven_entities(self._engine.store.programs, self._engine.labels))
+                    holiday, invert, self.hass, driven_entities(self._engine.store.programs, self._engine.labels, self.hass))
             except vol.Invalid as err:
                 errors[CONF_HOLIDAY_ENTITY] = str(err)
             if not errors:

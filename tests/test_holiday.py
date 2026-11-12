@@ -838,3 +838,87 @@ async def test_first_reading_of_the_day_and_programs_without_setting(hass, hass_
     await hass.async_block_till_done()
     await tick(hass, freezer, timedelta(seconds=31))
     assert engine.holiday_today is True and rec.calls == []  # no program has a day-off setting
+
+
+# -- corrections after the code review (nemesis, 2026-11-12) -----------------------------------------
+
+
+async def test_a_save_may_not_make_a_program_drive_the_day_off_entity(hass, hass_storage, freezer, hass_ws_client):
+    Recorder(hass)
+    hass.states.async_set(DAY_OFF, "off")
+    hass.services.async_register("input_boolean", "turn_on", lambda call: None)
+    engine, ws = await started(hass, hass_storage, freezer, hass_ws_client, [program()], local(27, 9), config=CONFIG)
+    current = deepcopy(engine.store.program("office"))
+    current["entities"].append({"entity_id": DAY_OFF, "default_label": None, "label_overrides": {}})
+    await ws.send_json_auto_id({"type": f"{DOMAIN}/program/save", "program": current})
+    res = await ws.receive_json()
+    assert res["error"]["code"] == "invalid" and "driven_holiday_entity" in res["error"]["message"]
+    target = {"kind": "service", "service": "input_boolean.turn_on", "target_entity_id": DAY_OFF, "data": {}}
+    await ws.send_json_auto_id({"type": f"{DOMAIN}/label/save", "label": {"name": "On", "action": target}})
+    res = await ws.receive_json()
+    assert res["error"]["code"] == "invalid" and "driven_holiday_entity" in res["error"]["message"]
+    # a scene that sets the entity counts too
+    hass.states.async_set("scene.holiday", "scening", {"entity_id": [DAY_OFF]})
+    await ws.send_json_auto_id({"type": f"{DOMAIN}/label/save", "label": {
+        "name": "Scene", "action": {"kind": "scene", "scene": "scene.holiday"}}})
+    assert "driven_holiday_entity" in (await ws.receive_json())["error"]["message"]
+    # program/holiday re-checks the whole program
+    engine.store.program("office")["entities"][0]["label_overrides"] = {"t21": target}
+    await ws.send_json_auto_id({"type": f"{DOMAIN}/program/holiday", "program_id": "office", "profile_id": "base",
+                                "holiday": {"copy": 1}})
+    assert "driven_holiday_entity" in (await ws.receive_json())["error"]["message"]
+    assert "holiday" not in engine.store.program("office")["profiles"][0]
+
+
+async def test_rename_and_rechoice_keep_yesterdays_memory(hass, hass_storage, freezer):
+    Recorder(hass)
+    registry = er.async_get(hass)
+    registry.async_get_or_create("input_boolean", "test", "day_off", suggested_object_id="day_off")
+    freezer.move_to(local(28, 3))
+    hass.states.async_set(DAY_OFF, "off")
+    hass.states.async_set("input_boolean.other", "off")
+    runtime_storage(hass_storage, {"date": "2026-10-28", "on": False, "previous": {"date": "2026-10-27", "on": True}})
+    engine = await setup(hass, hass_storage, freezer, [hprog()], local(28, 3), config=CONFIG)
+    assert engine.holiday_view().after == TUE
+    registry.async_update_entity(DAY_OFF, new_entity_id="input_boolean.renamed")
+    await hass.async_block_till_done()
+    assert engine.store.config["holiday_entity"] == "input_boolean.renamed"
+    assert engine.store.runtime["holiday"]["previous"] == {"date": "2026-10-27", "on": True}
+    assert engine.holiday_view().after == TUE
+    await engine.async_set_holiday_config("input_boolean.other", False)  # another entity: today read again
+    assert engine.holiday_view().after == TUE
+    assert engine.store.runtime["holiday"]["date"] == "2026-10-28"
+
+
+async def test_startup_reading_that_differs_from_today_waits_the_debounce(hass, hass_storage, freezer):
+    rec = Recorder(hass)
+    freezer.move_to(local(27, 9))
+    hass.states.async_set(DAY_OFF, "off")  # a template whose source is not loaded yet
+    runtime_storage(hass_storage, {"date": "2026-10-27", "on": True})
+    engine = await setup(hass, hass_storage, freezer, [hprog()], local(27, 9), config=CONFIG)
+    assert engine.holiday_today is True and temperatures(rec) == [25]  # the stored flag of today
+    rec.calls.clear()
+    await tick(hass, freezer, timedelta(seconds=10))
+    hass.states.async_set(DAY_OFF, "on")  # the source loaded: back to the stored value
+    await hass.async_block_till_done()
+    await tick(hass, freezer, timedelta(seconds=40))
+    assert engine.holiday_today is True and rec.calls == []  # one salvo only
+
+
+async def test_startup_reading_that_stays_different_applies_after_the_debounce(hass, hass_storage, freezer):
+    rec = Recorder(hass)
+    freezer.move_to(local(27, 9))
+    hass.states.async_set(DAY_OFF, "off")
+    runtime_storage(hass_storage, {"date": "2026-10-27", "on": True})
+    engine = await setup(hass, hass_storage, freezer, [hprog()], local(27, 9), config=CONFIG)
+    rec.calls.clear()
+    await tick(hass, freezer, timedelta(seconds=31))
+    assert engine.holiday_today is False and temperatures(rec) == [21]
+
+
+async def test_scene_members_are_driven(hass):
+    hass.states.async_set("scene.night", "scening", {"entity_id": ["switch.x", 3]})
+    labs = [label("n", {"kind": "scene", "scene": "scene.night"}), label("m", {"kind": "scene", "scene": "scene.none"})]
+    assert driven_entities([], labs, hass) == {"switch.x"}
+    hass.states.async_set("scene.night", "scening", {"entity_id": "switch.x"})
+    assert driven_entities([], labs, hass) == set()

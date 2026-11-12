@@ -36,7 +36,7 @@
           "debounce_min": "A program can have conditions that you add yourself, for example “someone is home” or “temperature > 24 °C”. When one of them changes, Weekly Planner waits this long before acting, to ignore brief flickers. 0 = immediately.",
           "mode_selector": "A Home Assistant selector (input_select or select) whose current choice is the active Mode of the house, for example Home, Away or Vacation. Weekly Planner only reads it and never changes it. Leave empty to have a single Mode.",
           "holiday_entity": "A Home Assistant entity (binary_sensor, input_boolean, switch or calendar) that is “on” on a holiday or day off. On such a day, a Mode with a Day off setting uses it instead of the weekday. Leave empty to ignore days off.",
-          "holiday_invert": "Tick it for a Workday sensor: it is “on” on working days."
+          "holiday_invert": "For a Workday sensor, which is “on” on working days. Weekends then count as days off too: prefer a public-holiday calendar (Holiday integration)."
         }
       },
       "resync": {
