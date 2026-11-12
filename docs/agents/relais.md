@@ -40,6 +40,22 @@ then commit and push. **A deploy is never part of the chain**: it waits for an e
 - **Protections.** Never bypass a hook (no other binary to dodge it); commit hours of public repositories apply;
   no real instance is touched; no production deploy without the owner's explicit request.
 
+## Cost rules (retrospective of 2026-11-12)
+
+Measured on #51 to #55: the chain is worth it for risky or user-visible work, and wasteful for small changes.
+- **Light chain by default.** Run only the stages that can find something:
+  - backend only (engine, API, storage): implementation, `nemesis` on the code, `c3po` on texts, `chrono`; no `parker`, `mamy`, `ally`;
+  - card only: all stages except `chrono` unless a render path, a loop or a data structure changed;
+  - texts or format only (#53-like): `parker` on the changed states only, `mamy`, `c3po`; `chrono` only if a measured hot path is touched.
+  A skipped stage is written in the chain log with the reason.
+- **Chrono stays on `opus` but is conditional.** On #51, #52, #53 and #54 it changed nothing (each run 60 to 120k tokens); on #55 it gained 18x. Run it when the change adds a sort, a loop over programs or devices, a cache key, a timer or a per-render computation.
+- **Do not resume a fat agent.** A resumed agent replays its whole context: the coding agent grew from 119k to 278k tokens across 12 correction rounds. Reuse an agent only while its context is small (about 100k); after that start a fresh agent with a precise brief (files, finding list, report path).
+- **One correction round per stage by default.** Batch every finding of the stage (Blocker, Major, cheap Minor) in one message; the second round only for a Blocker or Major still open.
+- **Parker shoots only what changed**: the changed states at 360 px, both themes only when colours or contrast are involved, one language unless texts changed; no 1440 px. Cap the matrix (about 20 images); an image nobody opens is waste.
+- **Max one `opus` agent at a time and at most two agents in parallel.** Three heavy agents (including two `opus`) hit the 5-hour limit on 2026-11-12 around 08:10, and the chain stopped for about 2.5 hours.
+- **Short briefs and reports.** The brief states files, scope, owner decisions not to touch, the report path and a line limit; the reply is 8 to 15 lines; the long text goes in the report file. The coordinator does not re-paste a report, it gives the verdict and the owner decisions.
+- **The coordinator checks cheaply**: `tsc` and `vitest` once per stage; the full `pytest` once before the commit, not after each agent.
+
 ## Chain log template
 
 ```

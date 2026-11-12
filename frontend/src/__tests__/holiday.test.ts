@@ -5,7 +5,11 @@ import { WpHoliday, passesMidnight } from "../components/holiday-section";
 import { WpSchedule } from "../components/schedule-dialog";
 import { WpTimesDay } from "../components/times-day";
 import { syncPreviewCache, fetchPreviewResponse, clearPreviewCache } from "../preview-cache";
+import { WpBarEditor } from "../components/bar-editor";
+import { confirmAction } from "../components/confirm";
 import { flat } from "./helpers/tpl";
+
+vi.mock("../components/confirm", async (orig) => ({ ...(await orig<typeof import("../components/confirm")>()), confirmAction: vi.fn(async () => true) }));
 
 const slot = (id: string, start = "08:00", end: string | null = "09:00", label = "l") => ({ id, label, start: { time: start }, ...(end ? { end: { time: end } } : {}) });
 const days = () => Array.from({ length: 7 }, (_, i) => (i === 6 ? [slot("sun")] : []));
@@ -13,10 +17,10 @@ const profile = (holiday?: any) => ({ id: "pr", name: "A", days: days(), ...(hol
 
 describe("day-off wording", () => {
   it("copy and own lines, EN and FR, hidden when the copied day is the real one", () => {
-    expect(holidayLine("en", { copy: 6 }, 0)).toBe("Day off: like Sunday, not Monday");
-    expect(holidayLine("en", { own: true }, 0)).toBe("Day off: own schedule, not Monday’s");
-    expect(holidayLine("fr", { copy: 6 }, 0)).toBe("Férié : comme dimanche, pas lundi");
-    expect(holidayLine("fr", { own: true }, 0)).toBe("Férié : horaires propres, pas lundi");
+    expect(holidayLine("en", { copy: 6 }, 0)).toBe("Day off today: Sunday’s schedule");
+    expect(holidayLine("en", { own: true }, 0)).toBe("Day off today: own schedule");
+    expect(holidayLine("fr", { copy: 6 }, 0)).toBe("Aujourd’hui férié : horaires du dimanche");
+    expect(holidayLine("fr", { own: true }, 0)).toBe("Aujourd’hui férié : horaires propres");
     expect(holidayLine("en", { copy: 0 }, 0)).toBeNull();
   });
   it("choice, slots and the day that runs", () => {
@@ -49,7 +53,7 @@ describe("card on a day off", () => {
   it("shows the line only when today is a day off that changes the program", () => {
     const p = program();
     const on = card({ programs: [p], holiday_today: true, status: { p: { holiday: { copy: 6 } } } });
-    expect(flat(on._holidayLine([p]))).toContain("Day off: like Sunday, not Monday");
+    expect(flat(on._holidayLine([p]))).toContain("Day off today: Sunday’s schedule");
     expect(flat(card({ programs: [p], holiday_today: false, status: { p: { holiday: { copy: 6 } } } })._holidayLine([p]))).toBe("");
     expect(flat(card({ programs: [p], holiday_today: true, status: { p: {} } })._holidayLine([p]))).toBe("");
     expect(flat(card({ programs: [p], holiday_today: true, status: { p: { holiday: { copy: 0 } } } })._holidayLine([p]))).toBe("");
@@ -58,8 +62,8 @@ describe("card on a day off", () => {
     const a = program("a"), b = program("b");
     const c = card({ programs: [a, b], holiday_today: true, status: { a: { holiday: { copy: 6 } }, b: { holiday: { own: true } } } });
     const t = flat(c._holidayLine([a, b]));
-    expect(t).toContain("A · Day off: like Sunday");
-    expect(t).toContain("B · Day off: own schedule");
+    expect(t).toContain("A · Day off today: Sunday’s schedule");
+    expect(t).toContain("B · Day off today: own schedule");
   });
   it("today's bar and today's week row are read-only on a day off, other days are not", () => {
     const p = program();
@@ -117,7 +121,7 @@ describe("day-off section", () => {
     expect(tpl.values.filter((v: unknown) => v === false || v === true)).toEqual([false, true]);
     el._open = true;
     expect(el.render().values.filter((v: unknown) => v === false || v === true)).toEqual([true, false]);
-    for (const w of ["No special setting", "Same schedules as:", "Own schedule"]) expect(t).toContain(w);
+    for (const w of ["Normal day", "Same as:", "My own schedule"]) expect(t).toContain(w);
   });
   it("writes a copy and an own day with the revision", async () => {
     const el = make();
@@ -200,6 +204,69 @@ describe("a locked day", () => {
     const withSpans = found.map((spans) => spans.map((x: any) => [x.start, x.end]));
     expect(withSpans).toEqual([[[600, 660]], [[480, 540]]]);
     vi.useRealTimers();
+  });
+});
+
+describe("keyboard and screen reader", () => {
+  const make = (profileValue: any) => {
+    const el = new WpHoliday() as any;
+    el.hass = { ...hass, callWS: vi.fn(async () => ({ program: { id: "p" } })) };
+    el.data = { labels: [label], programs: [], status: {} };
+    el.program = program();
+    el.profile = profile(profileValue);
+    el.canEdit = true;
+    el.renderRoot = { querySelectorAll: () => [], querySelector: () => null };
+    return el;
+  };
+  it("leaving an own day that has slots asks first; No keeps everything", async () => {
+    const el = make({ day: [slot("h")] });
+    (confirmAction as any).mockResolvedValueOnce(false);
+    await el._choose("copy");
+    expect(el.hass.callWS).not.toHaveBeenCalled();
+    expect(confirmAction).toHaveBeenCalled();
+    await el._choose("copy");
+    expect(el.hass.callWS).toHaveBeenCalledWith(expect.objectContaining({ holiday: { copy: 0 } }));
+  });
+  it("leaving an empty own day does not ask", async () => {
+    const el = make({ day: [] });
+    (confirmAction as any).mockClear();
+    await el._choose("copy");
+    expect(confirmAction).not.toHaveBeenCalled();
+  });
+  it("announces Saved and Deleted in an always-present status region", async () => {
+    const el = make({ day: [slot("h")] });
+    expect(flat(el.render())).toContain('role="status"');
+    await el._choose("copy");
+    expect(el._status).toBe("Saved");
+    el.profile = profile({ day: [slot("h")] });
+    await el._delete(slot("h"));
+    expect(el._status).toBe("Deleted");
+  });
+  it("the radios sit in a fieldset with a legend", () => {
+    const t = flat(make(null).render());
+    expect(t).toContain("<fieldset");
+    expect(t).toContain("<legend");
+  });
+  it("a locked bar says why on Enter instead of opening the day, and is aria-disabled", () => {
+    const bar = new WpBarEditor() as any;
+    const seen: string[] = [];
+    bar.dispatchEvent = (e: Event) => { seen.push(e.type); return true; };
+    bar.lockedReason = "why";
+    bar.editable = false;
+    const zone = {};
+    bar._zoneKey({ key: "Enter", target: zone, currentTarget: zone, preventDefault() {} });
+    expect(seen).toEqual(["locked-request"]);
+    bar.lockedReason = "";
+    bar._zoneKey({ key: "Enter", target: zone, currentTarget: zone, preventDefault() {} });
+    expect(seen).toEqual(["locked-request", "open-day"]);
+  });
+  it("the card passes the reason to today's bar only", () => {
+    const p = program();
+    const c = card({ programs: [p], holiday_today: true, status: { p: { holiday: { own: true } } } });
+    c._preview = {};
+    const reason = (offset: number) => c._bar("cover.b", p, offset, "today", () => {}).values.find((v: unknown) => v === "Today is a day off: change it in Schedules > Day off" || v === "");
+    expect(reason(0)).toBe("Today is a day off: change it in Schedules > Day off");
+    expect(reason(1)).toBe("");
   });
 });
 

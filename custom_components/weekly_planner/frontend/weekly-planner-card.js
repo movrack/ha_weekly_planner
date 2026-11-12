@@ -1306,19 +1306,22 @@ var Ct = {
 	running: "On",
 	admin_zone_hint: "These settings are for the person who installs or manages the card.",
 	holiday_title: "Day off",
-	holiday_none: "No special setting",
-	holiday_copy: "Same schedules as:",
-	holiday_own: "Own schedule",
-	holiday_clear: "Remove the day-off setting?",
-	holiday_clear_yes: "Remove",
-	holiday_what_none: "no special setting",
+	holiday_none: "Normal day",
+	holiday_copy: "Same as:",
+	holiday_own: "My own schedule",
+	holiday_clear: "Back to a normal day?",
+	holiday_clear_yes: "Normal day",
+	holiday_what_none: "normal day",
 	holiday_what_copy: "like {day}",
 	holiday_what_own: "own schedule",
 	holiday_midnight: "This schedule passes midnight: on a day off it stops at 24:00.",
+	holiday_saved: "Saved",
+	holiday_deleted: "Deleted",
+	holiday_drop: "Delete the own schedule of the day off?",
 	holiday_locked: "Today is a day off: change it in Schedules > Day off",
 	holiday_follows_note: "This mode follows {mode}. To change it, open {mode}.",
-	holiday_line_copy: "Day off: like {copied}, not {actual}",
-	holiday_line_own: "Day off: own schedule, not {actual}’s",
+	holiday_line_copy: "Day off today: {copied}’s schedule",
+	holiday_line_own: "Day off today: own schedule",
 	then_label: "next:",
 	midnight: "midnight",
 	noon: "noon",
@@ -1790,19 +1793,22 @@ var Ct = {
 	running: "En marche",
 	admin_zone_hint: "Ces réglages sont pour la personne qui installe ou gère la carte.",
 	holiday_title: "Jour férié",
-	holiday_none: "Aucun réglage spécial",
+	holiday_none: "Jour normal",
 	holiday_copy: "Mêmes horaires que :",
-	holiday_own: "Horaires propres",
-	holiday_clear: "Effacer le réglage du jour férié ?",
-	holiday_clear_yes: "Effacer",
-	holiday_what_none: "aucun réglage spécial",
+	holiday_own: "Mes propres horaires",
+	holiday_clear: "Revenir au jour normal ?",
+	holiday_clear_yes: "Jour normal",
+	holiday_what_none: "jour normal",
 	holiday_what_copy: "comme {day}",
 	holiday_what_own: "horaires propres",
 	holiday_midnight: "Cet horaire passe minuit : un jour férié, il s’arrête à 24 h.",
+	holiday_saved: "Enregistré",
+	holiday_deleted: "Supprimé",
+	holiday_drop: "Supprimer les horaires propres du jour férié ?",
 	holiday_locked: "Aujourd’hui est férié : à changer dans Horaires > Jour férié",
 	holiday_follows_note: "Ce mode suit {mode}. Pour changer, ouvrez {mode}.",
-	holiday_line_copy: "Férié : comme {copied}, pas {actual}",
-	holiday_line_own: "Férié : horaires propres, pas {actual}",
+	holiday_line_copy: "Aujourd’hui férié : horaires du {copied}",
+	holiday_line_own: "Aujourd’hui férié : horaires propres",
 	then_label: "ensuite :",
 	midnight: "minuit",
 	noon: "midi",
@@ -4683,7 +4689,7 @@ var Pa, Fa = 450, Ia = 22, La = 8, Ra = 700, za = /* @__PURE__ */ new Map(), Ba 
 		Pa = this;
 	}
 	constructor(...e) {
-		super(...e), this.entityId = "", this.weekday = 0, this.spans = [], this.now = null, this.editing = !1, this.editable = !1, this.hours = !1, this.deviceName = "", this.lang = "en", this.tz = "UTC", this.view = "bar", this.rest = "", this._pointerY = 0, this.drop = !1, this._draft = null, this._selected = null, this._hsel = null, this._bubble = null, this._copyOpen = !1, this._copyDays = [], this._conflict = null, this._error = "", this._ask = null, this._hover = !1, this._tip = null, this._moving = !1, this._hint = !1, this._kbd = !1, this._sun = /* @__PURE__ */ new Map(), this._keep = /* @__PURE__ */ new Set(), this._awaitRev = null, this._listening = !1, this._at = (e) => "time" in e ? M(e.time) : this._sun.get(JSON.stringify(e)) ?? Tn(this.hass, e), this._outside = (e) => {
+		super(...e), this.entityId = "", this.weekday = 0, this.spans = [], this.now = null, this.editing = !1, this.editable = !1, this.lockedReason = "", this.hours = !1, this.deviceName = "", this.lang = "en", this.tz = "UTC", this.view = "bar", this.rest = "", this._pointerY = 0, this.drop = !1, this._draft = null, this._selected = null, this._hsel = null, this._bubble = null, this._copyOpen = !1, this._copyDays = [], this._conflict = null, this._error = "", this._ask = null, this._hover = !1, this._tip = null, this._moving = !1, this._hint = !1, this._kbd = !1, this._sun = /* @__PURE__ */ new Map(), this._keep = /* @__PURE__ */ new Set(), this._awaitRev = null, this._listening = !1, this._at = (e) => "time" in e ? M(e.time) : this._sun.get(JSON.stringify(e)) ?? Tn(this.hass, e), this._outside = (e) => {
 			let t = e.composedPath();
 			t.includes(this) || t.some((e) => e instanceof HTMLElement && e.classList?.contains("snack")) || this._emit("edit-exit");
 		}, this._escape = (e) => {
@@ -4780,7 +4786,7 @@ var Pa, Fa = 450, Ia = 22, La = 8, Ra = 700, za = /* @__PURE__ */ new Map(), Ba 
 	}
 	_zoneUp(e) {
 		let t = this._press;
-		t && t.id === e.pointerId && (window.clearTimeout(t.timer), this._press = void 0, t.fired ? this._mvUp(e) : t.mouse && this.editable ? this._emit("edit-request") : this.editable && !t.mouse ? this._tapHint() : this._emit("open-day"));
+		t && t.id === e.pointerId && (window.clearTimeout(t.timer), this._press = void 0, t.fired ? this._mvUp(e) : t.mouse && this.editable ? this._emit("edit-request") : this.editable && !t.mouse ? this._tapHint() : this.lockedReason ? this._emit("locked-request") : this._emit("open-day"));
 	}
 	_tapHint() {
 		this._hint ? (this._clearHint(), this._emit("open-day")) : ja() ? (this._hint = !0, this._hintTimer = window.setTimeout(() => {
@@ -4791,7 +4797,7 @@ var Pa, Fa = 450, Ia = 22, La = 8, Ra = 700, za = /* @__PURE__ */ new Map(), Ba 
 		window.clearTimeout(this._hintTimer), this._hintTimer = void 0, this._hint = !1;
 	}
 	_zoneKey(e) {
-		e.key === "Escape" && (this._tip = null), this.editing || e.target !== e.currentTarget || e.key !== "Enter" && e.key !== " " || (e.preventDefault(), this.editable ? (this._kbd = !0, this._clearHint(), Ma(), this._emit("edit-request")) : this._emit("open-day"));
+		e.key === "Escape" && (this._tip = null), this.editing || e.target !== e.currentTarget || e.key !== "Enter" && e.key !== " " || (e.preventDefault(), this.editable ? (this._kbd = !0, this._clearHint(), Ma(), this._emit("edit-request")) : this.lockedReason ? this._emit("locked-request") : this._emit("open-day"));
 	}
 	_zoneCancel() {
 		this._press?.fired && this._mvCancel(), window.clearTimeout(this._press?.timer), this._press = void 0;
@@ -5389,7 +5395,7 @@ var Pa, Fa = 450, Ia = 22, La = 8, Ra = 700, za = /* @__PURE__ */ new Map(), Ba 
 		this._tip = t < 0 ? null : t;
 	}
 	_zoneLabel() {
-		let e = O(this.lang).days[this.weekday] ?? "", t = this.deviceName ? k(this.lang, "edit_bar_of", {
+		let e = O(this.lang).days[this.weekday] ?? "", t = this.lockedReason ? [this.deviceName, e].filter(Boolean).join(", ") : this.deviceName ? k(this.lang, "edit_bar_of", {
 			name: this.deviceName,
 			day: e
 		}) : k(this.lang, "edit_bar"), n = this._spansNow().filter((e) => !e.ignored).map((e) => this._spanTip(e));
@@ -5535,6 +5541,7 @@ var Pa, Fa = 450, Ia = 22, La = 8, Ra = 700, za = /* @__PURE__ */ new Map(), Ba 
 		return !this.hass || !this.data || !this.program ? x : y`
       <div class="zone ${this.editing ? "editing" : ""}" title=${this._tipText || (this.editing ? this._selectedTime : "")} tabindex=${vt(this.editing ? void 0 : 0)}
         role=${vt(this.editing ? void 0 : "button")} aria-label=${vt(this.editing ? void 0 : this._zoneLabel())}
+        aria-disabled=${vt(this.lockedReason ? "true" : void 0)} aria-describedby=${vt(this.lockedReason ? "locked-reason" : void 0)}
         @keydown=${this._zoneKey}
         @pointerdown=${(e) => {
 			this._tip = null, this._zoneDown(e);
@@ -5558,6 +5565,7 @@ var Pa, Fa = 450, Ia = 22, La = 8, Ra = 700, za = /* @__PURE__ */ new Map(), Ba 
           aria-label=${k(this.lang, "edit_bar")}>${this.editing ? this._overlay_() : x}${this._tipTargets()}</wp-day-bar>`}
         ${this._tipText ? y`<div id="schedule-tooltip" class="hover-tip ${this._radial ? "round" : ""}" role="tooltip"
           title=${this._tipText} aria-label=${this._tipText}>${this._tipText}</div>` : x}
+        ${this.lockedReason ? y`<span id="locked-reason" class="sr-only">${this.lockedReason}</span>` : x}
         <div class="hold-hint" role="status">${this._hint ? k(this.lang, "hold_hint") : x}</div>
       </div>
       ${this.hours && !this._radial ? this._hoursAxis() : x}
@@ -5568,6 +5576,7 @@ var Pa, Fa = 450, Ia = 22, La = 8, Ra = 700, za = /* @__PURE__ */ new Map(), Ba 
 	}
 	static {
 		this.styles = [ni, l`
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     :host { display: block; min-width: 0; }
     .zone { position: relative; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: pointer; }
     .hours { position: relative; height: 20px; font-size: 0.75rem; color: var(--secondary-text-color); }
@@ -5675,7 +5684,7 @@ var Pa, Fa = 450, Ia = 22, La = 8, Ra = 700, za = /* @__PURE__ */ new Map(), Ba 
   `];
 	}
 };
-D([T({ attribute: !1 })], W.prototype, "hass", void 0), D([T({ attribute: !1 })], W.prototype, "data", void 0), D([T({ attribute: !1 })], W.prototype, "program", void 0), D([T({ attribute: "entity-id" })], W.prototype, "entityId", void 0), D([T({ type: Number })], W.prototype, "weekday", void 0), D([T({ attribute: !1 })], W.prototype, "spans", void 0), D([T({ attribute: !1 })], W.prototype, "preview", void 0), D([T({ type: Number })], W.prototype, "now", void 0), D([T({ type: Boolean })], W.prototype, "editing", void 0), D([T({ type: Boolean })], W.prototype, "editable", void 0), D([T({ type: Boolean })], W.prototype, "hours", void 0), D([T({ attribute: "device-name" })], W.prototype, "deviceName", void 0), D([T()], W.prototype, "lang", void 0), D([T()], W.prototype, "tz", void 0), D([T()], W.prototype, "view", void 0), D([T()], W.prototype, "rest", void 0), D([T({
+D([T({ attribute: !1 })], W.prototype, "hass", void 0), D([T({ attribute: !1 })], W.prototype, "data", void 0), D([T({ attribute: !1 })], W.prototype, "program", void 0), D([T({ attribute: "entity-id" })], W.prototype, "entityId", void 0), D([T({ type: Number })], W.prototype, "weekday", void 0), D([T({ attribute: !1 })], W.prototype, "spans", void 0), D([T({ attribute: !1 })], W.prototype, "preview", void 0), D([T({ type: Number })], W.prototype, "now", void 0), D([T({ type: Boolean })], W.prototype, "editing", void 0), D([T({ type: Boolean })], W.prototype, "editable", void 0), D([T({ attribute: "locked-reason" })], W.prototype, "lockedReason", void 0), D([T({ type: Boolean })], W.prototype, "hours", void 0), D([T({ attribute: "device-name" })], W.prototype, "deviceName", void 0), D([T()], W.prototype, "lang", void 0), D([T()], W.prototype, "tz", void 0), D([T()], W.prototype, "view", void 0), D([T()], W.prototype, "rest", void 0), D([T({
 	type: Boolean,
 	reflect: !0
 })], W.prototype, "drop", void 0), D([E()], W.prototype, "_draft", void 0), D([E()], W.prototype, "_selected", void 0), D([E()], W.prototype, "_hsel", void 0), D([E()], W.prototype, "_bubble", void 0), D([E()], W.prototype, "_copyOpen", void 0), D([E()], W.prototype, "_copyDays", void 0), D([E()], W.prototype, "_conflict", void 0), D([E()], W.prototype, "_error", void 0), D([E()], W.prototype, "_ask", void 0), D([E()], W.prototype, "_hover", void 0), D([E()], W.prototype, "_tip", void 0), D([E()], W.prototype, "_moving", void 0), D([E()], W.prototype, "_hint", void 0), D([E()], W.prototype, "_barText", void 0), W = Pa = D([w("wp-bar-editor")], W);
@@ -7768,7 +7777,15 @@ D([T({ attribute: !1 })], J.prototype, "hass", void 0), D([T({ attribute: !1 })]
 // src/components/holiday-section.ts
 var os = (e, t) => !!t.end && Tn(e, t.end) <= Tn(e, t.start), Y = class extends S {
 	constructor(...e) {
-		super(...e), this.source = null, this.canEdit = !1, this._open = !1, this._error = "", this._busy = !1, this._editing = null, this._group = null;
+		super(...e), this.source = null, this.canEdit = !1, this._open = !1, this._error = "", this._busy = !1, this._status = "", this._editing = null, this._group = null;
+	}
+	_say(e) {
+		this._status = k(this._lang, e), clearTimeout(this._statusTimer), this._statusTimer = setTimeout(() => {
+			this._status = "";
+		}, 3e3);
+	}
+	async _focus(e) {
+		await this.updateComplete, (this.renderRoot?.querySelector(e) ?? this.renderRoot?.querySelector(".head"))?.focus();
 	}
 	get _lang() {
 		return ei(this.hass);
@@ -7802,15 +7819,8 @@ var os = (e, t) => !!t.end && Tn(e, t.end) <= Tn(e, t.start), Y = class extends 
 		}
 	}
 	async _choose(e) {
-		if (!(e === gn(this._shown) || this._readOnly)) {
-			if (this._editing = null, this._group = null, e === "none") {
-				if (!await li(this, k(this._lang, "holiday_clear"), k(this._lang, "holiday_clear_yes"), k(this._lang, "no"))) {
-					this._syncRadios();
-					return;
-				}
-				await this._write(null);
-			} else await this._write(e === "copy" ? { copy: 0 } : { day: [] });
-		}
+		let t = gn(this._shown);
+		e === t || this._readOnly || (this._editing = null, this._group = null, (e === "none" || t === "own" && this._own().length > 0) && !await li(this, k(this._lang, e === "none" ? "holiday_clear" : "holiday_drop"), k(this._lang, "holiday_clear_yes"), k(this._lang, "no")) ? (this._syncRadios(), this._focus(`input[data-v="${t}"]`)) : (await this._write(e === "none" ? null : e === "copy" ? { copy: 0 } : { day: [] }) && this._say("holiday_saved"), this._focus(`input[data-v="${e}"]`)));
 	}
 	_syncRadios() {
 		let e = gn(this._shown), t = [
@@ -7839,15 +7849,15 @@ var os = (e, t) => !!t.end && Tn(e, t.end) <= Tn(e, t.start), Y = class extends 
 		let e = this._group;
 		if (!e) return;
 		let t = e.slot, n = this._own(), r = n.some((e) => e.id === t.id) ? n.map((e) => e.id === t.id ? t : e) : [...n, t];
-		await this._write({ day: r }) && (this._editing = null, this._group = null);
+		await this._write({ day: r }) && (this._editing = null, this._group = null, this._say("holiday_saved"), this._focus(`.open[data-slot="${t.id}"]`));
 	}
 	async _delete(e) {
-		await this._write({ day: this._own().filter((t) => t.id !== e.id) });
+		await this._write({ day: this._own().filter((t) => t.id !== e.id) }) && this._say("holiday_deleted"), this._focus(".add");
 	}
 	_row(e) {
 		let t = this._lang, n = z(this.data, e.label), r = n ? B(this.hass, n) : e.label, i = `${vi(t, e.start)}${e.end ? `–${vi(t, e.end)}` : ""}`;
 		return y`<li class="hrow">
-      <button class="open" ?disabled=${this._readOnly || this._busy} @click=${() => this._edit(e)}>
+      <button class="open" data-slot=${e.id} ?disabled=${this._readOnly || this._busy} @click=${() => this._edit(e)}>
         <span class="dot" style="background:${n?.color ?? "transparent"}" aria-hidden="true"></span><span class="txt">${i} · ${r}</span></button>
       <button class="del" ?disabled=${this._readOnly || this._busy} aria-label=${`${k(t, "delete")} ${i}`} title=${k(t, "delete")}
         @click=${() => void this._delete(e)}><ha-icon icon="mdi:delete-outline"></ha-icon></button></li>`;
@@ -7859,11 +7869,12 @@ var os = (e, t) => !!t.end && Tn(e, t.end) <= Tn(e, t.start), Y = class extends 
         @group-change=${(e) => {
 			e.stopPropagation(), this._group = e.detail, this._error = "";
 		}}></wp-slot-form>
-      ${os(this.hass, this._group.slot) ? y`<p class="warn" role="status">${k(e, "holiday_midnight")}</p>` : x}
+      <div class="warn" role="status">${os(this.hass, this._group.slot) ? k(e, "holiday_midnight") : ""}</div>
       <div class="btns">
         <button class="btn primary" ?disabled=${this._busy} @click=${() => void this._save()}>${k(e, "save")}</button>
         <button class="btn" @click=${() => {
-			this._editing = null, this._group = null;
+			let e = this._editing;
+			this._editing = null, this._group = null, this._focus(e && e !== "new" ? `.open[data-slot="${e}"]` : ".add");
 		}}>${k(e, "cancel")}</button></div></div>` : x;
 		return y`<ul class="hlist">${t.map((e) => this._row(e))}</ul>${r}
       ${!this._group && !this._readOnly ? y`<button class="btn add" ?disabled=${this._busy} @click=${() => this._add()}>
@@ -7875,8 +7886,8 @@ var os = (e, t) => !!t.end && Tn(e, t.end) <= Tn(e, t.start), Y = class extends 
 		return e ? "copy" in e ? k(t, "holiday_what_copy", { day: xn(t, e.copy) }) : k(t, "holiday_what_own") : k(t, "holiday_what_none");
 	}
 	render() {
-		let e = this._lang, t = this._shown, n = gn(t), r = `holiday-${this.program.id}`, i = (e, t) => y`<label class="opt"><input type="radio" name=${r} .checked=${n === e}
-      ?disabled=${this._readOnly || this._busy} @change=${() => void this._choose(e)} />${t}</label>`;
+		let e = this._lang, t = this._shown, n = gn(t), r = `holiday-${this.program.id}`, i = (e, t) => y`<label class="opt"><input type="radio" name=${r} data-v=${e} .checked=${n === e}
+      ?disabled=${this._readOnly} @change=${() => void this._choose(e)} />${t}</label>`;
 		return y`<section class="holiday">
       <button class="head" aria-expanded=${this._open} aria-controls=${r} @click=${() => {
 			this._open = !this._open;
@@ -7884,15 +7895,18 @@ var os = (e, t) => !!t.end && Tn(e, t.end) <= Tn(e, t.start), Y = class extends 
         <span class="grow">${k(e, "holiday_title")}</span>
         <span class="state">${this._summary(t.holiday)}</span>
         <ha-icon icon=${this._open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>
-      <div id=${r} role="group" aria-label=${k(e, "holiday_title")} ?hidden=${!this._open}>
-        ${this.source ? y`<p class="muted">${k(e, "holiday_follows_note", { mode: this.source.name })}</p>` : y`<div class="opts" role="radiogroup" aria-label=${k(e, "holiday_title")}>
+      <p class="sr-only" role="status">${this._status}</p>
+      <div id=${r} ?hidden=${!this._open}>
+        ${this.source ? y`<p class="muted">${k(e, "holiday_follows_note", { mode: this.source.name })}</p>` : y`<fieldset class="opts"><legend class="sr-only">${k(e, "holiday_title")}</legend>
           ${i("none", k(e, "holiday_none"))}
           ${i("copy", k(e, "holiday_copy"))}
-          ${n === "copy" ? y`<select class="day" aria-label=${k(e, "holiday_copy")} ?disabled=${this._readOnly || this._busy}
-            @change=${(e) => void this._write({ copy: Number(e.target.value) })}>
+          ${n === "copy" ? y`<select class="day" aria-label=${k(e, "holiday_copy").replace(/\s*:$/, "")} ?disabled=${this._readOnly}
+            @change=${async (e) => {
+			!this._busy && await this._write({ copy: Number(e.target.value) }) && this._say("holiday_saved"), this._focus(".day");
+		}}>
             ${O(e).days.map((e, n) => y`<option value=${n} ?selected=${t.holiday && "copy" in t.holiday && t.holiday.copy === n}>${e}</option>`)}</select>` : x}
           ${i("own", k(e, "holiday_own"))}
-        </div>
+        </fieldset>
         ${n === "own" ? this._ownDay() : x}`}
         ${this._error ? y`<p class="err" role="alert">${this._error}</p>` : x}
       </div>
@@ -7907,6 +7921,8 @@ var os = (e, t) => !!t.end && Tn(e, t.end) <= Tn(e, t.start), Y = class extends 
     .head .grow { flex: 1; }
     .head .state { font-weight: 400; font-size: 1rem; color: var(--secondary-text-color); }
     [hidden] { display: none; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    fieldset.opts { border: 0; margin: 0; padding: 0; min-width: 0; }
     .opts { display: flex; flex-direction: column; gap: 0; }
     .opt { display: flex; align-items: center; gap: 10px; min-height: 48px; cursor: pointer; }
     .day { min-height: 48px; margin: 0 0 8px 34px; max-width: calc(100% - 34px); }
@@ -7923,7 +7939,7 @@ var os = (e, t) => !!t.end && Tn(e, t.end) <= Tn(e, t.start), Y = class extends 
   `];
 	}
 };
-D([T({ attribute: !1 })], Y.prototype, "hass", void 0), D([T({ attribute: !1 })], Y.prototype, "data", void 0), D([T({ attribute: !1 })], Y.prototype, "program", void 0), D([T({ attribute: !1 })], Y.prototype, "profile", void 0), D([T({ attribute: !1 })], Y.prototype, "source", void 0), D([T({ type: Boolean })], Y.prototype, "canEdit", void 0), D([E()], Y.prototype, "_open", void 0), D([E()], Y.prototype, "_error", void 0), D([E()], Y.prototype, "_busy", void 0), D([E()], Y.prototype, "_editing", void 0), D([E()], Y.prototype, "_group", void 0), Y = D([w("wp-holiday")], Y);
+D([T({ attribute: !1 })], Y.prototype, "hass", void 0), D([T({ attribute: !1 })], Y.prototype, "data", void 0), D([T({ attribute: !1 })], Y.prototype, "program", void 0), D([T({ attribute: !1 })], Y.prototype, "profile", void 0), D([T({ attribute: !1 })], Y.prototype, "source", void 0), D([T({ type: Boolean })], Y.prototype, "canEdit", void 0), D([E()], Y.prototype, "_open", void 0), D([E()], Y.prototype, "_error", void 0), D([E()], Y.prototype, "_busy", void 0), D([E()], Y.prototype, "_status", void 0), D([E()], Y.prototype, "_editing", void 0), D([E()], Y.prototype, "_group", void 0), Y = D([w("wp-holiday")], Y);
 // src/components/schedule-dialog.ts
 var ss = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t : e) : [...e, t], cs = (e) => e.kind === "device" ? `d:${e.entityId}` : `p:${e.programId}`, ls = 7, X = class extends S {
 	constructor(...e) {
@@ -9652,7 +9668,8 @@ var qs = 8e3, Z = class extends S {
       @edit-request=${() => this._edit = c} @edit-exit=${() => {
 			this._edit === c && (this._edit = null);
 		}}
-      @click=${n === 0 && bn(this._data, t.id) ? () => this._say(k(this._lang, "holiday_locked")) : void 0}
+      locked-reason=${n === 0 && bn(this._data, t.id) ? k(this._lang, "holiday_locked") : ""}
+      @locked-request=${() => this._say(k(this._lang, "holiday_locked"))}
       @open-day=${i} @edited=${(e) => this._showSnack(e.detail.undo)}></wp-bar-editor>`;
 	}
 	_barEditable(e, t) {

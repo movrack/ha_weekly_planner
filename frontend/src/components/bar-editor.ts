@@ -63,6 +63,8 @@ export class WpBarEditor extends LitElement {
   @property({ type: Boolean }) editing = false;
   /** May the user change the programs? (else a tap just opens the schedule screen) */
   @property({ type: Boolean }) editable = false;
+  /** Why this bar is not edited in place (a day off runs today): a tap or Enter says it instead of opening the day. */
+  @property({ attribute: "locked-reason" }) lockedReason = "";
   /** Hour labels under the bar (today's bar only). */
   @property({ type: Boolean }) hours = false;
   /** Names the day-editing button for assistive technology (the program, and the device when there are several). */
@@ -288,6 +290,7 @@ export class WpBarEditor extends LitElement {
     }
     if (p.mouse && this.editable) this._emit("edit-request");
     else if (this.editable && !p.mouse) this._tapHint();
+    else if (this.lockedReason) this._emit("locked-request");
     else this._emit("open-day");
   }
 
@@ -326,7 +329,8 @@ export class WpBarEditor extends LitElement {
       this._clearHint();
       dismissHoldHint();
       this._emit("edit-request");
-    } else this._emit("open-day");
+    } else if (this.lockedReason) this._emit("locked-request");
+    else this._emit("open-day");
   }
 
   private _zoneCancel(): void {
@@ -998,7 +1002,8 @@ export class WpBarEditor extends LitElement {
 
   private _zoneLabel(): string {
     const day = strings(this.lang).days[this.weekday] ?? "";
-    const what = this.deviceName ? t(this.lang, "edit_bar_of", { name: this.deviceName, day }) : t(this.lang, "edit_bar");
+    const what = this.lockedReason ? [this.deviceName, day].filter(Boolean).join(", ")
+      : this.deviceName ? t(this.lang, "edit_bar_of", { name: this.deviceName, day }) : t(this.lang, "edit_bar");
     const shown = this._spansNow().filter((span) => !span.ignored).map((span) => this._spanTip(span));
     if (this.now !== null) shown.push(t(this.lang, "now_time", { time: fmtClock(this.lang, this.now) }));
     const named = shown.length ? `${what} : ${shown.join(" ; ")}` : what;
@@ -1148,6 +1153,7 @@ export class WpBarEditor extends LitElement {
     return html`
       <div class="zone ${this.editing ? "editing" : ""}" title=${this._tipText || (this.editing ? this._selectedTime : "")} tabindex=${ifDefined(this.editing ? undefined : 0)}
         role=${ifDefined(this.editing ? undefined : "button")} aria-label=${ifDefined(this.editing ? undefined : this._zoneLabel())}
+        aria-disabled=${ifDefined(this.lockedReason ? "true" : undefined)} aria-describedby=${ifDefined(this.lockedReason ? "locked-reason" : undefined)}
         @keydown=${this._zoneKey}
         @pointerdown=${(e: PointerEvent) => { this._tip = null; this._zoneDown(e); }}
         @pointermove=${(e: PointerEvent) => { this._zoneMove(e); this._tipMove(e); }} @pointerup=${this._zoneUp}
@@ -1161,6 +1167,7 @@ export class WpBarEditor extends LitElement {
           aria-label=${t(this.lang, "edit_bar")}>${this.editing ? this._overlay_() : nothing}${this._tipTargets()}</wp-day-bar>`}
         ${this._tipText ? html`<div id="schedule-tooltip" class="hover-tip ${this._radial ? "round" : ""}" role="tooltip"
           title=${this._tipText} aria-label=${this._tipText}>${this._tipText}</div>` : nothing}
+        ${this.lockedReason ? html`<span id="locked-reason" class="sr-only">${this.lockedReason}</span>` : nothing}
         <div class="hold-hint" role="status">${this._hint ? t(this.lang, "hold_hint") : nothing}</div>
       </div>
       ${this.hours && !this._radial ? this._hoursAxis() : nothing}
@@ -1171,6 +1178,7 @@ export class WpBarEditor extends LitElement {
   }
 
   static styles = [editorStyles, css`
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     :host { display: block; min-width: 0; }
     .zone { position: relative; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: pointer; }
     .hours { position: relative; height: 20px; font-size: 0.75rem; color: var(--secondary-text-color); }

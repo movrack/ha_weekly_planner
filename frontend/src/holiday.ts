@@ -24,7 +24,7 @@ export function holidayDayToday(profile: Pick<Profile, "days" | "holiday">, data
 /** Today runs a day-off schedule instead of the normal day: today's bar is not edited in place. */
 export const holidayApplies = (data: PlannerData | undefined, programId: string): boolean => Boolean(data?.status[programId]?.holiday);
 
-/** "Day off: like Sunday, not Monday" / "… own schedule, not Monday's"; null when the copied day is the real one. */
+/** "Day off today: Sunday’s schedule" / "… own schedule"; null when the copied day is the real one. */
 /** A weekday inside a sentence: lower case in French, as the language's own list otherwise ("Sunday"). */
 export const dayInText = (lang: string, i: number): string => {
   const name = strings(lang).days[i];

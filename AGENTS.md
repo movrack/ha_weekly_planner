@@ -163,4 +163,5 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
   never deploy a card that sends a new field to an older server.
 - A deploy report ends with "what to look at" (a short list of what to see after a hard refresh).
 - Read the clock (`date`) before stating hours or restart windows; never guess it.
+- **Token cost (retrospective 2026-11-12)**: run the light chain of `docs/agents/relais.md` ("Cost rules"): only the stages that can find something, `chrono` only when a hot path changed, a fresh agent instead of resuming one above about 100k tokens of context, one correction round per stage, at most two agents in parallel and one `opus`, replies in 8 to 15 lines.
 - Agent reports are claims: re-run the checks and, for UI, require rendered evidence before saying it is done.

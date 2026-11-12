@@ -433,7 +433,7 @@ export class WeeklyPlannerCard extends LitElement {
   }
 
   /** The active mode, once, as plain text above the programs; nothing when there is a single mode. */
-  /** "Day off: like Sunday, not Monday": only when today is a day off that changes a shown program's day. */
+  /** "Day off today: Sunday’s schedule": only when today is a day off that changes a shown program's day. */
   private _holidayLine(programs: Program[]) {
     const data = this._data;
     if (!data?.holiday_today) return nothing;
@@ -524,7 +524,8 @@ export class WeeklyPlannerCard extends LitElement {
       device-name=${this._deviceLabel(program, entityId)} lang=${this._lang} tz=${this._tz} view=${kind === "today" ? this._config.schedule_view ?? "bar" : "bar"}
       .rest=${(() => { const l = labelOf(this._data!, program.entities.find((e) => e.entity_id === entityId)?.default_label); return l ? labelName(this.hass, l) : t(this._lang, "rest_none"); })()}
       @edit-request=${() => (this._edit = key)} @edit-exit=${() => { if (this._edit === key) this._edit = null; }}
-      @click=${offset === 0 && holidayApplies(this._data, program.id) ? () => this._say(t(this._lang, "holiday_locked")) : undefined}
+      locked-reason=${offset === 0 && holidayApplies(this._data, program.id) ? t(this._lang, "holiday_locked") : ""}
+      @locked-request=${() => this._say(t(this._lang, "holiday_locked"))}
       @open-day=${openDay} @edited=${(e: CustomEvent<{ undo: () => Promise<boolean> }>) => this._showSnack(e.detail.undo)}></wp-bar-editor>`;
   }
 
