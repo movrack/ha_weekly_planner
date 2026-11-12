@@ -954,8 +954,6 @@ var Ct = {
 	times_loading: "Loading today’s times…",
 	times_failed: "Cannot show the times right now. Try again in a moment.",
 	times_retry: "Try again",
-	times_edit: "Edit the day",
-	times_add: "Add a schedule",
 	times_until: "until {time}",
 	times_until_tomorrow: "until tomorrow {time}",
 	times_since_yesterday: "since yesterday {time}",
@@ -1441,8 +1439,6 @@ var Ct = {
 	times_loading: "Chargement des horaires du jour…",
 	times_failed: "Impossible d’afficher les horaires pour le moment. Réessayez dans un instant.",
 	times_retry: "Réessayer",
-	times_edit: "Modifier la journée",
-	times_add: "Ajouter un horaire",
 	times_until: "jusqu’à {time}",
 	times_until_tomorrow: "jusqu’à demain {time}",
 	times_since_yesterday: "depuis hier {time}",
@@ -9694,7 +9690,7 @@ var qs = 8e3, Z = class extends S {
 		return Mt() === "12" && n ? k(this._lang, "at_time", { time: t }) : t;
 	}
 	_line(e, t, n) {
-		let r = this._lang, i = this._data, a = this._next(e, t), o = z(i, a?.label), s = t.length > 0 && t.every((e) => !e.enabled), c = this.hass.states[e], l = n.icon ?? c?.attributes.icon ?? "mdi:calendar-clock", u = () => this._open(n.open), d = this._needsCreate(t[0], e), f = this._config.schedule_view === "times" && !d && !!this._data?.can_edit && !this._data?.read_only && !ar(t[0], i) && this._previewState(t[0], e) === "ready";
+		let r = this._lang, i = this._data, a = this._next(e, t), o = z(i, a?.label), s = t.length > 0 && t.every((e) => !e.enabled), c = this.hass.states[e], l = n.icon ?? c?.attributes.icon ?? "mdi:calendar-clock", u = () => this._open(n.open), d = this._needsCreate(t[0], e);
 		return y`
       <div class="block">
         <div class="line">
@@ -9712,7 +9708,7 @@ var qs = 8e3, Z = class extends S {
           </div>
           ${n.button ? y`<div class="header-actions"><div class="header-icons">
             ${t.length === 1 ? this._programToggle(t[0]) : x}
-            ${f ? x : y`<button class="hours" aria-label=${k(r, "hours_of", { name: n.name ?? L(this.hass, e) })} title=${k(r, "hours")} @click=${u}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>`}
+            <button class="hours" aria-label=${k(r, "hours_of", { name: n.name ?? L(this.hass, e) })} title=${k(r, "hours")} @click=${u}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
           </div></div>` : x}
         </div>
         ${d ? this._createButton(n.open) : this._config.schedule_view === "times" ? this._todayBlock(e, t[0], u) : this._config.schedule_view === "radial" || this._config.schedule_view === "radial_12h" ? this._bar(e, t[0], 0, "today", u) : y`<div class="today">
@@ -11126,8 +11122,7 @@ var Oc = class extends S {
 	render() {
 		let e = this.state === "ready" && this.rows.length > 0;
 		return y`<div class="status" role="status" aria-live="polite" tabindex="-1">${this._message()}</div>
-      ${e ? y`<ul role="list" aria-label=${k(this.lang, "times_list_label")}>${this.rows.map((e) => this._row(e))}</ul>
-        ${this.editable ? this._button(k(this.lang, "times_edit"), "mdi:calendar-edit", () => this._open()) : x}` : this.state === "failed" ? this._button(k(this.lang, "times_retry"), "mdi:refresh", () => this._retry()) : this.state === "ready" && this.editable ? this._button(k(this.lang, "times_add"), "mdi:plus", () => this._open()) : x}`;
+      ${e ? y`<ul role="list" aria-label=${k(this.lang, "times_list_label")}>${this.rows.map((e) => this._row(e))}</ul>` : this.state === "failed" ? this._button(k(this.lang, "times_retry"), "mdi:refresh", () => this._retry()) : x}`;
 	}
 	static {
 		this.styles = l`

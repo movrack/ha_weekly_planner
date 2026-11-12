@@ -88,10 +88,9 @@ export class WpTimesDay extends LitElement {
     // the status region stays in the page and only its content changes, so a screen reader announces it
     const shown = this.state === "ready" && this.rows.length > 0;
     return html`<div class="status" role="status" aria-live="polite" tabindex="-1">${this._message()}</div>
-      ${shown ? html`<ul role="list" aria-label=${t(this.lang, "times_list_label")}>${this.rows.map((r) => this._row(r))}</ul>
-        ${this.editable ? this._button(t(this.lang, "times_edit"), "mdi:calendar-edit", () => this._open()) : nothing}`
+      ${shown ? html`<ul role="list" aria-label=${t(this.lang, "times_list_label")}>${this.rows.map((r) => this._row(r))}</ul>`
       : this.state === "failed" ? this._button(t(this.lang, "times_retry"), "mdi:refresh", () => this._retry())
-      : this.state === "ready" && this.editable ? this._button(t(this.lang, "times_add"), "mdi:plus", () => this._open()) : nothing}`;
+      : nothing}`;
   }
 
   static styles = css`

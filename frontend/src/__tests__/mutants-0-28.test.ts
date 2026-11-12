@@ -438,16 +438,13 @@ describe("wp-times-day mutants", () => {
     expect(html).toContain('aria-live="polite"');
     expect(html).toContain('tabindex="-1"');
   });
-  it("the edit, retry and add buttons each carry their icon and open or retry", () => {
+  it("the retry button carries its icon and retries; no text button opens the day (the header icon does)", () => {
     const edit = comp({ rows: [row()], editable: true });
-    expect(flat(edit.render())).toContain("mdi:calendar-edit");
-    expect(ev(edit, (x) => find(x.render(), "click", 'class="action"').fn())[0].type).toBe("open-day");
+    expect(flat(edit.render())).not.toContain('class="action"');
     const retry = comp({ state: "failed" });
     expect(flat(retry.render())).toContain("mdi:refresh");
     expect(ev(retry, (x) => find(x.render(), "click", 'class="action"').fn())[0].type).toBe("retry");
-    const add = comp({ rows: [], editable: true });
-    expect(flat(add.render())).toContain("mdi:plus");
-    expect(ev(add, (x) => find(x.render(), "click", 'class="action"').fn())[0].type).toBe("open-day");
+    expect(flat(comp({ rows: [], editable: true }).render())).not.toContain('class="action"');
   });
 });
 

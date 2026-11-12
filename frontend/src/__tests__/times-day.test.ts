@@ -71,21 +71,10 @@ describe("wp-times-day", () => {
 });
 
 describe("wp-times-day: buttons and sizes", () => {
-  it("shows 'Edit the day' under the list only when editing is allowed, and opens like a row", () => {
-    expect(flat(comp({ rows: [row()], editable: true }).render())).toContain("Edit the day");
-    expect(flat(comp({ rows: [row()], editable: false }).render())).not.toContain("Edit the day");
-    const on = vi.fn();
-    const c = comp({ rows: [row()], editable: true });
-    c.dispatchEvent = on;
-    find(c.render(), "click", 'class="action"').fn();
-    expect(on.mock.calls[0][0].type).toBe("open-day");
-  });
-
-  it("an empty day says what is planned for the rest and offers 'Add a schedule' when editable", () => {
-    const html = flat(comp({ rows: [], state: "ready", rest: "Eco", editable: true }).render());
-    expect(html).toContain("Add a schedule");
-    expect(flat(comp({ rows: [], state: "ready", rest: "Eco", editable: false }).render())).not.toContain("Add a schedule");
-    expect(flat(comp({ rows: [], state: "loading", editable: true }).render())).not.toContain("Add a schedule");
+  it("has no 'Edit the day' text button: the header icon opens the editor, and a row opens it when editing is allowed", () => {
+    expect(flat(comp({ rows: [row()], editable: true }).render())).not.toContain("Edit the day</button>");
+    expect(flat(comp({ rows: [row()], editable: true }).render())).not.toContain('class="action"');
+    expect(flat(comp({ rows: [], state: "ready", rest: "Eco", editable: true }).render())).not.toContain('class="action"');
   });
 
   it("a failure offers 'Try again', which asks the card to reload; loading has no button", () => {
@@ -102,7 +91,6 @@ describe("wp-times-day: buttons and sizes", () => {
   it("uses the same words for the row and the button, and every text is at least 16 px", () => {
     expect(strings("fr").times_row_open).toContain(strings("fr").edit_bar);
     expect(strings("en").times_row_open).toContain(strings("en").edit_bar);
-    expect(strings("fr").times_edit).toBe(strings("fr").edit_bar);
     const css = String((WpTimesDay as any).styles?.cssText ?? (WpTimesDay as any).styles);
     expect(css).not.toMatch(/font-size:\s*0\.(75|8\d*)rem/);
     expect(css).not.toContain("secondary-text-color");
@@ -115,7 +103,7 @@ describe("times: config, editor and texts", () => {
   });
   it("has the same keys in English and French", () => {
     for (const k of ["ce_times", "times_none", "times_rest", "times_loading", "times_failed", "times_until", "times_until_tomorrow",
-      "times_since_yesterday", "times_retry", "times_edit", "times_add", "sun_rule_before", "sun_rule_after", "sun_np_sunset", "sun_at_sunset", "times_random", "times_now", "times_list_label", "times_row_open"]) {
+      "times_since_yesterday", "times_retry", "sun_rule_before", "sun_rule_after", "sun_np_sunset", "sun_at_sunset", "times_random", "times_now", "times_list_label", "times_row_open"]) {
       expect((strings("en") as any)[k]).toBeTruthy();
       expect((strings("fr") as any)[k]).toBeTruthy();
     }
@@ -253,17 +241,13 @@ describe("times: approximate start, done rows, header icon, next line, week icon
     expect(flat(comp({ rows: [row({ now: true })] }).render())).not.toContain("done");
   });
 
-  it("the card hides the header icon only when the 'Edit the day' button is there", () => {
+  it("the header icon is there in the times view too, as in every other view", () => {
     const icon = (c: any) => flat(c._bySchedule(c._data.programs)).includes("mdi:calendar-edit\"></ha-icon></button>");
     const c = card([program("p", ["switch.a"])]);
     expect(flat(c._bySchedule(c._data.programs))).toContain("wp-times-day");
-    expect(icon(c)).toBe(false);
-    // read-only, no edit right, loading, failed: no button under the list, so the icon stays (the only way to open the hours)
+    expect(icon(c)).toBe(true);
     expect(icon(card([program("p", ["switch.a"])], { read_only: true }))).toBe(true);
-    expect(icon(card([program("p", ["switch.a"])], { can_edit: false }))).toBe(true);
-    expect(icon(card([program("p", ["switch.a"])], {}, false))).toBe(true);
     expect(icon(card([program("p", ["switch.a"])], {}, "failed"))).toBe(true);
-    // other views keep it
     const bar = card([program("p", ["switch.a"])]);
     bar._config = { schedule_view: "bar" };
     expect(icon(bar)).toBe(true);

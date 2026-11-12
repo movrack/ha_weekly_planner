@@ -570,11 +570,6 @@ export class WeeklyPlannerCard extends LitElement {
     const icon = opts.icon ?? stateObj?.attributes.icon ?? "mdi:calendar-clock";
     const open = () => this._open(opts.open);
     const create = this._needsCreate(programs[0], entityId);
-    // times view: the labelled "Edit the day" button under the list already opens the editor, so the header icon would be a second,
-    // unlabelled control. It stays whenever that button is not there (read-only, follow, loading, failed, create).
-    const times = this._config.schedule_view === "times";
-    const dayButton = times && !create && Boolean(this._data?.can_edit) && !this._data?.read_only && !activeFollow(programs[0], data)
-      && this._previewState(programs[0], entityId) === "ready";
     return html`
       <div class="block">
         <div class="line">
@@ -594,7 +589,7 @@ export class WeeklyPlannerCard extends LitElement {
           </div>
           ${opts.button ? html`<div class="header-actions"><div class="header-icons">
             ${programs.length === 1 ? this._programToggle(programs[0]) : nothing}
-            ${dayButton ? nothing : html`<button class="hours" aria-label=${t(lang, "hours_of", { name: opts.name ?? friendlyName(this.hass, entityId) })} title=${t(lang, "hours")} @click=${open}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>`}
+            <button class="hours" aria-label=${t(lang, "hours_of", { name: opts.name ?? friendlyName(this.hass, entityId) })} title=${t(lang, "hours")} @click=${open}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
           </div></div>` : nothing}
         </div>
         ${create ? this._createButton(opts.open) : this._config.schedule_view === "times" ? this._todayBlock(entityId, programs[0], open) : (this._config.schedule_view === "radial" || this._config.schedule_view === "radial_12h") ? this._bar(entityId, programs[0], 0, "today", open) : html`<div class="today">

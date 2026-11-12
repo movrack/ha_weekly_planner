@@ -87,7 +87,7 @@ describe("card on a day off", () => {
     c._preview = { "2026-11-02": { p: { slots: [{ slot_id: "h", start: "2026-11-02T10:00:00+00:00", end: "2026-11-02T11:00:00+00:00", ignored: null, sun: false }], holiday: true } }, "2026-11-01": { p: { slots: [] } } };
     expect(c._spans("cover.b", [p], 0).map((s: any) => s.slotId)).toEqual(["h"]);
   });
-  it("the times view keeps its Edit button but its rows are not buttons on a day off", () => {
+  it("the times view rows are not buttons on a day off (the header icon opens the editor)", () => {
     const el = new WpTimesDay() as any;
     el.lang = "en"; el.editable = true; el.state = "ready";
     el.rows = [{ startMin: 600, label: "Open", color: "#0f0", until: null, now: false, done: false }];
@@ -95,7 +95,7 @@ describe("card on a day off", () => {
     el.locked = true;
     const t = flat(el.render());
     expect(t).not.toContain('<button class="row"');
-    expect(t).toContain('class="action"');
+    expect(t).not.toContain('class="action"');
   });
 });
 
