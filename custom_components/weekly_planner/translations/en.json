@@ -37,7 +37,7 @@
       },
       "resync": {
         "title": "Resynchronise the devices",
-        "description": "Use this after an outage. Every program is looked at. Nothing has been sent yet: press Submit to send the commands below, one device at a time. Programs that are paused or off, and devices changed by a person since their last one-shot, are left alone.\n\n{plan}"
+        "description": "Use this after an outage. Every program is looked at. Nothing has been sent yet. Pressing Submit sends the commands below for real to your devices (shutters, heating, lights…), one device at a time, and they will act immediately. Programs that are paused or off, and devices changed by a person since their last one-shot, are left alone.\n\n{plan}"
       },
       "default_mode": {
         "title": "Default Mode",
