@@ -422,6 +422,12 @@ l'entrée. Instance unique.
 Options réelles : `title` ; `program: <id>` **ou** `filter: {types: [domaines], area: <zone du programme>, programs:
 [ids]}` (`programs` absent = tous, futurs compris ; liste vide = aucun ; intersection avec type et zone) ;
 `schedule_view: bars | radial | radial_12h | list | times` (défaut `bars`) ; `show_chart` (défaut vrai).
+`sort: type | area | name | custom` (défaut `type`) et `order: [ids de programmes]` règlent l'ordre de la liste (#55) :
+`type` = domaine HA du premier appareil, nommé par HA (domaine brut à défaut), types A→Z dans la langue de la carte,
+puis nom ; `area` = pièce du programme A→Z, puis nom, sans pièce ou type inconnu en dernier groupe « Autres » ;
+`name` = A→Z ; `custom` = `order`, un identifiant absent va à la fin (type puis nom), un inconnu est ignoré sans
+erreur ni réécriture. Petit titre non interactif au-dessus de chaque groupe pour `type` et `area` seulement. Ordre
+personnalisé réglé dans l'éditeur (poignée de glissement et boutons monter/descendre). Valeur invalide : défaut.
 `chart_collapsed` (défaut vrai) donne l'état initial du graphique. Les clés inconnues ou obsolètes (`show_week`,
 `show_advanced`) sont acceptées et ignorées ; la semaine est toujours repliable.
 Éditeur visuel Lovelace : onglets « Affichage de la carte » et « Réglages des programmes » (ce dernier pour les

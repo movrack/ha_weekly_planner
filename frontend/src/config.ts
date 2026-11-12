@@ -1,5 +1,6 @@
 // Tolerant normalisation of the card YAML. Unknown keys are kept untouched (lossless round trip with the
 // visual editor and for other tools); known keys with a wrong type fall back to their safe default.
+import { SORTS } from "./list-order";
 import type { CardConfig } from "./types";
 
 const VIEWS = ["bars", "radial", "radial_12h", "list", "times"] as const;
@@ -14,6 +15,8 @@ export function normalizeConfig(raw: unknown): CardConfig {
   for (const k of ["title", "program"]) if (c[k] !== undefined && typeof c[k] !== "string") { if (typeof c[k] === "number") c[k] = String(c[k]); else delete c[k]; }
   for (const k of ["show_chart", "chart_collapsed"]) if (c[k] !== undefined && typeof c[k] !== "boolean") delete c[k];
   if (c.schedule_view !== undefined && !(VIEWS as readonly unknown[]).includes(c.schedule_view)) delete c.schedule_view;
+  if (c.sort !== undefined && !(SORTS as readonly unknown[]).includes(c.sort)) delete c.sort;
+  if (c.order !== undefined) { const v = strings(c.order); if (v) c.order = v; else delete c.order; }
   if (c.filter !== undefined) {
     if (!c.filter || typeof c.filter !== "object" || Array.isArray(c.filter)) delete c.filter;
     else {

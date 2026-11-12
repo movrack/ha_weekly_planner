@@ -27,7 +27,9 @@ import { deviceDays, fetchPreviewResponse } from "./preview-cache";
 import { applies } from "./slots";
 import { timesRows } from "./times-list";
 import { configDefaults, normalizeConfig } from "./config";
-import { activeFollow, activeProfile, filterPrograms, friendlyName, subscribePlanner } from "./planner";
+import { activeFollow, activeProfile, entityDomain, filterPrograms, friendlyName, subscribePlanner } from "./planner";
+import { groupItems, sortMode } from "./list-order";
+import type { DomainLocalize } from "./domains";
 import { dayBounds, addDaysIso } from "./components/chart";
 import { formatPauseEnd, formatWhen, setTimeFormat, localDateIso, localMinutes, localWeekday, nominal, pauseEnd, spillover, DAY } from "./time";
 import type { CardConfig, HomeAssistant, PlannerData, PreviewResponse, Program, Slot } from "./types";
@@ -89,6 +91,36 @@ export class WeeklyPlannerCard extends LitElement {
   }
 
   private _offNames?: () => void;
+  private _domainLocalize?: DomainLocalize;
+  private _domainKey = "";
+
+  /** HA's own domain names (type headings), loaded once per language and set of domains. */
+  private _loadDomainNames(): void {
+    if (!this._data || !this.hass?.loadBackendTranslation) return;
+    const domains = [...new Set(this._data.programs.map((p) => entityDomain(p.entities[0]?.entity_id ?? "")).filter(Boolean))].sort();
+    const key = `${this._lang}|${domains.join(",")}`;
+    if (key === this._domainKey || !domains.length) return;
+    this._domainKey = key;
+    void this.hass.loadBackendTranslation("title", domains).then((localize) => {
+      if (key !== this._domainKey) return;
+      this._domainLocalize = localize;
+      this.requestUpdate();
+    }).catch(() => { if (key === this._domainKey) this._domainKey = ""; });
+  }
+
+  private _typeLabel = (type: string): string =>
+    this.hass?.localize?.(`component.${type}.title`) || this._domainLocalize?.(`component.${type}.title`) || type;
+
+  /** The programs in the order of the `sort` option, with a small heading above each type or room (not with name / custom). */
+  private _list(programs: Program[]) {
+    const mode = sortMode(this._config.sort);
+    const items = programs.map((p) => ({ id: p.id, name: p.name, type: entityDomain(p.entities[0]?.entity_id ?? ""), area: p.area, p }));
+    const view = (ps: Program[]) => (this._config.schedule_view === "list" ? this._compactList(ps) : this._bySchedule(ps));
+    return groupItems(items, mode, { order: this._config.order, typeLabel: this._typeLabel, lang: this._lang }).map((g) => {
+      const label = g.key === "" ? t(this._lang, "sort_other") : mode === "type" ? this._typeLabel(g.key) : g.key;
+      return html`${g.header ? html`<h2 class="group">${label}</h2>` : nothing}${view(g.items.map((i) => i.p))}`;
+    });
+  }
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -156,6 +188,7 @@ export class WeeklyPlannerCard extends LitElement {
   }
 
   updated(): void {
+    this._loadDomainNames();
     if (this._idle && this._data?.card_version) this._checkVersion();
     if (this.isConnected && this.hass && !this._unsub) {
       this._unsub = subscribePlanner(this.hass, (data) => {
@@ -659,7 +692,7 @@ export class WeeklyPlannerCard extends LitElement {
         ${data?.read_only ? html`${callout("error", "", t(lang, "read_only"))}` : nothing}
         ${!data ? html`<div class="empty">…</div>` : nothing}
         ${data && !programs.length ? html`<div class="empty" role="status">${t(lang, data.programs.length && this._config.program === undefined ? "no_matching_program" : "no_program")}</div>` : nothing}
-        ${data ? this._config.schedule_view === "list" ? this._compactList(programs) : this._bySchedule(programs) : nothing}
+        ${data ? this._list(programs) : nothing}
       </ha-card>
       ${this._snack ? html`<div class="snack" role="status"><span>${t(lang, "edited")} ·</span>
         <button @click=${() => void this._undo()}>${t(lang, "undo")}</button></div>` : nothing}
@@ -771,6 +804,7 @@ export class WeeklyPlannerCard extends LitElement {
       min-height: 48px; padding: 0 12px; border: none; background: none; font: inherit; font-weight: 600; cursor: pointer;
       color: inherit; text-decoration: underline; border-radius: 24px;
     }
+    .group { margin: 12px 0 0; padding: 0 0 4px; font-size: 0.8125rem; font-weight: 600; color: var(--secondary-text-color); overflow-wrap: anywhere; }
     .empty { color: var(--primary-text-color); opacity: 0.8; padding: 16px 0; text-align: center; }
   `];
 }

@@ -184,6 +184,10 @@ export interface CardConfig {
   title?: string;
   program?: string;
   filter?: { types?: string[]; area?: string; programs?: string[] };
+  /** Order of the list: by type (default), room, name, or the personal `order`. */
+  sort?: "type" | "area" | "name" | "custom";
+  /** Personal order (`sort: custom`): program ids; unknown ids are ignored, missing ones go last. */
+  order?: string[];
   schedule_view?: "bars" | "radial" | "radial_12h" | "list" | "times";
   /** Deprecated: accepted and ignored (the week list is always collapsible); kept so existing YAML never breaks. */
   show_week?: boolean;

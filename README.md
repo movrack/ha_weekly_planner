@@ -113,6 +113,8 @@ filter:
 | `filter.programs` | Optional list of program IDs or names (see below), intersected with type/area filters. Missing means all programs, including future ones; `[]` means none. |
 | `title` | Optional card title. |
 | `schedule_view` | `bars` (default), `list`, `radial` (24-hour dial), `radial_12h` (concentric 12-hour dials), or `times` (**Daily times**: today as a plain list, one row per stretch with its setting, until when, and a “Now” mark; a “Edit the day” button, or a tap on a row, opens today in the schedule window). All work with single-program and filtered cards. |
+| `sort` | Order of the list: `type` (default: by type A→Z, then name; types are named by Home Assistant, with a small heading each), `area` (by room A→Z with headings, programs without a room under “Others”), `name` (A→Z) or `custom` (the `order` list). The first device of a program gives its type. |
+| `order` | With `sort: custom`: program IDs in the wanted order. Set in the editor (drag handle or up/down buttons). A program missing from the list goes last (by type, then name); an unknown ID is ignored. |
 | `show_chart` | Boolean, default `true`. On: a **Today’s chart** button under each device on the card, and the chart in the schedule window. Off: no button and no chart anywhere on this card. In the editor: “Chart button under each device”. |
 | `chart_collapsed` | Boolean, default `true`: the chart under each device starts closed (`false`: starts open). Only matters when `show_chart` is on. In the editor: the switch “Chart open by default” (the inverse). A choice made with the chart button is remembered per browser, per card and per device, and wins afterwards. |
 
@@ -120,7 +122,7 @@ filter:
 effect, and switching between both keeps all keys (including keys this card does not know). Types:
 `title`, `program`, `filter.area` are strings; `filter.types` and `filter.programs` are lists of strings
 (a single string is accepted as a one-item list); `schedule_view` is one of `bars`, `list`, `radial`,
-`radial_12h`, `times`; `show_chart` and `chart_collapsed` are booleans. A value of the wrong type is ignored and
+`radial_12h`, `times`; `sort` is one of `type`, `area`, `name`, `custom`; `order` is a list of strings; `show_chart` and `chart_collapsed` are booleans. A value of the wrong type is ignored and
 the default applies; a configuration that is not a YAML mapping shows a clear error card. In the visual
 editor, the type and program switches write `filter.programs` (and only ever widen or, for an empty type,
 remove an entry of `filter.types`), so a YAML `filter.types`-only configuration keeps working.
@@ -137,6 +139,8 @@ list; the visual editor rewrites the selection as IDs (stable) on the first chan
 type: custom:weekly-planner-card
 title: Schedules                # default: none
 schedule_view: bars             # bars | list | radial | radial_12h | times
+sort: type                      # type | area | name | custom (default type)
+order: []                       # program IDs, used when sort is custom
 show_chart: true                # default true
 chart_collapsed: true           # default true (collapsed)
 filter:                         # ignored when `program` is set

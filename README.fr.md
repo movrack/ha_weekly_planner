@@ -109,13 +109,15 @@ filter:
 | `filter.programs` | Liste facultative d’identifiants ou de noms de programmes (voir ci-dessous), croisée avec les autres filtres. Absent = tous, futurs compris ; `[]` = aucun. |
 | `title` | Titre facultatif. |
 | `schedule_view` | `bars` par défaut, `list`, `radial` pour 24 h, `radial_12h` pour deux cercles de 12 h, ou `times` (**Horaires du jour** : la journée d’aujourd’hui en liste, une ligne par période avec son réglage, sa fin et un repère « Maintenant » ; le bouton « Modifier la journée », ou un appui sur une ligne, ouvre la journée dans la fenêtre des horaires). Disponibles pour un programme ou une liste filtrée. |
+| `sort` | Ordre de la liste : `type` (défaut : par type A→Z puis par nom ; types nommés par Home Assistant, avec un petit titre chacun), `area` (par pièce A→Z avec titres, programmes sans pièce sous « Autres »), `name` (A→Z) ou `custom` (la liste `order`). Le premier appareil d’un programme donne son type. |
+| `order` | Avec `sort: custom` : identifiants de programmes dans l’ordre voulu. Réglé dans l’éditeur (poignée ou boutons monter/descendre). Un programme absent de la liste passe à la fin (par type puis nom) ; un identifiant inconnu est ignoré. |
 | `show_chart` | Booléen, `true` par défaut. Actif : un bouton **Graphique du jour** sous chaque appareil sur la carte, et le graphique dans la fenêtre des horaires. Éteint : ni bouton ni graphique nulle part sur cette carte. Dans l’éditeur : « Bouton Graphique sous chaque appareil ». |
 | `chart_collapsed` | Booléen, `true` par défaut : le graphique sous chaque appareil démarre fermé (`false` : ouvert). N’a d’effet que si `show_chart` est actif. Dans l’éditeur : l’interrupteur « Graphique ouvert d’office » (l’inverse). Un choix fait avec le bouton du graphique est mémorisé par navigateur, par carte et par appareil, et prime ensuite. |
 
 **Référence YAML.** Toutes les options de l’éditeur visuel se règlent aussi dans l’éditeur de code YAML,
 avec le même effet ; passer de l’un à l’autre conserve toutes les clés (même inconnues). Types : `title`,
 `program`, `filter.area` = texte ; `filter.types` et `filter.programs` = listes de textes (un texte seul
-vaut une liste d’un élément) ; `schedule_view` = `bars`, `list`, `radial`, `radial_12h` ou `times` ; `show_chart` et
+vaut une liste d’un élément) ; `schedule_view` = `bars`, `list`, `radial`, `radial_12h` ou `times` ; `sort` = `type`, `area`, `name` ou `custom` ; `order` = liste de textes ; `show_chart` et
 `chart_collapsed` = booléens. Une valeur du mauvais type est ignorée et la valeur par défaut s’applique ;
 une configuration qui n’est pas un mapping YAML affiche une carte d’erreur explicite. Dans l’éditeur
 visuel, les interrupteurs de type et de programme écrivent `filter.programs` (et ne font qu’élargir, ou
@@ -134,6 +136,8 @@ en identifiants (stables) au premier changement.
 type: custom:weekly-planner-card
 title: Horaires                 # défaut : aucun
 schedule_view: bars             # bars | list | radial | radial_12h | times
+sort: type                      # type | area | name | custom (défaut type)
+order: []                       # identifiants de programmes, si sort vaut custom
 show_chart: true                # défaut true
 chart_collapsed: true           # défaut true (replié)
 filter:                         # ignoré si `program` est renseigné
