@@ -7453,9 +7453,15 @@ var Y = class extends S {
 	_clean(e) {
 		return Object.fromEntries(Object.entries(e).filter(([, e]) => e !== void 0));
 	}
-	_hint(e, t) {
+	_hintText(e, t) {
 		let n = this._typed[e] ?? t;
-		return Mt() !== "12" || !n || !/^\d{1,2}:\d{2}$/.test(n) ? x : y`<div class="hint12">= ${F(this._lang, M(n))}</div>`;
+		return Mt() !== "12" || !n || !/^\d{1,2}:\d{2}$/.test(n) ? null : F(this._lang, M(n));
+	}
+	_hintId(e, t) {
+		return this._hintText(e, t) === null ? x : `hint12-${e}`;
+	}
+	_hint(e, t) {
+		return this._hintText(e, t) === null ? x : y`<div class="hint12" id=${`hint12-${e}`}>= ${this._hintText(e, t)}</div>`;
 	}
 	_type(e, t) {
 		this._typed = {
@@ -7504,7 +7510,7 @@ var Y = class extends S {
       <div class="time" role="group" aria-label=${t}>
         <button class="step" ?disabled=${i} aria-label=${k(r, "minus15")} title=${k(r, "minus15")} @click=${() => this._update(e, ui(n, -15))}><ha-icon icon="mdi:minus"></ha-icon></button>
         ${"time" in n ? y`<input type="time" step="60" .value=${n.time === "24:00" ? "00:00" : n.time} ?disabled=${i}
-              aria-label=${t} @input=${(t) => this._type(e, t)} @change=${(t) => {
+              aria-label=${t} aria-describedby=${this._hintId(e, n.time === "24:00" ? "00:00" : n.time)} @input=${(t) => this._type(e, t)} @change=${(t) => {
 			this._typedDone(e), this._fromInput(e, t.target.value);
 		}} />` : y`<output class="sun">${li(r, {
 			...n,
@@ -7542,7 +7548,7 @@ var Y = class extends S {
 		let r = this._lang, i = (i) => y`<div class="limit">
       <label>${k(r, i === "earliest" ? "sun_earliest" : "sun_latest")}
         <input type="time" step="60" .value=${t[i] === "24:00" ? "00:00" : t[i] ?? ""} ?disabled=${this.disabled}
-          aria-label=${`${n}: ${k(r, i === "earliest" ? "sun_earliest" : "sun_latest")}`}
+          aria-label=${`${n}: ${k(r, i === "earliest" ? "sun_earliest" : "sun_latest")}`} aria-describedby=${this._hintId(`${e}-${i}`, t[i])}
           @input=${(t) => this._type(`${e}-${i}`, t)} @change=${(t) => {
 			this._typedDone(`${e}-${i}`), this._limit(e, i, t.target.value);
 		}} />
@@ -7659,7 +7665,7 @@ var Y = class extends S {
       flex: 1; min-width: 0; border: none; border-radius: 0; background: none; outline: none;
       text-align: center; font-size: 1.5rem; font-weight: 600; min-height: 56px; color: var(--primary-text-color);
     }
-    .hint12 { text-align: center; font-size: 1rem; color: var(--secondary-text-color); margin-top: 2px; }
+    .hint12 { text-align: center; font-size: 1rem; color: var(--primary-text-color); margin-top: 2px; }
     .limit .hint12 { text-align: start; }
     .time output.sun { flex: 1; min-width: 0; align-self: center; text-align: center; font-size: 1.25rem; font-weight: 600; }
     .ibtn.round { border: 1px solid var(--divider-color); min-width: 64px; font-weight: 600; }

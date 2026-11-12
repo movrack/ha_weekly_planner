@@ -111,8 +111,12 @@ describe("12 h helpers on the card and in the slot editor", () => {
     expect(flat(f._hint("start", "22:30"))).toContain("= 10:30 pm");
     f._typed = { start: "00:00" };
     expect(flat(f._hint("start", "22:30"))).toContain("= midnight");
+    expect(flat(f._hint("start", "22:30"))).toContain("id=hint12-start");
+    expect(f._hintId("start", "22:30")).toBe("hint12-start");
+    expect(f._hintId("end-earliest", "07:00")).toBe("hint12-end-earliest");
     setTimeFormat(hass("24"));
     expect(flat(f._hint("start", "22:30"))).toBe("");
+    expect(typeof f._hintId("start", "22:30")).not.toBe("string");
   });
   it("'at' only before a time of today, in 12 h", async () => {
     const { WeeklyPlannerCard } = await import("../weekly-planner-card");
