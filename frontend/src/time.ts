@@ -1,6 +1,7 @@
 // Time helpers. Everything displayed uses the Home Assistant server time zone, not the
 // browser's (someone abroad must still see the house's schedule).
 
+import { t } from "./i18n";
 import type { Slot, TimeSpec } from "./types";
 
 const formatters = new Map<string, Intl.DateTimeFormat>();
@@ -106,6 +107,8 @@ export function fmtClock(language: string, minutes: number, format: TimeFormat =
   const h = Math.floor(m / 60);
   const min = m % 60;
   if (language.toLowerCase().startsWith("fr") && format !== "12") return min ? `${h} h ${String(min).padStart(2, "0")}` : `${h} h`;
+  // 12 h: a bare "12 am" / "12 pm" is easily read the wrong way round, so it is said in words
+  if (format === "12" && !min && h % 12 === 0) return t(language, h === 0 ? "midnight" : "noon");
   const date = new Date(Date.UTC(2000, 0, 1, h, min));
   if (format === "24") return dateFormat(language, { timeZone: "UTC", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(date);
   const opts: Intl.DateTimeFormatOptions = { timeZone: "UTC", hour: "numeric" };
@@ -114,12 +117,13 @@ export function fmtClock(language: string, minutes: number, format: TimeFormat =
   return dateFormat(language, opts).format(date).replace(/\s?(AM|PM)/, (_, x: string) => ` ${x.toLowerCase()}`);
 }
 
-/** Compact 12 h tick: "7 am", "12 pm", "7:30 am" (minutes only on sub-hour ticks). */
-export function fmtTick12(h: number, min: number, minutes = false): string {
+/** Compact 12 h tick: "7 am", "noon", "7:30 am" (minutes only on sub-hour ticks). */
+export function fmtTick12(h: number, min: number, minutes = false, language = "en"): string {
+  if (!min && h % 12 === 0) return t(language, h % 24 === 0 ? "midnight" : "noon");
   return `${h % 12 || 12}${minutes ? `:${String(min).padStart(2, "0")}` : ""} ${h % 24 < 12 ? "am" : "pm"}`;
 }
 
-/** End of the day: "24 h" (midnight as "12 am" in 12 h), never a second "0 h". */
+/** End of the day: "24 h" ("midnight" in 12 h), never a second "0 h". */
 export function fmtDayEnd(language: string, format: TimeFormat = currentFormat): string {
   return format === "12" ? fmtClock(language, 0, format) : "24 h";
 }

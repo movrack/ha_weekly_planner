@@ -31,7 +31,7 @@ import { activeFollow, activeProfile, entityDomain, filterPrograms, friendlyName
 import { groupItems, sortMode } from "./list-order";
 import type { DomainLocalize } from "./domains";
 import { dayBounds, addDaysIso } from "./components/chart";
-import { formatPauseEnd, formatWhen, setTimeFormat, localDateIso, localMinutes, localWeekday, nominal, pauseEnd, spillover, DAY } from "./time";
+import { currentTimeFormat, formatPauseEnd, formatWhen, setTimeFormat, localDateIso, localMinutes, localWeekday, nominal, pauseEnd, spillover, DAY } from "./time";
 import type { CardConfig, HomeAssistant, PlannerData, PreviewResponse, Program, Slot } from "./types";
 
 /** How long a confirmation message stays (ms), counted from the end of any hover or focus on it. */
@@ -523,6 +523,13 @@ export class WeeklyPlannerCard extends LitElement {
       @open-day=${open} @retry=${() => this._retryPreviews()}></wp-times-day>`;
   }
 
+  /** "7 am"; "at 7 am" in 12 h for today (the label before it has no separator otherwise). */
+  private _whenText(iso: string): string {
+    const when = formatWhen(iso, this._tz, this._lang, this._now);
+    const today = localDateIso(new Date(iso), this._tz) === localDateIso(this._now, this._tz);
+    return currentTimeFormat() === "12" && today ? t(this._lang, "at_time", { time: when }) : when;
+  }
+
   private _line(entityId: string, programs: Program[], opts: { name: string | null; icon?: string; button: Scope | null; open: Scope }) {
     const lang = this._lang;
     const data = this._data!;
@@ -551,7 +558,7 @@ export class WeeklyPlannerCard extends LitElement {
             <span class="now">
               <span class="state">${stateObj ? (this.hass.formatEntityState?.(stateObj) ?? stateObj.state) : "—"}</span>
               ${next ? html`<span class="next"><span class="arrow">${t(lang, "next_then")}</span> <span class="lbl">${nextLabel ? labelName(this.hass, nextLabel) : actionText(this.hass, lang, next.action)}</span>
-                <span class="when nw">${nb(formatWhen(next.at, this._tz, lang, this._now))}</span></span>` : nothing}
+                <span class="when nw">${nb(this._whenText(next.at))}</span></span>` : nothing}
             </span>
             ${this._skipped(entityId, programs)}
           </div>

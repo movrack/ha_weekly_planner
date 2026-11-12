@@ -67,7 +67,7 @@ describe("schedule and chart horizontal geometry", () => {
       const out = flat(c._renderChart(model));
       const { left, right, width: plotWidth } = timelineGeometry(width);
       expect(out).toContain(`class="xlab" x=${left} y=144 text-anchor=start>0h`);
-      expect(out).toContain(`class="xlab" x=${right} y=144 text-anchor=end>24h`);
+      expect(out).toContain(`class="xlab" x=${right} y=144 text-anchor=end>24 h`);
       expect(out).toContain(`x=${left} y="2" width=${plotWidth} height="20"`);
       expect(out).toContain(`x=${left} y="2" width=${plotWidth} height="16"`);
       // A secondary scale sits inside the right edge instead of moving 24h.

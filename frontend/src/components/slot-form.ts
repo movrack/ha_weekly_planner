@@ -10,7 +10,7 @@ import { applicable, sunBoundsInvalid } from "../slots";
 import { devicesOf, forDevices } from "../device-edits";
 import { friendlyName } from "../planner";
 import { compatibleDevices, labelOf } from "../labels";
-import { DAY, clockToMinutes, fmtClock, fmtDayEnd, localDateIso, localMinutes, minutesToClock } from "../time";
+import { DAY, clockToMinutes, currentTimeFormat, fmtClock, fmtDayEnd, localDateIso, localMinutes, minutesToClock } from "../time";
 import { editorStyles, foldSection, langOf } from "../editors/shared";
 import type { HomeAssistant, PlannerData, Program, TimeSpec } from "../types";
 
@@ -171,6 +171,16 @@ export class WpSlotForm extends LitElement {
   }
 
   /** Keep each boundary open while its optional bounds are still empty. */
+  /** What is being typed in a time field (the browser shows its own 12/24 h style): the hint follows each keystroke. */
+  @state() private _typed: Record<string, string> = {};
+  private _hint(id: string, value: string | undefined) {
+    const v = this._typed[id] ?? value;
+    if (currentTimeFormat() !== "12" || !v || !/^\d{1,2}:\d{2}$/.test(v)) return nothing;
+    return html`<div class="hint12">= ${fmtClock(this._lang, clockToMinutes(v))}</div>`;
+  }
+  private _type(id: string, e: Event): void { this._typed = { ...this._typed, [id]: (e.target as HTMLInputElement).value }; }
+  private _typedDone(id: string): void { const { [id]: _x, ...rest } = this._typed; this._typed = rest; }
+
   @state() private _limitOpen: Record<Which, boolean> = { start: false, end: false };
 
   private _setLimitOption(which: Which, on: boolean): void {
@@ -209,10 +219,10 @@ export class WpSlotForm extends LitElement {
         <button class="step" ?disabled=${dis} aria-label=${t(lang, "minus15")} title=${t(lang, "minus15")} @click=${() => this._update(which, shiftSpec(spec, -15))}><ha-icon icon="mdi:minus"></ha-icon></button>
         ${"time" in spec
           ? html`<input type="time" step="60" .value=${spec.time === "24:00" ? "00:00" : spec.time} ?disabled=${dis}
-              aria-label=${title} @change=${(e: Event) => this._fromInput(which, (e.target as HTMLInputElement).value)} />`
+              aria-label=${title} @input=${(e: Event) => this._type(which, e)} @change=${(e: Event) => { this._typedDone(which); this._fromInput(which, (e.target as HTMLInputElement).value); }} />`
           : html`<output class="sun">${specText(lang, { ...spec, random_minutes: 0 })}</output>`}
         <button class="step" ?disabled=${dis} aria-label=${t(lang, "plus15")} title=${t(lang, "plus15")} @click=${() => this._update(which, shiftSpec(spec, 15))}><ha-icon icon="mdi:plus"></ha-icon></button>
-      </div>`;
+      </div>${"time" in spec ? this._hint(which, spec.time === "24:00" ? "00:00" : spec.time) : nothing}`;
   }
 
   /** Sun choice, time limits and random delay of one boundary (inside the "Advanced options" fold). */
@@ -250,7 +260,8 @@ export class WpSlotForm extends LitElement {
       <label>${t(lang, key === "earliest" ? "sun_earliest" : "sun_latest")}
         <input type="time" step="60" .value=${spec[key] === "24:00" ? "00:00" : spec[key] ?? ""} ?disabled=${this.disabled}
           aria-label=${`${title}: ${t(lang, key === "earliest" ? "sun_earliest" : "sun_latest")}`}
-          @change=${(e: Event) => this._limit(which, key, (e.target as HTMLInputElement).value)} /></label>
+          @input=${(e: Event) => this._type(`${which}-${key}`, e)} @change=${(e: Event) => { this._typedDone(`${which}-${key}`); this._limit(which, key, (e.target as HTMLInputElement).value); }} />
+        ${this._hint(`${which}-${key}`, spec[key])}</label>
       ${spec[key] ? html`<button class="clear" ?disabled=${this.disabled} aria-label=${t(lang, "sun_limit_clear")} title=${t(lang, "sun_limit_clear")}
         @click=${() => this._limit(which, key, "")}><ha-icon icon="mdi:close"></ha-icon></button>` : nothing}
     </div>`;
@@ -378,6 +389,8 @@ export class WpSlotForm extends LitElement {
       flex: 1; min-width: 0; border: none; border-radius: 0; background: none; outline: none;
       text-align: center; font-size: 1.5rem; font-weight: 600; min-height: 56px; color: var(--primary-text-color);
     }
+    .hint12 { text-align: center; font-size: 1rem; color: var(--secondary-text-color); margin-top: 2px; }
+    .limit .hint12 { text-align: start; }
     .time output.sun { flex: 1; min-width: 0; align-self: center; text-align: center; font-size: 1.25rem; font-weight: 600; }
     .ibtn.round { border: 1px solid var(--divider-color); min-width: 64px; font-weight: 600; }
     .limits { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 8px; margin: 8px 0; } /* one column on a phone: a time needs about 7 rem plus its clear button */

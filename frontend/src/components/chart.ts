@@ -920,15 +920,17 @@ export class WpChart extends LitElement {
     const { startMs } = dayBounds(this.date, this._tz);
     const twelve = currentTimeFormat() === "12";
     // "12:30 am" is wider than "12:30": in 12 h, fewer sub-hour labels so they never touch at 360 px
-    const step = twelve && tickStep(win.to - win.from) < 60 ? tickStep(win.to - win.from, 6) : tickStep(win.to - win.from);
+    // the whole day in 12 h: 4 labels (midnight, 6 am, noon, 6 pm) plus the end, never touching at 360 px
+    const len = win.to - win.from;
+    const step = twelve && len >= 1440 ? 360 : twelve && tickStep(len) < 60 ? tickStep(len, 6) : tickStep(len);
     const tickFmt = dateFormat("en-GB", { timeZone: this._tz, hour: "2-digit", ...(step < 60 ? { minute: "2-digit" } : {}), hourCycle: "h23" });
     const tickText = (m: number) => {
       // the end of the day reads "24h", never a second "0h"
-      if (Math.abs(m - model.span) < 1e-6 && win.from >= 0 && win.to <= model.span) return twelve ? fmtTick12(0, 0) : step < 60 ? "24:00" : "24h";
+      if (Math.abs(m - model.span) < 1e-6 && win.from >= 0 && win.to <= model.span) return twelve ? fmtTick12(0, 0, false, lang) : step < 60 ? "24:00" : "24 h";
       const instant = new Date(startMs + m * 60_000);
       if (twelve) {
         const at = localMinutes(instant, this._tz);
-        const label = fmtTick12(Math.floor(at / 60), at % 60, step < 60);
+        const label = fmtTick12(Math.floor(at / 60), at % 60, step < 60, lang);
         return at === 0 && (win.from < 0 || win.to > model.span) ? `${dateFormat(lang, { timeZone: this._tz, day: "numeric", month: "numeric" }).format(instant)} ${label}` : label;
       }
       const s = tickFmt.format(instant);

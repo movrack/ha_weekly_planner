@@ -44,6 +44,18 @@ describe("time format (hass.locale.time_format)", () => {
     expect(plain(fmtClock("en", 19 * 60))).toBe("7 pm");
   });
 
+  it("12 h says midnight and noon in words, 24 h is unchanged", () => {
+    setTimeFormat(hass("12"));
+    expect(fmtClock("en", 0)).toBe("midnight");
+    expect(fmtClock("en", 720)).toBe("noon");
+    expect(fmtClock("fr", 0)).toBe("minuit");
+    expect(fmtClock("fr", 720)).toBe("midi");
+    expect(plain(fmtClock("en", 30))).toBe("12:30 am");
+    setTimeFormat(hass("24"));
+    expect(fmtClock("en", 0)).toBe("00:00");
+    expect(fmtClock("en", 720)).toBe("12:00");
+  });
+
   it("formatWhen and formatPauseEnd follow it", () => {
     const now = new Date("2026-11-02T08:00:00Z");
     setTimeFormat(hass("24"));
@@ -57,16 +69,19 @@ describe("time format (hass.locale.time_format)", () => {
     expect(formatWhen("2026-11-02T19:00:00Z", "Europe/Paris", "fr", now)).toBe("20 h");
   });
 
-  it("the end of the day is 12 am in 12 h, 24 h otherwise", () => {
-    expect(plain(fmtDayEnd("en", "12"))).toBe("12 am");
+  it("the end of the day is midnight in 12 h, 24 h otherwise", () => {
+    expect(plain(fmtDayEnd("en", "12"))).toBe("midnight");
+    expect(plain(fmtDayEnd("fr", "12"))).toBe("minuit");
     expect(fmtDayEnd("en", "24")).toBe("24 h");
     expect(fmtDayEnd("fr", "language")).toBe("24 h");
   });
 
   it("chart ticks in 12 h: compact labels and fewer sub-hour ticks", () => {
     expect(fmtTick12(7, 0)).toBe("7 am");
-    expect(fmtTick12(0, 0)).toBe("12 am");
-    expect(fmtTick12(12, 0)).toBe("12 pm");
+    expect(fmtTick12(0, 0)).toBe("midnight");
+    expect(fmtTick12(12, 0, false, "fr")).toBe("midi");
+    expect(fmtTick12(0, 30, true)).toBe("12:30 am");
+    expect(fmtTick12(12, 0)).toBe("noon");
     expect(fmtTick12(19, 30, true)).toBe("7:30 pm");
     expect(tickStep(240)).toBe(30);
     expect(tickStep(240, 6)).toBe(60);
@@ -83,5 +98,31 @@ describe("time format (hass.locale.time_format)", () => {
     expect(render("fr")).toContain("7 pm");
     setTimeFormat(hass("language"));
     expect(render("en")).toContain("7 pm");
+  });
+});
+
+describe("12 h helpers on the card and in the slot editor", () => {
+  it("the hint under a time field shows the HA format and follows typing", async () => {
+    const { WpSlotForm } = await import("../components/slot-form");
+    const { flat } = await import("./helpers/tpl");
+    const f = new WpSlotForm() as any;
+    f.hass = { language: "en", states: {} };
+    setTimeFormat(hass("12"));
+    expect(flat(f._hint("start", "22:30"))).toContain("= 10:30 pm");
+    f._typed = { start: "00:00" };
+    expect(flat(f._hint("start", "22:30"))).toContain("= midnight");
+    setTimeFormat(hass("24"));
+    expect(flat(f._hint("start", "22:30"))).toBe("");
+  });
+  it("'at' only before a time of today, in 12 h", async () => {
+    const { WeeklyPlannerCard } = await import("../weekly-planner-card");
+    const c = new WeeklyPlannerCard() as any;
+    c.hass = { language: "en", config: { time_zone: "UTC" } };
+    c._now = new Date("2026-11-02T08:00:00Z");
+    setTimeFormat(hass("12"));
+    expect(plain(c._whenText("2026-11-02T19:00:00Z"))).toBe("at 7 pm");
+    expect(plain(c._whenText("2026-11-03T19:00:00Z"))).toBe("tomorrow 7 pm");
+    setTimeFormat(hass("24"));
+    expect(c._whenText("2026-11-02T19:00:00Z")).toBe("19:00");
   });
 });
