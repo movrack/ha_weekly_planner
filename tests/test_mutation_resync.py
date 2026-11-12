@@ -387,3 +387,32 @@ def test_an_ignored_occurrence_does_not_hide_the_ones_after_it():
     p = prog("a", shots)
     got = decide([p], datetime(2026, 3, 29, 12, 0, tzinfo=TZ).astimezone(UTC)).expected
     assert got.slot_id == "late"
+
+
+def test_a_failing_slot_condition_skips_that_slot_only():
+    def conditions(conds):
+        return "no" not in conds
+
+    p = prog("a", [slot("early", "06:00", label="night", conditions=["no"]), slot("later", "07:00", label="comfort")])
+    assert decide([p], local(9), conditions_ok=conditions).expected.slot_id == "later"
+
+
+def test_a_slot_hidden_by_an_overlap_does_not_hide_the_ones_after_it():
+    p = prog("a", [slot("long", "06:00", "10:00"), slot("inside", "07:00", label="night"), slot("after", "11:00", label="night")])
+    got = decide([p], local(12)).expected
+    assert (got.kind, got.slot_id) == ("one_shot", "after")
+
+
+def test_a_one_shot_is_not_hidden_by_a_slot_of_another_device_only_by_its_own_device_timeline():
+    mine = slot("mine", "08:30", label="night", entities=[E])
+    theirs = slot("theirs", "07:00", "09:30", entities=["climate.other"])
+    p = prog("a", [theirs, mine], entities=(E, "climate.other"))
+    got = decide([p], local(9)).expected
+    assert (got.kind, got.slot_id) == ("one_shot", "mine")
+
+
+def test_the_one_shots_are_read_in_the_zone_of_the_house():
+    new_york = ZoneInfo("America/New_York")
+    p = prog("a", [slot("o", "08:00", label="night")])
+    got = decide([p], datetime(2026, 10, 28, 15, 0, tzinfo=UTC), tz=new_york).expected  # 11:00 in New York
+    assert (got.kind, got.start) == ("one_shot", datetime(2026, 10, 28, 12, 0, tzinfo=UTC))

@@ -101,8 +101,8 @@ async def test_the_default_mode_step_keeps_the_current_choice_the_options_and_th
     result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "input_select.mode"})
     assert result["step_id"] == "default_mode"
     key, field = next(iter(result["data_schema"].schema.items()))
-    assert key.default() == "Away" and field.config["options"] == [{"value": "Home", "label": "Home"}, {"value": "Away", "label": "Away"}] \
-        or field.config["options"] == ["Home", "Away"]
+    assert key.default() == "Away"
+    assert [o["value"] if isinstance(o, dict) else o for o in field.config["options"]] == ["Home", "Away"]
     assert field.config["mode"] == "dropdown"
     done = await flow.async_configure(result["flow_id"], {"default_mode": "Home"})
     assert done["type"] is FlowResultType.CREATE_ENTRY and done["data"] == BASE
@@ -126,6 +126,7 @@ async def test_free_text_default_mode_accepts_one_character_and_has_no_default_w
     result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "input_select.unknown"})
     key, field = next(iter(result["data_schema"].schema.items()))
     assert result["step_id"] == "default_mode" and key.default is vol.UNDEFINED
+    assert type(field.validators[0]).__name__ == "TextSelector" and len(field.validators) == 2
     done = await flow.async_configure(result["flow_id"], {"default_mode": "A"})
     assert done["type"] is FlowResultType.CREATE_ENTRY
 
@@ -151,3 +152,21 @@ async def test_the_resync_form_is_named_has_an_empty_schema_and_shows_local_time
     result = await flow.async_configure(result["flow_id"], {"next_step_id": "resync"})
     assert result["step_id"] == "resync" and result["data_schema"].schema == {}
     assert "since 26/10 08:00" in result["description_placeholders"]["plan"]  # 08:00 where the house is, not where the server is
+
+
+async def test_the_day_off_entity_cannot_be_one_a_program_a_label_or_a_scene_drives(hass, hass_storage):
+    from .helpers import act, label, program
+
+    drive = {"kind": "scene", "scene": "scene.evening"}
+    prog = program(entities=[{"entity_id": "switch.boiler", "default_label": "t15", "label_overrides": {}}])
+    labs = [label("t15", act("climate.set_temperature", temperature=15)),
+            label("tgt", {"kind": "service", "service": "switch.turn_on", "target_entity_id": "switch.target", "data": {}}),
+            label("sc", drive)]
+    entry = await _entry(hass, hass_storage, config={"programs": [prog], "labels": labs})
+    hass.states.async_set("scene.evening", "scening", {"entity_id": ["input_boolean.member"]})
+    flow = hass.config_entries.options
+    for driven in ("switch.boiler", "switch.target", "input_boolean.member"):
+        result = await _open_settings(flow, entry)
+        bad = await flow._progress[result["flow_id"]].async_step_settings({**BASE, "holiday_entity": driven})
+        assert bad["errors"] == {"holiday_entity": "driven_holiday_entity"}, driven
+        flow.async_abort(result["flow_id"])
