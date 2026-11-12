@@ -11,7 +11,7 @@ import { isFullDay, normalise, rangeToWindow, tickStep, zoomAround, zoomTimeline
 import type { Slot } from "../types";
 import { WpTimesDay } from "../components/times-day";
 import type { TimesRow } from "../times-list";
-import { WpSlotForm } from "../components/slot-form";
+import { WpSlotForm, solarMeaningText } from "../components/slot-form";
 import { find, flat, handlers } from "./helpers/tpl";
 
 const T = (h: number, m = 0, day = 10) => Date.UTC(2026, 10, day, h, m);
@@ -550,5 +550,76 @@ describe("slot form mutants: time field and its 12 h hint", () => {
     const out = flat(el.render());
     expect(out).toMatch(/class="chip on"[^>]*><ha-icon icon=mdi:weather-sunset-down/);
     expect(out).not.toMatch(/class="chip on"[^>]*><ha-icon icon=mdi:weather-sunset-up/);
+  });
+});
+
+describe("slot form mutants: sun wording, fold, delay input, label change", () => {
+  const mk = (slot: any = {}, props: any = {}) => {
+    const el = new WpSlotForm() as any;
+    const seen: any[] = [];
+    el.dispatchEvent = (e: any) => { seen.push(e.detail); return true; };
+    Object.assign(el, { hass: { language: "en", config: {}, states: {} }, data: { labels: [], programs: [] }, program: { id: "p", entities: [], profiles: [] },
+      entityIds: [], dayOnly: null, group: { slot: { id: "s", label: "l", start: { time: "08:00" }, end: { time: "09:00" }, ...slot }, days: [0], ids: {} }, ...props });
+    return { el, seen };
+  };
+  beforeEach(() => {
+    (globalThis as any).CustomEvent ??= class { type: string; detail: unknown; constructor(t: string, i: any) { this.type = t; this.detail = i?.detail; } };
+  });
+  it("an offset is written with its sign and in minutes, or hours and minutes from 60", () => {
+    const text = (offset: number) => solarMeaningText("en", { sun: "sunset", offset });
+    expect(text(-90)).toContain("sunset − 1 h 30");
+    expect(text(45)).toContain("sunset + 45 min");
+    expect(text(60)).toContain("sunset + 1 h");
+    expect(text(60)).not.toContain("1 h 00");
+    expect(text(59)).toContain("59 min");
+    expect(text(120)).toContain("+ 2 h");
+  });
+  it("a random sun time says its offset sign too", () => {
+    const { el } = mk({ start: { sun: "sunset", offset: -30, random_minutes: 10 } });
+    expect(flat(el.render())).toContain("sunset − 30 min");
+    const plus = mk({ start: { sun: "sunset", offset: 20, random_minutes: 10 } });
+    expect(flat(plus.el.render())).toContain("sunset + 20 min");
+  });
+  it("the advanced fold opens for a slot that needs it, and closes again for another slot", () => {
+    const { el } = mk({ id: "a", start: { sun: "sunset", offset: 0 } });
+    el.willUpdate();
+    expect(el._advOpen).toBe(true);
+    el._advTouched = true; el._advOpen = false;
+    el.willUpdate();
+    expect(el._advOpen).toBe(false);
+    el.group = { ...el.group, slot: { ...el.group.slot, id: "b", start: { time: "08:00" } } };
+    el._advOpen = true; el._advTouched = true;
+    el.willUpdate();
+    expect([el._advOpen, el._advTouched, el._advSlot]).toEqual([false, false, "b"]);
+    const plain = mk({ id: "c" });
+    plain.el.willUpdate();
+    expect(plain.el._advOpen).toBe(false);
+    const delayed = mk({ id: "d", end: { time: "09:00", random_minutes: 5 } });
+    delayed.el.willUpdate();
+    expect(delayed.el._advOpen).toBe(true);
+    const noGroup = new WpSlotForm() as any;
+    expect(() => noGroup.willUpdate()).not.toThrow();
+  });
+  it("the delay input applies a valid value only", () => {
+    const { el, seen } = mk({ start: { time: "08:00", random_minutes: 15 } });
+    el._advTouched = true; el._advOpen = true;
+    const h = handlers(el.render()).filter((x) => x.event === "change" && x.before.includes('type="number"'))[0];
+    h.fn({ target: { validity: { valid: false }, value: "30" } });
+    expect(seen).toEqual([]);
+    h.fn({ target: { validity: { valid: true }, value: "30" } });
+    expect(seen[0].slot.start.random_minutes).toBe(30);
+  });
+  it("a new label rewrites the device list only when there is a label change, a list and a device", () => {
+    const entities = ["switch.a", "switch.b"];
+    const base = { entities } as any;
+    const a = mk(base, { device: "switch.a" });
+    a.el._set({ start: { time: "07:00" } });
+    expect(a.seen[0].slot.entities).toEqual(entities);
+    const b = mk({}, { device: "switch.a" });
+    b.el._set({ label: "x" });
+    expect(b.seen[0].slot.entities).toBeUndefined();
+    const c = mk(base, { device: "" });
+    c.el._set({ label: "x" });
+    expect(c.seen[0].slot.entities).toEqual(entities);
   });
 });
