@@ -954,6 +954,7 @@ var Ct = {
 	times_loading: "Loading today’s times…",
 	times_failed: "Cannot show the times right now. Try again in a moment.",
 	times_retry: "Try again",
+	times_add: "Add a schedule",
 	times_until: "until {time}",
 	times_until_tomorrow: "until tomorrow {time}",
 	times_since_yesterday: "since yesterday {time}",
@@ -1439,6 +1440,7 @@ var Ct = {
 	times_loading: "Chargement des horaires du jour…",
 	times_failed: "Impossible d’afficher les horaires pour le moment. Réessayez dans un instant.",
 	times_retry: "Réessayer",
+	times_add: "Ajouter un horaire",
 	times_until: "jusqu’à {time}",
 	times_until_tomorrow: "jusqu’à demain {time}",
 	times_since_yesterday: "depuis hier {time}",
@@ -9812,8 +9814,8 @@ var qs = 8e3, Z = class extends S {
 				return e ? B(this.hass, e) : Yr(this.hass, this._lang, n[0].next.action);
 			})()} · ${k(this._lang, "then_label")} ${hi(Vt(n[0].next.at, this._tz, this._lang, this._now))}</span>` : y`${e.enabled ? y`<span>${k(this._lang, "hours")}</span>` : x}`}
         </button><div class="header-actions"><div class="header-icons">${this._programToggle(e)}
-        ${r ? y`<button class="hours" aria-label=${k(this._lang, "hours_of", { name: e.name })} title=${k(this._lang, "hours")}
-          @click=${() => this._open(t)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>` : x}</div></div></div>
+        <button class="hours" aria-label=${k(this._lang, "hours_of", { name: e.name })} title=${k(this._lang, "hours")}
+          @click=${() => this._open(t)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button></div></div></div>
         ${r ? y`<div id=${`compact-${e.id}`} class="compact-details" role="region" aria-label=${e.name}>
           ${this._deviceTabs(e)}
           ${e.entities.filter((t) => e.entities.length < 2 || t.entity_id === this._shownDevice(e)).map((n) => {
@@ -11122,7 +11124,7 @@ var Oc = class extends S {
 	render() {
 		let e = this.state === "ready" && this.rows.length > 0;
 		return y`<div class="status" role="status" aria-live="polite" tabindex="-1">${this._message()}</div>
-      ${e ? y`<ul role="list" aria-label=${k(this.lang, "times_list_label")}>${this.rows.map((e) => this._row(e))}</ul>` : this.state === "failed" ? this._button(k(this.lang, "times_retry"), "mdi:refresh", () => this._retry()) : x}`;
+      ${e ? y`<ul role="list" aria-label=${k(this.lang, "times_list_label")}>${this.rows.map((e) => this._row(e))}</ul>` : this.state === "failed" ? this._button(k(this.lang, "times_retry"), "mdi:refresh", () => this._retry()) : this.state === "ready" && this.editable ? this._button(k(this.lang, "times_add"), "mdi:plus", () => this._open()) : x}`;
 	}
 	static {
 		this.styles = l`

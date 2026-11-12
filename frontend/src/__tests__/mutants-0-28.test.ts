@@ -444,7 +444,8 @@ describe("wp-times-day mutants", () => {
     const retry = comp({ state: "failed" });
     expect(flat(retry.render())).toContain("mdi:refresh");
     expect(ev(retry, (x) => find(x.render(), "click", 'class="action"').fn())[0].type).toBe("retry");
-    expect(flat(comp({ rows: [], editable: true }).render())).not.toContain('class="action"');
+    const add = comp({ rows: [], state: "ready", editable: true });
+    expect(ev(add, (x) => find(x.render(), "click", 'class="action"').fn())[0].type).toBe("open-day");
   });
 });
 

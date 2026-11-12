@@ -74,7 +74,14 @@ describe("wp-times-day: buttons and sizes", () => {
   it("has no 'Edit the day' text button: the header icon opens the editor, and a row opens it when editing is allowed", () => {
     expect(flat(comp({ rows: [row()], editable: true }).render())).not.toContain("Edit the day</button>");
     expect(flat(comp({ rows: [row()], editable: true }).render())).not.toContain('class="action"');
-    expect(flat(comp({ rows: [], state: "ready", rest: "Eco", editable: true }).render())).not.toContain('class="action"');
+  });
+
+  it("an empty editable day keeps one 'Add a schedule' button (owner's exception); a read-only one has none", () => {
+    const empty = flat(comp({ rows: [], state: "ready", rest: "Eco", editable: true }).render());
+    expect(empty).toContain("Add a schedule");
+    expect(empty).toContain("mdi:plus");
+    expect(flat(comp({ rows: [], state: "ready", rest: "Eco", editable: false }).render())).not.toContain("Add a schedule");
+    expect(flat(comp({ rows: [], state: "loading", editable: true }).render())).not.toContain("Add a schedule");
   });
 
   it("a failure offers 'Try again', which asks the card to reload; loading has no button", () => {

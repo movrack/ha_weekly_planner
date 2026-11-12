@@ -689,8 +689,8 @@ export class WeeklyPlannerCard extends LitElement {
           <strong>${p.name}<ha-icon icon=${expanded ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></strong>${this._noSchedule(p)}${this._disabledBadge(!p.enabled, [p])}
           ${next.length ? html`<span>${(() => { const l = labelOf(this._data!, next[0].next!.label); return l ? labelName(this.hass, l) : actionText(this.hass, this._lang, next[0].next!.action); })()} · ${t(this._lang, "then_label")} ${nb(formatWhen(next[0].next!.at, this._tz, this._lang, this._now))}</span>` : html`${p.enabled ? html`<span>${t(this._lang, "hours")}</span>` : nothing}`}
         </button><div class="header-actions"><div class="header-icons">${this._programToggle(p)}
-        ${expanded ? html`<button class="hours" aria-label=${t(this._lang, "hours_of", { name: p.name })} title=${t(this._lang, "hours")}
-          @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>` : nothing}</div></div></div>
+        <button class="hours" aria-label=${t(this._lang, "hours_of", { name: p.name })} title=${t(this._lang, "hours")}
+          @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button></div></div></div>
         ${expanded ? html`<div id=${`compact-${p.id}`} class="compact-details" role="region" aria-label=${p.name}>
           ${this._deviceTabs(p)}
           ${p.entities.filter((e) => p.entities.length < 2 || e.entity_id === this._shownDevice(p)).map((e) => {
