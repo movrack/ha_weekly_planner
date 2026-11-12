@@ -25,8 +25,14 @@ export function holidayDayToday(profile: Pick<Profile, "days" | "holiday">, data
 export const holidayApplies = (data: PlannerData | undefined, programId: string): boolean => Boolean(data?.status[programId]?.holiday);
 
 /** "Day off: like Sunday, not Monday" / "… own schedule, not Monday's"; null when the copied day is the real one. */
+/** A weekday inside a sentence: lower case in French, as the language's own list otherwise ("Sunday"). */
+export const dayInText = (lang: string, i: number): string => {
+  const name = strings(lang).days[i];
+  return lang.toLowerCase().startsWith("fr") ? name.toLocaleLowerCase(lang) : name;
+};
+
 export function holidayLine(lang: string, holiday: { copy: number } | { own: true }, realWeekday: number): string | null {
-  const days = strings(lang).days.map((d) => d.toLocaleLowerCase(lang));
+  const days = [0, 1, 2, 3, 4, 5, 6].map((i) => dayInText(lang, i));
   if ("copy" in holiday) {
     return holiday.copy === realWeekday ? null : t(lang, "holiday_line_copy", { copied: days[holiday.copy], actual: days[realWeekday] });
   }

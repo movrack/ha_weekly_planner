@@ -13,8 +13,8 @@ const profile = (holiday?: any) => ({ id: "pr", name: "A", days: days(), ...(hol
 
 describe("day-off wording", () => {
   it("copy and own lines, EN and FR, hidden when the copied day is the real one", () => {
-    expect(holidayLine("en", { copy: 6 }, 0)).toBe("Day off: like sunday, not monday");
-    expect(holidayLine("en", { own: true }, 0)).toBe("Day off: own schedule, not monday’s");
+    expect(holidayLine("en", { copy: 6 }, 0)).toBe("Day off: like Sunday, not Monday");
+    expect(holidayLine("en", { own: true }, 0)).toBe("Day off: own schedule, not Monday’s");
     expect(holidayLine("fr", { copy: 6 }, 0)).toBe("Férié : comme dimanche, pas lundi");
     expect(holidayLine("fr", { own: true }, 0)).toBe("Férié : horaires propres, pas lundi");
     expect(holidayLine("en", { copy: 0 }, 0)).toBeNull();
@@ -49,7 +49,7 @@ describe("card on a day off", () => {
   it("shows the line only when today is a day off that changes the program", () => {
     const p = program();
     const on = card({ programs: [p], holiday_today: true, status: { p: { holiday: { copy: 6 } } } });
-    expect(flat(on._holidayLine([p]))).toContain("Day off: like sunday, not monday");
+    expect(flat(on._holidayLine([p]))).toContain("Day off: like Sunday, not Monday");
     expect(flat(card({ programs: [p], holiday_today: false, status: { p: { holiday: { copy: 6 } } } })._holidayLine([p]))).toBe("");
     expect(flat(card({ programs: [p], holiday_today: true, status: { p: {} } })._holidayLine([p]))).toBe("");
     expect(flat(card({ programs: [p], holiday_today: true, status: { p: { holiday: { copy: 0 } } } })._holidayLine([p]))).toBe("");
@@ -58,8 +58,8 @@ describe("card on a day off", () => {
     const a = program("a"), b = program("b");
     const c = card({ programs: [a, b], holiday_today: true, status: { a: { holiday: { copy: 6 } }, b: { holiday: { own: true } } } });
     const t = flat(c._holidayLine([a, b]));
-    expect(t).toContain("A : Day off: like sunday");
-    expect(t).toContain("B : Day off: own schedule");
+    expect(t).toContain("A · Day off: like Sunday");
+    expect(t).toContain("B · Day off: own schedule");
   });
   it("today's bar and today's week row are read-only on a day off, other days are not", () => {
     const p = program();
@@ -137,9 +137,20 @@ describe("day-off section", () => {
   });
   it("is read-only for a mode that follows another and shows the copied day off", async () => {
     const el = make({ source: { ...profile({ copy: 6 }), name: "Src" } });
-    expect(flat(el.render())).toContain("Day off of Src: like sunday");
+    expect(flat(el.render())).toContain("This mode follows Src. To change it, open Src.");
     await el._choose("own");
     expect(el.hass.callWS).not.toHaveBeenCalled();
+  });
+  it("a follower shows the note and no radios", () => {
+    const t = flat(make({ source: { ...profile({ copy: 6 }), name: "Src" } }).render());
+    expect(t).not.toContain('type="radio"');
+  });
+  it("'No' on the clear confirmation puts the radios back on the saved choice", async () => {
+    const el = make({ profile: profile({ copy: 6 }) });
+    const radios = ["none", "copy", "own"].map((v) => ({ v, checked: v === "none" }));
+    el.renderRoot = { querySelectorAll: () => radios };
+    el._syncRadios();
+    expect(radios.map((r) => r.checked)).toEqual([false, true, false]);
   });
   it("warns on a slot that passes midnight", () => {
     expect(passesMidnight(hass, slot("x", "22:00", "02:00") as any)).toBe(true);
@@ -161,6 +172,34 @@ describe("day-off section", () => {
     expect(flat(w._renderHoliday())).toBe("");
     w.data = { ...w.data, holiday_entity: "binary_sensor.off" };
     expect(w._renderHoliday()).toHaveLength(1);
+  });
+});
+
+describe("a locked day", () => {
+  it("shows the reason under today's bar only when a day off replaces the day", () => {
+    const p = program();
+    const on = card({ programs: [p], holiday_today: true, status: { p: { holiday: { own: true } } } });
+    expect(flat(on._lockedNote(p))).toContain("Today is a day off: change it in Schedules > Day off");
+    expect(flat(card({ programs: [p], status: { p: {} } })._lockedNote(p))).toBe("");
+  });
+  it("the week schematic of the window shows the day that runs today, not the normal day", () => {
+    const p: any = program("p", profile({ day: [slot("h", "10:00", "11:00")] }));
+    const w = new WpSchedule() as any;
+    w.hass = hass;
+    w.scope = { kind: "device", entityId: "cover.b" };
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-12T10:00:00Z")); // a Thursday
+    w.data = { labels: [label], programs: [p], status: { p: { holiday: { own: true } } }, can_edit: true, holiday_today: true };
+    const found: any[] = [];
+    const walk = (v: any): void => {
+      if (Array.isArray(v)) { if (v.length && v.every((x) => x && typeof x === "object" && "startSpec" in x)) found.push(v); else v.forEach(walk); }
+      else if (v?.values) v.values.forEach(walk);
+    };
+    walk(w._renderWeek());
+    // Thursday carries the day off's slot (10:00-11:00) instead of its own (none); Sunday keeps its normal slot (08:00-09:00)
+    const withSpans = found.map((spans) => spans.map((x: any) => [x.start, x.end]));
+    expect(withSpans).toEqual([[[600, 660]], [[480, 540]]]);
+    vi.useRealTimers();
   });
 });
 

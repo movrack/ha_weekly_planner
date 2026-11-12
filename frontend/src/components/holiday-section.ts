@@ -8,7 +8,7 @@ import "./slot-form";
 import { specText } from "../actions";
 import type { SlotGroup } from "../actions";
 import { freshGroup } from "../edits";
-import { holidayChoice, holidayOwnSlots } from "../holiday";
+import { dayInText, holidayChoice, holidayOwnSlots } from "../holiday";
 import { errorText, strings, t } from "../i18n";
 import { labelName, labelOf } from "../labels";
 import { specMinutes } from "../slots";
@@ -65,9 +65,18 @@ export class WpHoliday extends LitElement {
     this._editing = null;
     this._group = null;
     if (choice === "none") {
-      if (!(await confirmAction(this, t(this._lang, "holiday_clear"), t(this._lang, "holiday_clear_yes"), t(this._lang, "no")))) return;
+      if (!(await confirmAction(this, t(this._lang, "holiday_clear"), t(this._lang, "holiday_clear_yes"), t(this._lang, "no")))) {
+        this._syncRadios(); // "No": the radios go back to what is still saved
+        return;
+      }
       await this._write(null);
     } else await this._write(choice === "copy" ? { copy: 0 } : { day: [] });
+  }
+
+  private _syncRadios(): void {
+    const current = holidayChoice(this._shown);
+    const values = ["none", "copy", "own"];
+    this.renderRoot?.querySelectorAll<HTMLInputElement>('input[type="radio"]').forEach((r, i) => { r.checked = values[i] === current; });
   }
 
   private _own(): Slot[] { return holidayOwnSlots(this.profile); }
@@ -128,7 +137,7 @@ export class WpHoliday extends LitElement {
   private _summary(setting: Profile["holiday"]): string {
     const lang = this._lang;
     return !setting ? t(lang, "holiday_what_none")
-      : "copy" in setting ? t(lang, "holiday_what_copy", { day: strings(lang).days[setting.copy].toLocaleLowerCase(lang) }) : t(lang, "holiday_what_own");
+      : "copy" in setting ? t(lang, "holiday_what_copy", { day: dayInText(lang, setting.copy) }) : t(lang, "holiday_what_own");
   }
 
   render() {
@@ -144,8 +153,7 @@ export class WpHoliday extends LitElement {
         <span class="state">${this._summary(shown.holiday)}</span>
         <ha-icon icon=${this._open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>
       <div id=${id} role="group" aria-label=${t(lang, "holiday_title")} ?hidden=${!this._open}>
-        ${this.source ? html`<p class="muted">${t(lang, "holiday_from", { source: this.source.name, what: this._summary(shown.holiday) })}</p>` : nothing}
-        <div class="opts" role="radiogroup" aria-label=${t(lang, "holiday_title")}>
+        ${this.source ? html`<p class="muted">${t(lang, "holiday_follows_note", { mode: this.source.name })}</p>` : html`<div class="opts" role="radiogroup" aria-label=${t(lang, "holiday_title")}>
           ${radio("none", t(lang, "holiday_none"))}
           ${radio("copy", t(lang, "holiday_copy"))}
           ${choice === "copy" ? html`<select class="day" aria-label=${t(lang, "holiday_copy")} ?disabled=${this._readOnly || this._busy}
@@ -153,7 +161,7 @@ export class WpHoliday extends LitElement {
             ${strings(lang).days.map((d, i) => html`<option value=${i} ?selected=${shown.holiday && "copy" in shown.holiday && shown.holiday.copy === i}>${d}</option>`)}</select>` : nothing}
           ${radio("own", t(lang, "holiday_own"))}
         </div>
-        ${choice === "own" ? this._ownDay() : nothing}
+        ${choice === "own" ? this._ownDay() : nothing}`}
         ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
       </div>
     </section>`;
@@ -165,7 +173,7 @@ export class WpHoliday extends LitElement {
     .head { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; border: 0; background: none; color: var(--primary-text-color);
       font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
     .head .grow { flex: 1; }
-    .head .state { font-weight: 400; font-size: 0.875rem; color: var(--secondary-text-color); }
+    .head .state { font-weight: 400; font-size: 1rem; color: var(--secondary-text-color); }
     [hidden] { display: none; }
     .opts { display: flex; flex-direction: column; gap: 0; }
     .opt { display: flex; align-items: center; gap: 10px; min-height: 48px; cursor: pointer; }
@@ -175,7 +183,7 @@ export class WpHoliday extends LitElement {
     .hrow .open { flex: 1; display: flex; align-items: center; gap: 8px; min-height: 48px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
     .hrow .del { flex: none; width: 48px; height: 48px; border: 0; background: none; color: var(--secondary-text-color); cursor: pointer; }
     .dot { flex: none; width: 14px; height: 14px; border-radius: 7px; box-shadow: 0 0 0 1px var(--divider-color); }
-    .warn, .err, .muted { margin: 8px 0; font-size: 0.875rem; }
+    .warn, .err, .muted { margin: 8px 0; font-size: 1rem; }
     .err { color: var(--wp-danger-text); }
     .muted { color: var(--secondary-text-color); }
     .btns { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }

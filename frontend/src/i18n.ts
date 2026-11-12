@@ -431,11 +431,12 @@ const en = {
   holiday_own: "Own schedule",
   holiday_clear: "Remove the day-off setting?",
   holiday_clear_yes: "Remove",
-  holiday_from: "Day off of {source}: {what}",
   holiday_what_none: "no special setting",
   holiday_what_copy: "like {day}",
   holiday_what_own: "own schedule",
-  holiday_midnight: "A day off runs from 00:00 to 24:00: a schedule is cut at midnight.",
+  holiday_midnight: "This schedule passes midnight: on a day off it stops at 24:00.",
+  holiday_locked: "Today is a day off: change it in Schedules > Day off",
+  holiday_follows_note: "This mode follows {mode}. To change it, open {mode}.",
   holiday_line_copy: "Day off: like {copied}, not {actual}",
   holiday_line_own: "Day off: own schedule, not {actual}’s",
   then_label: "next:",
@@ -902,11 +903,12 @@ const fr: typeof en = {
   holiday_own: "Horaires propres",
   holiday_clear: "Effacer le réglage du jour férié ?",
   holiday_clear_yes: "Effacer",
-  holiday_from: "Jour férié de {source} : {what}",
   holiday_what_none: "aucun réglage spécial",
   holiday_what_copy: "comme {day}",
   holiday_what_own: "horaires propres",
-  holiday_midnight: "Un jour férié va de 0 h à 24 h : un horaire est coupé à minuit.",
+  holiday_midnight: "Cet horaire passe minuit : un jour férié, il s’arrête à 24 h.",
+  holiday_locked: "Aujourd’hui est férié : à changer dans Horaires > Jour férié",
+  holiday_follows_note: "Ce mode suit {mode}. Pour changer, ouvrez {mode}.",
   holiday_line_copy: "Férié : comme {copied}, pas {actual}",
   holiday_line_own: "Férié : horaires propres, pas {actual}",
   then_label: "ensuite :",
@@ -951,7 +953,7 @@ export function strings(language: string): Strings {
 
 export function t(lang: string, key: Key, vars: Record<string, string> = {}): string {
   let text = strings(lang)[key] as string;
-  for (const [name, value] of Object.entries(vars)) text = text.replace(`{${name}}`, value);
+  for (const [name, value] of Object.entries(vars)) text = text.split(`{${name}}`).join(value);
   return text;
 }
 

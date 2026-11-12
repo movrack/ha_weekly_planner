@@ -445,7 +445,12 @@ export class WeeklyPlannerCard extends LitElement {
     });
     if (!lines.length) return nothing;
     const same = lines.every((l) => l.text === lines[0].text);
-    return html`<div class="mode-line holiday-line">${same ? html`<p>${lines[0].text}</p>` : lines.map((l) => html`<p>${l.name} : ${l.text}</p>`)}</div>`;
+    return html`<div class="mode-line holiday-line">${same ? html`<p>${lines[0].text}</p>` : lines.map((l) => html`<p>${l.name} · ${l.text}</p>`)}</div>`;
+  }
+
+  /** Why today's bar cannot be edited in place on a day off (shown under the bar, and on a tap of the bar). */
+  private _lockedNote(program: Program) {
+    return holidayApplies(this._data, program.id) ? html`<p class="locked-note">${t(this._lang, "holiday_locked")}</p>` : nothing;
   }
 
   private _modeLine() {
@@ -519,6 +524,7 @@ export class WeeklyPlannerCard extends LitElement {
       device-name=${this._deviceLabel(program, entityId)} lang=${this._lang} tz=${this._tz} view=${kind === "today" ? this._config.schedule_view ?? "bar" : "bar"}
       .rest=${(() => { const l = labelOf(this._data!, program.entities.find((e) => e.entity_id === entityId)?.default_label); return l ? labelName(this.hass, l) : t(this._lang, "rest_none"); })()}
       @edit-request=${() => (this._edit = key)} @edit-exit=${() => { if (this._edit === key) this._edit = null; }}
+      @click=${offset === 0 && holidayApplies(this._data, program.id) ? () => this._say(t(this._lang, "holiday_locked")) : undefined}
       @open-day=${openDay} @edited=${(e: CustomEvent<{ undo: () => Promise<boolean> }>) => this._showSnack(e.detail.undo)}></wp-bar-editor>`;
   }
 
@@ -594,6 +600,7 @@ export class WeeklyPlannerCard extends LitElement {
           <span class="wname" title=${t(lang, "today")}>${t(lang, "today_short")}</span>
           ${this._bar(entityId, programs[0], 0, "today", open)}
         </div>`}
+        ${create ? nothing : this._lockedNote(programs[0])}
         ${create ? nothing : this._extras(opts.open, entityId, programs)}
       </div>`;
   }
@@ -770,8 +777,9 @@ export class WeeklyPlannerCard extends LitElement {
     .line { display: flex; align-items: flex-start; gap: 10px; min-height: 28px; }
     .dev { --mdc-icon-size: 26px; flex: none; color: var(--secondary-text-color); margin-top: -1px; }
     .info { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 0; }
+    .locked-note { margin: 0; padding: 4px 0; font-size: 1rem; line-height: 1.4; color: var(--secondary-text-color); }
     .holiday-line p { margin: 0; color: var(--primary-text-color); }
-    .mode-line { margin: 0; padding: 4px 0 8px; font-size: 0.875rem; line-height: 20px; color: var(--secondary-text-color); }
+    .mode-line { margin: 0; padding: 4px 0 8px; font-size: 1rem; line-height: 22px; color: var(--secondary-text-color); }
     .no-schedule { display: block; flex-basis: 100%; font-size: 0.8125rem; font-weight: 400; color: var(--secondary-text-color); line-height: 20px; }
     .name { font-size: 1.0625rem; font-weight: 600; }
     .skip { flex-basis: 100%; display: inline-flex; align-items: center; gap: 4px; font-size: 0.8125rem; color: var(--secondary-text-color); --mdc-icon-size: 16px; }

@@ -29,7 +29,8 @@ import { errorText, slotDeviceError, strings, t } from "../i18n";
 import { loadServiceNames, onServiceNames } from "../services";
 import { cloneSlots, effectiveProfile, friendlyName, newId } from "../planner";
 import { deviceDays, fetchPreviewResponse } from "../preview-cache";
-import { DAY, formatPauseEnd, localDateIso, minutesToClock, pauseEnd } from "../time";
+import { DAY, formatPauseEnd, localDateIso, localWeekday, minutesToClock, pauseEnd } from "../time";
+import { holidayApplies, holidayDayToday } from "../holiday";
 import { applicable, applies, normaliseEntities, shiftTimeSpec, specMinutes, sunBoundsInvalid } from "../slots";
 import { editorStyles, langOf } from "../editors/shared";
 import { callout } from "../styles";
@@ -1216,8 +1217,13 @@ export class WpSchedule extends LitElement {
                 openId: this._openId, rest: this._rest, draft: this._group,
               });
             }
+            // a day off today: its schedule is what runs; yesterday's tail and this day's tail never cross midnight into/out of it
+            const offDay = this._open === null && day === localWeekday(new Date(), this._tz) ? holidayDayToday(profile, this.data, holidayApplies(this.data, program.id)) : null;
+            const afterOff = this._open === null && (day + 6) % 7 === localWeekday(new Date(), this._tz) && this.data.holiday_today && holidayApplies(this.data, program.id);
             for (const d of [(day + 6) % 7, day]) {
-              for (const slot of profile.days[d]) {
+              if (offDay && d !== day) continue;
+              if (afterOff && d !== day) continue;
+              for (const slot of (offDay && d === day ? offDay : profile.days[d])) {
                 const label = labelOf(this.data, slot.label);
                 // only this device's slots with an action it can take (bar, dialog and chart agree)
                 if (!label || !appliedAction(this.hass, program, eid, label, slot)) continue;
