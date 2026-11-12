@@ -24,6 +24,7 @@ import "./chart-options";
 import { entityHistories } from "../chart-history";
 import { sourceColor, sourceUnit, numericAxes, axisTicks, mergeSourceDays, stateNumber, sourceNumber, binarySource, stateIntervals, stateName } from "../chart-sources";
 import type { SourcePoint } from "../chart-sources";
+import { allSlots } from "../holiday";
 import { minuteAt, slideTimeline, zoomTimeline, tickStep, ticksIn } from "../chart-zoom";
 import type { ZoomWindow } from "../chart-zoom";
 import type { ChartSource, HomeAssistant, Label, PlannerData, PreviewSlot, Program, Slot, TimeSpec } from "../types";
@@ -405,7 +406,7 @@ export class WpChart extends LitElement {
     const domain = entityDomain(this.entityId);
     const profile = activeProfile(this.program, this.data);
     const slotById = new Map<string, Slot>();
-    for (const p of this.program.profiles) for (const sl of p.days.flat()) slotById.set(sl.id, sl);
+    for (const p of this.program.profiles) for (const sl of allSlots(p)) slotById.set(sl.id, sl);
 
     // planned actions: a marker at the start of each slot, and the default at the end of a slot with an end
     const wd = weekdayOf(date);

@@ -291,6 +291,8 @@ capteur Workday. Les entités de Weekly Planner et celles qu’un programme comm
   normal. Un changement attend 30 secondes (un retour en arrière dans ce délai est ignoré), puis s’applique comme un
   changement de mode. Juste après minuit, les programmes qui ont un réglage attendent l’entité jusqu’à 2 minutes.
 - Une entité absente ouvre un problème dans Réparations ; les réglages sont gardés et chaque jour est normal.
+- **Sur la carte** : quand aujourd’hui est un jour férié qui change un programme, une ligne sous « Mode » dit « Férié : comme dimanche, pas lundi » ou « Férié : horaires propres, pas lundi » (masquée si le jour copié est le vrai jour). La barre d’aujourd’hui, la ligne d’aujourd’hui de la semaine et la vue Horaires du jour montrent ce qui tourne vraiment ; elles ne se modifient pas directement ce jour-là (utilisez la section **Jour férié** de la fenêtre des horaires ; le bouton « Modifier la journée » ouvre toujours la fenêtre). « Ensuite : demain … » ignore un éventuel jour férié demain.
+- **Dans la fenêtre des horaires** : une section repliable **Jour férié**, fermée par défaut et masquée sans entité, avec trois choix : *Aucun réglage spécial* (demande confirmation avant d’effacer), *Mêmes horaires que* un jour de la semaine, ou *Horaires propres* (une journée réglée comme les autres, horaires par appareil permis ; un horaire qui passe minuit est coupé à 24 h). Un mode qui en suit un autre montre le jour férié de sa source, en lecture seule.
 
 ## Entités et services HA
 

@@ -29,6 +29,7 @@ import { timesRows } from "./times-list";
 import { configDefaults, normalizeConfig } from "./config";
 import { activeFollow, activeProfile, entityDomain, filterPrograms, friendlyName, subscribePlanner } from "./planner";
 import { groupItems, sortMode } from "./list-order";
+import { allSlots, holidayApplies, holidayDayToday, holidayLine } from "./holiday";
 import type { DomainLocalize } from "./domains";
 import { dayBounds, addDaysIso } from "./components/chart";
 import { currentTimeFormat, formatPauseEnd, formatWhen, setTimeFormat, localDateIso, localMinutes, localWeekday, nominal, pauseEnd, spillover, DAY } from "./time";
@@ -227,7 +228,7 @@ export class WeeklyPlannerCard extends LitElement {
     if (!this._data) return;
     const dates = [-1, 0, 1, 2, 3, 4, 5, 6].map((o) => localDateIso(this._dateAt(o), this._tz));
     const programs = filterPrograms(this._data, this._config);
-    const key = `${dates[0]}|${programs.map((p) => `${p.id}:${p.revision}:${activeProfile(p, this._data!).id}`).join(",")}`;
+    const key = `${dates[0]}|${this._data.holiday_today ? "off" : ""}|${programs.map((p) => `${p.id}:${p.revision}:${activeProfile(p, this._data!).id}`).join(",")}`;
     if (key === this._previewKey || (key === this._failedPreviewKey && Date.now() < this._previewRetryAt)) return;
     this._previewKey = key;
     let failed = false;
@@ -290,7 +291,7 @@ export class WeeklyPlannerCard extends LitElement {
       };
       const date = localDateIso(at, this._tz);
       const { today: resolved, previous } = this._deviceDays(program.id, date, entityId);
-      const byId = new Map(profile.days.flat().map((slot) => [slot.id, slot]));
+      const byId = new Map(allSlots(profile).map((slot) => [slot.id, slot]));
       const bounds = dayBounds(date, this._tz);
       const seen = new Set<string>();
       for (const r of [...(previous ?? []), ...(resolved ?? [])]) {
@@ -312,7 +313,9 @@ export class WeeklyPlannerCard extends LitElement {
       if (!previous) for (const { slot, end } of spillover(profile.days[(today + 6) % 7])) {
         if (!slot.start.random_minutes && !slot.end?.random_minutes && of(slot)) spans.push(mk(slot, 0, end, { spill: true, startSun: null }));
       }
-      if (!resolved) for (const slot of profile.days[today]) {
+      // a day off: the server says so (`holiday_today` and the program's status), the day that runs is the setting's
+      const dayOff = offset === 0 ? holidayDayToday(profile, data, holidayApplies(data, program.id)) : null;
+      if (!resolved) for (const slot of dayOff ?? profile.days[today]) {
         if (!of(slot) || slot.start.random_minutes || slot.end?.random_minutes) continue;
         const start = nominal(slot.start), end = nominal(slot.end ?? null);
         if (start !== null) spans.push(mk(slot, start, end === null ? start + 10 : end > start ? end : DAY));
@@ -430,6 +433,21 @@ export class WeeklyPlannerCard extends LitElement {
   }
 
   /** The active mode, once, as plain text above the programs; nothing when there is a single mode. */
+  /** "Day off: like Sunday, not Monday": only when today is a day off that changes a shown program's day. */
+  private _holidayLine(programs: Program[]) {
+    const data = this._data;
+    if (!data?.holiday_today) return nothing;
+    const real = localWeekday(this._now, this._tz);
+    const lines = programs.flatMap((p) => {
+      const h = data.status[p.id]?.holiday;
+      const text = h ? holidayLine(this._lang, h, real) : null;
+      return text ? [{ name: p.name, text }] : [];
+    });
+    if (!lines.length) return nothing;
+    const same = lines.every((l) => l.text === lines[0].text);
+    return html`<div class="mode-line holiday-line">${same ? html`<p>${lines[0].text}</p>` : lines.map((l) => html`<p>${l.name} : ${l.text}</p>`)}</div>`;
+  }
+
   private _modeLine() {
     const mode = this._data?.mode;
     return mode?.selector && mode.options.length && mode.active
@@ -497,11 +515,16 @@ export class WeeklyPlannerCard extends LitElement {
     return html`<wp-bar-editor .hass=${this.hass} .data=${this._data} .program=${program} entity-id=${entityId}
       weekday=${weekday} .spans=${this._spans(entityId, programs, offset)} .preview=${this._deviceDays(program.id, date, entityId).today}
       .now=${offset === 0 ? localMinutes(this._now, this._tz) : null} ?hours=${kind === "today"}
-      ?editing=${this._edit === key} ?editable=${Boolean(this._data?.can_edit) && !this._data?.read_only && !activeFollow(program, this._data!)}
+      ?editing=${this._edit === key} ?editable=${this._barEditable(program, offset)}
       device-name=${this._deviceLabel(program, entityId)} lang=${this._lang} tz=${this._tz} view=${kind === "today" ? this._config.schedule_view ?? "bar" : "bar"}
       .rest=${(() => { const l = labelOf(this._data!, program.entities.find((e) => e.entity_id === entityId)?.default_label); return l ? labelName(this.hass, l) : t(this._lang, "rest_none"); })()}
       @edit-request=${() => (this._edit = key)} @edit-exit=${() => { if (this._edit === key) this._edit = null; }}
       @open-day=${openDay} @edited=${(e: CustomEvent<{ undo: () => Promise<boolean> }>) => this._showSnack(e.detail.undo)}></wp-bar-editor>`;
+  }
+
+  /** A bar is edited in place when editing is allowed, the mode is not followed, and no day off replaces today's schedule. */
+  private _barEditable(program: Program, offset: number): boolean {
+    return Boolean(this._data?.can_edit) && !this._data?.read_only && !activeFollow(program, this._data!) && !(offset === 0 && holidayApplies(this._data, program.id));
   }
 
   /** Where today's preview stands for a device: "ready" once it arrived (only then may the day be called empty), "failed" after an error. */
@@ -519,7 +542,7 @@ export class WeeklyPlannerCard extends LitElement {
       tz: this._tz, nowMin: localMinutes(this._now, this._tz), nowMs: this._now.getTime() }) : [];
     const rest = labelOf(this._data!, program.entities.find((e) => e.entity_id === entityId)?.default_label);
     return html`<wp-times-day .rows=${rows} state=${state} .rest=${rest ? labelName(this.hass, rest) : t(this._lang, "rest_none")}
-      ?editable=${editable} lang=${this._lang} device-name=${this._deviceLabel(program, entityId)}
+      ?editable=${editable} ?locked=${holidayApplies(this._data, program.id)} lang=${this._lang} device-name=${this._deviceLabel(program, entityId)}
       @open-day=${open} @retry=${() => this._retryPreviews()}></wp-times-day>`;
   }
 
@@ -694,6 +717,7 @@ export class WeeklyPlannerCard extends LitElement {
             </div>`
           : nothing}
         ${this._modeLine()}
+        ${this._holidayLine(programs)}
         ${this._info ? html`<div class="info" @pointerenter=${() => this._holdInfo(true)} @pointerleave=${() => this._holdInfo(false)}
           @focusin=${() => this._holdInfo(true)} @focusout=${() => this._holdInfo(false)}>${callout("success", "", this._info, { role: "status" })}</div>` : nothing}
         ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
@@ -746,6 +770,7 @@ export class WeeklyPlannerCard extends LitElement {
     .line { display: flex; align-items: flex-start; gap: 10px; min-height: 28px; }
     .dev { --mdc-icon-size: 26px; flex: none; color: var(--secondary-text-color); margin-top: -1px; }
     .info { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 0; }
+    .holiday-line p { margin: 0; color: var(--primary-text-color); }
     .mode-line { margin: 0; padding: 4px 0 8px; font-size: 0.875rem; line-height: 20px; color: var(--secondary-text-color); }
     .no-schedule { display: block; flex-basis: 100%; font-size: 0.8125rem; font-weight: 400; color: var(--secondary-text-color); line-height: 20px; }
     .name { font-size: 1.0625rem; font-weight: 600; }

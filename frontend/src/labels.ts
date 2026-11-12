@@ -1,5 +1,6 @@
 // Labels (spec § 6): which ones suit a device, what a label does to a device, how it is shown.
 
+import { holidayOwnSlots } from "./holiday";
 import { fmtNum } from "./planner";
 import { serviceLabel, servicesFor } from "./services";
 import { applies } from "./slots";
@@ -176,5 +177,5 @@ export function actionSummary(hass: HomeAssistant, lang: string, action: Action 
 export function labelUsers(data: PlannerData, labelId: string): string[] {
   return data.programs.filter((p) =>
     p.entities.some((e) => e.default_label === labelId || labelId in (e.label_overrides ?? {}))
-    || p.profiles.some((profile) => profile.days.some((day) => day.some((s: Slot) => s.label === labelId)))).map((p) => p.name);
+    || p.profiles.some((profile) => profile.days.some((day) => day.some((s: Slot) => s.label === labelId)) || holidayOwnSlots(profile).some((s: Slot) => s.label === labelId))).map((p) => p.name);
 }

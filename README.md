@@ -299,6 +299,8 @@ Entities of Weekly Planner and entities a program controls are refused.
   A change waits 30 seconds (a flip back within that time is ignored), then applies like a mode change.
   Just after midnight, programs with a day-off setting wait up to 2 minutes for the entity.
 - A missing entity raises a repair issue; the settings are kept and every day is normal.
+- **On the card**: when today is a day off that changes a program, a line under “Mode” says “Day off: like Sunday, not Monday” or “Day off: own schedule, not Monday’s” (hidden when the copied day is the real one). Today’s bar, today’s row of the week and the Daily times view show what really runs today; they cannot be edited in place that day (use the **Day off** section of the schedules window; the “Edit the day” button still opens the window). “Next: tomorrow …” ignores a possible day off tomorrow.
+- **In the schedules window**: a collapsible **Day off** section, closed by default and hidden when there is no entity, with three choices: *No special setting* (asks before clearing), *Same schedules as* a weekday, or *Own schedule* (a day edited like the others, per-device schedules allowed; a schedule that passes midnight is cut at 24:00). A mode that follows another shows the day off of its source, read-only.
 
 ## Created entities and HA actions
 

@@ -14,6 +14,7 @@ import { collectFocusable } from "./dialog";
 import "./label-picker";
 import "./mode-notice";
 import "./slot-form";
+import "./holiday-section";
 import { daysText, groupSlots, slotKey, specText, ALL_DAYS } from "../actions";
 import type { SlotGroup } from "../actions";
 import { applyEdit, compareOrigin, dayView, findGroup, freshGroup, groupId, nextTimes, overlapPair, splitBusyDays } from "../edits";
@@ -281,7 +282,7 @@ export class WpSchedule extends LitElement {
     if (changed.has("scope") && changed.get("scope") !== undefined) this._pick = "";
     const owner = this._programs[0];
     if (this.chart && owner && this.hass && !this._modeOnly) {
-      const key = `${owner.id}|${owner.revision}|${this._modeProfile(owner)?.id}|${this._date}`;
+      const key = `${owner.id}|${owner.revision}|${this._modeProfile(owner)?.id}|${this._date}|${this.data.holiday_today ? "off" : ""}`;
       if (key !== this._loaded) {
         this._loaded = key;
         void this._loadPreview(owner.id, owner.revision, this._date, key, this._modeProfile(owner)?.id);
@@ -1062,6 +1063,22 @@ export class WpSchedule extends LitElement {
     else select.value = current;
   }
 
+  /** "Day off" section per program (hidden without a day-off entity); a mode that follows another shows the source's, read-only. */
+  private _renderHoliday() {
+    if (!this.data.holiday_entity) return nothing;
+    return this._programs.map((p) => {
+      const base = this._ownProfile(p);
+      if (!base) return nothing;
+      const live = this._live(p.id) ?? p;
+      const pick = (x: Profile) => live.profiles.find((y) => y.id === x.id) ?? x;
+      const own = pick(base);
+      const eff = this._modeProfile(p);
+      return html`<wp-holiday .hass=${this.hass} .data=${this.data} .program=${live} .profile=${own} .source=${eff && eff !== base ? pick(eff) : null} ?canEdit=${this._canEdit}
+        @holiday-saved=${(e: CustomEvent<Program>) => { e.stopPropagation(); this._saved[p.id] = e.detail; this.requestUpdate();
+          this.dispatchEvent(new CustomEvent("schedule-program-saved", { detail: e.detail, bubbles: true, composed: true })); }}></wp-holiday>`;
+    });
+  }
+
   /** "This mode follows: (none / a mode)" for each program of the screen; the list of followers when others follow this mode. */
   private _renderFollow() {
     const open = this._openMode;
@@ -1301,6 +1318,7 @@ export class WpSchedule extends LitElement {
             <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${first ? t(lang, "create_setting") : this._focus === null ? t(lang, "w_add") : t(lang, "w_add_day", { day: strings(lang).days[this._focus].toLocaleLowerCase(lang) })}</span></button>` : nothing}
         </div>`)}
         </div>
+        ${this._open === null && !this._modeOnly ? this._renderHoliday() : nothing}
         <div class="area-week">${this._renderWeek()}</div>
         <div class="area-chart">${this._open !== null ? nothing : this._renderChart()}</div>
         <div class="area-options">${this._renderChartOptions()}</div>

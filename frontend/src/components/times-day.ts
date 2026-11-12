@@ -17,6 +17,8 @@ export class WpTimesDay extends LitElement {
   /** Name of the setting applied the rest of the time (shown when the day is empty). */
   @property() rest = "";
   @property({ type: Boolean }) editable = false;
+  /** A day off runs today: the rows are only read; the "Edit the day" button still opens the editor. */
+  @property({ type: Boolean }) locked = false;
   @property() lang = "en";
   /** Program (and device) the list belongs to: names the rows when several lists share the screen. */
   @property({ attribute: "device-name" }) deviceName = "";
@@ -66,7 +68,7 @@ export class WpTimesDay extends LitElement {
         ${this._details(r)}
       </span>`;
     const name = this.deviceName ? `${this.deviceName}, ${r.label}` : r.label;
-    return html`<li class=${r.now ? "current" : r.done ? "done" : ""} aria-current=${r.now ? "time" : nothing}>${this.editable
+    return html`<li class=${r.now ? "current" : r.done ? "done" : ""} aria-current=${r.now ? "time" : nothing}>${this.editable && !this.locked
       ? html`<button class="row" title=${t(this.lang, "times_row_open", { name })} @click=${() => this._open()}>${content}</button>`
       : html`<div class="row">${content}</div>`}</li>`;
   }

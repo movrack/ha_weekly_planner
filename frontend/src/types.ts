@@ -70,10 +70,15 @@ export interface Slot {
   seed?: string;
 }
 
+/** What a mode does on a day off: a live reference to a weekday, or its own day. */
+export type HolidaySetting = { copy: number } | { day: Slot[] };
+
 export interface Profile {
   id: string;
   name: string;
   days: Slot[][]; // 0 = Monday … 6 = Sunday
+  /** Day-off setting (#54): none, a live copy of a weekday (0 = Monday), or an own day (same shape as a day). */
+  holiday?: HolidaySetting | null;
   /** Name of the mode this one follows: its schedules are those of that mode (this one has none of its own). */
   follows?: string;
 }
@@ -117,6 +122,8 @@ export interface Program {
 
 export interface ProgramStatus {
   program_id: string;
+  /** Present only when today is a day off that changes this program's day: a copied weekday, or its own day. */
+  holiday?: { copy: number } | { own: true };
   /** The program has no schedule for the active mode. */
   no_schedule_for_mode?: boolean;
   current_slots: Record<string, string>;
@@ -147,6 +154,11 @@ export interface ModeInfo {
 
 export interface PlannerData {
   mode?: ModeInfo;
+  /** Day-off entity (#54); null: the whole feature is hidden. */
+  holiday_entity?: string | null;
+  holiday_invert?: boolean;
+  /** Today is a day off (the server's value; the card recomputes nothing). */
+  holiday_today?: boolean;
   vacation: boolean;
   labels: Label[];
   programs: Program[];
@@ -173,6 +185,8 @@ export interface PreviewSlot {
 
 /** Occurrences of a program as `weekly_planner/preview` returns them. */
 export interface PreviewResponse {
+  /** The date is today and today is a day off: `slots` are then the day off's. */
+  holiday?: boolean;
   slots: PreviewSlot[];
   /** Present as soon as one slot of the program has `entities`: the complete timeline of each device
    * (previous-day overnight spill included); the top-level `slots` is then not trimmed per device. */
