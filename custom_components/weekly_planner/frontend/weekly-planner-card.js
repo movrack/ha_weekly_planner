@@ -10785,7 +10785,7 @@ var vc = class extends x {
 		this.dispatchEvent(new CustomEvent("retry", {
 			bubbles: !0,
 			composed: !0
-		}));
+		})), this.renderRoot?.querySelector(".status")?.focus();
 	}
 	_button(e, t, n) {
 		return v`<button class="action" @click=${n}><ha-icon icon=${t}></ha-icon>${e}</button>`;
@@ -10812,12 +10812,15 @@ var vc = class extends x {
       </span>`, n = this.deviceName ? `${this.deviceName}, ${e.label}` : e.label;
 		return v`<li class=${e.now ? "current" : e.done ? "done" : ""} aria-current=${e.now ? "time" : b}>${this.editable ? v`<button class="row" title=${O(this.lang, "times_row_open", { name: n })} @click=${() => this._open()}>${t}</button>` : v`<div class="row">${t}</div>`}</li>`;
 	}
+	_message() {
+		return this.state === "loading" ? v`<p class="msg">${O(this.lang, "times_loading")}</p>` : this.state === "failed" ? v`<p class="msg">${O(this.lang, "times_failed")}</p>` : this.rows.length ? b : v`<p class="msg"><strong>${O(this.lang, "times_none")}</strong>
+        ${this.rest ? v`<span>${O(this.lang, "times_rest", { name: this.rest })}</span>` : b}</p>`;
+	}
 	render() {
-		return this.state === "loading" ? v`<p class="msg" role="status">${O(this.lang, "times_loading")}</p>` : this.state === "failed" ? v`<p class="msg" role="status">${O(this.lang, "times_failed")}</p>
-        ${this._button(O(this.lang, "times_retry"), "mdi:refresh", () => this._retry())}` : this.rows.length ? v`<ul aria-label=${O(this.lang, "times_list_label")}>${this.rows.map((e) => this._row(e))}</ul>
-      ${this.editable ? this._button(O(this.lang, "times_edit"), "mdi:calendar-edit", () => this._open()) : b}` : v`<p class="msg" role="status"><strong>${O(this.lang, "times_none")}</strong>
-        ${this.rest ? v`<span>${O(this.lang, "times_rest", { name: this.rest })}</span>` : b}</p>
-        ${this.editable ? this._button(O(this.lang, "times_add"), "mdi:plus", () => this._open()) : b}`;
+		let e = this.state === "ready" && this.rows.length > 0;
+		return v`<div class="status" role="status" aria-live="polite" tabindex="-1">${this._message()}</div>
+      ${e ? v`<ul role="list" aria-label=${O(this.lang, "times_list_label")}>${this.rows.map((e) => this._row(e))}</ul>
+        ${this.editable ? this._button(O(this.lang, "times_edit"), "mdi:calendar-edit", () => this._open()) : b}` : this.state === "failed" ? this._button(O(this.lang, "times_retry"), "mdi:refresh", () => this._retry()) : this.state === "ready" && this.editable ? this._button(O(this.lang, "times_add"), "mdi:plus", () => this._open()) : b}`;
 	}
 	static {
 		this.styles = l`
@@ -10834,17 +10837,20 @@ var vc = class extends x {
     button.row:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
     .dot { flex: none; width: 14px; height: 14px; margin-top: 5px; border-radius: 7px; box-shadow: 0 0 0 1px var(--divider-color, rgba(127, 127, 127, 0.5)); }
     .text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-    .main { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 10px; line-height: 24px; font-size: 1rem; }
+    .main { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 10px; line-height: 1.5; font-size: 1rem; }
     .time { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
     .label { min-width: 0; overflow-wrap: anywhere; }
-    .more { display: flex; flex-wrap: wrap; column-gap: 12px; font-size: 1rem; line-height: 24px; color: var(--wp-times-detail); overflow-wrap: anywhere; }
+    .more { display: flex; flex-wrap: wrap; column-gap: 12px; font-size: 1rem; line-height: 1.5; color: var(--wp-times-detail); overflow-wrap: anywhere; }
     .sun { display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 16px; }
     .now {
       display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 16px; padding: 0 8px; border-radius: 10px;
-      background: var(--wp-primary-fill); color: #fff; font-size: 1rem; font-weight: 600; line-height: 24px;
+      background: var(--wp-primary-fill); color: #fff; font-size: 1rem; font-weight: 600; line-height: 1.5;
     }
     /* a finished row: lighter weight and a softer grey (still >= 4.5:1), and the word "done" says it, so colour is never the only cue */
     li.done .main { color: color-mix(in srgb, var(--primary-text-color) 68%, var(--card-background-color, transparent)); }
+    li.done .more { color: color-mix(in srgb, var(--primary-text-color) 68%, var(--card-background-color, transparent)); }
+    li.done button.row:hover { background: none; }
+    .status { outline: none; }
     li.done .time { font-weight: 400; }
     li.current { background: color-mix(in srgb, var(--wp-primary-fill) 16%, transparent); border-radius: 8px; box-shadow: inset 4px 0 0 var(--wp-primary-fill); }
     .msg { margin: 0; padding: 12px 4px; display: flex; flex-direction: column; gap: 2px; color: var(--primary-text-color); }

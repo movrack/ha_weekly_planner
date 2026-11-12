@@ -28,6 +28,8 @@ export class WpTimesDay extends LitElement {
 
   private _retry(): void {
     this.dispatchEvent(new CustomEvent("retry", { bubbles: true, composed: true }));
+    // the button goes away when loading starts: keep the focus on the status region
+    this.renderRoot?.querySelector<HTMLElement>(".status")?.focus();
   }
 
   private _button(text: string, icon: string, click: () => void) {
@@ -69,19 +71,25 @@ export class WpTimesDay extends LitElement {
       : html`<div class="row">${content}</div>`}</li>`;
   }
 
-  render() {
-    if (this.state === "loading") return html`<p class="msg" role="status">${t(this.lang, "times_loading")}</p>`;
-    if (this.state === "failed") {
-      return html`<p class="msg" role="status">${t(this.lang, "times_failed")}</p>
-        ${this._button(t(this.lang, "times_retry"), "mdi:refresh", () => this._retry())}`;
-    }
+  /** Loading, failed or empty: a message and maybe a button. Null when the list is shown. */
+  private _message() {
+    if (this.state === "loading") return html`<p class="msg">${t(this.lang, "times_loading")}</p>`;
+    if (this.state === "failed") return html`<p class="msg">${t(this.lang, "times_failed")}</p>`;
     if (!this.rows.length) {
-      return html`<p class="msg" role="status"><strong>${t(this.lang, "times_none")}</strong>
-        ${this.rest ? html`<span>${t(this.lang, "times_rest", { name: this.rest })}</span>` : nothing}</p>
-        ${this.editable ? this._button(t(this.lang, "times_add"), "mdi:plus", () => this._open()) : nothing}`;
+      return html`<p class="msg"><strong>${t(this.lang, "times_none")}</strong>
+        ${this.rest ? html`<span>${t(this.lang, "times_rest", { name: this.rest })}</span>` : nothing}</p>`;
     }
-    return html`<ul aria-label=${t(this.lang, "times_list_label")}>${this.rows.map((r) => this._row(r))}</ul>
-      ${this.editable ? this._button(t(this.lang, "times_edit"), "mdi:calendar-edit", () => this._open()) : nothing}`;
+    return nothing;
+  }
+
+  render() {
+    // the status region stays in the page and only its content changes, so a screen reader announces it
+    const shown = this.state === "ready" && this.rows.length > 0;
+    return html`<div class="status" role="status" aria-live="polite" tabindex="-1">${this._message()}</div>
+      ${shown ? html`<ul role="list" aria-label=${t(this.lang, "times_list_label")}>${this.rows.map((r) => this._row(r))}</ul>
+        ${this.editable ? this._button(t(this.lang, "times_edit"), "mdi:calendar-edit", () => this._open()) : nothing}`
+      : this.state === "failed" ? this._button(t(this.lang, "times_retry"), "mdi:refresh", () => this._retry())
+      : this.state === "ready" && this.editable ? this._button(t(this.lang, "times_add"), "mdi:plus", () => this._open()) : nothing}`;
   }
 
   static styles = css`
@@ -98,17 +106,20 @@ export class WpTimesDay extends LitElement {
     button.row:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
     .dot { flex: none; width: 14px; height: 14px; margin-top: 5px; border-radius: 7px; box-shadow: 0 0 0 1px var(--divider-color, rgba(127, 127, 127, 0.5)); }
     .text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-    .main { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 10px; line-height: 24px; font-size: 1rem; }
+    .main { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 10px; line-height: 1.5; font-size: 1rem; }
     .time { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
     .label { min-width: 0; overflow-wrap: anywhere; }
-    .more { display: flex; flex-wrap: wrap; column-gap: 12px; font-size: 1rem; line-height: 24px; color: var(--wp-times-detail); overflow-wrap: anywhere; }
+    .more { display: flex; flex-wrap: wrap; column-gap: 12px; font-size: 1rem; line-height: 1.5; color: var(--wp-times-detail); overflow-wrap: anywhere; }
     .sun { display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 16px; }
     .now {
       display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 16px; padding: 0 8px; border-radius: 10px;
-      background: var(--wp-primary-fill); color: #fff; font-size: 1rem; font-weight: 600; line-height: 24px;
+      background: var(--wp-primary-fill); color: #fff; font-size: 1rem; font-weight: 600; line-height: 1.5;
     }
     /* a finished row: lighter weight and a softer grey (still >= 4.5:1), and the word "done" says it, so colour is never the only cue */
     li.done .main { color: color-mix(in srgb, var(--primary-text-color) 68%, var(--card-background-color, transparent)); }
+    li.done .more { color: color-mix(in srgb, var(--primary-text-color) 68%, var(--card-background-color, transparent)); }
+    li.done button.row:hover { background: none; }
+    .status { outline: none; }
     li.done .time { font-weight: 400; }
     li.current { background: color-mix(in srgb, var(--wp-primary-fill) 16%, transparent); border-radius: 8px; box-shadow: inset 4px 0 0 var(--wp-primary-fill); }
     .msg { margin: 0; padding: 12px 4px; display: flex; flex-direction: column; gap: 2px; color: var(--primary-text-color); }
