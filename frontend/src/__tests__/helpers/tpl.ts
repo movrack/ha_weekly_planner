@@ -4,6 +4,9 @@ export const flat = (v: any): string => {
   if (typeof v === "number") return String(v);
   if (Array.isArray(v)) return v.map(flat).join("");
   if (v && v.strings) return v.strings.map((s: string, i: number) => s + (i < v.values.length ? flat(v.values[i]) : "")).join("");
+  // repeat(items, key, template): render each item through the template
+  if (v && v._$litDirective$ && Array.isArray(v.values) && v.values.length === 3 && typeof v.values[2] === "function" && v.values[0]?.[Symbol.iterator])
+    return Array.from(v.values[0] as Iterable<unknown>, (item, i) => flat(v.values[2](item, i))).join("");
   if (v && v._$litDirective$ && Array.isArray(v.values)) return flat(v.values);
   return "";
 };

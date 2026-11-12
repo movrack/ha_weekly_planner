@@ -115,7 +115,8 @@ export class WeeklyPlannerCard extends LitElement {
   private _list(programs: Program[]) {
     const mode = sortMode(this._config.sort);
     const items = programs.map((p) => ({ id: p.id, name: p.name, type: entityDomain(p.entities[0]?.entity_id ?? ""), area: p.area, p }));
-    const view = (ps: Program[]) => (this._config.schedule_view === "list" ? this._compactList(ps) : this._bySchedule(ps));
+    const grouped = mode === "type" || mode === "area";
+    const view = (ps: Program[]) => (this._config.schedule_view === "list" ? this._compactList(ps) : this._bySchedule(ps, grouped));
     return groupItems(items, mode, { order: this._config.order, typeLabel: this._typeLabel, lang: this._lang }).map((g) => {
       const label = g.key === "" ? t(this._lang, "sort_other") : mode === "type" ? this._typeLabel(g.key) : g.key;
       return html`${g.header ? html`<h2 class="group">${label}</h2>` : nothing}${view(g.items.map((i) => i.p))}`;
@@ -619,7 +620,7 @@ export class WeeklyPlannerCard extends LitElement {
         @open-history=${(e: CustomEvent<string>) => openHistory(e.detail)}></wp-chart></div>` : nothing}`;
   }
 
-  private _bySchedule(programs: Program[]) {
+  private _bySchedule(programs: Program[], grouped = false) {
     const lang = this._lang;
     return programs.map((p) => {
       const scope: Scope = { kind: "program", programId: p.id };
@@ -631,7 +632,7 @@ export class WeeklyPlannerCard extends LitElement {
       <section class="prog">
         <div class="phead">
           <ha-icon icon=${p.icon ?? "mdi:calendar-clock"}></ha-icon>
-          <h2>${p.name}${this._noSchedule(p)}${this._disabledBadge(!p.enabled, [p])}</h2>
+          ${grouped ? html`<h3>${p.name}${this._noSchedule(p)}${this._disabledBadge(!p.enabled, [p])}</h3>` : html`<h2>${p.name}${this._noSchedule(p)}${this._disabledBadge(!p.enabled, [p])}</h2>`}
           <div class="header-actions"><div class="header-icons">${this._programToggle(p)}
             <button class="hours" aria-label=${t(lang, "hours_of", { name: p.name })} title=${t(lang, "hours")} @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
           </div></div>
@@ -794,7 +795,7 @@ export class WeeklyPlannerCard extends LitElement {
     .prog:first-of-type, .head + .prog { border-top: none; }
     .prog .block { border-top: none; padding: 2px 0 4px; }
     .phead { display: flex; align-items: center; gap: 10px; min-height: 48px; --mdc-icon-size: 24px; }
-    .phead h2 { flex: 1; min-width: 0; margin: 0; font-size: 1.125rem; font-weight: 600; overflow-wrap: anywhere; }
+    .phead h2, .phead h3 { flex: 1; min-width: 0; margin: 0; font-size: 1.125rem; font-weight: 600; overflow-wrap: anywhere; }
     .snack {
       position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 8; display: flex; align-items: center; gap: 12px;
       min-height: 48px; padding: 0 8px 0 16px; border-radius: 24px; font-size: 0.9375rem; white-space: nowrap;
@@ -804,7 +805,7 @@ export class WeeklyPlannerCard extends LitElement {
       min-height: 48px; padding: 0 12px; border: none; background: none; font: inherit; font-weight: 600; cursor: pointer;
       color: inherit; text-decoration: underline; border-radius: 24px;
     }
-    .group { margin: 12px 0 0; padding: 0 0 4px; font-size: 0.875rem; font-weight: 700; color: var(--primary-text-color); overflow-wrap: anywhere; }
+    .group { margin: 12px 0 0; padding: 0 0 4px; font-size: 1rem; font-weight: 700; color: var(--primary-text-color); overflow-wrap: anywhere; }
     .empty { color: var(--primary-text-color); opacity: 0.8; padding: 16px 0; text-align: center; }
   `];
 }

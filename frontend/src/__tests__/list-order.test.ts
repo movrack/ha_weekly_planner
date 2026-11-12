@@ -94,6 +94,20 @@ describe("card list", () => {
   it("the compact list view is ordered too", () => {
     expect(flat(card({ sort: "name", schedule_view: "list" })._list(programs))).toBe("<c,b,a>");
   });
+  it("grouped list: group h2, program h3; name sort keeps h2", () => {
+    const c = card({});
+    c._bySchedule = WeeklyPlannerCard.prototype["_bySchedule"].bind(c);
+    c._line = () => "";
+    c._deviceTabs = () => ""; c._noSchedule = () => ""; c._disabledBadge = () => ""; c._programToggle = () => ""; c._shownDevice = () => "x.x"; c._open = () => {};
+    const multi = [{ ...programs[0], entities: [programs[0].entities[0], programs[0].entities[0]] }];
+    const grouped = flat(c._list(multi));
+    expect(grouped).toContain('<h2 class="group">');
+    expect(grouped).toContain("<h3>");
+    expect(grouped).not.toMatch(/<h2>Zeta/);
+    const plain = flat(card({ sort: "name" }) && Object.assign(c, { _config: { sort: "name" } })._list(multi));
+    expect(plain).toContain("<h2>");
+    expect(plain).not.toContain("<h3>");
+  });
   it("raw domain is the fallback type name", () => {
     const c = card({}); c.hass.localize = undefined;
     expect(c._typeLabel("vacuum")).toBe("vacuum");
@@ -123,7 +137,10 @@ describe("editor order list", () => {
     expect(t).toContain("Move Beta up");
     expect(t).toContain("Move Alpha down");
     expect(t).toContain("Drag Alpha");
-    expect(flat(e._sortField())).toContain("disabled");
+    expect(t).toContain('tabindex="-1" aria-hidden="true"');
+    expect(t).toContain("disabled");
+    expect(e._tr("ce_moved", { name: "Beta", n: "2", total: "3" })).toBe("Beta moved to position 2 of 3");
+    expect(t).toContain("role=\"status\"");
     e._config.sort = "type";
     expect(flat(e._sortField())).not.toContain("order-list");
   });
