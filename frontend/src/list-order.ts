@@ -12,14 +12,29 @@ export interface ListGroup<T> { key: string; header: boolean; items: T[] }
 
 export const sortMode = (v: unknown): SortMode => ((SORTS as readonly unknown[]).includes(v) ? (v as SortMode) : DEFAULT_SORT);
 
-const cmp = (a: string, b: string, lang?: string): number => a.localeCompare(b, lang);
+/** One `Intl.Collator` per language, reused: same result as `localeCompare(b, lang)`, without its per-call cost. */
+const collators = new Map<string | undefined, Intl.Collator>();
+const cmp = (a: string, b: string, lang?: string): number => {
+  let c = collators.get(lang);
+  if (!c) collators.set(lang, (c = new Intl.Collator(lang)));
+  return c.compare(a, b);
+};
 const byName = (lang?: string) => (a: Sortable, b: Sortable) => cmp(a.name, b.name, lang) || cmp(a.id, b.id);
 const typeKey = (i: Sortable, o: SortOptions): string => (i.type ? o.typeLabel?.(i.type) || i.type : "");
 /** Groups A→Z; the "Others" group (empty key) always last. */
 const byKey = (lang?: string) => (a: string, b: string) => (a === b ? 0 : a === "" ? 1 : b === "" ? -1 : cmp(a, b, lang));
 
+/** Type headings A→Z by their translated name; each type is translated once per sort (not once per comparison). */
 function byType<T extends Sortable>(items: T[], o: SortOptions): T[] {
-  return [...items].sort((a, b) => byKey(o.lang)(typeKey(a, o), typeKey(b, o)) || cmp(a.type, b.type) || byName(o.lang)(a, b));
+  const labels = new Map<string, string>();
+  const label = (i: Sortable): string => {
+    let l = labels.get(i.type);
+    if (l === undefined) labels.set(i.type, (l = typeKey(i, o)));
+    return l;
+  };
+  const keys = byKey(o.lang);
+  const names = byName(o.lang);
+  return [...items].sort((a, b) => keys(label(a), label(b)) || cmp(a.type, b.type) || names(a, b));
 }
 
 export function sortItems<T extends Sortable>(items: T[], mode: SortMode, o: SortOptions = {}): T[] {

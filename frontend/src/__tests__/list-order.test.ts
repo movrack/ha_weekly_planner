@@ -42,6 +42,17 @@ describe("list order", () => {
     for (const m of ["name", "custom"] as const) expect(groupItems(items, m, o)).toHaveLength(1);
     expect(groupItems(items, "name", o)[0].header).toBe(false);
   });
+  it("sorts exactly like localeCompare (accents, case, digits, languages) and translates each type once", () => {
+    const words = ["éclair", "Eclair", "eclair", "Zèbre", "zebre", "Ölf", "oelf", "Programme 10", "Programme 2", "ß", "ss", "_x", "", "Åsa", "Ana"];
+    const many = words.map((w, i) => it_(`i${i}`, w, ["cover", "climate", ""][i % 3], w));
+    for (const lang of ["fr", "de", "sv", "en", undefined]) {
+      const ref = [...many].sort((a, b) => a.name.localeCompare(b.name, lang) || a.id.localeCompare(b.id));
+      expect(ids(sortItems(many, "name", { lang }))).toEqual(ids(ref));
+    }
+    let calls = 0;
+    sortItems(many, "type", { ...o, typeLabel: (t) => (calls++, label(t)) });
+    expect(calls).toBe(2);
+  });
   it("moveId moves and clamps", () => {
     expect(moveId(["a", "b", "c"], 0, 2)).toEqual(["b", "c", "a"]);
     expect(moveId(["a", "b", "c"], 2, 0)).toEqual(["c", "a", "b"]);

@@ -529,7 +529,7 @@ const fr: typeof en = {
   ce_sort_name: "Nom (A→Z)",
   ce_sort_custom: "Personnalisé",
   ce_order_list: "Ordre personnalisé",
-  ce_sort_custom_hint: "Utilisez les flèches pour placer vos programmes dans l'ordre que vous voulez.",
+  ce_sort_custom_hint: "Utilisez les flèches pour placer vos programmes dans l’ordre que vous voulez.",
   ce_moved: "{name} : position {n} sur {total}",
   ce_move_up: "Monter {name}",
   ce_move_down: "Descendre {name}",
