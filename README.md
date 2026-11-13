@@ -238,7 +238,7 @@ changes may be shown in the chart; that display does not change engine behavior.
   Overnight intervals end on the next day only when the end is earlier than the
   start **and before noon**. `24:00` is valid as an end.
 - **Solar times:** stored formulas can represent dawn, sunrise, sunset or dusk,
-  offsets and bounds. The current visual form exposes sunrise and sunset with offsets and optional earliest/latest limits, under **Advanced options**.
+  offsets and bounds. The current visual form exposes sunrise and sunset with offsets and optional earliest/latest limits, right under the Start and End time fields (always visible); only the random delay stays under **Advanced options**.
 
 Service choices and field selectors come from HA descriptions and entity
 attributes. New devices start with `restrict_services: true` and

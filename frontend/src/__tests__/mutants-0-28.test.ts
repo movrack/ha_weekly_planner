@@ -579,9 +579,12 @@ describe("slot form mutants: sun wording, fold, delay input, label change", () =
     expect(flat(plus.el.render())).toContain("sunset + 20 min");
   });
   it("the advanced fold opens for a slot that needs it, and closes again for another slot", () => {
-    const { el } = mk({ id: "a", start: { sun: "sunset", offset: 0 } });
+    const { el } = mk({ id: "a", start: { time: "08:00", random_minutes: 5 } });
     el.willUpdate();
     expect(el._advOpen).toBe(true);
+    const sunOnly = mk({ id: "s", start: { sun: "sunset", offset: 0, earliest: "18:00" } });
+    sunOnly.el.willUpdate();
+    expect(sunOnly.el._advOpen).toBe(false);
     el._advTouched = true; el._advOpen = false;
     el.willUpdate();
     expect(el._advOpen).toBe(false);

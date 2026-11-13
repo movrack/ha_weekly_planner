@@ -90,12 +90,37 @@ describe("mode choice in the schedules screen", () => {
     expect(view._rows()).toHaveLength(0);
     expect(flat(view.render())).toContain("No schedule");
   });
-  it("does not switch mode while a row is being edited", () => {
+  it("keeps the mode select enabled while a row is being edited", () => {
     const { view } = make();
     view._open = "new";
-    view._pickMode("Winter");
+    const html = flat(view._renderModes());
+    expect(html).toContain('class="modesel"');
+    expect(html.slice(html.indexOf('class="modesel"'), html.indexOf("</select>") > 0 ? html.indexOf("<option") : undefined)).not.toContain("disabled");
+  });
+  it("switches mode and abandons the edit without asking when nothing changed", async () => {
+    const { view } = make();
+    view._add();
+    await view._pickMode("Winter");
+    expect(confirmAction).not.toHaveBeenCalled();
+    expect(view._open).toBeNull();
+    expect(view._openMode).toBe("Winter");
+  });
+  it("asks before abandoning unsaved changes: declining keeps the edit and puts the select back", async () => {
+    const { view } = make();
+    view._add();
+    view._group = { ...view._group, slot: { ...view._group.slot, start: { time: "11:11" } } };
+    vi.mocked(confirmAction).mockResolvedValue(false);
+    const select = { value: "Winter" } as HTMLSelectElement;
+    await view._pickMode("Winter", select);
+    expect(confirmAction).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(confirmAction).mock.calls[0][1]).toBe("Abandon the changes of this schedule?");
+    expect(select.value).toBe("Home");
+    expect(view._open).toBe("new");
     expect(view._openMode).toBe("Home");
-    expect(flat(view.render())).toContain("disabled=");
+    vi.mocked(confirmAction).mockResolvedValue(true);
+    await view._pickMode("Winter", select);
+    expect(view._open).toBeNull();
+    expect(view._openMode).toBe("Winter");
   });
   it("follows the active mode until another one is chosen, and ignores a mode that is gone", () => {
     const { view } = make();

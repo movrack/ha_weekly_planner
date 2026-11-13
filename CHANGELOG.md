@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+- Schedule window: the Sunrise / Sunset chips and the “not before / not after” limits now sit directly under the Start and End time fields, always visible; the “Advanced options” fold keeps only the random delay (it still opens by itself when one is set).
+- Schedule window: the mode select stays enabled while a schedule is being edited. Picking another mode abandons the edit, after a “Abandon the changes of this schedule?” question when something was changed (declining puts the select back).
+
 ### Added
 - Integration options: saving them (for example to choose the day off entity) no longer asks “Default mode” again when the mode selector is unchanged and the saved default mode still fits; the question is asked only for a new or changed selector.
 - Daily times: the “Edit the day” button is gone; the header calendar icon is always there, as in every other view, including the compact list when a row is folded. Only an empty day keeps an “Add a schedule” button (owner’s exception).

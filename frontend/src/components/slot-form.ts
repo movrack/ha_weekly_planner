@@ -105,7 +105,7 @@ export class WpSlotForm extends LitElement {
   /** Opened from one day of the week: edit that day only, other days on request. */
   @property({ type: Number }) dayOnly: number | null = null;
   @state() private _more = false;
-  /** "Advanced options" fold (sun times, random delay, time limits): closed unless the slot already uses one. */
+  /** "Advanced options" fold (random delay only): closed unless the slot already uses one. */
   @state() private _advOpen = false;
   private _advTouched = false;
   private _advSlot = "";
@@ -114,9 +114,9 @@ export class WpSlotForm extends LitElement {
 
   private get _lang(): string { return langOf(this.hass); }
 
-  /** The slot already uses a sun time, a random delay or a time limit: nothing may stay hidden. */
+  /** The slot already uses a random delay: it must not stay hidden (sun times and limits are always visible by the time fields). */
   private get _usesAdvanced(): boolean {
-    return [this.group?.slot.start, this.group?.slot.end].some((spec) => Boolean(spec && ("sun" in spec || spec.random_minutes)));
+    return [this.group?.slot.start, this.group?.slot.end].some((spec) => Boolean(spec?.random_minutes));
   }
 
   willUpdate(): void {
@@ -227,10 +227,18 @@ export class WpSlotForm extends LitElement {
               aria-label=${title} aria-describedby=${this._hintId(which, spec.time === "24:00" ? "00:00" : spec.time)} @input=${(e: Event) => this._type(which, e)} @change=${(e: Event) => { this._typedDone(which); this._fromInput(which, (e.target as HTMLInputElement).value); }} />`
           : html`<output class="sun">${specText(lang, { ...spec, random_minutes: 0 })}</output>`}
         <button class="step" ?disabled=${dis} aria-label=${t(lang, "plus15")} title=${t(lang, "plus15")} @click=${() => this._update(which, shiftSpec(spec, 15))}><ha-icon icon="mdi:plus"></ha-icon></button>
-      </div>${"time" in spec ? this._hint(which, spec.time === "24:00" ? "00:00" : spec.time) : nothing}`;
+      </div>${"time" in spec ? this._hint(which, spec.time === "24:00" ? "00:00" : spec.time) : nothing}
+      <div class="chips sunchips" role="group" aria-label=${`${title}: ${t(lang, "sun_chips")}`}>
+        ${SUNS.map((sun) => {
+          const on = "sun" in spec && spec.sun === sun;
+          return html`<button class="chip ${on ? "on" : ""}" aria-pressed=${on} ?disabled=${dis}
+            @click=${() => this._toggleSun(which, sun)}><ha-icon icon=${sun === "sunrise" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down"}></ha-icon>${s[`sun_${sun}` as "sun_dawn"] ?? sun}</button>`;
+        })}
+      </div>
+      ${"sun" in spec ? this._limits(which, spec, title) : nothing}`;
   }
 
-  /** Sun choice, time limits and random delay of one boundary (inside the "Advanced options" fold). */
+  /** Random delay of one boundary (inside the "Advanced options" fold). */
   private _advancedBlock(which: Which, title: string) {
     const spec = this.group.slot[which];
     if (!spec) return nothing;
@@ -239,14 +247,6 @@ export class WpSlotForm extends LitElement {
     const dis = this.disabled;
     return html`
       <h5>${title}</h5>
-      <div class="chips">
-        ${SUNS.map((sun) => {
-          const on = "sun" in spec && spec.sun === sun;
-          return html`<button class="chip ${on ? "on" : ""}" aria-pressed=${on} ?disabled=${dis}
-            @click=${() => this._toggleSun(which, sun)}><ha-icon icon=${sun === "sunrise" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down"}></ha-icon>${s[`sun_${sun}` as "sun_dawn"] ?? sun}</button>`;
-        })}
-      </div>
-      ${"sun" in spec ? this._limits(which, spec, title) : nothing}
       <div class="random">
         <label><input type="checkbox" aria-describedby=${`random-${which}`} .checked=${Boolean(spec.random_minutes)} ?disabled=${dis}
           @change=${(e: Event) => this._random(which, (e.target as HTMLInputElement).checked ? 15 : 0)} />${t(lang, "random_time")}</label>

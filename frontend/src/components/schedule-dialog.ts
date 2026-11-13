@@ -98,6 +98,8 @@ export class WpSchedule extends LitElement {
   @state() private _note = "";
   /** The group as it was when opened: a change of it meanwhile is a real conflict. */
   private _origin: SlotGroup | null = null;
+  /** The form's group as opened (JSON), to tell unsaved changes from none. */
+  private _initialGroup = "";
   /** Label values set for a device while editing, applied on top of the current program when saving. */
   private _overrides: { entityId: string; labelId: string; action: Action | null }[] = [];
   /** Last program saved from here: newer than the pushed data until the push arrives. */
@@ -326,6 +328,7 @@ export class WpSchedule extends LitElement {
     this._open = key;
     this._programId = program.id;
     this._group = group ? structuredClone(group) : null;
+    this._initialGroup = JSON.stringify(this._group);
     this._restLabel = opts.restLabel ?? null;
     this._rest = opts.rest ?? null;
     this._dayOnly = opts.dayOnly ?? null;
@@ -1126,8 +1129,21 @@ export class WpSchedule extends LitElement {
     return callout("info", t(lang, "mode_not_active"), why, { role: "status" });
   }
 
-  private _pickMode(name: string): void {
-    if (this._open !== null || name === this._openMode) return;
+  /** True when the open slot form differs from what it was opened with (or a new setting is being drafted). */
+  private get _editDirty(): boolean {
+    return this._open !== null && (JSON.stringify(this._group) !== this._initialGroup || this._labelDraft !== null);
+  }
+
+  private async _pickMode(name: string, select?: HTMLSelectElement): Promise<void> {
+    if (name === this._openMode) return;
+    if (this._open !== null) {
+      // Picking another mode abandons the open edit: ask first when it holds unsaved changes, put the select back on "No".
+      if (this._editDirty && !(await confirmAction(this, t(this._lang, "edit_discard"), t(this._lang, "edit_discard_yes"), t(this._lang, "edit_discard_no")))) {
+        if (select) select.value = this._openMode ?? "";
+        return;
+      }
+      this._cancel();
+    }
     this._viewMode = name;
     this._copyOpen = false;
     this._resp = null;
@@ -1142,8 +1158,8 @@ export class WpSchedule extends LitElement {
     if (!modes.length) return nothing;
     const lang = this._lang;
     const open = this._openMode;
-    return html`<select class="modesel" aria-label=${t(lang, "profile")} ?disabled=${this._open !== null}
-        @change=${(e: Event) => this._pickMode((e.target as HTMLSelectElement).value)}>
+    return html`<select class="modesel" aria-label=${t(lang, "profile")}
+        @change=${(e: Event) => { const el = e.target as HTMLSelectElement; void this._pickMode(el.value, el); }}>
         ${modes.map((m) => {
           const follows = this._programs.map((p) => p.profiles.find((x) => x.name === m.name)?.follows).find(Boolean);
           const notes = [m.name === this.data.mode?.active ? t(lang, "mode_active_badge") : "", m.orphan ? t(lang, "mode_no_option") : "",

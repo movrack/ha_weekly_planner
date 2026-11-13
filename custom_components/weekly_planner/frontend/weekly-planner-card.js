@@ -869,6 +869,7 @@ D([T()], St.prototype, "text", void 0), D([T({ type: Boolean })], St.prototype, 
 var Ct = {
 	random_too_short: "Reduce the random delay or extend this schedule: at least 5 minutes must remain.",
 	random_time: "Random delay",
+	sun_chips: "Sunrise or sunset",
 	sun_limit_option: "Limit the time (not earlier / not later)",
 	random_minutes: "Maximum delay (minutes)",
 	random_window: "Within the next {n} minutes",
@@ -999,6 +1000,9 @@ var Ct = {
 	strip_erase: "Erase",
 	slot_delete_yes: "Yes, delete it",
 	slot_delete_no: "No, keep it",
+	edit_discard: "Abandon the changes of this schedule?",
+	edit_discard_yes: "Yes, abandon them",
+	edit_discard_no: "No, keep editing",
 	copy_hint: "Copy this schedule to other days",
 	grp_time: "In time",
 	grp_days: "On other days",
@@ -1355,6 +1359,7 @@ var Ct = {
 }, wt = {
 	random_too_short: "Réduisez le délai aléatoire ou allongez cet horaire : il doit rester au moins 5 minutes.",
 	random_time: "Délai aléatoire",
+	sun_chips: "Lever ou coucher du soleil",
 	sun_limit_option: "Limiter l’heure (au plus tôt / au plus tard)",
 	random_minutes: "Délai maximum (minutes)",
 	random_window: "Dans les {n} prochaines minutes",
@@ -1493,6 +1498,9 @@ var Ct = {
 	strip_erase: "Effacer",
 	slot_delete_yes: "Oui, supprimer",
 	slot_delete_no: "Non, garder",
+	edit_discard: "Abandonner les changements de cet horaire ?",
+	edit_discard_yes: "Oui, les abandonner",
+	edit_discard_no: "Non, continuer",
 	copy_hint: "Copie cet horaire sur d’autres jours",
 	grp_time: "Dans le temps",
 	grp_days: "Sur d’autres jours",
@@ -7439,7 +7447,7 @@ var J = class extends S {
 		return ei(this.hass);
 	}
 	get _usesAdvanced() {
-		return [this.group?.slot.start, this.group?.slot.end].some((e) => !!(e && ("sun" in e || e.random_minutes)));
+		return [this.group?.slot.start, this.group?.slot.end].some((e) => !!e?.random_minutes);
 	}
 	willUpdate() {
 		let e = this.group?.slot.id ?? "";
@@ -7563,41 +7571,41 @@ var J = class extends S {
 	_timeBlock(e, t) {
 		let n = this.group.slot[e];
 		if (!n) return x;
-		let r = this._lang;
-		O(r);
-		let i = this.disabled;
+		let r = this._lang, i = O(r), a = this.disabled;
 		return y`
       <div class="time" role="group" aria-label=${t}>
-        <button class="step" ?disabled=${i} aria-label=${k(r, "minus15")} title=${k(r, "minus15")} @click=${() => this._update(e, yi(n, -15))}><ha-icon icon="mdi:minus"></ha-icon></button>
-        ${"time" in n ? y`<input type="time" step="60" .value=${n.time === "24:00" ? "00:00" : n.time} ?disabled=${i}
+        <button class="step" ?disabled=${a} aria-label=${k(r, "minus15")} title=${k(r, "minus15")} @click=${() => this._update(e, yi(n, -15))}><ha-icon icon="mdi:minus"></ha-icon></button>
+        ${"time" in n ? y`<input type="time" step="60" .value=${n.time === "24:00" ? "00:00" : n.time} ?disabled=${a}
               aria-label=${t} aria-describedby=${this._hintId(e, n.time === "24:00" ? "00:00" : n.time)} @input=${(t) => this._type(e, t)} @change=${(t) => {
 			this._typedDone(e), this._fromInput(e, t.target.value);
 		}} />` : y`<output class="sun">${vi(r, {
 			...n,
 			random_minutes: 0
 		})}</output>`}
-        <button class="step" ?disabled=${i} aria-label=${k(r, "plus15")} title=${k(r, "plus15")} @click=${() => this._update(e, yi(n, 15))}><ha-icon icon="mdi:plus"></ha-icon></button>
-      </div>${"time" in n ? this._hint(e, n.time === "24:00" ? "00:00" : n.time) : x}`;
-	}
-	_advancedBlock(e, t) {
-		let n = this.group.slot[e];
-		if (!n) return x;
-		let r = this._lang, i = O(r), a = this.disabled;
-		return y`
-      <h5>${t}</h5>
-      <div class="chips">
+        <button class="step" ?disabled=${a} aria-label=${k(r, "plus15")} title=${k(r, "plus15")} @click=${() => this._update(e, yi(n, 15))}><ha-icon icon="mdi:plus"></ha-icon></button>
+      </div>${"time" in n ? this._hint(e, n.time === "24:00" ? "00:00" : n.time) : x}
+      <div class="chips sunchips" role="group" aria-label=${`${t}: ${k(r, "sun_chips")}`}>
         ${Xo.map((t) => {
 			let r = "sun" in n && n.sun === t;
 			return y`<button class="chip ${r ? "on" : ""}" aria-pressed=${r} ?disabled=${a}
             @click=${() => this._toggleSun(e, t)}><ha-icon icon=${t === "sunrise" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down"}></ha-icon>${i[`sun_${t}`] ?? t}</button>`;
 		})}
       </div>
-      ${"sun" in n ? this._limits(e, n, t) : x}
+      ${"sun" in n ? this._limits(e, n, t) : x}`;
+	}
+	_advancedBlock(e, t) {
+		let n = this.group.slot[e];
+		if (!n) return x;
+		let r = this._lang;
+		O(r);
+		let i = this.disabled;
+		return y`
+      <h5>${t}</h5>
       <div class="random">
-        <label><input type="checkbox" aria-describedby=${`random-${e}`} .checked=${!!n.random_minutes} ?disabled=${a}
+        <label><input type="checkbox" aria-describedby=${`random-${e}`} .checked=${!!n.random_minutes} ?disabled=${i}
           @change=${(t) => this._random(e, t.target.checked ? 15 : 0)} />${k(r, "random_time")}</label>
         ${n.random_minutes ? y`<label>${k(r, "random_minutes")}<input type="number" aria-describedby=${`random-${e}`} min="1" max="240" step="1" required
-          .value=${String(n.random_minutes)} ?disabled=${a} @change=${(t) => {
+          .value=${String(n.random_minutes)} ?disabled=${i} @change=${(t) => {
 			let n = t.target;
 			n.validity.valid && this._random(e, Number(n.value));
 		}} /></label><small id=${`random-${e}`}>${as(r, n, e, this.hass)}</small>` : x}
@@ -7941,7 +7949,7 @@ D([T({ attribute: !1 })], Y.prototype, "hass", void 0), D([T({ attribute: !1 })]
 // src/components/schedule-dialog.ts
 var ss = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t : e) : [...e, t], cs = (e) => e.kind === "device" ? `d:${e.entityId}` : `p:${e.programId}`, ls = 7, X = class extends S {
 	constructor(...e) {
-		super(...e), this.chart = !0, this._viewMode = null, this._copyOpen = !1, this._optsOpen = !1, this._editProfileId = null, this._editMode = null, this.day = null, this.create = !1, this._chartContext = null, this._chartProgram = null, this._open = null, this._group = null, this._dayOnly = null, this._rest = null, this._openId = null, this._base = null, this._dropBusy = !1, this._focus = null, this._note = "", this._origin = null, this._overrides = [], this._saved = {}, this._draft = null, this._restLabel = null, this._labelDraft = null, this._pickerKey = 0, this._fresh = /* @__PURE__ */ new Set(), this._programId = "", this._error = "", this._saving = !1, this._toggling = !1, this._offset = 0, this._resp = null, this._pick = "", this._who = null, this._shared = !1, this._token = 0, this._loaded = "", this._include = (e) => {
+		super(...e), this.chart = !0, this._viewMode = null, this._copyOpen = !1, this._optsOpen = !1, this._editProfileId = null, this._editMode = null, this.day = null, this.create = !1, this._chartContext = null, this._chartProgram = null, this._open = null, this._group = null, this._dayOnly = null, this._rest = null, this._openId = null, this._base = null, this._dropBusy = !1, this._focus = null, this._note = "", this._origin = null, this._initialGroup = "", this._overrides = [], this._saved = {}, this._draft = null, this._restLabel = null, this._labelDraft = null, this._pickerKey = 0, this._fresh = /* @__PURE__ */ new Set(), this._programId = "", this._error = "", this._saving = !1, this._toggling = !1, this._offset = 0, this._resp = null, this._pick = "", this._who = null, this._shared = !1, this._token = 0, this._loaded = "", this._include = (e) => {
 			let t = this._eid;
 			if (!t) return !0;
 			if (!An(e, t)) return !1;
@@ -8100,7 +8108,7 @@ var ss = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
 		return this.data.can_edit && !this.data.read_only;
 	}
 	_expand(e, t, n, r = {}) {
-		this._editMode = this._openMode, this._editProfileId = this._modeProfile(t)?.id ?? R(), this._open = e, this._programId = t.id, this._group = n ? structuredClone(n) : null, this._restLabel = r.restLabel ?? null, this._rest = r.rest ?? null, this._dayOnly = r.dayOnly ?? null, this._openId = r.openId ?? null, this._base = null, this._origin = r.origin ? structuredClone(r.origin) : null, this._overrides = [], this._labelDraft = null, this._dropBusy = !1, this._who = null, this._shared = !!(n && r.openId && this._eid && fa(n.slot, U(t))), this._draft = structuredClone(t), this._error = "", this._note = "", this.updateComplete.then(() => requestAnimationFrame(() => {
+		this._editMode = this._openMode, this._editProfileId = this._modeProfile(t)?.id ?? R(), this._open = e, this._programId = t.id, this._group = n ? structuredClone(n) : null, this._initialGroup = JSON.stringify(this._group), this._restLabel = r.restLabel ?? null, this._rest = r.rest ?? null, this._dayOnly = r.dayOnly ?? null, this._openId = r.openId ?? null, this._base = null, this._origin = r.origin ? structuredClone(r.origin) : null, this._overrides = [], this._labelDraft = null, this._dropBusy = !1, this._who = null, this._shared = !!(n && r.openId && this._eid && fa(n.slot, U(t))), this._draft = structuredClone(t), this._error = "", this._note = "", this.updateComplete.then(() => requestAnimationFrame(() => {
 			this._revealEditor(), this._focusEditor();
 		}));
 	}
@@ -8761,15 +8769,30 @@ var ss = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
 		});
 		return C("info", k(e, "mode_not_active"), r, { role: "status" });
 	}
-	_pickMode(e) {
-		this._open === null && e !== this._openMode && (this._viewMode = e, this._copyOpen = !1, this._resp = null, this._error = "", this._note = "", this._focus = null);
+	get _editDirty() {
+		return this._open !== null && (JSON.stringify(this._group) !== this._initialGroup || this._labelDraft !== null);
+	}
+	async _pickMode(e, t) {
+		if (e !== this._openMode) {
+			if (this._open !== null) {
+				if (this._editDirty && !await li(this, k(this._lang, "edit_discard"), k(this._lang, "edit_discard_yes"), k(this._lang, "edit_discard_no"))) {
+					t && (t.value = this._openMode ?? "");
+					return;
+				}
+				this._cancel();
+			}
+			this._viewMode = e, this._copyOpen = !1, this._resp = null, this._error = "", this._note = "", this._focus = null;
+		}
 	}
 	_renderModes() {
 		let e = this._modes();
 		if (!e.length) return x;
 		let t = this._lang, n = this._openMode;
-		return y`<select class="modesel" aria-label=${k(t, "profile")} ?disabled=${this._open !== null}
-        @change=${(e) => this._pickMode(e.target.value)}>
+		return y`<select class="modesel" aria-label=${k(t, "profile")}
+        @change=${(e) => {
+			let t = e.target;
+			this._pickMode(t.value, t);
+		}}>
         ${e.map((e) => {
 			let r = this._programs.map((t) => t.profiles.find((t) => t.name === e.name)?.follows).find(Boolean), i = [
 				e.name === this.data.mode?.active ? k(t, "mode_active_badge") : "",

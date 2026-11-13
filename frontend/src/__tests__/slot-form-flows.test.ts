@@ -20,32 +20,52 @@ const sel = (r: any, ev: string, i: number, mark = "") => handlers(r).filter((h)
 
 describe("slot form: advanced options fold", () => {
   const SUN = "mdi:weather-sunset";
-  it("is closed by default for a plain slot and hides sun choice, random delay and limits", () => {
-    const html = flat(form({}).el.render());
+  it("is closed by default for a plain slot: only the random delay is folded, the sun chips sit with the time fields", () => {
+    const html = flat(form({ end: { time: "09:00" } }).el.render());
     expect(html).toContain("aria-expanded=");
     expect(html).toContain('class="row opts"');
-    expect(html).not.toContain(SUN);
+    expect(html).not.toContain('class="opts-body"');
     expect(html).not.toContain('type="checkbox"');
     expect(html).toContain('type="time"');
     expect(html).toContain("chip small");
+    // always visible: one sunrise/sunset group per boundary, labelled and with pressed state
+    expect((html.match(/chips sunchips/g) ?? []).length).toBe(2);
+    expect((html.match(new RegExp(SUN, "g")) ?? []).length).toBe(4);
+    expect(html).toContain("aria-pressed=");
+    expect(html).toContain("Sunrise or sunset");
   });
-  it("opens by clicking and then shows the sun choice and random delay for start and end", () => {
-    const { el } = form({});
+  it("shows the sun limits under the time field of the boundary on a sun time, without opening the fold", () => {
+    const html = flat(form({ start: { sun: "sunrise", offset: 0, earliest: "06:00" } }).el.render());
+    expect(html).not.toContain('class="opts-body"');
+    expect(html).toContain("Limit the time");
+    expect(html).toContain('class="limits"');
+    expect(html).toContain("Not earlier than");
+    // the limits come before the (folded) options, right after the Start time field
+    expect(html.indexOf("sunchips")).toBeLessThan(html.indexOf('class="row opts"'));
+    expect(html.indexOf("Limit the time")).toBeLessThan(html.indexOf('class="row opts"'));
+  });
+  it("opens by clicking and then shows the random delay only, for start and end", () => {
+    const { el } = form({ end: { time: "09:00" } });
     openFold(el);
     const html = flat(el.render());
     expect(html).toContain('class="opts-body"');
-    expect(html).toContain(SUN);
     expect((html.match(/type="checkbox"/g) ?? []).length).toBe(2);
+    const body = html.slice(html.indexOf('class="opts-body"'));
+    expect(body).not.toContain(SUN);
+    expect(body).not.toContain("limits");
     openFold(el);
-    expect(flat(el.render())).not.toContain(SUN);
+    expect(flat(el.render())).not.toContain('class="opts-body"');
+  });
+  it("opens by itself when a boundary already has a random delay", () => {
+    const html = flat(form({ end: { time: "09:00", random_minutes: 10 } }).el.render());
+    expect(html).toContain('class="opts-body"');
   });
   it.each([
     ["a sun time", { start: { sun: "sunset", offset: 0 } }],
-    ["a random delay", { end: { time: "09:00", random_minutes: 10 } }],
     ["a time limit", { start: { sun: "sunrise", offset: 0, earliest: "06:00" } }],
-  ])("opens by itself when the slot uses %s", (_n, slot) => {
+  ])("keeps the fold closed when the slot uses %s (the sun part is no longer folded)", (_n, slot) => {
     const html = flat(form(slot).el.render());
-    expect(html).toContain('class="opts-body"');
+    expect(html).not.toContain('class="opts-body"');
     expect(html).toContain(SUN);
   });
   it("stays open when the last feature is removed while editing", () => {

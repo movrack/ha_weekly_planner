@@ -193,7 +193,7 @@ Leur affichage dans le graphique ne modifie pas cette règle.
 - **Conditions** : toutes les conditions du programme doivent être satisfaites pour ses horaires. Une condition fausse n’est pas une commande d’arrêt générique ; les règles des défauts comptent encore.
 - **Redémarrage** : stabilisation de 30 s, puis réapplication facultative de l’action bornée ou du défaut en cours. Les fins manquées sont rattrapées, pas les actions ponctuelles passées.
 - **Temps** : construction en heure locale HA, comparaisons en UTC. Un horaire passe au lendemain si sa fin est antérieure au début **et avant midi**. `24:00` est accepté en fin.
-- **Soleil** : le modèle accepte aube, lever, coucher, crépuscule, décalages et bornes. Le formulaire actuel expose lever et coucher avec décalages et des limites facultatives (au plus tôt / au plus tard), sous **Options avancées**.
+- **Soleil** : le modèle accepte aube, lever, coucher, crépuscule, décalages et bornes. Le formulaire actuel expose lever et coucher avec décalages et des limites facultatives (au plus tôt / au plus tard), juste sous les champs Début et Fin (toujours visibles) ; seul le délai aléatoire reste sous **Options avancées**.
 
 ## Actions des réglages
 

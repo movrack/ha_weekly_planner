@@ -26,7 +26,7 @@ claiming that invisible controls fit on the phone.
 | S06 | `s06-schedules.png` | Whole-week schedule dialog | Choose the program's calendar-edit button, list summary or radial dial. Show the seven-day schematic and grouped schedule rows. |
 | S07 | `s07-one-day.png` | Schedule dialog focused on a day | Choose a weekday name beside an unfolded week bar. Show the selected day and Whole week return control. |
 | S08 | `s08-slot-form.png` | Add or edit a bounded slot | Choose Add schedule or an existing row. Show fixed start/end controls, selected days, label and the single Save/Cancel pair. |
-| S09 | `s09-solar-slot.png` | Solar time editor | In a slot form choose Sunrise or Sunset for a boundary. Show the event, offset and ±15-minute controls. Do not invent a separate advanced solar-bound dialog. |
+| S09 | `s09-solar-slot.png` | Solar time editor | In a slot form choose Sunrise or Sunset for a boundary. The Sunrise/Sunset chips and the not-before / not-after limits sit directly under the Start and End time fields (always visible); only the random delay is folded in Advanced options. Show the event, offset and ±15-minute controls. Do not invent a separate advanced solar-bound dialog. |
 | S10 | `s10-one-shot.png` | Slot without an end | In a slot form choose No end. Show that the end-time input disappears while days and label remain. |
 | S11 | `s11-new-label.png` | New label inside a slot | In the slot's label picker choose New label. Show name, colour, action selector and the parent slot's Save/Cancel pair; no second pair. |
 | S12 | `s12-edit-shared-label.png` | Edit an existing shared label | Select a label used in another program and choose its pencil. Show Shared, name, colour and common action. |
