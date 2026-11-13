@@ -126,8 +126,14 @@ class WeeklyPlannerOptionsFlow(OptionsFlow):
             if not errors:
                 self._settings = user_input
                 self._selector = selector
-                if selector:
+                current_default = config.get("default_mode")
+                if selector and not (selector == config.get("mode_selector") and current_default
+                                     and current_default in (self._known_options() or [current_default])):
+                    # the question is only asked for a new or changed selector, or when the saved answer no longer fits
                     return await self.async_step_default_mode()
+                if selector:
+                    await self._save_mode(selector, current_default)
+                    return self.async_create_entry(data=user_input)
                 await self._save_mode(None, config.get("default_mode"))
                 return self.async_create_entry(data=user_input)
         options = self.config_entry.options

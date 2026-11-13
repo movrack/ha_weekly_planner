@@ -128,6 +128,38 @@ horaires, **Options avancées → Mêmes horaires que** permet à « Jour de con
 « Vacances scolaires » (ou l'inverse), pour chaque programme ; une modification faite dans la source
 se voit tout de suite ([Modes](Modes)).
 
+## Note : un capteur « jour férié ou congé scolaire » seul
+
+Le capteur « Jour ouvré » ne dit pas pourquoi il est `off` (week-end ou jour férié). Pour savoir **si
+aujourd'hui est férié ou un jour de congé scolaire**, créez un capteur dédié, `on` ces jours-là et
+`off` sinon :
+
+1. Ajoutez l'intégration **Jours fériés** (Holiday : Paramètres → Appareils et services → Ajouter une
+   intégration) avec votre pays. Elle crée une entité calendrier (ici `calendar.belgique`) qui est `on`
+   pendant le jour férié, car chaque jour férié y est un événement sur la journée entière.
+2. Ayez aussi un calendrier des vacances scolaires (ici `calendar.vacances_scolaires_fwb`), `on` pendant
+   les vacances ([recette 2](#recette-2--vacances-scolaires)).
+3. **Paramètres → Appareils et services → Entrées → Créer une entrée → Modèle → Capteur binaire**,
+   nom `Jour férié` (entité `binary_sensor.jour_ferie`), modèle d'état :
+
+   ```jinja
+   {{ is_state('calendar.belgique', 'on') or is_state('calendar.vacances_scolaires_fwb', 'on') }}
+   ```
+
+   Dans les options avancées, ajoutez un modèle de disponibilité pour qu'une panne d'un calendrier ne
+   passe pas pour « pas de congé » (voir Pièges) :
+
+   ```jinja
+   {{ states('calendar.belgique') not in ['unavailable', 'unknown']
+      and states('calendar.vacances_scolaires_fwb') not in ['unavailable', 'unknown'] }}
+   ```
+
+Pour un capteur **uniquement** férié, retirez la partie `calendar.vacances_scolaires_fwb`. Utilisez
+ensuite `binary_sensor.jour_ferie` comme déclencheur ou condition d'une recette. Un capteur binaire est
+préférable à une entrée « interrupteur » (`input_boolean`) : sa valeur se calcule seule, sans
+automatisation pour la mettre à jour. Le week-end n'est pas compris : ajoutez-le avec « Jour ouvré »
+si besoin.
+
 ## Pièges
 
 - **Les noms ne correspondent pas** : une option écrite `Jour de Congé` n'utilise pas les horaires

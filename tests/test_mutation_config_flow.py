@@ -94,7 +94,7 @@ async def test_an_own_entity_cannot_be_chosen_as_the_mode_selector(hass, hass_st
 
 
 async def test_the_default_mode_step_keeps_the_current_choice_the_options_and_the_saved_options(hass, hass_storage):
-    entry = await _entry(hass, hass_storage, config={"mode_selector": "input_select.mode", "default_mode": "Away"})
+    entry = await _entry(hass, hass_storage, config={"mode_selector": "input_select.old", "default_mode": "Away"})
     hass.states.async_set("input_select.mode", "Home", {"options": ["Home", "Away"]})
     flow = hass.config_entries.options
     result = await _open_settings(flow, entry)

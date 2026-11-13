@@ -98,7 +98,7 @@ async def test_options_clearing_the_selector_keeps_the_default(hass: HomeAssista
 
 async def test_options_default_mode_free_text_when_no_options_known(hass: HomeAssistant, hass_storage) -> None:
     entry = await _options_entry(hass, hass_storage)
-    await entry.runtime_data.async_set_mode_config("select.x", "Winter")
+    await entry.runtime_data.async_set_mode_config("select.old", "Winter")
     flow = hass.config_entries.options
     result = await _open_settings(flow, entry)
     result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "select.x"})
@@ -110,6 +110,39 @@ async def test_options_default_mode_free_text_when_no_options_known(hass: HomeAs
     result = await flow.async_configure(result["flow_id"], {"default_mode": "Summer"})
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.runtime_data.store.config["default_mode"] == "Summer"
+
+
+async def test_options_unchanged_selector_keeps_default_mode_without_asking(hass: HomeAssistant, hass_storage) -> None:
+    """Changing another option (the day off entity) does not ask the default mode again."""
+    entry = await _options_entry(hass, hass_storage)
+    hass.states.async_set("input_select.mode", "Home", {"options": ["Home", "Away"]})
+    await entry.runtime_data.async_set_mode_config("input_select.mode", "Away")
+    flow = hass.config_entries.options
+    result = await _open_settings(flow, entry)
+    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "input_select.mode"})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.runtime_data.store.config["default_mode"] == "Away"
+
+
+async def test_options_unchanged_selector_asks_when_saved_default_no_longer_fits(hass: HomeAssistant, hass_storage) -> None:
+    entry = await _options_entry(hass, hass_storage)
+    hass.states.async_set("input_select.mode", "Home", {"options": ["Home", "Away"]})
+    await entry.runtime_data.async_set_mode_config("input_select.mode", "Away")
+    hass.states.async_set("input_select.mode", "Home", {"options": ["Home", "Out"]})
+    flow = hass.config_entries.options
+    result = await _open_settings(flow, entry)
+    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "input_select.mode"})
+    assert result["step_id"] == "default_mode"
+
+
+async def test_options_unchanged_selector_without_known_options_keeps_default(hass: HomeAssistant, hass_storage) -> None:
+    entry = await _options_entry(hass, hass_storage)
+    await entry.runtime_data.async_set_mode_config("select.x", "Winter")
+    flow = hass.config_entries.options
+    result = await _open_settings(flow, entry)
+    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "select.x"})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.runtime_data.store.config["default_mode"] == "Winter"
 
 
 async def test_options_free_text_without_current_default(hass: HomeAssistant, hass_storage) -> None:
