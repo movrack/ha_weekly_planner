@@ -14,7 +14,7 @@ import { collectFocusable } from "./dialog";
 import "./label-picker";
 import "./mode-notice";
 import "./slot-form";
-import "./holiday-section";
+import { passesMidnight } from "./holiday-section";
 import { daysText, groupSlots, slotKey, specText, ALL_DAYS } from "../actions";
 import type { SlotGroup } from "../actions";
 import { applyEdit, compareOrigin, dayView, findGroup, freshGroup, groupId, nextTimes, overlapPair, splitBusyDays } from "../edits";
@@ -30,7 +30,7 @@ import { loadServiceNames, onServiceNames } from "../services";
 import { cloneSlots, effectiveProfile, friendlyName, newId } from "../planner";
 import { deviceDays, fetchPreviewResponse } from "../preview-cache";
 import { DAY, formatPauseEnd, localDateIso, localWeekday, minutesToClock, pauseEnd } from "../time";
-import { dayInText, holidayApplies, holidayDayToday, holidayReplaces } from "../holiday";
+import { dayInText, holidayApplies, holidayChoice, holidayDayToday, holidayOwnSlots, holidayReplaces } from "../holiday";
 import { applicable, applies, normaliseEntities, shiftTimeSpec, specMinutes, sunBoundsInvalid } from "../slots";
 import { editorStyles, langOf } from "../editors/shared";
 import { callout } from "../styles";
@@ -116,8 +116,6 @@ export class WpSchedule extends LitElement {
   @state() private _programId = "";
   @state() private _error = "";
   @state() private _saving = false;
-  /** The day-off slot form (inside the slot form) is open: it has its own Save / Cancel, the outer pair is hidden meanwhile. */
-  @state() private _holidayForm = false;
   @state() private _toggling = false;
   @state() private _offset = 0;
   /** Preview answers of the day before and of the day shown (null: none or failed). */
@@ -328,7 +326,6 @@ export class WpSchedule extends LitElement {
     this._editMode = this._openMode;
     this._editProfileId = this._modeProfile(program)?.id ?? newId();
     this._open = key;
-    this._holidayForm = false;
     this._programId = program.id;
     this._group = group ? structuredClone(group) : null;
     this._initialGroup = JSON.stringify(this._group);
@@ -407,7 +404,6 @@ export class WpSchedule extends LitElement {
     this._editProfileId = null;
     this._editMode = null;
     this._open = null;
-    this._holidayForm = false;
     this._group = null;
     this._dayOnly = null;
     this._rest = null;
@@ -945,7 +941,7 @@ export class WpSchedule extends LitElement {
         .device=${this._eid} .also=${!this._shared}
         .dayOnly=${this._dayOnly} ?disabled=${!this._canEdit}
         @label-draft=${(e: CustomEvent<LabelDraft | null>) => { e.stopPropagation(); this._labelDraft = e.detail; this._error = ""; }}
-        @group-change=${(e: CustomEvent<SlotGroup>) => { e.stopPropagation(); this._group = e.detail; this._error = ""; }}>${this._renderHoliday(true)}</wp-slot-form>`)}
+        @group-change=${(e: CustomEvent<SlotGroup>) => { e.stopPropagation(); this._group = e.detail; this._error = ""; }}></wp-slot-form>`)}
       ${this._shared && !isNew ? html`<div class="who" role="radiogroup" aria-label=${t(lang, "who_title")}>
         <span>${t(lang, "who_title")}</span>
         <div class="seg">
@@ -955,10 +951,10 @@ export class WpSchedule extends LitElement {
             @click=${() => this._pickWho("all")}><ha-icon icon="mdi:select-all"></ha-icon>${this._whoAll(count, devices)}</button>
         </div></div>` : nothing}
       ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
-      ${this._holidayForm ? nothing : html`<div class="btns">
+      <div class="btns">
         <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRow()}>${t(lang, "save")}</button>
         <button class="btn" @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
-      </div>`}
+      </div>
       ${isNew || this._labelDraft ? nothing : html`<button class="btn dup" ?disabled=${!this._canEdit} @click=${() => this._duplicate()}>
         <ha-icon icon="mdi:content-copy"></ha-icon>${t(lang, "duplicate")}</button>`}
       <button class="btn danger-line alone" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._deleteRow()}>
@@ -1071,17 +1067,18 @@ export class WpSchedule extends LitElement {
     else select.value = current;
   }
 
-  /** "Day off" section per program (hidden without a day-off entity); a mode that follows another shows the source's, read-only. */
-  private _renderHoliday(inForm = false) {
+  /** "Day off" section per program, at the end of the Schedules box, after the list of schedules (a day off can hold several schedules, so it is never shown inside the form of one
+   * schedule); hidden without a day-off entity; a mode that follows another shows the source's, read-only. */
+  private _renderHoliday() {
     if (!this.data.holiday_entity) return nothing;
-    return this._programs.filter((p) => !inForm || p.id === this._programId).map((p) => {
+    return this._programs.map((p) => {
       const base = this._ownProfile(p);
       if (!base) return nothing;
       const live = this._live(p.id) ?? p;
       const pick = (x: Profile) => live.profiles.find((y) => y.id === x.id) ?? x;
       const own = pick(base);
       const eff = this._modeProfile(p);
-      return html`<wp-holiday slot=${inForm ? "after-days" : nothing} @holiday-form=${(e: CustomEvent<boolean>) => { e.stopPropagation(); this._holidayForm = e.detail; }} .hass=${this.hass} .data=${this.data} .program=${live} .profile=${own} .source=${eff && eff !== base ? pick(eff) : null} ?canEdit=${this._canEdit}
+      return html`<wp-holiday .hass=${this.hass} .data=${this.data} .program=${live} .profile=${own} .source=${eff && eff !== base ? pick(eff) : null} ?canEdit=${this._canEdit}
         @holiday-saved=${(e: CustomEvent<Program>) => { e.stopPropagation(); this._saved[p.id] = e.detail; this.requestUpdate();
           this.dispatchEvent(new CustomEvent("schedule-program-saved", { detail: e.detail, bubbles: true, composed: true })); }}></wp-holiday>`;
     });
@@ -1234,57 +1231,98 @@ export class WpSchedule extends LitElement {
     return applies ? html`<p class="muted note">${t(this._lang, "holiday_week_note", { day: dayInText(this._lang, real) })}</p>` : nothing;
   }
 
+  /** The profile a program shows in the week schematic (its unsaved edit included); undefined when it has none. */
+  private _weekProfile(program: Program): Profile | undefined {
+    let profile = program.id === this._programId && this._open ? this._editProfile(program) : this._modeProfile(program);
+    if (!profile) return undefined;
+    if (program.id === this._programId && this._group) {
+      if (this._base) profile = applyEdit(profile, this._include, this._minutes, this._base);
+      profile = applyEdit(profile, this._include, this._minutes, {
+        openId: this._openId, rest: this._rest, draft: this._group,
+      });
+    }
+    return profile;
+  }
+
+  /** The day-off row of the week: shown when a day-off entity exists and a program of this device has a day off that applies. */
+  private _weekHasOff(eid: string): boolean {
+    if (!this.data.holiday_entity) return false;
+    return this._programs.some((original) => {
+      const program = this._live(original.id) ?? original;
+      return program.entities.some((e) => e.entity_id === eid) && holidayChoice(this._weekProfile(program)) !== "none";
+    });
+  }
+
+  /** Bar spans of one row of the week: a weekday (0..6), or the day off (`null`: cut at 24:00, nothing carried over from the day before). */
+  private _weekSpans(eid: string, day: number | null): BarSpan[] {
+    const spans: BarSpan[] = [];
+    for (const original of [...this._programs].reverse()) {
+      const program = this._live(original.id) ?? original;
+      if (!program.entities.some((e) => e.entity_id === eid)) continue;
+      const profile = this._weekProfile(program);
+      if (!profile) continue;
+      if (day === null) {
+        const choice = holidayChoice(profile);
+        if (choice === "none") continue;
+        const off = profile.holiday && "copy" in profile.holiday ? profile.days[profile.holiday.copy] ?? [] : holidayOwnSlots(profile);
+        for (const slot of off) {
+          const label = labelOf(this.data, slot.label);
+          if (!label || !appliedAction(this.hass, program, eid, label, slot)) continue;
+          const start = this._minutes(slot.start);
+          const cut = passesMidnight(this.hass, slot);
+          const end = slot.end ? (cut ? DAY : this._minutes(slot.end)) : null;
+          spans.push({
+            start, end: end ?? start + 10,
+            color: label.color, label: labelName(this.hass, label), marker: end === null,
+            startSun: sunDir(slot.start), endSun: cut ? null : sunDir(slot.end),
+            startSpec: slot.start, endSpec: slot.end,
+          });
+        }
+        continue;
+      }
+      // a day off today: its schedule is what runs; yesterday's tail and this day's tail never cross midnight into/out of it
+      const real = localWeekday(new Date(), this._tz);
+      // the status is about the active mode; a copy of the real weekday replaces nothing
+      const offDay = this._open === null && !this._modeOnly && day === real && holidayReplaces(this.data, program.id, real)
+        ? holidayDayToday(profile, this.data, holidayApplies(this.data, program.id)) : null;
+      const afterOff = this._open === null && (day + 6) % 7 === real && !this._modeOnly && this.data.holiday_today && holidayApplies(this.data, program.id);
+      for (const d of [(day + 6) % 7, day]) {
+        if (offDay && d !== day) continue;
+        if (afterOff && d !== day) continue;
+        for (const slot of (offDay && d === day ? offDay : profile.days[d])) {
+          const label = labelOf(this.data, slot.label);
+          // only this device's slots with an action it can take (bar, dialog and chart agree)
+          if (!label || !appliedAction(this.hass, program, eid, label, slot)) continue;
+          const start = this._minutes(slot.start);
+          const end = slot.end ? this._minutes(slot.end) : null;
+          const overnight = end !== null && end < start && end < DAY / 2;
+          if (d !== day && !overnight) continue;
+          if (end !== null && end <= start && !overnight) continue;
+          spans.push({
+            start: d === day ? start : 0,
+            end: d !== day ? end! : overnight ? DAY : end ?? start + 10,
+            color: label.color, label: labelName(this.hass, label), marker: end === null,
+            startSun: d === day ? sunDir(slot.start) : null,
+            endSun: overnight && d === day ? null : sunDir(slot.end),
+            startSpec: slot.start, endSpec: slot.end,
+          });
+        }
+      }
+    }
+    return spans;
+  }
+
   private _renderWeek() {
     const lang = this._lang;
+    const eid = this._eid;
+    const off = this._weekHasOff(eid);
     return html`<section class="schematic" aria-label=${t(lang, "week")}>
-      ${[this._eid].map((eid) => html`
-        ${strings(lang).days_short.map((name, day) => {
-          const spans: BarSpan[] = [];
-          for (const original of [...this._programs].reverse()) {
-            const program = this._live(original.id) ?? original;
-            if (!program.entities.some((e) => e.entity_id === eid)) continue;
-            let profile = program.id === this._programId && this._open ? this._editProfile(program) : this._modeProfile(program);
-            if (!profile) continue;
-            if (program.id === this._programId && this._group) {
-              if (this._base) profile = applyEdit(profile, this._include, this._minutes, this._base);
-              profile = applyEdit(profile, this._include, this._minutes, {
-                openId: this._openId, rest: this._rest, draft: this._group,
-              });
-            }
-            // a day off today: its schedule is what runs; yesterday's tail and this day's tail never cross midnight into/out of it
-            const real = localWeekday(new Date(), this._tz);
-            // the status is about the active mode; a copy of the real weekday replaces nothing
-            const offDay = this._open === null && !this._modeOnly && day === real && holidayReplaces(this.data, program.id, real)
-              ? holidayDayToday(profile, this.data, holidayApplies(this.data, program.id)) : null;
-            const afterOff = this._open === null && (day + 6) % 7 === real && !this._modeOnly && this.data.holiday_today && holidayApplies(this.data, program.id);
-            for (const d of [(day + 6) % 7, day]) {
-              if (offDay && d !== day) continue;
-              if (afterOff && d !== day) continue;
-              for (const slot of (offDay && d === day ? offDay : profile.days[d])) {
-                const label = labelOf(this.data, slot.label);
-                // only this device's slots with an action it can take (bar, dialog and chart agree)
-                if (!label || !appliedAction(this.hass, program, eid, label, slot)) continue;
-                const start = this._minutes(slot.start);
-                const end = slot.end ? this._minutes(slot.end) : null;
-                const overnight = end !== null && end < start && end < DAY / 2;
-                if (d !== day && !overnight) continue;
-                if (end !== null && end <= start && !overnight) continue;
-                spans.push({
-                  start: d === day ? start : 0,
-                  end: d !== day ? end! : overnight ? DAY : end ?? start + 10,
-                  color: label.color, label: labelName(this.hass, label), marker: end === null,
-                  startSun: d === day ? sunDir(slot.start) : null,
-                  endSun: overnight && d === day ? null : sunDir(slot.end),
-                  startSpec: slot.start, endSpec: slot.end,
-                });
-              }
-            }
-          }
-          return html`<div class="schema-day"><span>${name}</span>
-            <wp-day-bar lang=${lang} notches ?show-hours=${day === 6} .spans=${spans}></wp-day-bar>
-          </div>`;
-        })}
-      `)}
+      ${strings(lang).days_short.map((name, day) => html`<div class="schema-day ${day === 5 ? "schema-sat" : ""}"><span>${name}</span>
+        <wp-day-bar lang=${lang} notches ?show-hours=${!off && day === 6} .spans=${this._weekSpans(eid, day)}></wp-day-bar>
+      </div>`)}
+      ${off ? html`<div class="schema-day schema-off" role="group" aria-label=${t(lang, "holiday_title")}><span>${t(lang, "holiday_row")}</span>
+        <wp-day-bar lang=${lang} notches show-hours .spans=${this._weekSpans(eid, null)}></wp-day-bar>
+      </div>` : nothing}
     </section>`;
   }
 
@@ -1359,9 +1397,10 @@ export class WpSchedule extends LitElement {
           ${this._group && (this._open === "new" || (this._open !== null && !rows.some((r) => r.key === this._open))) ? this._renderEditor(this._programs.find((p) => p.id === this._programId) ?? this._programs[0], this._open!) : nothing}
           ${this._open === null ? html`<button class="row add ${first ? "first" : ""}" ?disabled=${!this._canEdit} @click=${() => this._add()}>
             <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${first ? t(lang, "create_setting") : this._focus === null ? t(lang, "w_add") : t(lang, "w_add_day", { day: strings(lang).days[this._focus].toLocaleLowerCase(lang) })}</span></button>` : nothing}
-        </div>`)}
         </div>
-        <div class="area-week">${this._renderWeek()}${this._renderWeekNote()}${this._open === null ? this._renderHoliday() : nothing}</div>
+        ${this._open === null ? this._renderHoliday() : nothing}`)}
+        </div>
+        <div class="area-week">${this._renderWeek()}${this._renderWeekNote()}</div>
         <div class="area-chart">${this._open !== null ? nothing : this._renderChart()}</div>
         <div class="area-options">${this._renderChartOptions()}</div>
         <div class="area-delete">${this._open !== null || this._modeOnly ? nothing : html`<button class="btn danger-line alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteAll()}>
@@ -1437,9 +1476,10 @@ export class WpSchedule extends LitElement {
     .row.copy { border-style: dashed; color: var(--wp-primary-text); font-weight: 500; }
     .schematic { margin-bottom: 16px; }
     .schematic h4 { margin: 8px 0; }
-    .schema-day { display: grid; grid-template-columns: ${TIMELINE.label}px minmax(0, 1fr); gap: ${TIMELINE.gap}px; align-items: center; min-height: 32px; }
-    .schema-day > span { font-size: 0.75rem; color: var(--secondary-text-color); }
+    .schema-day { display: grid; grid-template-columns: ${TIMELINE.label}px minmax(0, 1fr); gap: ${TIMELINE.gap}px; align-items: start; min-height: 32px; }
+    .schema-day > span { font-size: 0.75rem; line-height: 28px; color: var(--secondary-text-color); } /* level with the 28 px bar, also on the row that carries the hours */
     .schema-day wp-day-bar { min-width: 0; }
+    .schema-sat, .schema-off { margin-top: 6px; } /* the weekend stands a little apart, the day off too */
     .list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
     .rests { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
     .rests:empty { display: none; }

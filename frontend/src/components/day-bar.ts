@@ -177,7 +177,7 @@ export class WpDayBar extends LitElement {
     :host { display: block; }
     .wrap { position: relative; }
     .bar {
-      position: relative; height: 28px; border-radius: 14px; overflow: hidden;
+      position: relative; height: var(--wp-bar-height, 28px); border-radius: var(--wp-bar-radius, 14px); overflow: hidden; /* taller where the bar is a touch target */
       background: var(--divider-color, rgba(127, 127, 127, 0.2));
     }
     .bar.thin { height: 10px; border-radius: 5px; }

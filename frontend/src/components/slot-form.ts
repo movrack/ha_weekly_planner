@@ -348,7 +348,6 @@ export class WpSlotForm extends LitElement {
           ${shortcut(t(lang, "all_days"), ALL_DAYS)}${shortcut(t(lang, "weekdays"), WEEKDAYS)}${shortcut(t(lang, "weekend"), WEEKEND)}
         </div>`}
       </section>`}
-      <slot name="after-days"></slot>
       <section>
         <h4>${t(lang, "start")}</h4>
         ${this._timeBlock("start", t(lang, "start"))}

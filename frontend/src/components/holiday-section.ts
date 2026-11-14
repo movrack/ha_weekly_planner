@@ -53,11 +53,6 @@ export class WpHoliday extends LitElement {
   @state() private _editing: string | null = null;
   @state() private _group: SlotGroup | null = null;
 
-  protected updated(changed: Map<string, unknown>): void {
-    // the outer slot form hides its own Save / Cancel while this form is open (one pair at a time)
-    if (changed.has("_group")) this.dispatchEvent(new CustomEvent("holiday-form", { detail: this._group !== null, bubbles: true, composed: true }));
-  }
-
   private get _lang(): string { return langOf(this.hass); }
   private get _shown(): Profile { return this.source ?? this.profile; }
   private get _readOnly(): boolean { return !this.canEdit || this.source !== null; }

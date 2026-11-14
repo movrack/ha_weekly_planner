@@ -9,7 +9,7 @@ import { WpTimesDay } from "../components/times-day";
 import { syncPreviewCache, fetchPreviewResponse, clearPreviewCache } from "../preview-cache";
 import { WpBarEditor } from "../components/bar-editor";
 import { confirmAction } from "../components/confirm";
-import { flat } from "./helpers/tpl";
+import { flat, handlers } from "./helpers/tpl";
 
 vi.mock("../components/confirm", async (orig) => ({ ...(await orig<typeof import("../components/confirm")>()), confirmAction: vi.fn(async () => true) }));
 
@@ -238,18 +238,6 @@ describe("day-off section", () => {
     await el._pickDay(5);
     expect(root.day.value).toBe("2");
     expect(el._group).not.toBeNull();
-  });
-  it("tells the outer form while its own form is open, so only one Save / Cancel pair shows", () => {
-    (globalThis as any).CustomEvent ??= class { type: string; detail: unknown; constructor(t: string, i: any) { this.type = t; this.detail = i?.detail; } };
-    const el = make({ profile: profile({ day: [slot("h")] }) });
-    const seen: any[] = [];
-    el.dispatchEvent = (e: any) => { seen.push([e.type, e.detail]); return true; };
-    el._add();
-    el.updated(new Map([["_group", null]]));
-    el._group = null;
-    el.updated(new Map([["_group", {}]]));
-    el.updated(new Map([["_open", false]]));
-    expect(seen).toEqual([["holiday-form", true], ["holiday-form", false]]);
   });
   it("a successful write clears the draft", async () => {
     const el = make({ profile: profile({ day: [slot("h")] }) });
@@ -521,5 +509,135 @@ describe("preview cache and a day off", () => {
     syncPreviewCache({ card_version: "v", holiday_today: true, programs: [{ id: "p", revision: 1 }] });
     await fetchPreviewResponse(h, "p", 1, "2026-11-02");
     expect(ws).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("day-off row under Sunday in the week schematics", () => {
+  /** Every `.spans=${...}` array of a template tree, in document order (empty rows included). */
+  const spansOf = (tpl: any): any[][] => {
+    const found: any[][] = [];
+    const walk = (v: any): void => {
+      if (Array.isArray(v)) v.forEach(walk);
+      else if (v?.strings) v.values.forEach((x: any, i: number) => { if (/\.spans=$/.test(v.strings[i])) found.push(x); else walk(x); });
+    };
+    walk(tpl);
+    return found;
+  };
+  /** The values of every `?show-hours=${...}` (the hour axis of the weekday rows). */
+  const hoursAt = (tpl: any): boolean[] => {
+    const out: boolean[] = [];
+    const walk = (v: any): void => {
+      if (Array.isArray(v)) v.forEach(walk);
+      else if (v?.strings) v.values.forEach((x: any, i: number) => { if (/\?show-hours=$/.test(v.strings[i])) out.push(x); else walk(x); });
+    };
+    walk(tpl);
+    return out;
+  };
+  const win = (prof: any, data: any = {}, extra: any[] = []) => {
+    const p: any = { ...program("p", prof), profiles: [prof, ...extra] };
+    const w = new WpSchedule() as any;
+    w.hass = hass;
+    w.scope = { kind: "device", entityId: "cover.b" };
+    w.data = { labels: [label], programs: [p], status: {}, can_edit: true, holiday_entity: "binary_sensor.off", ...data };
+    return w;
+  };
+  const rowOf = (w: any) => { const h = flat(w._renderWeek()); return { html: h, off: h.includes("schema-off") }; };
+  const prof = (holiday?: any, dayList = days()) => ({ id: "pr", name: "A", days: dayList, ...(holiday !== undefined ? { holiday } : {}) });
+  const dayList = () => { const d = days(); d[2] = [slot("wed", "06:00", "07:00")]; return d; };
+
+  it("window: a copy shows the copied weekday's slots after Sunday, labelled with holiday_row", () => {
+    const w = win(prof({ copy: 2 }, dayList()));
+    const out = spansOf(w._renderWeek());
+    expect(out).toHaveLength(8);
+    expect(out[6].map((s) => [s.start, s.end])).toEqual([[480, 540]]); // Sunday
+    expect(out[7].map((s) => [s.start, s.end])).toEqual([[360, 420]]); // the copied Wednesday
+    const { html, off } = rowOf(w);
+    expect(off).toBe(true);
+    expect(html).toContain(t("en", "holiday_row"));
+    expect(html.indexOf("schema-off")).toBeGreaterThan(html.indexOf("Sun"));
+    expect(t("en", "holiday_row")).toBe("Off");
+    expect(t("fr", "holiday_row")).toBe("Férié");
+    w.hass = { ...hass, language: "fr" };
+    expect(flat(w._renderWeek())).toContain("Férié");
+  });
+  it("window: an own day shows holiday.day; the hour axis moves to the row", () => {
+    const w = win(prof({ day: [slot("h", "10:00", "11:00")] }));
+    const out = spansOf(w._renderWeek());
+    expect(out[7].map((s) => [s.start, s.end])).toEqual([[600, 660]]);
+    expect(hoursAt(w._renderWeek())).toEqual([false, false, false, false, false, false, false]);
+    expect(flat(w._renderWeek()).slice(flat(w._renderWeek()).indexOf("schema-off"))).toContain("notches show-hours");
+  });
+  it("window: absent with no setting, with off, and without the day-off entity", () => {
+    expect(rowOf(win(prof())).off).toBe(false);
+    expect(spansOf(win(prof())._renderWeek())).toHaveLength(7);
+    expect(rowOf(win(prof({ copy: 2, off: true }))).off).toBe(false);
+    expect(rowOf(win(prof({ day: [slot("h")], off: true }))).off).toBe(false);
+    expect(rowOf(win(prof({ copy: 2 }), { holiday_entity: null })).off).toBe(false);
+    expect(hoursAt(win(prof())._renderWeek())).toEqual([false, false, false, false, false, false, true]);
+  });
+  it("window: a mode that follows another shows its source's day off", () => {
+    const src = { id: "pa", name: "A", days: days(), holiday: { day: [slot("h", "12:00", "13:00")] } };
+    const follower = { id: "pb", name: "B", days: days(), follows: "A" };
+    const w = win(src, { mode: { selector: "input_select.m", active: "A", options: ["A", "B"] } }, [follower]);
+    w._viewMode = "B";
+    const out = spansOf(w._renderWeek());
+    expect(out).toHaveLength(8);
+    expect(out[7].map((s) => [s.start, s.end])).toEqual([[720, 780]]);
+  });
+  it("window: a slot passing midnight is cut at 24:00 and nothing is carried over from the day before", () => {
+    const d = days(); d[6] = [slot("sun", "22:00", "02:00")];
+    const w = win(prof({ copy: 6 }, d));
+    const out = spansOf(w._renderWeek());
+    expect(out[7].map((s) => [s.start, s.end])).toEqual([[1320, 1440]]);
+    const own = spansOf(win(prof({ day: [slot("h", "23:00", "01:00")] }, d))._renderWeek());
+    expect(own[7].map((s) => [s.start, s.end])).toEqual([[1380, 1440]]);
+    // Sunday's own row keeps its carry-over rules: Monday shows the tail of Sunday's 22:00-02:00 slot
+    expect(own[0].map((s) => [s.start, s.end])).toEqual([[0, 120]]);
+    expect(out[7]).toHaveLength(1); // no 0-120 piece from the previous day
+  });
+  it("window: the row is display only (no handler, no button, not focusable)", () => {
+    const w = win(prof({ copy: 2 }, dayList()));
+    const h = flat(w._renderWeek());
+    const row = h.slice(h.indexOf("schema-off"));
+    expect(row).not.toContain("<button");
+    expect(row).not.toContain("tabindex");
+    expect(handlers(w._renderWeek())).toHaveLength(0);
+  });
+
+  const cardWeek = (prof2: any, data: any = {}, p0?: any) => {
+    const p: any = p0 ?? program("p", prof2);
+    const c = card({ programs: [p], holiday_entity: "binary_sensor.off", ...data });
+    return { c, p };
+  };
+  it("card: the week shows the row after Sunday for a copy and an own day, display only", () => {
+    const a = cardWeek(profile({ copy: 6 }));
+    const tpl = a.c._holidayRow("cover.b", a.p);
+    expect(spansOf(tpl)[0].map((s) => [s.start, s.end])).toEqual([[480, 540]]);
+    const h = flat(tpl);
+    expect(h).toContain(t("en", "holiday_row"));
+    expect(h).toContain(t("en", "holiday_title"));
+    expect(h).not.toContain("<button");
+    expect(handlers(tpl)).toHaveLength(0);
+    const b = cardWeek(profile({ day: [slot("h", "10:00", "11:00")] }));
+    expect(spansOf(b.c._holidayRow("cover.b", b.p))[0].map((s) => [s.start, s.end])).toEqual([[600, 660]]);
+    // in the week, right after the seven day rows
+    b.c._week = new Set(["p:p|cover.b"]);
+    const open = flat(b.c._extras({ kind: "program", programId: "p" }, "cover.b", [b.p]));
+    expect(open).toContain("wday-off");
+    expect(open.indexOf("wday-off")).toBeGreaterThan(open.lastIndexOf('class="wday"'));
+  });
+  it("card: absent with no setting, off, no entity; follows the source; cut at 24:00", () => {
+    for (const [h, data] of [[undefined, {}], [{ copy: 6, off: true }, {}], [{ copy: 6 }, { holiday_entity: null }]] as any[]) {
+      const x = cardWeek(profile(h), data);
+      expect(flat(x.c._holidayRow("cover.b", x.p))).toBe("");
+    }
+    const src = { id: "pa", name: "A", days: days(), holiday: { day: [slot("h", "12:00", "13:00")] } };
+    const p: any = { ...program("p"), profiles: [src, { id: "pb", name: "B", days: days(), follows: "A" }] };
+    const f = cardWeek(null, { mode: { selector: "input_select.m", active: "B", options: ["A", "B"] } }, p);
+    expect(spansOf(f.c._holidayRow("cover.b", p))[0].map((s) => [s.start, s.end])).toEqual([[720, 780]]);
+    const d = days(); d[6] = [slot("sun", "22:00", "02:00")];
+    const m = cardWeek(null);
+    const q: any = program("p", { id: "pr", name: "A", days: d, holiday: { copy: 6 } });
+    expect(spansOf(m.c._holidayRow("cover.b", q))[0].map((s) => [s.start, s.end])).toEqual([[1320, 1440]]);
   });
 });

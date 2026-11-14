@@ -39,10 +39,10 @@ describe("slot form: advanced options fold", () => {
     expect(html.lastIndexOf('type="time"')).toBeLessThan(at('class="row opts"'));
     expect(at('class="row opts"')).toBeLessThan(at("<wp-label-picker"));
   });
-  it("offers a slot for the day-off section right under the days, before the times", () => {
+  it("has no day-off section: the day off is set under the week, never inside one schedule", () => {
     const html = flat(form({ end: { time: "09:00" } }).el.render());
-    expect(html.indexOf('class="days"')).toBeLessThan(html.indexOf('<slot name="after-days">'));
-    expect(html.indexOf('<slot name="after-days">')).toBeLessThan(html.indexOf('type="time"'));
+    expect(html).not.toContain("after-days");
+    expect(html).not.toContain("wp-holiday");
   });
   it("opens by clicking and then shows the sun choice and random delay for start and end", () => {
     const { el } = form({});

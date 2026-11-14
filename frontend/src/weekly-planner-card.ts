@@ -29,7 +29,9 @@ import { timesRows } from "./times-list";
 import { configDefaults, normalizeConfig } from "./config";
 import { activeFollow, activeProfile, entityDomain, filterPrograms, friendlyName, subscribePlanner } from "./planner";
 import { groupItems, sortMode } from "./list-order";
-import { allSlots, dayInText, holidayApplies, holidayDayToday, holidayLine, holidayReplaces } from "./holiday";
+import { allSlots, dayInText, holidayApplies, holidayChoice, holidayDayToday, holidayLine, holidayOwnSlots, holidayReplaces } from "./holiday";
+import { passesMidnight } from "./components/holiday-section";
+import { specMinutes } from "./slots";
 import type { DomainLocalize } from "./domains";
 import { dayBounds, addDaysIso } from "./components/chart";
 import { currentTimeFormat, formatPauseEnd, formatWhen, setTimeFormat, localDateIso, localMinutes, localWeekday, nominal, pauseEnd, spillover, DAY } from "./time";
@@ -322,6 +324,32 @@ export class WeeklyPlannerCard extends LitElement {
       }
     }
     return spans;
+  }
+
+  /**
+   * The day-off row under Sunday in the week: the mode's day-off schedule, display only, cut at 24:00 (nothing carried over
+   * from the day before). Empty without a day-off entity or when the shown mode has no day off that applies.
+   */
+  private _holidayRow(entityId: string, program: Program) {
+    const data = this._data;
+    if (!data?.holiday_entity) return nothing;
+    const profile = activeProfile(program, data);
+    if (holidayChoice(profile) === "none" || !profile.holiday) return nothing;
+    const slots = "copy" in profile.holiday ? profile.days[profile.holiday.copy] ?? [] : holidayOwnSlots(profile);
+    const spans: BarSpan[] = [];
+    for (const slot of slots) {
+      const label = labelOf(data, slot.label);
+      if (!label || !appliedAction(this.hass, program, entityId, label, slot)) continue;
+      const start = specMinutes(this.hass, slot.start);
+      const cut = passesMidnight(this.hass, slot);
+      const end = slot.end ? (cut ? DAY : specMinutes(this.hass, slot.end)) : null;
+      spans.push({ start, end: end ?? Math.min(DAY, start + 10), color: label.color, label: labelName(this.hass, label), labelId: label.id, slotId: slot.id,
+        startSun: sunDir(slot.start), endSun: cut ? null : sunDir(slot.end), startSpec: slot.start, endSpec: slot.end ?? null, marker: !slot.end });
+    }
+    const lang = this._lang;
+    return html`<div class="wday wday-off" role="group" aria-label=${t(lang, "holiday_title")}>
+      <span class="wname">${t(lang, "holiday_row")}</span>
+      <wp-day-bar lang=${lang} notches .spans=${spans}></wp-day-bar></div>`;
   }
 
   /** Resolved occurrences of one device for a date and the day before (see `deviceDays`). */
@@ -656,6 +684,7 @@ export class WeeklyPlannerCard extends LitElement {
               <span class="wname ${o === 0 ? "today" : ""}">${days[weekday]}</span></button>
             ${this._bar(entityId, program, o, "week", openDay)}</div>`;
         })}
+        ${this._holidayRow(entityId, program)}
       </div>` : nothing}
       ${chartOpen ? html`<div class="chartbox"><wp-chart .hass=${this.hass} .data=${this._data} .program=${program}
         entity-id=${entityId} date=${date} .slots=${slots ? [...(previous ?? []), ...slots] : null}
@@ -828,14 +857,21 @@ export class WeeklyPlannerCard extends LitElement {
       flex: none; width: ${TIMELINE.label + TIMELINE.gap}px; margin-right: -${TIMELINE.gap}px; height: 48px; padding: 0; border: none; border-radius: 8px; background: none; color: inherit;
       font: inherit; cursor: pointer; text-align: left; display: flex; align-items: center;
     }
-    .wday .wnamebtn { margin-top: 6px; }
     .wnamebtn:hover .wname { text-decoration: underline; }
-    .wday wp-bar-editor { margin: 16px 0 10px; }
+    /* one row = 48 px, the touch target: the bar fills it (44 px) and only 4 px separate two bars (owner, 2026-11-14:
+       small gaps, a taller bar for the finger); the day name is level with the bar; the weekend stands a little apart */
+    .wday wp-bar-editor, .wday wp-day-bar { --wp-bar-height: 44px; --wp-bar-radius: 12px; margin: 2px 0; }
+    .wday:has(.wname.today) { margin-top: 18px; } /* room for the "now" clock above today's bar */
+    .week > .wday:nth-child(6), .wday-off { margin-top: 6px; }
+    .week > .wday:nth-child(6):has(.wname.today) { margin-top: 18px; }
+    .wday-off { align-items: center; }
+    .wday-off .wname { line-height: 1.2; }
     .wname { flex: none; width: ${TIMELINE.label}px; font-size: 0.875rem; color: var(--secondary-text-color); }
-    .wday wp-bar-editor, .today wp-bar-editor { flex: 1; min-width: 0; }
+    .wday wp-bar-editor, .wday wp-day-bar, .today wp-bar-editor { flex: 1; min-width: 0; }
     .wname.today { color: var(--primary-text-color); font-weight: 600; }
     .today { display: flex; align-items: flex-start; gap: ${TIMELINE.gap}px; padding-top: 20px; } /* room for the "now" clock above the bar */
     .today .wname { line-height: 28px; margin-top: 2px; }
+    .wname.today { display: block; padding-top: 0; } /* the name of today in the week is not the "today" row above */
     .prog { padding: 8px 0 4px; border-top: 1px solid var(--divider-color); }
     .prog:first-of-type, .head + .prog { border-top: none; }
     .prog .block { border-top: none; padding: 2px 0 4px; }
