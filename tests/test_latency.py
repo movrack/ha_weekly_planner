@@ -57,7 +57,7 @@ async def test_state_change_during_a_pass_waits_for_it(hass, hass_storage, freez
     rec.calls.clear()
     task = await _paused_recompute(hass, engine, monkeypatch, "startup")
     hass.states.async_set("binary_sensor.window", "on")  # arrives in the middle of the pass
-    assert engine._deferred_states  # noqa: SLF001
+    assert engine._deferred_states
     assert engine.conditions.check([closed])  # not observed yet: the pass keeps its view
     await task
     await hass.async_block_till_done()
@@ -76,7 +76,7 @@ async def test_stop_during_a_pass_sends_nothing_more(hass, hass_storage, freezer
     await task
     await hass.async_block_till_done()
     assert len(rec.calls) < 4
-    assert engine._timer is None  # noqa: SLF001 - no timer armed after the stop
+    assert engine._timer is None
 
 
 async def test_commands_wait_for_the_pass(hass, hass_storage, freezer, monkeypatch):
@@ -98,7 +98,7 @@ async def test_published_statuses_follow_a_change_during_the_publication(hass, h
     engine = await setup(hass, hass_storage, freezer, [program(), program("other", entities=[])], local(26, 9, 0))
     published = []
     engine.add_listener(lambda: published.append(engine.program_status("office")))
-    original = engine._program_status  # noqa: SLF001
+    original = engine._program_status
     calls = 0
 
     def program_status(ctx, program_id):
@@ -120,7 +120,7 @@ async def test_published_statuses_follow_a_replaced_program(hass, hass_storage, 
     engine = await setup(hass, hass_storage, freezer, [program(), program("other", entities=[])], local(26, 9, 0))
     published = []
     engine.add_listener(lambda: published.append(engine.program_status("office")))
-    original = engine._program_status  # noqa: SLF001
+    original = engine._program_status
     calls = 0
 
     def program_status(ctx, program_id):
@@ -145,7 +145,7 @@ async def test_statuses_prepared_by_the_recompute_are_published(hass, hass_stora
     published = []
     engine.add_listener(lambda: published.append(engine.program_status("office")))
     counter = []
-    original = engine._program_status  # noqa: SLF001
+    original = engine._program_status
     monkeypatch.setattr(engine, "_program_status", lambda ctx, pid: counter.append(pid) or original(ctx, pid))
     await engine.async_recompute("tick")
     assert counter == ["office"] and len(published) == 1  # computed once, before the notification
@@ -158,7 +158,7 @@ def test_occurrence_cache_shares_days_and_ignores_replaced_profiles(monkeypatch)
     profile = program()["profiles"][0]
     cache = OccurrenceCache()
     now = local(26, 9, 0)
-    sun = lambda event, day: None  # noqa: E731
+    sun = lambda event, day: None
     plain = occurrences_around(profile, now, TZ, sun, program_id="office")
     count = len(calls)
     assert occurrences_around(profile, now, TZ, sun, program_id="office", cache=cache) == plain

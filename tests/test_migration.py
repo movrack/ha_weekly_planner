@@ -5,9 +5,13 @@ from __future__ import annotations
 import logging
 
 from custom_components.weekly_planner.const import DOMAIN
-from custom_components.weekly_planner.migration import convert_setpoint, migrate_config_v1, migrate_runtime_v1
+from custom_components.weekly_planner.migration import (
+    convert_setpoint,
+    migrate_config_v1,
+    migrate_runtime_v1,
+)
 
-from .helpers import local, setup
+from .helpers import local
 
 THERMOSTAT = "climate.thermostat_bureau"
 VOLET = "cover.bureau_volet_low_speed"
@@ -85,7 +89,7 @@ def test_production_programs_are_converted():
 def test_label_names_follow_the_actions():
     from custom_components.weekly_planner.migration import label_name
 
-    svc = lambda s, **d: {"kind": "service", "service": s, "data": d}  # noqa: E731
+    svc = lambda s, **d: {"kind": "service", "service": s, "data": d}
     assert label_name(svc("cover.set_cover_position", position=30), "fr") == "Position 30 %"
     assert label_name(svc("light.turn_on", brightness_pct=30), "fr") == "Allumer 30 %"
     assert label_name(svc("light.turn_on"), "fr") == "Allumer" and label_name(svc("switch.turn_off"), "fr") == "Éteindre"

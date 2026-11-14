@@ -172,7 +172,7 @@ async def test_snapshot_and_subscribe_carry_lists_seed_and_skip_targets(hass, ha
     prog = owner()
     for day in prog["profiles"][0]["days"]:
         day[0]["seed"] = "shared"
-    engine = await setup(hass, hass_storage, freezer, [prog], None)
+    await setup(hass, hass_storage, freezer, [prog], None)
     ws = await hass_ws_client(hass)
     data = (await ask(ws, {"type": f"{DOMAIN}/get"}))["result"]
     day = data["programs"][0]["profiles"][0]["days"][0]

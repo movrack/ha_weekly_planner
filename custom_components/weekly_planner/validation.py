@@ -7,11 +7,17 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import voluptuous as vol
-
 from homeassistant.helpers import config_validation as cv
 
 from .actions import needs_admin
-from .const import DEFAULT_PRIORITY, DEFAULT_REAPPLY, DOMAIN, HOLIDAY_DOMAINS, MODE_NAME_MAX, MODE_SELECTOR_DOMAINS
+from .const import (
+    DEFAULT_PRIORITY,
+    DEFAULT_REAPPLY,
+    DOMAIN,
+    HOLIDAY_DOMAINS,
+    MODE_NAME_MAX,
+    MODE_SELECTOR_DOMAINS,
+)
 from .modes import check_follows, profile_slots
 from .slots import applicable_ids
 from .timeline import SUN_EVENTS, day_occurrences, parse_clock
@@ -51,7 +57,7 @@ _SUN_TIME = vol.All(
 )
 
 
-def TIME_SPEC(value: Any) -> dict:  # noqa: N802 - used like a schema
+def TIME_SPEC(value: Any) -> dict:
     """Fixed or solar time; the error names the actual problem of a solar time."""
     if isinstance(value, dict) and "sun" in value:
         return _SUN_TIME(value)
@@ -133,9 +139,11 @@ def _weekday(value: Any) -> int:
 DAY = vol.All([SLOT], vol.Length(max=50))
 
 # Day off (issue #54): a live copy of a weekday (0 = Monday) or a day of its own, same shape as a day.
+# Nothing is lost when the user changes their mind: ``off`` keeps the setting without applying it, and a
+# copied weekday may keep the own day (``day``) written before.
 HOLIDAY = vol.Any(
-    vol.Schema({vol.Required("copy"): _weekday}),
-    vol.Schema({vol.Required("day"): DAY}),
+    vol.Schema({vol.Required("copy"): _weekday, vol.Optional("day"): DAY, vol.Optional("off"): bool}),
+    vol.Schema({vol.Required("day"): DAY, vol.Optional("off"): bool}),
     msg="invalid_holiday",
 )
 
@@ -364,6 +372,12 @@ def check_program(program: dict, labels: dict[str, dict], hass: Any = None, desc
             profile.pop("follows", None)
         if profile.get("holiday") is None:
             profile.pop("holiday", None)
+        else:  # one stored form: no ``off: false``, no empty kept day beside a copied weekday
+            setting = profile["holiday"]
+            if not setting.get("off"):
+                setting.pop("off", None)
+            if "copy" in setting and not setting.get("day"):
+                setting.pop("day", None)
     try:
         check_follows(program["profiles"])
     except ValueError as err:

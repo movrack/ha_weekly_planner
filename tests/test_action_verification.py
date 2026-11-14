@@ -95,7 +95,7 @@ async def test_manual_change_while_pending_is_respected(hass, hass_storage, free
 
 
 async def test_manual_change_before_the_check(hass, hass_storage, freezer):
-    rec, engine = await _start(hass, hass_storage, freezer)
+    _rec, engine = await _start(hass, hass_storage, freezer)
     hass.states.async_set(CLIMATE, "heat", _attrs(hass, preset_mode="away"))
     await tick(hass, freezer, SETTLE)
     assert engine.rt(CLIMATE)["verification"] == "manual"
@@ -124,7 +124,7 @@ async def test_rate_limit_and_max_tries(hass, hass_storage, freezer):
 
 
 async def test_numeric_tolerance(hass, hass_storage, freezer):
-    rec = Virtual(hass, ready=True)
+    Virtual(hass, ready=True)
     engine = await setup(hass, hass_storage, freezer, [_prog("t19")], local(26, 7, 0), extra_labels=_labels())
     await go_to(hass, freezer, local(26, 8, 45))
     assert hass.states.get(CLIMATE).attributes["temperature"] == 19
@@ -182,7 +182,7 @@ async def _edge_case(hass, hass_storage, freezer):
     await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
     rec = Virtual(hass)
-    engine = await setup(hass, hass_storage, freezer, [_prog(reapply=False)], local(27, 7, 0), extra_labels=_labels())
+    await setup(hass, hass_storage, freezer, [_prog(reapply=False)], local(27, 7, 0), extra_labels=_labels())
     await go_to(hass, freezer, local(27, 8, 0))
     assert len(rec.calls) == 1
     await tick(hass, freezer, SETTLE)

@@ -4,15 +4,14 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 from pytest_homeassistant_custom_component.common import MockConfigEntry
-
-from homeassistant.helpers import entity_registry as er, issue_registry as ir
 
 from custom_components.weekly_planner.const import DOMAIN
 from custom_components.weekly_planner.migration import migrate_config_v2
 
 from .helpers import Recorder, labels, local, program, slot, tick
-
 
 
 def old_program(pid: str, source: str | None = None, *, modes: tuple[str, ...] = ("Base",), active: str | None = None) -> dict:

@@ -103,9 +103,11 @@ export class WpSlotForm extends LitElement {
   /** Show "Also for: …" (the other devices of the program); off while editing for this device only (D1). */
   @property({ attribute: false }) also = true;
   /** Opened from one day of the week: edit that day only, other days on request. */
+  /** A day-off schedule has no weekday: the Days section is not shown. */
+  @property({ type: Boolean }) noDays = false;
   @property({ type: Number }) dayOnly: number | null = null;
   @state() private _more = false;
-  /** "Advanced options" fold (random delay only): closed unless the slot already uses one. */
+  /** "Advanced options" fold (sun times, random delay, time limits): closed unless the slot already uses one. */
   @state() private _advOpen = false;
   private _advTouched = false;
   private _advSlot = "";
@@ -114,9 +116,9 @@ export class WpSlotForm extends LitElement {
 
   private get _lang(): string { return langOf(this.hass); }
 
-  /** The slot already uses a random delay: it must not stay hidden (sun times and limits are always visible by the time fields). */
+  /** The slot already uses a sun time, a random delay or a time limit: nothing may stay hidden. */
   private get _usesAdvanced(): boolean {
-    return [this.group?.slot.start, this.group?.slot.end].some((spec) => Boolean(spec?.random_minutes));
+    return [this.group?.slot.start, this.group?.slot.end].some((spec) => Boolean(spec && ("sun" in spec || spec.random_minutes)));
   }
 
   willUpdate(): void {
@@ -227,18 +229,10 @@ export class WpSlotForm extends LitElement {
               aria-label=${title} aria-describedby=${this._hintId(which, spec.time === "24:00" ? "00:00" : spec.time)} @input=${(e: Event) => this._type(which, e)} @change=${(e: Event) => { this._typedDone(which); this._fromInput(which, (e.target as HTMLInputElement).value); }} />`
           : html`<output class="sun">${specText(lang, { ...spec, random_minutes: 0 })}</output>`}
         <button class="step" ?disabled=${dis} aria-label=${t(lang, "plus15")} title=${t(lang, "plus15")} @click=${() => this._update(which, shiftSpec(spec, 15))}><ha-icon icon="mdi:plus"></ha-icon></button>
-      </div>${"time" in spec ? this._hint(which, spec.time === "24:00" ? "00:00" : spec.time) : nothing}
-      <div class="chips sunchips" role="group" aria-label=${`${title}: ${t(lang, "sun_chips")}`}>
-        ${SUNS.map((sun) => {
-          const on = "sun" in spec && spec.sun === sun;
-          return html`<button class="chip ${on ? "on" : ""}" aria-pressed=${on} ?disabled=${dis}
-            @click=${() => this._toggleSun(which, sun)}><ha-icon icon=${sun === "sunrise" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down"}></ha-icon>${s[`sun_${sun}` as "sun_dawn"] ?? sun}</button>`;
-        })}
-      </div>
-      ${"sun" in spec ? this._limits(which, spec, title) : nothing}`;
+      </div>${"time" in spec ? this._hint(which, spec.time === "24:00" ? "00:00" : spec.time) : nothing}`;
   }
 
-  /** Random delay of one boundary (inside the "Advanced options" fold). */
+  /** Sun choice, time limits and random delay of one boundary (inside the "Advanced options" fold). */
   private _advancedBlock(which: Which, title: string) {
     const spec = this.group.slot[which];
     if (!spec) return nothing;
@@ -247,6 +241,14 @@ export class WpSlotForm extends LitElement {
     const dis = this.disabled;
     return html`
       <h5>${title}</h5>
+      <div class="chips" role="group" aria-label=${`${title}: ${t(lang, "sun_chips")}`}>
+        ${SUNS.map((sun) => {
+          const on = "sun" in spec && spec.sun === sun;
+          return html`<button class="chip ${on ? "on" : ""}" aria-pressed=${on} ?disabled=${dis}
+            @click=${() => this._toggleSun(which, sun)}><ha-icon icon=${sun === "sunrise" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down"}></ha-icon>${s[`sun_${sun}` as "sun_dawn"] ?? sun}</button>`;
+        })}
+      </div>
+      ${"sun" in spec ? this._limits(which, spec, title) : nothing}
       <div class="random">
         <label><input type="checkbox" aria-describedby=${`random-${which}`} .checked=${Boolean(spec.random_minutes)} ?disabled=${dis}
           @change=${(e: Event) => this._random(which, (e.target as HTMLInputElement).checked ? 15 : 0)} />${t(lang, "random_time")}</label>
@@ -332,6 +334,21 @@ export class WpSlotForm extends LitElement {
     const shortcut = (label: string, set: number[]) => html`<button class="chip small ${eq(days, set) ? "on" : ""}"
       aria-pressed=${eq(days, set)} ?disabled=${this.disabled} @click=${() => this._set({}, set === ALL_DAYS && eq(days, set) ? [] : [...set])}>${eq(days, set) ? html`<ha-icon icon="mdi:check"></ha-icon>` : nothing}${label}</button>`;
     return html`
+      ${this.noDays ? nothing : html`<section>
+        <h4>${t(lang, "days_label")}</h4>
+        ${this.dayOnly !== null && !this._more && eq(days, [this.dayOnly])
+          ? html`<div class="chips"><span class="only">${s.days[this.dayOnly]}</span>
+              <button class="chip" ?disabled=${this.disabled} @click=${() => (this._more = true)}>
+                <ha-icon icon="mdi:calendar-plus"></ha-icon>${t(lang, "apply_other_days")}</button></div>`
+          : html`<div class="days" role="group" aria-label=${t(lang, "days_label")}>
+          ${s.days_short.map((name, d) => html`<button class="day ${days.includes(d) ? "on" : ""}" aria-pressed=${days.includes(d)}
+            aria-label=${s.days[d]} ?disabled=${this.disabled} @click=${() => this._toggleDay(d)}>${days.includes(d) ? html`<ha-icon icon="mdi:check"></ha-icon>` : nothing}<span>${name}</span></button>`)}
+        </div>
+        <div class="chips">
+          ${shortcut(t(lang, "all_days"), ALL_DAYS)}${shortcut(t(lang, "weekdays"), WEEKDAYS)}${shortcut(t(lang, "weekend"), WEEKEND)}
+        </div>`}
+      </section>`}
+      <slot name="after-days"></slot>
       <section>
         <h4>${t(lang, "start")}</h4>
         ${this._timeBlock("start", t(lang, "start"))}
@@ -346,29 +363,15 @@ export class WpSlotForm extends LitElement {
         </div>
         ${slot.end ? this._timeBlock("end", t(lang, "end")) : nothing}
       </section>
-      <section>
-        <h4>${t(lang, "days_label")}</h4>
-        ${this.dayOnly !== null && !this._more && eq(days, [this.dayOnly])
-          ? html`<div class="chips"><span class="only">${s.days[this.dayOnly]}</span>
-              <button class="chip" ?disabled=${this.disabled} @click=${() => (this._more = true)}>
-                <ha-icon icon="mdi:calendar-plus"></ha-icon>${t(lang, "apply_other_days")}</button></div>`
-          : html`<div class="days" role="group" aria-label=${t(lang, "days_label")}>
-          ${s.days_short.map((name, d) => html`<button class="day ${days.includes(d) ? "on" : ""}" aria-pressed=${days.includes(d)}
-            aria-label=${s.days[d]} ?disabled=${this.disabled} @click=${() => this._toggleDay(d)}>${days.includes(d) ? html`<ha-icon icon="mdi:check"></ha-icon>` : nothing}<span>${name}</span></button>`)}
-        </div>
-        <div class="chips">
-          ${shortcut(t(lang, "all_days"), ALL_DAYS)}${shortcut(t(lang, "weekdays"), WEEKDAYS)}${shortcut(t(lang, "weekend"), WEEKEND)}
-        </div>`}
-      </section>
+      ${foldSection(lang, this._advIsOpen(), () => { const open = this._advIsOpen(); this._advTouched = true; this._advOpen = !open; },
+        html`${this._advancedBlock("start", t(lang, "start"))}${slot.end ? this._advancedBlock("end", t(lang, "end")) : nothing}`)}
       <section>
         <h4>${t(lang, "action")}</h4>
         <wp-label-picker embedded .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${this.entityIds}
           .value=${slot.label || null} ?disabled=${this.disabled}
           @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._set({ label: e.detail ?? "" }); }}></wp-label-picker>
       </section>
-      ${this._alsoFor()}
-      ${foldSection(lang, this._advIsOpen(), () => { const open = this._advIsOpen(); this._advTouched = true; this._advOpen = !open; },
-        html`${this._advancedBlock("start", t(lang, "start"))}${slot.end ? this._advancedBlock("end", t(lang, "end")) : nothing}`)}`;
+      ${this._alsoFor()}`;
   }
 
   static styles = [editorStyles, css`

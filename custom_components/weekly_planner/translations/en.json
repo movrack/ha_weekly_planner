@@ -26,17 +26,27 @@
           "admin_only": "Only administrators can edit programs",
           "reapply_default": "Send the current setting again after a restart or a change (default for new programs)",
           "notify_delay_min": "Alert when a device has been unavailable for",
-          "debounce_min": "Wait before applying a change of condition",
-          "mode_selector": "Mode selector (optional)",
-          "holiday_entity": "Holiday or day off (optional)",
-          "holiday_invert": "This entity is “on” on a working day"
+          "debounce_min": "Wait before applying a change of condition"
         },
         "data_description": {
           "notify_delay_min": "If a device driven by a schedule stays unavailable longer than this, Home Assistant shows a notification. The setting is sent again by itself when the device comes back.",
-          "debounce_min": "A program can have conditions that you add yourself, for example “someone is home” or “temperature > 24 °C”. When one of them changes, Weekly Planner waits this long before acting, to ignore brief flickers. 0 = immediately.",
-          "mode_selector": "A Home Assistant selector (input_select or select) whose current choice is the active Mode of the house, for example Home, Away or Vacation. Weekly Planner only reads it and never changes it. Leave empty to have a single Mode.",
-          "holiday_entity": "A Home Assistant entity (binary_sensor, input_boolean, switch or calendar) that is “on” on a holiday or day off. On such a day, a Mode with a Day off setting uses it instead of the weekday. Leave empty to ignore days off.",
-          "holiday_invert": "For a Workday sensor, which is “on” on working days. Weekends then count as days off too: prefer a public-holiday calendar (Holiday integration)."
+          "debounce_min": "A program can have conditions that you add yourself, for example “someone is home” or “temperature > 24 °C”. When one of them changes, Weekly Planner waits this long before acting, to ignore brief flickers. 0 = immediately."
+        },
+        "sections": {
+          "mode_and_day_off": {
+            "name": "Mode and day off",
+            "description": "The mode has priority over the day off. The day off only applies to the current mode: when the mode changes, the new mode uses its own day-off setting.",
+            "data": {
+              "mode_selector": "Mode selector (optional)",
+              "holiday_entity": "Holiday or day off (optional)",
+              "holiday_invert": "This entity is on during working days, not on days off"
+            },
+            "data_description": {
+              "mode_selector": "A Home Assistant selector (input_select or select) whose current choice is the active Mode of the house, for example Home, Away or Vacation. Weekly Planner only reads it and never changes it. Leave empty to have a single Mode.",
+              "holiday_entity": "A Home Assistant entity that is on (“on”) on a holiday or day off: for example a toggle that you switch on yourself, or a public-holiday calendar. On such a day, a Mode with a Day off setting uses it instead of the weekday. Leave empty to ignore days off.",
+              "holiday_invert": "Tick only if the chosen entity is on (“on”) on the days you work, like the Workday sensor. If in doubt, leave it unticked: a wrong tick swaps days off and normal days. With a Workday sensor, weekends count as days off too: prefer a public-holiday calendar (Holiday integration)."
+            }
+          }
         }
       },
       "resync": {

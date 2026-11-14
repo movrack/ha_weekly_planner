@@ -22,8 +22,8 @@ async def test_status_memo_lives_one_notification(hass, hass_storage, freezer):
     seen = []
     engine.add_listener(lambda: seen.append(engine.program_status("office")))
     engine.add_listener(lambda: seen.append(engine.program_status("office")))
-    engine._notify_listeners()  # noqa: SLF001
+    engine._notify_listeners()
     assert seen[0] is seen[1]  # computed once inside the notification
-    assert engine._status_memo == {}  # noqa: SLF001 - dropped afterwards
+    assert engine._status_memo == {}
     assert engine.program_status("office") is not seen[0]
     assert engine.program_status("office") == seen[0]

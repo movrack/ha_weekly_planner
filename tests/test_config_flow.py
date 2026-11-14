@@ -4,9 +4,8 @@ from unittest.mock import patch
 
 import pytest
 from homeassistant import config_entries
-from homeassistant.data_entry_flow import InvalidData
 from homeassistant.core import HomeAssistant
-from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.data_entry_flow import FlowResultType, InvalidData
 
 from custom_components.weekly_planner.const import DOMAIN
 from custom_components.weekly_planner.validation import ProgramError
@@ -47,7 +46,8 @@ async def _open_settings(flow, entry):
     return await flow.async_configure(result["flow_id"], {"next_step_id": "settings"})
 
 
-BASE = {"admin_only": True, "reapply_default": True, "notify_delay_min": 30, "debounce_min": 2}
+BASE = {"admin_only": True, "reapply_default": True, "notify_delay_min": 30, "debounce_min": 2,
+        "mode_and_day_off": {}}
 
 
 async def test_options_form_is_the_settings(hass: HomeAssistant, hass_storage) -> None:
@@ -69,7 +69,7 @@ async def test_options_choose_selector_and_default_mode(hass: HomeAssistant, has
     hass.states.async_set("input_select.mode", "Home", {"options": ["Home", "Away"]})
     flow = hass.config_entries.options
     result = await _open_settings(flow, entry)
-    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "input_select.mode"})
+    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_and_day_off": {"mode_selector": "input_select.mode"}})
     assert result["type"] is FlowResultType.FORM and result["step_id"] == "default_mode"
     result = await flow.async_configure(result["flow_id"], {"default_mode": "Away"})
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -79,7 +79,7 @@ async def test_options_choose_selector_and_default_mode(hass: HomeAssistant, has
     # reopened: the current choice is the suggestion; a current default outside the options falls back
     result = await _open_settings(flow, entry)
     hass.states.async_set("input_select.mode", "Home", {"options": ["Home", "Out"]})
-    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "input_select.mode"})
+    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_and_day_off": {"mode_selector": "input_select.mode"}})
     assert result["type"] is FlowResultType.FORM
     result = await flow.async_configure(result["flow_id"], {"default_mode": "Out"})
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -101,7 +101,7 @@ async def test_options_default_mode_free_text_when_no_options_known(hass: HomeAs
     await entry.runtime_data.async_set_mode_config("select.old", "Winter")
     flow = hass.config_entries.options
     result = await _open_settings(flow, entry)
-    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "select.x"})
+    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_and_day_off": {"mode_selector": "select.x"}})
     assert result["step_id"] == "default_mode"
     with pytest.raises(InvalidData):
         await flow.async_configure(result["flow_id"], {"default_mode": ""})
@@ -119,7 +119,7 @@ async def test_options_unchanged_selector_keeps_default_mode_without_asking(hass
     await entry.runtime_data.async_set_mode_config("input_select.mode", "Away")
     flow = hass.config_entries.options
     result = await _open_settings(flow, entry)
-    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "input_select.mode"})
+    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_and_day_off": {"mode_selector": "input_select.mode"}})
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.runtime_data.store.config["default_mode"] == "Away"
 
@@ -131,7 +131,7 @@ async def test_options_unchanged_selector_asks_when_saved_default_no_longer_fits
     hass.states.async_set("input_select.mode", "Home", {"options": ["Home", "Out"]})
     flow = hass.config_entries.options
     result = await _open_settings(flow, entry)
-    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "input_select.mode"})
+    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_and_day_off": {"mode_selector": "input_select.mode"}})
     assert result["step_id"] == "default_mode"
 
 
@@ -140,7 +140,7 @@ async def test_options_unchanged_selector_without_known_options_keeps_default(ha
     await entry.runtime_data.async_set_mode_config("select.x", "Winter")
     flow = hass.config_entries.options
     result = await _open_settings(flow, entry)
-    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "select.x"})
+    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_and_day_off": {"mode_selector": "select.x"}})
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.runtime_data.store.config["default_mode"] == "Winter"
 
@@ -149,7 +149,7 @@ async def test_options_free_text_without_current_default(hass: HomeAssistant, ha
     entry = await _options_entry(hass, hass_storage)
     flow = hass.config_entries.options
     result = await _open_settings(flow, entry)
-    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "select.x"})
+    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_and_day_off": {"mode_selector": "select.x"}})
     result = await flow.async_configure(result["flow_id"], {"default_mode": "Home"})
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
@@ -160,7 +160,7 @@ async def test_options_default_mode_no_longer_an_option(hass: HomeAssistant, has
     hass.states.async_set("input_select.mode", "Home", {"options": ["Home", "Away"]})
     flow = hass.config_entries.options
     result = await _open_settings(flow, entry)
-    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "input_select.mode"})
+    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_and_day_off": {"mode_selector": "input_select.mode"}})
     hass.states.async_set("input_select.mode", "Home", {"options": ["Home"]})
     result = await flow.async_configure(result["flow_id"], {"default_mode": "Away"})
     assert result["type"] is FlowResultType.FORM
@@ -173,9 +173,9 @@ async def test_options_selector_error_is_shown_on_the_field(hass: HomeAssistant,
     result = await _open_settings(flow, entry)
     with patch("custom_components.weekly_planner.config_flow.check_mode_config",
                side_effect=ProgramError("circular_mode_selector")):
-        result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "select.x"})
+        result = await flow.async_configure(result["flow_id"], {**BASE, "mode_and_day_off": {"mode_selector": "select.x"}})
     assert result["type"] is FlowResultType.FORM and result["step_id"] == "settings"
-    assert result["errors"] == {"mode_selector": "circular_mode_selector"}
+    assert result["errors"] == {"base": "circular_mode_selector"}
 
 
 def test_translations_cover_the_mode_fields() -> None:
@@ -184,16 +184,16 @@ def test_translations_cover_the_mode_fields() -> None:
     folder = Path(__file__).parents[1] / "custom_components" / "weekly_planner" / "translations"
     for name in ("en", "fr"):
         options = json.loads((folder / f"{name}.json").read_text())["options"]
-        assert "mode_selector" in options["step"]["settings"]["data"]
-        assert "mode_selector" in options["step"]["settings"]["data_description"]
+        group = options["step"]["settings"]["sections"]["mode_and_day_off"]
+        assert group["name"] and group["description"]
+        for field in ("mode_selector", "holiday_entity", "holiday_invert"):  # in the sub-section, not at the top
+            assert field in group["data"] and field in group["data_description"]
+            assert field not in options["step"]["settings"]["data"]
         assert set(options["step"]["default_mode"]["data"]) == {"default_mode"}
         assert set(options["error"]) == {"invalid_mode_selector_domain", "circular_mode_selector",
                                          "invalid_default_mode", "unknown_default_mode",
                                          "invalid_holiday_entity_domain", "circular_holiday_entity",
                                          "driven_holiday_entity", "invalid_holiday_invert"}
-        for field in ("holiday_entity", "holiday_invert"):  # day off (issue #54)
-            assert field in options["step"]["settings"]["data"]
-            assert field in options["step"]["settings"]["data_description"]
 
 
 # -- day off (issue #54): the entity of the house lives in the store, like the mode selector ------------------------
@@ -204,7 +204,7 @@ async def test_options_choose_the_day_off_entity(hass: HomeAssistant, hass_stora
     flow = hass.config_entries.options
     result = await _open_settings(flow, entry)
     result = await flow.async_configure(
-        result["flow_id"], {**BASE, "holiday_entity": "binary_sensor.workday", "holiday_invert": True})
+        result["flow_id"], {**BASE, "mode_and_day_off": {"holiday_entity": "binary_sensor.workday", "holiday_invert": True}})
     assert result["type"] is FlowResultType.CREATE_ENTRY
     config = entry.runtime_data.store.config
     assert (config["holiday_entity"], config["holiday_invert"]) == ("binary_sensor.workday", True)
@@ -221,12 +221,12 @@ async def test_options_day_off_errors_are_shown_on_the_field(hass: HomeAssistant
     flow = hass.config_entries.options
     result = await _open_settings(flow, entry)
     with pytest.raises(InvalidData):  # the entity selector already refuses another domain
-        await flow.async_configure(result["flow_id"], {**BASE, "holiday_entity": "light.kitchen"})
+        await flow.async_configure(result["flow_id"], {**BASE, "mode_and_day_off": {"holiday_entity": "light.kitchen"}})
     with patch("custom_components.weekly_planner.config_flow.check_holiday_config",
                side_effect=ProgramError("driven_holiday_entity")):
-        result = await flow.async_configure(result["flow_id"], {**BASE, "holiday_entity": "switch.boiler"})
+        result = await flow.async_configure(result["flow_id"], {**BASE, "mode_and_day_off": {"holiday_entity": "switch.boiler"}})
     assert result["type"] is FlowResultType.FORM
-    assert result["errors"] == {"holiday_entity": "driven_holiday_entity"}
+    assert result["errors"] == {"base": "driven_holiday_entity"}
     assert entry.runtime_data.store.config.get("holiday_entity") is None
 
 

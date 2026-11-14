@@ -7,23 +7,36 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.util import dt as dt_util
 
-from .const import CONF_ADMIN_ONLY, CONF_HOLIDAY_ENTITY, CONF_HOLIDAY_INVERT, DEFAULT_PRIORITY, DOMAIN
+from .actions import needs_admin
 from .checks import program_warnings
+from .const import (
+    CONF_ADMIN_ONLY,
+    CONF_HOLIDAY_ENTITY,
+    CONF_HOLIDAY_INVERT,
+    DEFAULT_PRIORITY,
+    DOMAIN,
+)
 from .engine import MAX_PAUSE_DAYS, PlannerEngine
 from .frontend import CARD_VERSION_KEY
+from .modes import apply_default_mode, profile_slots
 from .resolver import NO_HOLIDAY, Holiday, OccurrenceCache, active_profile, occurrences_around
 from .slots import normalise_slot_entities, remove_device_from_slots
 from .store import new_id
-from .actions import needs_admin
-from .modes import apply_default_mode, profile_slots
 from .validation import (
-    PROGRAM, ProgramError, admin_required, check_holiday_loop, check_label, check_mode_config, check_program, keep_pause, label_users, with_defaults,
+    PROGRAM,
+    admin_required,
+    check_holiday_loop,
+    check_label,
+    check_mode_config,
+    check_program,
+    keep_pause,
+    label_users,
+    with_defaults,
 )
 
 
@@ -402,7 +415,7 @@ def ws_preview(hass, connection, msg) -> None:
         connection.send_error(msg["id"], "not_found", "Unknown program")
         return
     day = date.fromisoformat(msg["date"]) if msg.get("date") else dt_util.now().date()
-    profiles = engine._profiles()  # noqa: SLF001
+    profiles = engine._profiles()
     if msg.get("profile_id"):
         profiles = {**profiles, program["id"]: msg["profile_id"]}
     profile = active_profile(program, profiles)
@@ -590,7 +603,8 @@ async def ws_dismiss_mode_rename(hass, connection, msg) -> None:
 @websocket_api.async_response
 async def ws_holiday(hass, connection, msg) -> None:
     """Set (``{"copy": 0..6}`` or ``{"day": [slots]}``) or clear (null) the day-off setting of one mode of a
-    program (issue #54). Same rights and checks as saving the program; a mode that follows has none."""
+    program (issue #54). ``off: true`` keeps the setting without applying it; ``day`` beside ``copy`` keeps
+    the own day in memory. Same rights and checks as saving the program; a mode that follows has none."""
     engine = _editor_engine(hass, connection, msg)
     if engine is None:
         return

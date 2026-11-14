@@ -29,7 +29,7 @@ import { timesRows } from "./times-list";
 import { configDefaults, normalizeConfig } from "./config";
 import { activeFollow, activeProfile, entityDomain, filterPrograms, friendlyName, subscribePlanner } from "./planner";
 import { groupItems, sortMode } from "./list-order";
-import { allSlots, holidayApplies, holidayDayToday, holidayLine } from "./holiday";
+import { allSlots, dayInText, holidayApplies, holidayDayToday, holidayLine, holidayReplaces } from "./holiday";
 import type { DomainLocalize } from "./domains";
 import { dayBounds, addDaysIso } from "./components/chart";
 import { currentTimeFormat, formatPauseEnd, formatWhen, setTimeFormat, localDateIso, localMinutes, localWeekday, nominal, pauseEnd, spillover, DAY } from "./time";
@@ -449,8 +449,17 @@ export class WeeklyPlannerCard extends LitElement {
   }
 
   /** Why today's bar cannot be edited in place on a day off (shown under the bar, and on a tap of the bar). */
+  /** Why today's bar is not edited in place; "" when today's schedule is not really replaced (a copy of the real weekday). */
+  private _lockedText(program: Program): string {
+    const real = localWeekday(this._now, this._tz);
+    if (!holidayReplaces(this._data, program.id, real)) return "";
+    const h = this._data?.status[program.id]?.holiday;
+    return h && "copy" in h ? t(this._lang, "holiday_locked_copy", { day: dayInText(this._lang, h.copy) }) : t(this._lang, "holiday_locked");
+  }
+
   private _lockedNote(program: Program) {
-    return holidayApplies(this._data, program.id) ? html`<p class="locked-note">${t(this._lang, "holiday_locked")}</p>` : nothing;
+    const text = this._lockedText(program);
+    return text ? html`<p class="locked-note">${text}</p>` : nothing;
   }
 
   private _modeLine() {
@@ -524,14 +533,14 @@ export class WeeklyPlannerCard extends LitElement {
       device-name=${this._deviceLabel(program, entityId)} lang=${this._lang} tz=${this._tz} view=${kind === "today" ? this._config.schedule_view ?? "bar" : "bar"}
       .rest=${(() => { const l = labelOf(this._data!, program.entities.find((e) => e.entity_id === entityId)?.default_label); return l ? labelName(this.hass, l) : t(this._lang, "rest_none"); })()}
       @edit-request=${() => (this._edit = key)} @edit-exit=${() => { if (this._edit === key) this._edit = null; }}
-      locked-reason=${offset === 0 && holidayApplies(this._data, program.id) ? t(this._lang, "holiday_locked") : ""}
-      @locked-request=${() => this._say(t(this._lang, "holiday_locked"))}
+      locked-reason=${offset === 0 ? this._lockedText(program) : ""}
+      @locked-request=${() => this._say(this._lockedText(program))}
       @open-day=${openDay} @edited=${(e: CustomEvent<{ undo: () => Promise<boolean> }>) => this._showSnack(e.detail.undo)}></wp-bar-editor>`;
   }
 
   /** A bar is edited in place when editing is allowed, the mode is not followed, and no day off replaces today's schedule. */
   private _barEditable(program: Program, offset: number): boolean {
-    return Boolean(this._data?.can_edit) && !this._data?.read_only && !activeFollow(program, this._data!) && !(offset === 0 && holidayApplies(this._data, program.id));
+    return Boolean(this._data?.can_edit) && !this._data?.read_only && !activeFollow(program, this._data!) && !(offset === 0 && this._lockedText(program) !== "");
   }
 
   /** Where today's preview stands for a device: "ready" once it arrived (only then may the day be called empty), "failed" after an error. */
@@ -549,7 +558,7 @@ export class WeeklyPlannerCard extends LitElement {
       tz: this._tz, nowMin: localMinutes(this._now, this._tz), nowMs: this._now.getTime() }) : [];
     const rest = labelOf(this._data!, program.entities.find((e) => e.entity_id === entityId)?.default_label);
     return html`<wp-times-day .rows=${rows} state=${state} .rest=${rest ? labelName(this.hass, rest) : t(this._lang, "rest_none")}
-      ?editable=${editable} ?locked=${holidayApplies(this._data, program.id)} lang=${this._lang} device-name=${this._deviceLabel(program, entityId)}
+      ?editable=${editable} ?locked=${this._lockedText(program) !== ""} lang=${this._lang} device-name=${this._deviceLabel(program, entityId)}
       @open-day=${open} @retry=${() => this._retryPreviews()}></wp-times-day>`;
   }
 

@@ -12,10 +12,10 @@ An action is a small dict, in one of two forms (docs/SPEC.md § 6):
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass, field
-import math
 from typing import Any
 
 from .messages import validation_error

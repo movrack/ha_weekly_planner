@@ -40,8 +40,9 @@ def test_a_day_off_of_the_file_is_one_copy_or_one_day_and_nothing_else():
     assert holiday_from_file("m", {"copy": "sun"}) == {"copy": 6}
     assert holiday_from_file("m", {"day": None}) == {"day": []}
     assert holiday_from_file("m", {"day": [{"id": "x"}]}) == {"day": [{"id": "x"}]}
-    expected = "mode m: 'holiday' must be {copy: <day>} or {day: [...]}"
-    for bad in ("copy", ["copy"], {}, {"copy": "mon", "day": []}, {"other": 1}, {"copy": "mon", "extra": 1}):
+    assert holiday_from_file("m", {"copy": "mon", "day": [], "off": True}) == {"copy": 0, "day": [], "off": True}
+    expected = "mode m: 'holiday' must be {copy: <day>} or {day: [...]}, with an optional off: true"
+    for bad in ("copy", ["copy"], {}, {"off": True}, {"copy": "mon", "off": "yes"}, {"other": 1}, {"copy": "mon", "extra": 1}):
         assert message(lambda bad=bad: holiday_from_file("m", bad), TypeError) == expected
     assert message(lambda: holiday_from_file("m", {"copy": "funday"}), TypeError) == (
         "mode m: 'holiday: copy' must be one of mon, tue, wed, thu, fri, sat, sun")

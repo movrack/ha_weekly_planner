@@ -14,8 +14,8 @@ from homeassistant.helpers.typing import ConfigType
 from . import services, websocket, yaml_file
 from .const import DOMAIN
 from .engine import PlannerEngine
-from .messages import message
 from .frontend import async_register_card, async_unregister_card
+from .messages import message
 from .registry import async_finish_mode_migration
 from .store import ConfigStoreError, PlannerStore
 from .websocket import _descriptions

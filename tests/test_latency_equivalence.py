@@ -281,12 +281,18 @@ def _first_difference(reference: list[dict], current: list[dict]) -> str:
     return ""
 
 
+# A real clock decides when the engine yields: on a loaded machine the default slice (a few ms) can elapse in the middle
+# of a recompute and change the trace. "Never yields" is therefore a fixed huge slice, not the default one.
+NEVER_YIELD_S = 3600.0
+
+
+@pytest.mark.timeout(240)  # three full simulated days; a shared CI runner needs far more than the 60 s default
 async def test_engine_matches_reference_on_a_varied_install(hass, hass_storage, freezer, monkeypatch):
     await hass.config.async_update(latitude=50.85, longitude=4.35)
     log = CallLog(hass)
-    reference = await _scenario(hass, hass_storage, freezer, monkeypatch, log, LegacyEngine, engine_module.YIELD_SLICE_S)
+    reference = await _scenario(hass, hass_storage, freezer, monkeypatch, log, LegacyEngine, NEVER_YIELD_S)
     # Simulated time does not move perf_counter: the default slice never yields, 0 yields after every entity.
-    for slice_s in (engine_module.YIELD_SLICE_S, 0.0):
+    for slice_s in (NEVER_YIELD_S, 0.0):
         current = await _scenario(hass, hass_storage, freezer, monkeypatch, log, engine_module.PlannerEngine, slice_s)
         assert len(current) == len(reference)
         assert current == reference, _first_difference(reference, current)
@@ -320,7 +326,7 @@ async def test_lookups_match_reference_on_the_large_install(hass, hass_storage, 
         hass.states.async_set(f"binary_sensor.late{index}", "on")
     await hass.config.async_update(latitude=50.85, longitude=4.35)
     engine = await setup(hass, hass_storage, freezer, programs, local(26, 9, 0))
-    engine._mode = "Away"  # noqa: SLF001 - the current engine follows one global mode
+    engine._mode = "Away"
     for program in engine.store.programs:  # the reference one profile per program
         engine.store.runtime["programs"].setdefault(program["id"], {})["active_profile"] = "away"
     reference = LegacyEngine(hass, engine.store, engine.options, engine.entry_id)

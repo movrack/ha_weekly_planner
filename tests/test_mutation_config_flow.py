@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.data_entry_flow import FlowResultType, section
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.weekly_planner.const import DOMAIN
 
+from .helpers import local
 from .test_config_flow import BASE, _open_settings
 from .test_resync import COVERS, shutters, start
-from .helpers import local
 
 
 async def _entry(hass, hass_storage, options=None, config=None):
@@ -27,7 +27,11 @@ async def _entry(hass, hass_storage, options=None, config=None):
 
 def _fields(result):
     """{field name: (marker, validator)} of a form."""
-    return {str(key): (key, value) for key, value in result["data_schema"].schema.items()}
+    fields = {str(key): (key, value) for key, value in result["data_schema"].schema.items()}
+    group = fields.pop("mode_and_day_off")  # the mode selector and the day off live in one sub-section
+    assert isinstance(group[1], section) and group[1].options == {"collapsed": False}
+    fields.update({str(key): (key, value) for key, value in group[1].schema.schema.items()})
+    return fields
 
 
 async def test_the_user_step_is_a_form_named_user_and_creates_the_entry_with_its_title(hass):
@@ -73,15 +77,15 @@ async def test_a_settings_save_without_the_invert_key_means_not_inverted_and_a_f
     flow = hass.config_entries.options
     result = await _open_settings(flow, entry)
     handler = flow._progress[result["flow_id"]]
-    saved = await handler.async_step_settings({**BASE, "holiday_entity": "input_boolean.off"})
+    saved = await handler.async_step_settings({**BASE, "mode_and_day_off": {"holiday_entity": "input_boolean.off"}})
     assert saved["type"] is FlowResultType.CREATE_ENTRY
     assert entry.runtime_data.store.config["holiday_invert"] is False
-    bad = await flow.async_configure(result["flow_id"], {**BASE, "holiday_entity": "switch.x", "holiday_invert": True})
+    bad = await flow.async_configure(result["flow_id"], {**BASE, "mode_and_day_off": {"holiday_entity": "switch.x", "holiday_invert": True}})
     assert bad["type"] is not FlowResultType.FORM or bad["step_id"] == "settings"
     again = await _open_settings(flow, entry)
-    bad = await flow._progress[again["flow_id"]].async_step_settings({**BASE, "mode_selector": "light.nope"})
+    bad = await flow._progress[again["flow_id"]].async_step_settings({**BASE, "mode_and_day_off": {"mode_selector": "light.nope"}})
     assert bad["type"] is FlowResultType.FORM and bad["step_id"] == "settings"
-    assert bad["errors"] == {"mode_selector": "invalid_mode_selector_domain"}
+    assert bad["errors"] == {"base": "invalid_mode_selector_domain"}
 
 
 async def test_an_own_entity_cannot_be_chosen_as_the_mode_selector(hass, hass_storage):
@@ -89,8 +93,8 @@ async def test_an_own_entity_cannot_be_chosen_as_the_mode_selector(hass, hass_st
     own = er.async_get(hass).async_get_or_create("select", DOMAIN, "own", suggested_object_id="weekly_planner_mode")
     flow = hass.config_entries.options
     result = await _open_settings(flow, entry)
-    bad = await flow._progress[result["flow_id"]].async_step_settings({**BASE, "mode_selector": own.entity_id})
-    assert bad["errors"] == {"mode_selector": "circular_mode_selector"}
+    bad = await flow._progress[result["flow_id"]].async_step_settings({**BASE, "mode_and_day_off": {"mode_selector": own.entity_id}})
+    assert bad["errors"] == {"base": "circular_mode_selector"}
 
 
 async def test_the_default_mode_step_keeps_the_current_choice_the_options_and_the_saved_options(hass, hass_storage):
@@ -98,14 +102,14 @@ async def test_the_default_mode_step_keeps_the_current_choice_the_options_and_th
     hass.states.async_set("input_select.mode", "Home", {"options": ["Home", "Away"]})
     flow = hass.config_entries.options
     result = await _open_settings(flow, entry)
-    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "input_select.mode"})
+    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_and_day_off": {"mode_selector": "input_select.mode"}})
     assert result["step_id"] == "default_mode"
     key, field = next(iter(result["data_schema"].schema.items()))
     assert key.default() == "Away"
     assert [o["value"] if isinstance(o, dict) else o for o in field.config["options"]] == ["Home", "Away"]
     assert field.config["mode"] == "dropdown"
     done = await flow.async_configure(result["flow_id"], {"default_mode": "Home"})
-    assert done["type"] is FlowResultType.CREATE_ENTRY and done["data"] == BASE
+    assert done["type"] is FlowResultType.CREATE_ENTRY and done["data"] == {k: v for k, v in BASE.items() if k != "mode_and_day_off"}
     assert entry.options["notify_delay_min"] == 30 and entry.runtime_data.store.config["default_mode"] == "Home"
 
 
@@ -114,7 +118,7 @@ async def test_a_stored_default_outside_the_options_falls_back_to_the_first_opti
     hass.states.async_set("input_select.mode", "Home", {"options": ["Home", "Away"]})
     flow = hass.config_entries.options
     result = await _open_settings(flow, entry)
-    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "input_select.mode"})
+    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_and_day_off": {"mode_selector": "input_select.mode"}})
     key, _field = next(iter(result["data_schema"].schema.items()))
     assert key.default() == "Home"
 
@@ -123,7 +127,7 @@ async def test_free_text_default_mode_accepts_one_character_and_has_no_default_w
     entry = await _entry(hass, hass_storage)
     flow = hass.config_entries.options
     result = await _open_settings(flow, entry)
-    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "input_select.unknown"})
+    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_and_day_off": {"mode_selector": "input_select.unknown"}})
     key, field = next(iter(result["data_schema"].schema.items()))
     assert result["step_id"] == "default_mode" and key.default is vol.UNDEFINED
     assert type(field.validators[0]).__name__ == "TextSelector" and len(field.validators) == 2
@@ -136,7 +140,7 @@ async def test_a_wrong_default_mode_is_reported_on_its_field_with_the_selector_k
     own = er.async_get(hass).async_get_or_create("select", DOMAIN, "own2", suggested_object_id="weekly_planner_m2")
     flow = hass.config_entries.options
     result = await _open_settings(flow, entry)
-    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_selector": "input_select.other"})
+    result = await flow.async_configure(result["flow_id"], {**BASE, "mode_and_day_off": {"mode_selector": "input_select.other"}})
     handler = flow._progress[result["flow_id"]]
     handler._selector = own.entity_id
     bad = await handler.async_step_default_mode({"default_mode": "Home"})
@@ -144,7 +148,7 @@ async def test_a_wrong_default_mode_is_reported_on_its_field_with_the_selector_k
 
 
 async def test_the_resync_form_is_named_has_an_empty_schema_and_shows_local_times(hass, hass_storage, freezer):
-    engine, _rec = await start(hass, hass_storage, freezer, [shutters(entities=COVERS[:1])], local(26, 18))
+    _engine, _rec = await start(hass, hass_storage, freezer, [shutters(entities=COVERS[:1])], local(26, 18))
     await hass.config.async_update(time_zone="America/New_York")  # the engine reads it again
     entry = hass.config_entries.async_entries(DOMAIN)[0]
     flow = hass.config_entries.options
@@ -167,6 +171,6 @@ async def test_the_day_off_entity_cannot_be_one_a_program_a_label_or_a_scene_dri
     flow = hass.config_entries.options
     for driven in ("switch.boiler", "switch.target", "input_boolean.member"):
         result = await _open_settings(flow, entry)
-        bad = await flow._progress[result["flow_id"]].async_step_settings({**BASE, "holiday_entity": driven})
-        assert bad["errors"] == {"holiday_entity": "driven_holiday_entity"}, driven
+        bad = await flow._progress[result["flow_id"]].async_step_settings({**BASE, "mode_and_day_off": {"holiday_entity": driven}})
+        assert bad["errors"] == {"base": "driven_holiday_entity"}, driven
         flow.async_abort(result["flow_id"])

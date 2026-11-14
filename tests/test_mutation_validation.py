@@ -8,7 +8,6 @@ import pytest
 import voluptuous as vol
 
 from custom_components.weekly_planner.validation import (
-    ProgramError,
     _weekday,
     check_holiday_config,
     check_holiday_loop,
@@ -16,13 +15,13 @@ from custom_components.weekly_planner.validation import (
     driven_entities,
 )
 
-from .helpers import CLIMATE, COVER, act, label, labels, program, slot
+from .helpers import CLIMATE, COVER, label, labels, program, slot
 
 LABELS = {lab["id"]: lab for lab in labels()}
 
 
 def code(call):
-    with pytest.raises(Exception) as caught:  # noqa: PT011 - the type is asserted by the caller
+    with pytest.raises(Exception) as caught:
         call()
     return caught.value
 

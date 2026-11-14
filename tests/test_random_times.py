@@ -1,16 +1,25 @@
 """Stable random windows share execution, preview and deadline semantics."""
-from copy import deepcopy
-from datetime import date, datetime, timedelta, UTC
 import subprocess
 import sys
+from copy import deepcopy
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
 import voluptuous as vol
 
+from custom_components.weekly_planner.resolver import (
+    next_transition,
+    occurrences_around,
+    resolve_entity,
+)
 from custom_components.weekly_planner.timeline import occurrence
-from custom_components.weekly_planner.resolver import next_transition, occurrences_around, resolve_entity
-from custom_components.weekly_planner.validation import TIME_SPEC, _check_overlaps, _check_week_overlaps, ProgramError
+from custom_components.weekly_planner.validation import (
+    TIME_SPEC,
+    ProgramError,
+    _check_overlaps,
+    _check_week_overlaps,
+)
 
 TZ = ZoneInfo("Europe/Brussels")
 DAY = date(2026, 6, 21)
@@ -127,7 +136,7 @@ def test_preview_deadline_and_active_resolution_agree():
 
 
 async def test_random_one_shot_fires_once_without_recompute_replay(hass, hass_storage, freezer):
-    from .helpers import Recorder, go_to, local, program, setup, slot, tick
+    from .helpers import Recorder, go_to, local, program, setup, slot
 
     rec = Recorder(hass)
     shot = slot("shot", "05:00", None, "boost")

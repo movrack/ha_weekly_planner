@@ -3,16 +3,13 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
 
 import pytest
-import yaml
 from homeassistant.helpers import issue_registry as ir
 
 from custom_components.weekly_planner import yaml_file
-from custom_components.weekly_planner.const import DOMAIN
 
-from .helpers import CLIMATE, COVER, Recorder, local, program, setup, slot, tick
+from .helpers import CLIMATE, COVER, Recorder, local, program, setup, slot
 from .test_yaml_file import _doc, _edit, _issue, _later, _start
 
 DAY_OFF = "input_boolean.day_off"

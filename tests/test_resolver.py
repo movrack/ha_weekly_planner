@@ -1,6 +1,6 @@
 """Resolution of the winning program per entity (S9, S10, S11, S12, Q-J)."""
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from custom_components.weekly_planner.actions import resolve_action

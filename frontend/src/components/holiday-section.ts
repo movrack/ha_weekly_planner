@@ -1,5 +1,6 @@
 // "Jour férié" section of the schedules window (#54): what a mode does on a day off. A collapsible block, closed by
-// default, three choices: no special setting, the same schedules as a weekday (live reference), or an own day.
+// default: one switch "Different schedule on days off" (off = no setting); on, two choices: the same schedules as a weekday
+// (live reference) or an own day.
 // The server decides what runs; this only writes the setting (`weekly_planner/program/holiday`).
 
 import { LitElement, css, html, nothing } from "lit";
@@ -52,6 +53,11 @@ export class WpHoliday extends LitElement {
   @state() private _editing: string | null = null;
   @state() private _group: SlotGroup | null = null;
 
+  protected updated(changed: Map<string, unknown>): void {
+    // the outer slot form hides its own Save / Cancel while this form is open (one pair at a time)
+    if (changed.has("_group")) this.dispatchEvent(new CustomEvent("holiday-form", { detail: this._group !== null, bubbles: true, composed: true }));
+  }
+
   private get _lang(): string { return langOf(this.hass); }
   private get _shown(): Profile { return this.source ?? this.profile; }
   private get _readOnly(): boolean { return !this.canEdit || this.source !== null; }
@@ -74,26 +80,51 @@ export class WpHoliday extends LitElement {
     }
   }
 
-  private async _choose(choice: "none" | "copy" | "own"): Promise<void> {
-    const current = holidayChoice(this._shown);
-    if (choice === current || this._readOnly) return;
-    this._editing = null;
-    this._group = null;
-    // moving through the radios with the arrows must never lose slots silently: leaving an own day that has slots, or clearing, asks first
-    const loses = choice === "none" || (current === "own" && this._own().length > 0);
-    if (loses && !(await confirmAction(this, t(this._lang, choice === "none" ? "holiday_clear" : "holiday_drop"), t(this._lang, "holiday_clear_yes"), t(this._lang, "no")))) {
-      this._syncRadios(); // "No": the radios go back to what is still saved
-      void this._focus(`input[data-v="${current}"]`);
-      return;
-    }
-    if (await this._write(choice === "none" ? null : choice === "copy" ? { copy: 0 } : { day: [] })) this._say("holiday_saved");
-    void this._focus(`input[data-v="${choice}"]`);
+  /** Writes a setting; after a failed write the controls show the saved state again and a draft is kept. */
+  private async _apply(setting: HolidaySetting, focus: string): Promise<void> {
+    if (await this._write(setting)) {
+      this._editing = null;
+      this._group = null;
+      this._say("holiday_saved");
+    } else this._syncControls();
+    void this._focus(focus);
   }
 
-  private _syncRadios(): void {
-    const current = holidayChoice(this._shown);
-    const values = ["none", "copy", "own"];
-    this.renderRoot?.querySelectorAll<HTMLInputElement>('input[type="radio"]').forEach((r, i) => { r.checked = values[i] === current; });
+  /** The switch: off keeps the setting in memory (`off`), on gives back the same choice (or the copy of Sunday at first). */
+  private async _toggle(on: boolean): Promise<void> {
+    if (this._readOnly) return;
+    const setting = this._shown.holiday;
+    if (on === (holidayChoice(this._shown) !== "none")) return;
+    let next: HolidaySetting;
+    if (!on) next = { ...setting!, off: true };
+    else if (setting) { const { off: _off, ...rest } = setting; next = rest as HolidaySetting; }
+    else next = { copy: 6 };
+    await this._apply(next, 'input[role="switch"]');
+  }
+
+  /** The radios: the other choice is kept in memory (own schedules beside a copy), so nothing is lost and nothing is asked. */
+  private async _choose(choice: "copy" | "own"): Promise<void> {
+    if (this._readOnly || choice === holidayChoice(this._shown)) return;
+    const kept = holidayOwnSlots(this._shown);
+    const next: HolidaySetting = choice === "copy" ? { copy: 6, ...(kept.length ? { day: kept } : {}) } : { day: kept };
+    await this._apply(next, `input[data-v="${choice}"]`);
+  }
+
+  private async _pickDay(copy: number): Promise<void> {
+    const setting = this._shown.holiday;
+    if (this._busy || !setting) return;
+    await this._apply({ ...setting, copy }, ".day");
+  }
+
+  /** Puts the switch, the radios and the day select back on the saved setting (a failed write leaves them as clicked). */
+  private _syncControls(): void {
+    const kind = holidayChoice(this._shown);
+    this.renderRoot?.querySelectorAll<HTMLInputElement>('input[type="radio"]').forEach((r) => { r.checked = r.dataset.v === kind; });
+    const sw = this.renderRoot?.querySelector<HTMLInputElement>('input[role="switch"]');
+    if (sw) sw.checked = kind !== "none";
+    const day = this.renderRoot?.querySelector<HTMLSelectElement>(".day");
+    const h = this._shown.holiday;
+    if (day && h && "copy" in h) day.value = String(h.copy);
   }
 
   private _own(): Slot[] { return holidayOwnSlots(this.profile); }
@@ -118,6 +149,12 @@ export class WpHoliday extends LitElement {
   }
 
   private async _delete(slot: Slot): Promise<void> {
+    const lang = this._lang;
+    const when = `${specText(lang, slot.start)}${slot.end ? `–${specText(lang, slot.end)}` : ""}`;
+    if (!(await confirmAction(this, `${t(lang, "w_confirm_slot")} ${when}`, t(lang, "slot_delete_yes"), t(lang, "slot_delete_no")))) {
+      void this._focus(`.del[data-slot="${slot.id}"]`);
+      return;
+    }
     if (await this._write({ day: this._own().filter((s) => s.id !== slot.id) })) this._say("holiday_deleted");
     void this._focus(".add");
   }
@@ -130,16 +167,17 @@ export class WpHoliday extends LitElement {
     return html`<li class="hrow">
       <button class="open" data-slot=${slot.id} ?disabled=${this._readOnly || this._busy} @click=${() => this._edit(slot)}>
         <span class="dot" style="background:${label?.color ?? "transparent"}" aria-hidden="true"></span><span class="txt">${when} · ${name}</span></button>
-      <button class="del" ?disabled=${this._readOnly || this._busy} aria-label=${`${t(lang, "delete")} ${when}`} title=${t(lang, "delete")}
+      <button class="del" data-slot=${slot.id} ?disabled=${this._readOnly || this._busy} aria-label=${`${t(lang, "delete")} ${when}`} title=${t(lang, "delete")}
         @click=${() => void this._delete(slot)}><ha-icon icon="mdi:delete-outline"></ha-icon></button></li>`;
   }
 
   private _ownDay() {
     const lang = this._lang;
-    const slots = this._shown.holiday && "day" in this._shown.holiday ? this._shown.holiday.day : [];
+    const slots = holidayOwnSlots(this._shown);
     const entityIds = this.program.entities.map((e) => e.entity_id);
     const form = this._group ? html`<div class="form">
-      <wp-slot-form .hass=${this.hass} .data=${this.data} .program=${this.program} .group=${this._group} .entityIds=${entityIds}
+      <h4 class="ftitle">${t(lang, "holiday_form_title")}</h4>
+      <wp-slot-form .noDays=${true} .hass=${this.hass} .data=${this.data} .program=${this.program} .group=${this._group} .entityIds=${entityIds}
         .device=${entityIds[0] ?? ""} ?disabled=${this._busy}
         @group-change=${(e: CustomEvent<SlotGroup>) => { e.stopPropagation(); this._group = e.detail; this._error = ""; }}></wp-slot-form>
       <div class="warn" role="status">${passesMidnight(this.hass, this._group.slot) ? t(lang, "holiday_midnight") : ""}</div>
@@ -154,7 +192,7 @@ export class WpHoliday extends LitElement {
 
   private _summary(setting: Profile["holiday"]): string {
     const lang = this._lang;
-    return !setting ? t(lang, "holiday_what_none")
+    return !setting || setting.off ? t(lang, "holiday_what_none")
       : "copy" in setting ? t(lang, "holiday_what_copy", { day: dayInText(lang, setting.copy) }) : t(lang, "holiday_what_own");
   }
 
@@ -163,7 +201,7 @@ export class WpHoliday extends LitElement {
     const shown = this._shown;
     const choice = holidayChoice(shown);
     const id = `holiday-${this.program.id}`;
-    const radio = (value: "none" | "copy" | "own", text: string) => html`<label class="opt"><input type="radio" name=${id} data-v=${value} .checked=${choice === value}
+    const radio = (value: "copy" | "own", text: string) => html`<label class="opt"><input type="radio" name=${id} data-v=${value} .checked=${choice === value}
       ?disabled=${this._readOnly} @change=${() => void this._choose(value)} />${text}</label>`;
     return html`<section class="holiday">
       <button class="head" aria-expanded=${this._open} aria-controls=${id} @click=${() => { this._open = !this._open; }}>
@@ -172,15 +210,18 @@ export class WpHoliday extends LitElement {
         <ha-icon icon=${this._open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>
       <p class="sr-only" role="status">${this._status}</p>
       <div id=${id} ?hidden=${!this._open}>
-        ${this.source ? html`<p class="muted">${t(lang, "holiday_follows_note", { mode: this.source.name })}</p>` : html`<fieldset class="opts"><legend class="sr-only">${t(lang, "holiday_title")}</legend>
-          ${radio("none", t(lang, "holiday_none"))}
+        ${this.source ? html`<p class="muted">${t(lang, "holiday_follows_note", { mode: this.source.name })}</p>` : html`
+          <label class="sw"><input type="checkbox" role="switch" .checked=${choice !== "none"} ?disabled=${this._readOnly}
+            @change=${(e: Event) => void this._toggle((e.target as HTMLInputElement).checked)} />
+            <span class="track" aria-hidden="true"><span class="knob"></span></span><span class="txt">${t(lang, "holiday_switch")}</span></label>
+          ${choice !== "none" ? html`<fieldset class="opts"><legend class="sr-only">${t(lang, "holiday_title")}</legend>
           ${radio("copy", t(lang, "holiday_copy"))}
           ${choice === "copy" ? html`<select class="day" aria-label=${t(lang, "holiday_copy").replace(/\s*:$/, "")} ?disabled=${this._readOnly}
-            @change=${async (e: Event) => { if (!this._busy && await this._write({ copy: Number((e.target as HTMLSelectElement).value) })) this._say("holiday_saved"); void this._focus(".day"); }}>
+            @change=${(e: Event) => void this._pickDay(Number((e.target as HTMLSelectElement).value))}>
             ${strings(lang).days.map((d, i) => html`<option value=${i} ?selected=${shown.holiday && "copy" in shown.holiday && shown.holiday.copy === i}>${d}</option>`)}</select>` : nothing}
           ${radio("own", t(lang, "holiday_own"))}
         </fieldset>
-        ${choice === "own" ? this._ownDay() : nothing}`}
+        ${choice === "own" ? this._ownDay() : nothing}` : nothing}`}
         ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
       </div>
     </section>`;
@@ -188,7 +229,7 @@ export class WpHoliday extends LitElement {
 
   static styles = [editorStyles, css`
     :host { display: block; }
-    .holiday { border: 1px solid var(--divider-color); border-radius: 12px; padding: 0 12px; margin: 0 0 12px; }
+    .holiday { border: 1px solid var(--divider-color); border-radius: 12px; padding: 0 12px; margin: 12px 0; }
     .head { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; border: 0; background: none; color: var(--primary-text-color);
       font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
     .head .grow { flex: 1; }
@@ -197,6 +238,13 @@ export class WpHoliday extends LitElement {
     .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     fieldset.opts { border: 0; margin: 0; padding: 0; min-width: 0; }
     .opts { display: flex; flex-direction: column; gap: 0; }
+    .sw { display: flex; align-items: center; gap: 12px; min-height: 48px; cursor: pointer; }
+    .sw input { position: absolute; width: 48px; height: 48px; margin: 0; opacity: 0; cursor: pointer; }
+    .track { flex: none; position: relative; width: 44px; height: 24px; border-radius: 12px; background: var(--secondary-text-color); transition: background 0.15s; }
+    .knob { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 9px; background: var(--card-background-color, #fff); transition: transform 0.15s; }
+    .sw input:checked + .track { background: var(--primary-color); }
+    .sw input:checked + .track .knob { transform: translateX(20px); }
+    .sw input:focus-visible + .track { outline: 2px solid var(--primary-text-color); outline-offset: 2px; }
     .opt { display: flex; align-items: center; gap: 10px; min-height: 48px; cursor: pointer; }
     .day { min-height: 48px; margin: 0 0 8px 34px; max-width: calc(100% - 34px); }
     .hlist { list-style: none; margin: 8px 0; padding: 0; }
@@ -207,6 +255,7 @@ export class WpHoliday extends LitElement {
     .warn, .err, .muted { margin: 8px 0; font-size: 1rem; }
     .err { color: var(--wp-danger-text); }
     .muted { color: var(--secondary-text-color); }
+    .ftitle { margin: 8px 0 6px; font-size: 0.875rem; font-weight: 600; color: var(--secondary-text-color); }
     .btns { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
     .add { margin: 4px 0 12px; }
   `];

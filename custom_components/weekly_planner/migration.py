@@ -6,10 +6,11 @@ Version 2 only knows actions: a Home Assistant service on the entity, or a scene
 
 from __future__ import annotations
 
-from copy import deepcopy
 import logging
-from typing import Any
 import uuid
+from copy import deepcopy
+from itertools import pairwise
+from typing import Any
 
 from .modes import apply_default_mode
 
@@ -155,7 +156,7 @@ TEMPERATURE_STOPS = ((10, (21, 101, 192)), (16, (66, 165, 245)), (18, (255, 193,
 def _temperature_color(value: float) -> str:
     """Blue when cold, amber then orange, red when hot (linear between fixed stops)."""
     value = max(TEMPERATURE_STOPS[0][0], min(TEMPERATURE_STOPS[-1][0], value))
-    for (t0, c0), (t1, c1) in zip(TEMPERATURE_STOPS, TEMPERATURE_STOPS[1:]):
+    for (t0, c0), (t1, c1) in pairwise(TEMPERATURE_STOPS):
         if value <= t1:
             f = (value - t0) / (t1 - t0)
             return "#{:02x}{:02x}{:02x}".format(*(round(a + (b - a) * f) for a, b in zip(c0, c1)))

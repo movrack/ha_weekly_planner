@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
@@ -13,6 +12,7 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.core import callback
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers.selector import (
     EntitySelector,
     EntitySelectorConfig,
@@ -28,12 +28,12 @@ from homeassistant.helpers.selector import (
 from .const import (
     CONF_ADMIN_ONLY,
     CONF_DEBOUNCE_MIN,
-    CONF_NOTIFY_DELAY_MIN,
-    CONF_REAPPLY_DEFAULT,
     CONF_DEFAULT_MODE,
     CONF_HOLIDAY_ENTITY,
     CONF_HOLIDAY_INVERT,
     CONF_MODE_SELECTOR,
+    CONF_NOTIFY_DELAY_MIN,
+    CONF_REAPPLY_DEFAULT,
     DEFAULT_ADMIN_ONLY,
     DEFAULT_DEBOUNCE_MIN,
     DEFAULT_NOTIFY_DELAY_MIN,
@@ -45,6 +45,8 @@ from .const import (
 )
 from .messages import resync_lines
 from .validation import check_holiday_config, check_mode_config, driven_entities
+
+SECTION_MODE_DAY_OFF = "mode_and_day_off"  # sub-section of the settings form: the mode selector and the day off
 
 
 class WeeklyPlannerConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -109,20 +111,22 @@ class WeeklyPlannerOptionsFlow(OptionsFlow):
         errors: dict[str, str] = {}
         config = self._engine.store.config
         if user_input is not None:
-            selector = user_input.pop(CONF_MODE_SELECTOR, None) or None
-            holiday = user_input.pop(CONF_HOLIDAY_ENTITY, None) or None
-            invert = user_input.pop(CONF_HOLIDAY_INVERT, False)
+            user_input = dict(user_input)
+            group = user_input.pop(SECTION_MODE_DAY_OFF, None) or {}  # the sub-section arrives as a nested dict
+            selector = group.get(CONF_MODE_SELECTOR) or None
+            holiday = group.get(CONF_HOLIDAY_ENTITY) or None
+            invert = group.get(CONF_HOLIDAY_INVERT, False)
             for key in (CONF_NOTIFY_DELAY_MIN, CONF_DEBOUNCE_MIN):  # number selectors give floats (both are required)
                 user_input[key] = int(user_input[key])
             try:
                 check_mode_config(selector, None, self.hass)
             except vol.Invalid as err:
-                errors[CONF_MODE_SELECTOR] = str(err)
+                errors["base"] = str(err)  # fields of a section cannot carry their own error in every HA frontend
             try:
                 self._holiday = check_holiday_config(
                     holiday, invert, self.hass, driven_entities(self._engine.store.programs, self._engine.labels, self.hass))
             except vol.Invalid as err:
-                errors[CONF_HOLIDAY_ENTITY] = str(err)
+                errors["base"] = str(err)
             if not errors:
                 self._settings = user_input
                 self._selector = selector
@@ -160,10 +164,19 @@ class WeeklyPlannerOptionsFlow(OptionsFlow):
                     default=options.get(CONF_DEBOUNCE_MIN, DEFAULT_DEBOUNCE_MIN),
                 ): NumberSelector(NumberSelectorConfig(
                     min=0, max=60, step=1, mode=NumberSelectorMode.SLIDER, unit_of_measurement="min")),
-                selector_key: EntitySelector(EntitySelectorConfig(domain=list(MODE_SELECTOR_DOMAINS))),
-                vol.Optional(CONF_HOLIDAY_ENTITY, description={"suggested_value": config.get(CONF_HOLIDAY_ENTITY)}):
-                    EntitySelector(EntitySelectorConfig(domain=list(HOLIDAY_DOMAINS))),
-                vol.Required(CONF_HOLIDAY_INVERT, default=bool(config.get(CONF_HOLIDAY_INVERT, False))): bool,
+                vol.Required(SECTION_MODE_DAY_OFF): section(
+                    vol.Schema(
+                        {
+                            selector_key: EntitySelector(EntitySelectorConfig(domain=list(MODE_SELECTOR_DOMAINS))),
+                            vol.Optional(
+                                CONF_HOLIDAY_ENTITY, description={"suggested_value": config.get(CONF_HOLIDAY_ENTITY)}
+                            ): EntitySelector(EntitySelectorConfig(domain=list(HOLIDAY_DOMAINS))),
+                            vol.Required(
+                                CONF_HOLIDAY_INVERT, default=bool(config.get(CONF_HOLIDAY_INVERT, False))): bool,
+                        }
+                    ),
+                    {"collapsed": False},
+                ),
             }
         )
         return self.async_show_form(step_id="settings", data_schema=schema, errors=errors)

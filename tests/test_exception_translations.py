@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import re
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from homeassistant.components import persistent_notification
 from homeassistant.exceptions import ServiceValidationError
 
@@ -72,5 +71,17 @@ async def test_notification_reason_in_instance_language(hass, hass_storage, free
 
     hass.services.async_register("climate", "set_temperature", refuse)
     await setup(hass, hass_storage, freezer, [program()], local(26, 9, 0))
-    notifications = persistent_notification._async_get_or_create_notifications(hass)  # noqa: SLF001
+    notifications = persistent_notification._async_get_or_create_notifications(hass)
     assert expected in notifications[f"{DOMAIN}_{CLIMATE}_failed"]["message"]
+
+
+async def test_a_service_called_without_a_loaded_entry_raises_the_translated_error(hass):
+    """`_engine` used to raise a NameError (missing import) instead of the translated validation error."""
+    import pytest
+    from homeassistant.exceptions import ServiceValidationError
+
+    from custom_components.weekly_planner.services import _engine
+
+    with pytest.raises(ServiceValidationError) as err:
+        _engine(hass)
+    assert err.value.translation_key == "not_loaded"

@@ -7,18 +7,21 @@ from copy import deepcopy
 import pytest
 import voluptuous as vol
 
-from custom_components.weekly_planner import yaml_file
 from custom_components.weekly_planner.const import DOMAIN
 from custom_components.weekly_planner.modes import (
-    check_follows, copy_days, detach_followers, profile_for_mode, rename_profile, set_follow,
+    check_follows,
+    copy_days,
+    detach_followers,
+    profile_for_mode,
+    rename_profile,
+    set_follow,
 )
 from custom_components.weekly_planner.validation import check_program
 
 from .helpers import Recorder, labels, local, setup, slot
-from .test_global_mode import CONFIG, OPTIONS, SECOND, SELECTOR, choose, moded, snapshot, started
+from .test_global_mode import CONFIG, OPTIONS, SELECTOR, choose, moded, snapshot
 from .test_mode_rename import _options, _resolve, _start
 from .test_yaml_file import _doc, _edit, _issue, _later
-from .test_yaml_file import _start as _yaml_start
 
 
 def _empty() -> list[list]:
@@ -179,7 +182,7 @@ def _profile_in(program, name):
 
 
 async def test_switching_to_a_follower_mode_uses_the_source_schedules(hass, hass_storage, freezer, hass_ws_client):
-    engine, ws, rec = await _start(hass, hass_storage, freezer, hass_ws_client, [_follower()], state="Away")
+    _engine, ws, rec = await _start(hass, hass_storage, freezer, hass_ws_client, [_follower()], state="Away")
     rec.calls.clear()
     await _options(hass, OPTIONS, "Night")
     assert [d["temperature"] for n, d in rec.calls if n == "climate.set_temperature"] == [21]
@@ -303,7 +306,7 @@ async def test_deleting_the_source_leaves_a_copy_and_a_notice(hass, hass_storage
 
 
 async def test_deleting_a_mode_nobody_follows_leaves_no_notice(hass, hass_storage, freezer, hass_ws_client):
-    engine, ws, _rec = await _start(hass, hass_storage, freezer, hass_ws_client, [moded()], options=["Home", "Night"])
+    _engine, ws, _rec = await _start(hass, hass_storage, freezer, hass_ws_client, [moded()], options=["Home", "Night"])
     assert (await _resolve(ws, "Away", None))["success"]
     assert (await snapshot(ws))["mode"]["follow_lost"] == []
 
@@ -327,7 +330,7 @@ async def test_automatic_rename_moves_the_links_and_undo_moves_them_back(hass, h
 
 async def test_renaming_the_source_while_the_follower_is_active_keeps_the_effective_schedules(
         hass, hass_storage, freezer, hass_ws_client):
-    engine, ws, rec = await _start(hass, hass_storage, freezer, hass_ws_client, [_orphan_source()], state="Night")
+    engine, _ws, rec = await _start(hass, hass_storage, freezer, hass_ws_client, [_orphan_source()], state="Night")
     assert engine.active_profile_id("office") == "away"
     rec.calls.clear()
     await _options(hass, ["Home", "Elsewhere", "Night"], "Night")
@@ -340,7 +343,7 @@ async def test_default_mode_rename_on_selector_change_moves_the_links(hass, hass
     choose(hass, "Maison", ["Maison", "Away", "Night"])
     msg = await _command(ws, "mode/set", mode_selector=SELECTOR, default_mode="Maison")
     assert msg["success"], msg
-    assert [p["name"] for p in _program(engine)["profiles"]][0] == "Maison"
+    assert next(p["name"] for p in _program(engine)["profiles"]) == "Maison"
     assert _profile(engine, "Night")["follows"] == "Maison"
 
 

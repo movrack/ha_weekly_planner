@@ -74,15 +74,22 @@ class Holiday:
 NO_HOLIDAY = Holiday()
 
 
+def holiday_setting(profile: dict) -> dict | None:
+    """The day-off setting that applies: none when the profile has none or when it is switched off
+    (``off``: kept in memory, not applied)."""
+    setting = profile.get("holiday")
+    return setting if setting and not setting.get("off") else None
+
+
 def has_holiday(profile: dict) -> bool:
-    """Does the profile have a day-off setting (a copied weekday or its own day)?"""
-    return bool(profile.get("holiday"))
+    """Does the profile have a day-off setting that applies (a copied weekday or its own day)?"""
+    return holiday_setting(profile) is not None
 
 
 def day_slots(profile: dict, day: date, is_holiday: bool) -> list[dict]:
     """The slots that run on ``day``: the day-off setting when ``is_holiday`` and the profile has one
     (a live copy of a weekday, or its own day), else the weekday. The only place that picks a day."""
-    setting = profile.get("holiday") if is_holiday else None
+    setting = holiday_setting(profile) if is_holiday else None
     if setting:
         if "copy" in setting:
             return profile["days"][setting["copy"]]
@@ -288,9 +295,9 @@ def running_slot(
                                         entity_id=entity_id, holiday=holiday):
         if not occ.runs or occ.end is None:
             continue  # one-shot slots (no end) are events, handled by the engine
-        if occ.start <= moment < occ.end and applies(slot, entity_id) and conditions_ok(slot.get("conditions", [])):
-            if resolve(program, entity_id, slot.get("label")) is not None:
-                return occ, slot
+        if (occ.start <= moment < occ.end and applies(slot, entity_id) and conditions_ok(slot.get("conditions", []))
+                and resolve(program, entity_id, slot.get("label")) is not None):
+            return occ, slot
     return None
 
 

@@ -1,13 +1,13 @@
 """Pins behaviour that mutation testing (mutmut) showed was not asserted anywhere."""
 
-from datetime import date, datetime, timedelta, UTC
+from datetime import UTC, date, datetime, timedelta
 
 from custom_components.weekly_planner.const import DEFAULT_PRIORITY
 from custom_components.weekly_planner.modes import EMPTY_PROFILE, NO_PROFILE
 from custom_components.weekly_planner.resolver import active_profile, next_transition
 from custom_components.weekly_planner.timeline import occurrence
 
-from .test_resolver import E, TZ, local, no_sun, program, resolve, slot
+from .test_resolver import TZ, local, no_sun, program, resolve, slot
 
 
 def test_random_delay_is_pinned_across_releases():
@@ -102,16 +102,19 @@ def test_overnight_end_lands_on_the_next_day_only_before_noon():
 
 # -- third mutation run: timeline (a zone that is neither UTC nor the zone of the developer) --------------
 
-import pytest  # noqa: E402
-from zoneinfo import ZoneInfo  # noqa: E402
+from zoneinfo import ZoneInfo
 
-from custom_components.weekly_planner.timeline import (  # noqa: E402
+import pytest
+
+from custom_components.weekly_planner.timeline import (
     Occurrence,
     day_occurrences,
     parse_clock,
     place_day,
-    resolve as resolve_time,
     trim,
+)
+from custom_components.weekly_planner.timeline import (
+    resolve as resolve_time,
 )
 
 AKL = ZoneInfo("Pacific/Auckland")  # UTC+13 in October: wall-clock bugs show whatever the machine zone is
@@ -293,13 +296,16 @@ def test_trim_ignores_ignored_slots_when_computing_the_furthest_end():
 
 # -- third mutation run: validation ---------------------------------------------------------------------------
 
-from copy import deepcopy  # noqa: E402
+from copy import deepcopy
 
-import voluptuous as vol  # noqa: E402
+import voluptuous as vol
 
-from custom_components.weekly_planner import validation as v  # noqa: E402
+from custom_components.weekly_planner import validation as v
 
-from .helpers import CLIMATE, COVER, labels as _labels, program as _program, slot as _slot  # noqa: E402
+from .helpers import CLIMATE, COVER
+from .helpers import labels as _labels
+from .helpers import program as _program
+from .helpers import slot as _slot
 
 LIGHT = "light.office"
 PAUSE = "2026-12-01T08:00:00+00:00"
@@ -520,7 +526,7 @@ def test_scoped_overlap_of_a_delayed_slot_across_midnight_names_the_shared_devic
 
 # -- third mutation run: resolver -------------------------------------------------------------------------------
 
-from custom_components.weekly_planner.resolver import (  # noqa: E402
+from custom_components.weekly_planner.resolver import (
     OccurrenceCache,
     device_groups_around,
     occurrences_around,
@@ -528,7 +534,7 @@ from custom_components.weekly_planner.resolver import (  # noqa: E402
     running_slot,
 )
 
-from .test_resolver import LABELS, all_true, resolve_label  # noqa: E402
+from .test_resolver import all_true, resolve_label
 
 CLI, COV = "climate.office", "cover.office"
 

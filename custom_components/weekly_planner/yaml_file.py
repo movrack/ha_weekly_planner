@@ -66,22 +66,36 @@ DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 
 
 def holiday_to_file(holiday: dict) -> dict:
-    """A day-off setting as written in the file: ``{copy: mon}`` (a weekday's name) or ``{day: [...]}``."""
-    return {"copy": DAYS[holiday["copy"]]} if "copy" in holiday else {"day": holiday["day"]}
+    """A day-off setting as written in the file: ``{copy: mon}`` (a weekday's name) or ``{day: [...]}``;
+    ``off: true`` when it is kept but not applied; ``day`` beside ``copy`` is the own day kept in memory."""
+    out: dict[str, Any] = {}
+    if "copy" in holiday:
+        out["copy"] = DAYS[holiday["copy"]]
+    if "day" in holiday:
+        out["day"] = holiday["day"]
+    if holiday.get("off"):
+        out["off"] = True
+    return out
 
 
 def holiday_from_file(name: str, value: Any) -> dict | None:
     """A day-off setting of the file as stored (``copy`` becomes the weekday index, 0 = Monday)."""
     if value is None:
         return None
-    if not isinstance(value, dict) or len(value) != 1 or not set(value) <= {"copy", "day"}:
-        raise TypeError(f"mode {name}: 'holiday' must be {{copy: <day>}} or {{day: [...]}}")
+    if (not isinstance(value, dict) or not set(value) <= {"copy", "day", "off"} or not set(value) & {"copy", "day"}
+            or not isinstance(value.get("off", False), bool)):
+        raise TypeError(f"mode {name}: 'holiday' must be {{copy: <day>}} or {{day: [...]}}, with an optional off: true")
+    out: dict[str, Any] = {}
     if "copy" in value:
         day = value["copy"]
         if day not in DAYS:
             raise TypeError(f"mode {name}: 'holiday: copy' must be one of {', '.join(DAYS)}")
-        return {"copy": DAYS.index(day)}
-    return {"day": value["day"] or []}
+        out["copy"] = DAYS.index(day)
+    if "day" in value:
+        out["day"] = value["day"] or []
+    if value.get("off"):
+        out["off"] = True
+    return out
 
 
 def _mode_to_file(profile: dict) -> dict:
@@ -205,7 +219,7 @@ _LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 def _parse(data: bytes) -> dict[str, Any]:
     """Parse and check the shape of the file; raises ``ValueError``/``TypeError`` with a readable reason."""
     try:
-        raw = yaml.load(data.decode(), Loader=_LOADER)  # noqa: S506 (a safe loader)
+        raw = yaml.load(data.decode(), Loader=_LOADER)
     except (yaml.YAMLError, UnicodeDecodeError) as err:
         raise ValueError(f"YAML syntax: {err}") from err
     if not isinstance(raw, dict):

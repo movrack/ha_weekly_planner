@@ -16,12 +16,12 @@ Frozen day API (issue #34, per-device schedules); later work relies on these sig
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, date, datetime, time, timedelta, tzinfo
 from functools import lru_cache
 from hashlib import sha256
-import json
-from datetime import date, datetime, time, timedelta, tzinfo, UTC
 
 SUN_EVENTS = ("dawn", "sunrise", "sunset", "dusk")
 MIN_SLOT = timedelta(minutes=5)

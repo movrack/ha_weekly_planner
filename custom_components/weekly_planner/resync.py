@@ -175,7 +175,7 @@ class RecorderManualChanges:
     Without a recorder the answer is "no visible intervention", which the rules treat as "apply".
     """
 
-    def __init__(self, hass) -> None:  # noqa: ANN001 - HomeAssistant, kept untyped to stay importable in pure tests
+    def __init__(self, hass) -> None:
         self._hass = hass
 
     @property

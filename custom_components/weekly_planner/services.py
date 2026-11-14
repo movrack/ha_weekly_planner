@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import voluptuous as vol
-
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import config_validation as cv
 
 from .const import CONF_ADMIN_ONLY, DOMAIN
 from .engine import MAX_PAUSE_DAYS, PlannerEngine
+from .messages import validation_error
 
 PROGRAM = vol.Schema({vol.Required("program_id"): str, vol.Optional("cancel", default=False): bool})
 

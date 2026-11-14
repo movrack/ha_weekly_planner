@@ -222,7 +222,7 @@ def test_holiday_shapes():
     assert check_program(with_holiday({"copy": 0}), LABELS)["profiles"][0]["holiday"] == {"copy": 0}
     assert check_program(with_holiday({"day": []}), LABELS)["profiles"][0]["holiday"] == {"day": []}
     assert "holiday" not in check_program(with_holiday(None), LABELS)["profiles"][0]
-    for bad in ({"copy": 7}, {"copy": True}, {"copy": "mon"}, {"copy": 1, "day": []}, {}, [], {"day": None}):
+    for bad in ({"copy": 7}, {"copy": True}, {"copy": "mon"}, {}, [], {"day": None}, {"off": True}):
         with pytest.raises(vol.Invalid):
             check_program(with_holiday(bad), LABELS)
 

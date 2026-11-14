@@ -2,7 +2,11 @@
 
 from pathlib import Path
 
-from custom_components.weekly_planner.validation import check_label, check_mode_config, check_program
+from custom_components.weekly_planner.validation import (
+    check_label,
+    check_mode_config,
+    check_program,
+)
 from custom_components.weekly_planner.yaml_file import _parse, program_from_file
 
 EXAMPLE = Path(__file__).parents[1] / "custom_components" / "weekly_planner" / "example.yml"

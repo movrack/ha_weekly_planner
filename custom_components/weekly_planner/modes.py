@@ -7,10 +7,10 @@ The first profile of a program is its default profile: it applies when there is 
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Iterable
 from copy import deepcopy
 from typing import Any
-import uuid
 
 # Value of ``active_profiles[program_id]`` when the program has no profile for the active mode.
 NO_PROFILE = ""
@@ -21,7 +21,8 @@ EMPTY_PROFILE: dict[str, Any] = {"id": NO_PROFILE, "name": "", "days": [[] for _
 def profile_slots(profile: dict) -> Iterable[dict]:
     """Every slot a profile stores: the seven days, then its own day-off day (issue #54) when it has one.
 
-    A day off that copies a weekday stores no slot (it is a live reference to that day).
+    A day off that copies a weekday is a live reference to that day; it stores slots only when it keeps
+    in memory the own day written before.
     """
     for day in profile["days"]:
         yield from day
@@ -97,12 +98,14 @@ def copy_days(days: list[list[dict]]) -> list[list[dict]]:
 
 
 def copy_holiday(holiday: dict | None) -> dict | None:
-    """Independent copy of a day-off setting: a copied weekday stays an index, an own day gets new slot ids."""
+    """Independent copy of a day-off setting: a copied weekday stays an index, an own day (applied or kept
+    in memory) gets new slot ids, ``off`` is kept."""
     if not holiday:
         return None
+    copy = {key: value for key, value in holiday.items() if key != "day"}
     if "day" in holiday:
-        return {"day": copy_days([holiday["day"]])[0]}
-    return dict(holiday)
+        copy["day"] = copy_days([holiday["day"]])[0]
+    return copy
 
 
 def _take_schedules(profile: dict, source: dict | None) -> None:

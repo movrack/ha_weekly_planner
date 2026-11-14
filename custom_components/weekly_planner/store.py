@@ -7,14 +7,14 @@ user's programs.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from datetime import datetime, timedelta
 import inspect
 import logging
-from pathlib import Path
 import shutil
-from typing import Any
 import uuid
+from collections.abc import Callable
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
@@ -22,7 +22,6 @@ from homeassistant.helpers.translation import async_get_translations
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, STORAGE_MINOR_VERSION, STORAGE_VERSION
-
 from .migration import migrate_config_v1, migrate_config_v2, migrate_runtime_v1
 
 _LOGGER = logging.getLogger(__name__)
@@ -118,7 +117,7 @@ class PlannerStore:
             if rt.get("active_profile")}
         try:
             data = await self._config.async_load()
-        except Exception as err:  # noqa: BLE001 - unsupported version, invalid JSON…
+        except Exception as err:
             self.read_only = True
             raise ConfigStoreError(str(err)) from err
         if data is None and existed:

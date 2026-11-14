@@ -7,13 +7,13 @@ condition, program or vacation change) and does not watch what a device becomes 
 from __future__ import annotations
 
 import asyncio
+import logging
+import time
 from collections import deque
 from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from functools import partial
-import logging
-import time
 from typing import Any
 
 from homeassistant.components import persistent_notification
@@ -22,7 +22,10 @@ from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, State, callb
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
-from homeassistant.helpers.event import async_track_point_in_utc_time, async_track_state_change_event
+from homeassistant.helpers.event import (
+    async_track_point_in_utc_time,
+    async_track_state_change_event,
+)
 from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.helpers.sun import get_astral_event_date
 from homeassistant.util import dt as dt_util
@@ -45,10 +48,19 @@ from .const import (
 )
 from .messages import async_reason, message, validation_error
 from .modes import (
-    MAX_RENAMES, NO_PROFILE, apply_default_mode, delete_profile, detach_followers, mode_proposals, orphan_modes,
-    profile_for_mode, profile_slots, rename_profile, set_follow, unambiguous_rename,
+    MAX_RENAMES,
+    NO_PROFILE,
+    apply_default_mode,
+    delete_profile,
+    detach_followers,
+    mode_proposals,
+    orphan_modes,
+    profile_for_mode,
+    profile_slots,
+    rename_profile,
+    set_follow,
+    unambiguous_rename,
 )
-from .resync import RecorderManualChanges, expected_state, settle_manual_change
 from .registry import async_check_missing, async_track_registry
 from .resolver import (
     NO_HOLIDAY,
@@ -58,10 +70,12 @@ from .resolver import (
     active_profile,
     default_label,
     has_holiday,
+    holiday_setting,
     next_transition,
     occurrences_around,
     resolve_entity,
 )
+from .resync import RecorderManualChanges, expected_state, settle_manual_change
 from .store import PlannerStore
 from .timeline import local_datetime
 from .validation import service_accepts
@@ -118,8 +132,24 @@ class _Pass:
     recompute did: changes arriving meanwhile are handled by the next pass.
     """
 
-    __slots__ = ("programs", "labels", "profiles", "vacation", "effective", "check", "descriptions",
-                 "occurrences", "actions", "tz", "holiday", "_sun", "_suns", "_by_id", "_owners", "_lookups")
+    __slots__ = (
+        "_by_id",
+        "_lookups",
+        "_owners",
+        "_sun",
+        "_suns",
+        "actions",
+        "check",
+        "descriptions",
+        "effective",
+        "holiday",
+        "labels",
+        "occurrences",
+        "profiles",
+        "programs",
+        "tz",
+        "vacation",
+    )
 
     def __init__(self, engine: PlannerEngine, occurrences: OccurrenceCache | None = None) -> None:
         store = engine.store
@@ -128,7 +158,7 @@ class _Pass:
         self._owners: dict[str, list[dict]] | None = None
         self._lookups = 0
         self.labels = engine.labels
-        self.profiles = engine._profiles()  # noqa: SLF001
+        self.profiles = engine._profiles()
         self.vacation = store.config.get("vacation", False)
         self.effective = effective = engine.conditions.effective()
         # ConditionTracker.check on the effective values of the start of the pass
@@ -181,7 +211,7 @@ class _Pass:
         return (
             len(programs) == len(self.programs) and all(a is b for a, b in zip(programs, self.programs, strict=True))
             and engine.labels == self.labels and engine.store.config.get("vacation", False) == self.vacation
-            and engine._profiles() == self.profiles and engine.conditions.effective() == self.effective  # noqa: SLF001
+            and engine._profiles() == self.profiles and engine.conditions.effective() == self.effective
             and engine.descriptions is self.descriptions and engine.holiday_view() == self.holiday
         )
 
@@ -472,7 +502,7 @@ class PlannerEngine:
         prt = self.store.runtime["programs"].get(program_id, {})
         # Day off (issue #54): what replaces today in this program, only while today is a day off and the
         # active mode has a setting: {"copy": weekday} (0 = Monday) or {"own": true}.
-        setting = active_profile(program, ctx.profiles).get("holiday") if ctx.holiday.day is not None else None
+        setting = holiday_setting(active_profile(program, ctx.profiles)) if ctx.holiday.day is not None else None
         skip_at = prt.get("skip_at")
         verification = {entity["entity_id"]: v for entity in program["entities"]
                         if (v := self.rt(entity["entity_id"]).get("verification"))}

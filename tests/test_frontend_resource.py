@@ -6,12 +6,10 @@ from hashlib import sha256
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
+from homeassistant.components.lovelace.const import LOVELACE_DATA, MODE_STORAGE, MODE_YAML
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from homeassistant.components.lovelace.const import LOVELACE_DATA, MODE_STORAGE, MODE_YAML
-
-from custom_components.weekly_planner import async_remove_entry
-from custom_components.weekly_planner import frontend
+from custom_components.weekly_planner import async_remove_entry, frontend
 from custom_components.weekly_planner.const import DOMAIN
 
 

@@ -71,7 +71,7 @@ export interface Slot {
 }
 
 /** What a mode does on a day off: a live reference to a weekday, or its own day. */
-export type HolidaySetting = { copy: number } | { day: Slot[] };
+export type HolidaySetting = { copy: number; day?: Slot[]; off?: boolean } | { day: Slot[]; off?: boolean };
 
 export interface Profile {
   id: string;

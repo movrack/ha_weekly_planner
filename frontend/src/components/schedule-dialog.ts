@@ -30,7 +30,7 @@ import { loadServiceNames, onServiceNames } from "../services";
 import { cloneSlots, effectiveProfile, friendlyName, newId } from "../planner";
 import { deviceDays, fetchPreviewResponse } from "../preview-cache";
 import { DAY, formatPauseEnd, localDateIso, localWeekday, minutesToClock, pauseEnd } from "../time";
-import { holidayApplies, holidayDayToday } from "../holiday";
+import { dayInText, holidayApplies, holidayDayToday, holidayReplaces } from "../holiday";
 import { applicable, applies, normaliseEntities, shiftTimeSpec, specMinutes, sunBoundsInvalid } from "../slots";
 import { editorStyles, langOf } from "../editors/shared";
 import { callout } from "../styles";
@@ -116,6 +116,8 @@ export class WpSchedule extends LitElement {
   @state() private _programId = "";
   @state() private _error = "";
   @state() private _saving = false;
+  /** The day-off slot form (inside the slot form) is open: it has its own Save / Cancel, the outer pair is hidden meanwhile. */
+  @state() private _holidayForm = false;
   @state() private _toggling = false;
   @state() private _offset = 0;
   /** Preview answers of the day before and of the day shown (null: none or failed). */
@@ -326,6 +328,7 @@ export class WpSchedule extends LitElement {
     this._editMode = this._openMode;
     this._editProfileId = this._modeProfile(program)?.id ?? newId();
     this._open = key;
+    this._holidayForm = false;
     this._programId = program.id;
     this._group = group ? structuredClone(group) : null;
     this._initialGroup = JSON.stringify(this._group);
@@ -404,6 +407,7 @@ export class WpSchedule extends LitElement {
     this._editProfileId = null;
     this._editMode = null;
     this._open = null;
+    this._holidayForm = false;
     this._group = null;
     this._dayOnly = null;
     this._rest = null;
@@ -941,7 +945,7 @@ export class WpSchedule extends LitElement {
         .device=${this._eid} .also=${!this._shared}
         .dayOnly=${this._dayOnly} ?disabled=${!this._canEdit}
         @label-draft=${(e: CustomEvent<LabelDraft | null>) => { e.stopPropagation(); this._labelDraft = e.detail; this._error = ""; }}
-        @group-change=${(e: CustomEvent<SlotGroup>) => { e.stopPropagation(); this._group = e.detail; this._error = ""; }}></wp-slot-form>`)}
+        @group-change=${(e: CustomEvent<SlotGroup>) => { e.stopPropagation(); this._group = e.detail; this._error = ""; }}>${this._renderHoliday(true)}</wp-slot-form>`)}
       ${this._shared && !isNew ? html`<div class="who" role="radiogroup" aria-label=${t(lang, "who_title")}>
         <span>${t(lang, "who_title")}</span>
         <div class="seg">
@@ -951,10 +955,10 @@ export class WpSchedule extends LitElement {
             @click=${() => this._pickWho("all")}><ha-icon icon="mdi:select-all"></ha-icon>${this._whoAll(count, devices)}</button>
         </div></div>` : nothing}
       ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
-      <div class="btns">
+      ${this._holidayForm ? nothing : html`<div class="btns">
         <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRow()}>${t(lang, "save")}</button>
         <button class="btn" @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
-      </div>
+      </div>`}
       ${isNew || this._labelDraft ? nothing : html`<button class="btn dup" ?disabled=${!this._canEdit} @click=${() => this._duplicate()}>
         <ha-icon icon="mdi:content-copy"></ha-icon>${t(lang, "duplicate")}</button>`}
       <button class="btn danger-line alone" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._deleteRow()}>
@@ -1068,16 +1072,16 @@ export class WpSchedule extends LitElement {
   }
 
   /** "Day off" section per program (hidden without a day-off entity); a mode that follows another shows the source's, read-only. */
-  private _renderHoliday() {
+  private _renderHoliday(inForm = false) {
     if (!this.data.holiday_entity) return nothing;
-    return this._programs.map((p) => {
+    return this._programs.filter((p) => !inForm || p.id === this._programId).map((p) => {
       const base = this._ownProfile(p);
       if (!base) return nothing;
       const live = this._live(p.id) ?? p;
       const pick = (x: Profile) => live.profiles.find((y) => y.id === x.id) ?? x;
       const own = pick(base);
       const eff = this._modeProfile(p);
-      return html`<wp-holiday .hass=${this.hass} .data=${this.data} .program=${live} .profile=${own} .source=${eff && eff !== base ? pick(eff) : null} ?canEdit=${this._canEdit}
+      return html`<wp-holiday slot=${inForm ? "after-days" : nothing} @holiday-form=${(e: CustomEvent<boolean>) => { e.stopPropagation(); this._holidayForm = e.detail; }} .hass=${this.hass} .data=${this.data} .program=${live} .profile=${own} .source=${eff && eff !== base ? pick(eff) : null} ?canEdit=${this._canEdit}
         @holiday-saved=${(e: CustomEvent<Program>) => { e.stopPropagation(); this._saved[p.id] = e.detail; this.requestUpdate();
           this.dispatchEvent(new CustomEvent("schedule-program-saved", { detail: e.detail, bubbles: true, composed: true })); }}></wp-holiday>`;
     });
@@ -1216,6 +1220,20 @@ export class WpSchedule extends LitElement {
   }
 
   /** Keep the whole week visible, including the unsaved slot being edited. */
+  /** One line under the week when today's row shows a day off (same condition as `offDay` in `_renderWeek`). */
+  private _renderWeekNote() {
+    // the server status is about the active mode: nothing to say for another mode
+    if (this._open !== null || this._modeOnly) return nothing;
+    const real = localWeekday(new Date(), this._tz);
+    const applies = this._programs.some((original) => {
+      const program = this._live(original.id) ?? original;
+      if (!program.entities.some((e) => e.entity_id === this._eid)) return false;
+      const profile = this._modeProfile(program);
+      return Boolean(profile && holidayReplaces(this.data, program.id, real) && holidayDayToday(profile, this.data, holidayApplies(this.data, program.id)));
+    });
+    return applies ? html`<p class="muted note">${t(this._lang, "holiday_week_note", { day: dayInText(this._lang, real) })}</p>` : nothing;
+  }
+
   private _renderWeek() {
     const lang = this._lang;
     return html`<section class="schematic" aria-label=${t(lang, "week")}>
@@ -1234,8 +1252,11 @@ export class WpSchedule extends LitElement {
               });
             }
             // a day off today: its schedule is what runs; yesterday's tail and this day's tail never cross midnight into/out of it
-            const offDay = this._open === null && day === localWeekday(new Date(), this._tz) ? holidayDayToday(profile, this.data, holidayApplies(this.data, program.id)) : null;
-            const afterOff = this._open === null && (day + 6) % 7 === localWeekday(new Date(), this._tz) && this.data.holiday_today && holidayApplies(this.data, program.id);
+            const real = localWeekday(new Date(), this._tz);
+            // the status is about the active mode; a copy of the real weekday replaces nothing
+            const offDay = this._open === null && !this._modeOnly && day === real && holidayReplaces(this.data, program.id, real)
+              ? holidayDayToday(profile, this.data, holidayApplies(this.data, program.id)) : null;
+            const afterOff = this._open === null && (day + 6) % 7 === real && !this._modeOnly && this.data.holiday_today && holidayApplies(this.data, program.id);
             for (const d of [(day + 6) % 7, day]) {
               if (offDay && d !== day) continue;
               if (afterOff && d !== day) continue;
@@ -1340,8 +1361,7 @@ export class WpSchedule extends LitElement {
             <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${first ? t(lang, "create_setting") : this._focus === null ? t(lang, "w_add") : t(lang, "w_add_day", { day: strings(lang).days[this._focus].toLocaleLowerCase(lang) })}</span></button>` : nothing}
         </div>`)}
         </div>
-        ${this._open === null && !this._modeOnly ? this._renderHoliday() : nothing}
-        <div class="area-week">${this._renderWeek()}</div>
+        <div class="area-week">${this._renderWeek()}${this._renderWeekNote()}${this._open === null ? this._renderHoliday() : nothing}</div>
         <div class="area-chart">${this._open !== null ? nothing : this._renderChart()}</div>
         <div class="area-options">${this._renderChartOptions()}</div>
         <div class="area-delete">${this._open !== null || this._modeOnly ? nothing : html`<button class="btn danger-line alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteAll()}>

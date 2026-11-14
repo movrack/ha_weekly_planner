@@ -100,7 +100,7 @@ async def test_manual_change_seen_in_history_skips_that_device(hass, hass_storag
     plan = by_entity(await engine.async_plan_resync())
     assert plan["cover.s2"]["send"] is False and plan["cover.s2"]["reason"] == "manual_change"
     assert all(plan[e]["send"] for e in COVERS if e != "cover.s2")
-    entity, since, until = engine.history.asked[0]
+    _entity, since, until = engine.history.asked[0]
     assert since == local(26, 17) and until.timestamp() == local(26, 18).timestamp() + 31  # since the one-shot
     result = await engine.async_resync()
     await hass.async_block_till_done()
@@ -194,7 +194,7 @@ async def test_timed_schedule_ignores_the_manual_check(hass, hass_storage, freez
 
 
 async def test_default_applies_outside_schedules(hass, hass_storage, freezer):
-    engine, rec = await start(hass, hass_storage, freezer, [program()], local(26, 14))
+    engine, _rec = await start(hass, hass_storage, freezer, [program()], local(26, 14))
     item = (await engine.async_plan_resync())[0]
     assert item["kind"] == "default" and item["action"]["data"] == {"temperature": 15}
     assert item["start"] is not None  # the end of the 08:00-12:00 schedule
@@ -269,7 +269,7 @@ async def test_unavailable_entity_is_left_alone(hass, hass_storage, freezer):
 async def test_apply_now_service_returns_sent_and_skipped(hass, hass_storage, freezer):
     other = shutters(entities=["cover.s1"])
     other["id"] = "other"
-    engine, rec = await start(hass, hass_storage, freezer, [shutters(entities=COVERS[1:]), other], local(26, 18))
+    _engine, rec = await start(hass, hass_storage, freezer, [shutters(entities=COVERS[1:]), other], local(26, 18))
     hass.states.async_set("cover.s4", "unavailable", {})
     response = await hass.services.async_call(
         DOMAIN, "apply_now", {"program_id": "shutters"}, blocking=True, return_response=True)
@@ -310,7 +310,7 @@ async def test_settle_manual_change_only_looks_at_one_shots():
 
 
 async def test_options_step_lists_the_plan_then_sends_on_validation(hass, hass_storage, freezer):
-    engine, rec = await start(hass, hass_storage, freezer, [shutters(entities=COVERS[:2])], local(26, 18))
+    _engine, rec = await start(hass, hass_storage, freezer, [shutters(entities=COVERS[:2])], local(26, 18))
     entry = hass.config_entries.async_entries(DOMAIN)[0]
     flow = hass.config_entries.options
     result = await flow.async_init(entry.entry_id)
@@ -328,7 +328,7 @@ async def test_options_step_lists_the_plan_then_sends_on_validation(hass, hass_s
 
 
 async def test_options_step_with_nothing_to_send(hass, hass_storage, freezer):
-    engine, rec = await start(hass, hass_storage, freezer, [shutters(entities=["cover.s1"])], local(26, 18))
+    _engine, _rec = await start(hass, hass_storage, freezer, [shutters(entities=["cover.s1"])], local(26, 18))
     hass.states.async_set("cover.s1", "unavailable", {})
     entry = hass.config_entries.async_entries(DOMAIN)[0]
     flow = hass.config_entries.options
