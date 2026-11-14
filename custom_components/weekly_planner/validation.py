@@ -7,12 +7,18 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import voluptuous as vol
-
 from homeassistant.helpers import config_validation as cv
 
 from .actions import needs_admin
-from .const import DEFAULT_PRIORITY, DEFAULT_REAPPLY, DOMAIN, MODE_NAME_MAX, MODE_SELECTOR_DOMAINS
-from .modes import check_follows
+from .const import (
+    DEFAULT_PRIORITY,
+    DEFAULT_REAPPLY,
+    DOMAIN,
+    HOLIDAY_DOMAINS,
+    MODE_NAME_MAX,
+    MODE_SELECTOR_DOMAINS,
+)
+from .modes import check_follows, profile_slots
 from .slots import applicable_ids
 from .timeline import SUN_EVENTS, day_occurrences, parse_clock
 
@@ -51,7 +57,7 @@ _SUN_TIME = vol.All(
 )
 
 
-def TIME_SPEC(value: Any) -> dict:  # noqa: N802 - used like a schema
+def TIME_SPEC(value: Any) -> dict:
     """Fixed or solar time; the error names the actual problem of a solar time."""
     if isinstance(value, dict) and "sun" in value:
         return _SUN_TIME(value)
@@ -124,12 +130,30 @@ SLOT = vol.Schema({
     vol.Optional("seed"): vol.All(str, vol.Length(min=1, max=255)),
 })
 
+def _weekday(value: Any) -> int:
+    if type(value) is not int or not 0 <= value <= 6:
+        raise vol.Invalid("invalid_holiday_copy")
+    return value
+
+
+DAY = vol.All([SLOT], vol.Length(max=50))
+
+# Day off (issue #54): a live copy of a weekday (0 = Monday) or a day of its own, same shape as a day.
+# Nothing is lost when the user changes their mind: ``off`` keeps the setting without applying it, and a
+# copied weekday may keep the own day (``day``) written before.
+HOLIDAY = vol.Any(
+    vol.Schema({vol.Required("copy"): _weekday, vol.Optional("day"): DAY, vol.Optional("off"): bool}),
+    vol.Schema({vol.Required("day"): DAY, vol.Optional("off"): bool}),
+    msg="invalid_holiday",
+)
+
 PROFILE = vol.Schema({
     vol.Required("id"): str,
     vol.Required("name"): vol.All(str, vol.Length(min=1, max=40)),
-    vol.Required("days"): vol.All([vol.All([SLOT], vol.Length(max=50))], vol.Length(min=7, max=7)),
+    vol.Required("days"): vol.All([DAY], vol.Length(min=7, max=7)),
     # The mode follows another mode of the program (docs/adr/0002): its schedules are those of that mode.
     vol.Optional("follows"): vol.Any(None, vol.All(str, vol.Length(min=1, max=40))),
+    vol.Optional("holiday"): vol.Any(None, HOLIDAY),
 })
 
 CHART_SOURCE = vol.Schema({
@@ -284,6 +308,51 @@ def check_mode_config(selector: Any, default_mode: Any, hass: Any = None, option
     return {"mode_selector": selector, "default_mode": default_mode}
 
 
+def check_holiday_config(entity: Any, invert: Any, hass: Any = None, driven: Any = ()) -> dict:
+    """Day-off settings of the house (issue #54): ``holiday_entity`` (None, or a binary_sensor, input_boolean,
+    switch or calendar entity) and ``holiday_invert`` (the entity is on on a working day).
+
+    Weekly Planner's own entities are refused, and so are the entities its programs drive (``driven``): a
+    program would decide its own day off.
+    """
+    if entity is not None:
+        entity = cv.entity_id(entity)
+        if entity.split(".", 1)[0] not in HOLIDAY_DOMAINS:
+            raise ProgramError("invalid_holiday_entity_domain")
+        if hass is not None:
+            from homeassistant.helpers import entity_registry as er
+            entry = er.async_get(hass).async_get(entity)
+            if entry and entry.platform == DOMAIN:
+                raise ProgramError("circular_holiday_entity")
+        if entity in driven:
+            raise ProgramError("driven_holiday_entity")
+    if not isinstance(invert, bool):
+        raise ProgramError("invalid_holiday_invert")
+    return {"holiday_entity": entity, "holiday_invert": invert}
+
+
+def driven_entities(programs: list[dict], labels: Any, hass: Any = None) -> set[str]:
+    """Entities a program can command: its devices, the explicit targets of the actions it can send and,
+    with ``hass``, the entities of the scenes it can turn on."""
+    driven = {e["entity_id"] for p in programs for e in p["entities"]}
+    actions = [label["action"] for label in (labels.values() if isinstance(labels, dict) else labels)]
+    actions += [a for p in programs for e in p["entities"] for a in e.get("label_overrides", {}).values()]
+    driven |= {a["target_entity_id"] for a in actions if a.get("target_entity_id")}
+    if hass is not None:
+        for action in actions:
+            if action.get("kind") == "scene" and (state := hass.states.get(action.get("scene", ""))) is not None:
+                members = state.attributes.get("entity_id")
+                driven |= {eid for eid in members if isinstance(eid, str)} if isinstance(members, list) else set()
+    return driven
+
+
+def check_holiday_loop(holiday_entity: str | None, programs: list[dict], labels: Any, hass: Any = None) -> None:
+    """The day-off entity of the house may never become something a program commands (issue #54, no loop):
+    checked on every program, day-off and label save, not only when the entity is chosen."""
+    if holiday_entity and holiday_entity in driven_entities(programs, labels, hass):
+        raise ProgramError("driven_holiday_entity")
+
+
 def check_program(program: dict, labels: dict[str, dict], hass: Any = None, descriptions: dict | None = None,
                   reapply_default: bool = DEFAULT_REAPPLY) -> dict:
     """Schema + semantic rules: unique profile names, known labels, valid overrides, no overlap on a day.
@@ -301,6 +370,14 @@ def check_program(program: dict, labels: dict[str, dict], hass: Any = None, desc
     for profile in program["profiles"]:
         if profile.get("follows") is None:
             profile.pop("follows", None)
+        if profile.get("holiday") is None:
+            profile.pop("holiday", None)
+        else:  # one stored form: no ``off: false``, no empty kept day beside a copied weekday
+            setting = profile["holiday"]
+            if not setting.get("off"):
+                setting.pop("off", None)
+            if "copy" in setting and not setting.get("day"):
+                setting.pop("day", None)
     try:
         check_follows(program["profiles"])
     except ValueError as err:
@@ -315,17 +392,20 @@ def check_program(program: dict, labels: dict[str, dict], hass: Any = None, desc
             if action["kind"] == "service":
                 _check_service(hass, descriptions, entity["entity_id"], action)
     device_ids = {e["entity_id"]: None for e in program["entities"]}
-    has_lists = any("entities" in s for p in program["profiles"] for d in p["days"] for s in d)
+    has_lists = any("entities" in s for p in program["profiles"] for s in profile_slots(p))
     for profile in program["profiles"]:
-        for day_slots in profile["days"]:
-            for slot in day_slots:
-                if slot["label"] not in labels:
-                    raise ProgramError(f"unknown_label:{slot['label']}")
-                _check_slot_entities(slot, device_ids)
+        for slot in profile_slots(profile):
+            if slot["label"] not in labels:
+                raise ProgramError(f"unknown_label:{slot['label']}")
+            _check_slot_entities(slot, device_ids)
         if has_lists:
             _check_week_overlaps_scoped(profile["days"], list(device_ids))
         else:
             _check_week_overlaps(profile["days"])
+        own = (profile.get("holiday") or {}).get("day")
+        if own is not None:
+            # A day off is a whole day (issue #54): it is checked alone, never against its neighbours.
+            _check_day_overlaps(own, list(device_ids) if has_lists else None)
     return program
 
 
@@ -384,6 +464,19 @@ def _check_overlaps(day_slots: list[dict]) -> None:
     _reject_overlaps(_fixed_intervals(day_slots, date(2026, 1, 5)))
 
 
+def _check_day_overlaps(day_slots: list[dict], entity_ids: list[str] | None) -> None:
+    """One day on its own (a day off): fixed windows, random delays included; scoped by device with lists."""
+    day = date(2026, 1, 5)
+    if entity_ids is None:
+        _reject_overlaps(_fixed_intervals(day_slots, day))
+        return
+    found = sorted(_fixed_intervals(day_slots, day, entity_ids), key=lambda item: item[:2])
+    for n, (_start, end, _, ids) in enumerate(found):
+        for other_start, _other_end, _, other_ids in found[n + 1:]:
+            if other_start < end and (shared := _shared_device(ids, other_ids, entity_ids)):
+                raise ProgramError(f"overlapping_slots:{shared}")
+
+
 def _check_week_overlaps(days: list[list[dict]]) -> None:
     """Include adjacent days and Sunday-to-Monday spill, including random delays."""
     monday = date(2026, 1, 5)
@@ -433,7 +526,7 @@ def admin_required(program: dict, labels: dict[str, dict]) -> bool:
     if any(needs_admin(a) for e in program["entities"] for a in e["label_overrides"].values()):
         return True
     used = {e["default_label"] for e in program["entities"]}
-    used |= {s["label"] for p in program["profiles"] for d in p["days"] for s in d}
+    used |= {s["label"] for p in program["profiles"] for s in profile_slots(p)}
     return any(needs_admin((labels.get(label_id) or {}).get("action")) for label_id in used)
 
 
@@ -443,7 +536,7 @@ def label_users(programs: list[dict], label_id: str) -> list[str]:
     for program in programs:
         used = any(e.get("default_label") == label_id or label_id in (e.get("label_overrides") or {})
                    for e in program["entities"])
-        used = used or any(s.get("label") == label_id for p in program["profiles"] for d in p["days"] for s in d)
+        used = used or any(s.get("label") == label_id for p in program["profiles"] for s in profile_slots(p))
         if used:
             users.append(program["name"])
     return users

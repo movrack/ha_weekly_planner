@@ -52,8 +52,8 @@ service must be accepted by the target entity.
 ## 3. Other interfaces
 - **Websocket API** `weekly_planner/*` (the card uses it): `get`, `subscribe`, program and label
   save/delete with an optimistic `revision`. Prefer the YAML file for agents.
-- **Dashboard**: the Lovelace card `custom:weekly-planner-card`; see the README "Dashboard
-  configuration".
+- **Dashboard**: the Lovelace card `custom:weekly-planner-card`; see "Dashboard configuration" in
+  https://github.com/movrack/ha_weekly_planner/blob/main/wiki/REFERENCE.md
 
 ## 4. Cautions
 - Programs act on real devices (heating, shutters). Test on one harmless entity first.
@@ -63,7 +63,8 @@ service must be accepted by the target entity.
   windows: pending random delays are cancelled.
 
 ## 5. More documentation
-- README (installation, model, actions, YAML): https://github.com/movrack/ha_weekly_planner#readme
+- README (installation, options, entities, actions): https://github.com/movrack/ha_weekly_planner#readme
+- Reference (card options, model, modes, API, YAML file, limits): https://github.com/movrack/ha_weekly_planner/blob/main/wiki/REFERENCE.md
 - User guide (French, with screenshots): https://github.com/movrack/ha_weekly_planner/blob/main/wiki/GUIDE.fr.md
 - Modes: https://github.com/movrack/ha_weekly_planner/blob/main/wiki/MODES.md
 - Generic actions (any service): https://github.com/movrack/ha_weekly_planner/blob/main/wiki/GENERIC_ACTIONS.md

@@ -7,15 +7,26 @@ The first profile of a program is its default profile: it applies when there is 
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Iterable
 from copy import deepcopy
 from typing import Any
-import uuid
 
 # Value of ``active_profiles[program_id]`` when the program has no profile for the active mode.
 NO_PROFILE = ""
-# Stand-in profile of such a program: no schedule, so only "the rest of the time" applies.
+# Stand-in profile of such a program: no schedule and no day-off setting, so only "the rest of the time" applies.
 EMPTY_PROFILE: dict[str, Any] = {"id": NO_PROFILE, "name": "", "days": [[] for _ in range(7)]}
+
+
+def profile_slots(profile: dict) -> Iterable[dict]:
+    """Every slot a profile stores: the seven days, then its own day-off day (issue #54) when it has one.
+
+    A day off that copies a weekday is a live reference to that day; it stores slots only when it keeps
+    in memory the own day written before.
+    """
+    for day in profile["days"]:
+        yield from day
+    yield from (profile.get("holiday") or {}).get("day") or ()
 
 
 def profile_named(program: dict, name: str) -> dict | None:
@@ -69,6 +80,8 @@ def check_follows(profiles: list[dict]) -> None:
             raise ValueError(f"Mode '{name}' cannot follow '{target}': another mode already follows '{name}'")
         if any(day for day in profile["days"]):
             raise ValueError(f"Mode '{name}' follows '{target}' and has its own schedules: it can have only one of the two")
+        if profile.get("holiday"):
+            raise ValueError(f"Mode '{name}' follows '{target}' and has its own day off: it uses the day off of '{target}'")
 
 
 def copy_days(days: list[list[dict]]) -> list[list[dict]]:
@@ -84,6 +97,28 @@ def copy_days(days: list[list[dict]]) -> list[list[dict]]:
     return out
 
 
+def copy_holiday(holiday: dict | None) -> dict | None:
+    """Independent copy of a day-off setting: a copied weekday stays an index, an own day (applied or kept
+    in memory) gets new slot ids, ``off`` is kept."""
+    if not holiday:
+        return None
+    copy = {key: value for key, value in holiday.items() if key != "day"}
+    if "day" in holiday:
+        copy["day"] = copy_days([holiday["day"]])[0]
+    return copy
+
+
+def _take_schedules(profile: dict, source: dict | None) -> None:
+    """``profile`` stops following: it gets a copy of the days and of the day-off setting of ``source``."""
+    profile["days"] = copy_days(source["days"]) if source else [[] for _ in range(7)]
+    holiday = copy_holiday(source.get("holiday")) if source else None
+    if holiday:
+        profile["holiday"] = holiday
+    else:
+        profile.pop("holiday", None)
+    profile.pop("follows", None)
+
+
 def set_follow(program: dict, mode: str, follows: str | None) -> dict:
     """The program with mode ``mode`` following ``follows``, or (``None``) stopped following with a copy of
     the schedules of its source. The mode gets a profile when it has none. Raises ``ValueError``; the
@@ -93,14 +128,14 @@ def set_follow(program: dict, mode: str, follows: str | None) -> dict:
     if follows is None:
         if own is not None and own.get("follows"):
             source = next((p for p in profiles if p["name"] == own["follows"]), None)
-            own["days"] = copy_days(source["days"]) if source else [[] for _ in range(7)]
-            del own["follows"]
+            _take_schedules(own, source)
     else:
         if own is None:
             own = {"id": uuid.uuid4().hex[:12], "name": mode, "days": [[] for _ in range(7)]}
             profiles.append(own)
         own["follows"] = follows
         own["days"] = [[] for _ in range(7)]
+        own.pop("holiday", None)  # it uses the day off of its source
         check_follows(profiles)
     return {**program, "profiles": profiles}
 
@@ -122,8 +157,7 @@ def detach_followers(programs: Iterable[dict], name: str) -> list[dict]:
             continue
         for profile in program["profiles"]:
             if profile.get("follows") == name:
-                profile["days"] = copy_days(source["days"])
-                del profile["follows"]
+                _take_schedules(profile, source)
                 lost.append({"program_id": program["id"], "mode": profile["name"]})
         if any(item["program_id"] == program["id"] for item in lost):
             program["revision"] = program.get("revision", 0) + 1

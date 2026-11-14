@@ -6,7 +6,6 @@ from copy import deepcopy
 
 import pytest
 import voluptuous as vol
-
 from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.weekly_planner.actions import call_for

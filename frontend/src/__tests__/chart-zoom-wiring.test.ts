@@ -203,7 +203,7 @@ describe("rendering when zoomed", () => {
     const full = flat(tpl(chart()));
     expect(full).toContain(">0h<");
     expect(full).toContain(">3h<");
-    expect(full).toContain(">24h<"); // the end of the day is never a second "0h"
+    expect(full).toContain(">24 h<"); // the end of the day is never a second "0h"
     expect(full.match(/>0h</g)).toHaveLength(1);
   });
 

@@ -55,7 +55,7 @@ def test_random_minutes_rejected(value):
 
 def test_clock_returns_the_text_and_rejects_garbage():
     assert v._clock("08:30") == "08:30"
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         v._clock("25:00")
 
 
@@ -418,7 +418,7 @@ def test_overlap_check_is_order_independent():
 def test_reject_overlaps_uses_the_latest_end_seen():
     from datetime import datetime
 
-    t = lambda h: datetime(2026, 1, 5, h)  # noqa: E731
+    t = lambda h: datetime(2026, 1, 5, h)
     with pytest.raises(v.ProgramError):
         v._reject_overlaps([(t(8), t(12), False), (t(9), t(10), False), (t(11), t(13), False)])
     v._reject_overlaps([(t(8), t(9), False), (t(9), t(10), False)])

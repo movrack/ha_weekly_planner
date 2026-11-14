@@ -136,7 +136,8 @@ service `override` ni `resume`. Seul l'**affichage** du graphique montre les cha
 - Désactivation d'un programme pendant un horaire : l'action par défaut est envoyée (comme une fin d'horaire).
 - Activation / désactivation **pendant la stabilisation** : la configuration est enregistrée et publiée tout de suite
   (abonnés, switch HA), mais aucune action n'est envoyée aux appareils avant la fin de la stabilisation.
-- `apply_now` (§ 9) ne renvoie l'action qu'aux entités dont le segment en cours appartient à ce programme.
+- `apply_now` (§ 9) renvoie l'action en cours aux entités dont le segment en cours appartient à ce programme et, par exception
+  (resynchronisation, § 5.8), le dernier ponctuel de moins de 24 h.
 
 ### 5.6 Conditions et Vacances (D9)
 - Condition = `entité` (+ attribut facultatif) `=`, `≠`, `<`, `>` `valeur` ; toutes vraies (ET) ; niveaux programme et horaire.
@@ -176,6 +177,15 @@ service `override` ni `resume`. Seul l'**affichage** du graphique montre les cha
 - Entité `unavailable`/`unknown` : action en attente (sauf ponctuelle) ; au retour de l'entité, l'action voulue est
   **recalculée** et envoyée. Exception : une cible explicite (`target_entity_id`, § 6) n'est en attente que si elle est
   `unavailable` ; `unknown` reste commandable (un bouton jamais pressé n'a pas d'état). Notification persistante si l'entité reste indisponible plus de X min (30 par défaut).
+- **Resynchronisation (exception, décision du 2026-11-11).** Un ponctuel n'est jamais mis en attente : après une panne, il est perdu.
+  Pour le rattraper, un administrateur lance **« Resynchroniser les appareils »** depuis la configuration de l'intégration
+  (globale, tous les programmes ; jamais depuis la carte), ou un service appelle `apply_now`. L'écran affiche d'abord la liste de ce qui
+  serait envoyé et n'envoie rien avant validation. État attendu d'un appareil : pour un horaire avec fin, l'horaire en cours ;
+  pour un ponctuel sans fin, le dernier commencé il y a moins de 24 h, sauf intervention manuelle visible dans l'historique HA
+  depuis son début (changement par une personne, passages par `unavailable` ignorés ; sans intervention visible, on applique).
+  La commande est envoyée même si l'appareil est déjà dans l'état attendu (trace dans le journal). Programmes en pause ou éteints
+  ignorés ; mode actif avec repli sur le mode par défaut ; une commande par appareil, espacées, sans doublon dans un lot ;
+  le résultat liste ce qui est envoyé et ignoré. Aucun horaire plus ancien n'est rejoué.
 - **Erreur d'appel** (hors `ServiceValidationError`) : reprises après 1, 2, 5, 10 puis 15 min tant que le segment est
   le même, puis notification persistante. `ServiceValidationError` (l'appareil refuse l'action) : **pas de reprise**,
   notification tout de suite.
@@ -208,11 +218,56 @@ service `override` ni `resume`. Seul l'**affichage** du graphique montre les cha
   Le statut expose l’état courant et la correspondance. Les sources Weekly Planner sont refusées pour éviter les boucles.
 - Sous contrôle externe, le sélecteur manuel ne peut pas forcer un autre mode. Repasser en manuel conserve le dernier mode actif.
 - Au moins un mode ; le mode actif ne peut pas être supprimé. Les associations vers un mode supprimé doivent être retirées.
-- L’activation reste un état d’exécution, hors `revision`. Les changements respectent `reapply` et ne rejouent pas les actions ponctuelles passées.
+- L’activation reste un état d’exécution, hors `revision`. Les changements de mode respectent `reapply` et ne rejouent pas les actions ponctuelles passées (la resynchronisation explicite du § 5.8 est une autre action).
 - Les horaires d’un mode inactif sont modifiables sans l’activer. Une édition en cours reste attachée à son mode même si la source change ;
   un mode supprimé à distance ne peut pas recevoir une écriture. Les horaires enregistrés sont conservés lors des modifications des réglages.
 - **Vacances est un mode ordinaire**, sans traitement de suspension. L’interrupteur global (`switch.weekly_planner_vacation`) est présenté comme « Suspension de tous les programmes » ;
   son identifiant stable préserve les automatisations existantes.
+
+### 5.11 Jour férié (#54, partie serveur)
+- **Priorité (2026-11-13)** : le mode est prioritaire sur le jour férié ; le jour férié ne s'applique qu'au mode actuel : quand le mode change, le nouveau mode applique son propre réglage de jour férié. Une ligne l'explique dans la sous-section « Mode et jour férié » des options ; la carte ne la répète pas (retirée de la carte à la demande du propriétaire, confirmé le 2026-11-14).
+- **Rien n'est perdu (2026-11-14, propriétaire)** : désactiver le jour férié d'un mode garde son réglage en mémoire (`off: true`) : le jour normal s'applique, et réactiver retrouve le même réglage. Passer de « Mes propres horaires » à « Mêmes horaires que » garde les horaires propres (`day` à côté de `copy`) ; y revenir les retrouve. Aucune question de confirmation pour ces deux gestes. Un réglage `off` compte comme « pas de réglage » pour le moteur (jour, coupure à minuit, statut).
+- **Entité** : facultative, une seule pour la maison, choisie par un administrateur dans les options de l'intégration
+  (même chemin que le sélecteur de mode : `store.config`, pas `entry.options`) : `holiday_entity` (domaines `binary_sensor`,
+  `input_boolean`, `switch`, `calendar`) et `holiday_invert` (l'entité est « on » un jour **travaillé**, ex. Workday).
+  Refusées : les entités de Weekly Planner (`circular_holiday_entity`) et celles qu'un programme commande (appareils, cibles
+  explicites, membres d'une scène : `driven_holiday_entity`), contrôle refait à chaque `program/save`, `program/holiday`
+  et `label/save`. Avec Workday et « inverser », les week-ends sont aussi fériés (aide affichée ; source conseillée :
+  calendrier Holiday). Sans entité, tout est ignoré ; les réglages restent stockés. Un renommage de l'entité garde les
+  valeurs stockées ; le choix d'une autre entité relit la valeur du jour et garde celle d'hier.
+- **Réglage par mode** : clé facultative `holiday` du profil : absente/`null` (aucun réglage), `{"copy": 0..6}` (référence
+  **vivante** à un jour de la semaine, 0 = lundi) ou `{"day": [horaires]}` (journée propre, même forme qu'un jour,
+  horaires par appareil permis). Un mode qui en suit un autre n'a pas de réglage propre : il utilise celui du mode copié ;
+  « Arrêter de suivre » et la disparition de la source copient aussi le réglage (nouveaux id, graine gardée).
+- **Un seul calcul** : `resolver.day_slots(profil, date, is_holiday)` choisit le jour, utilisé par le moteur, l'aperçu,
+  le statut et la resynchronisation. Le férié **remplace** le jour de la semaine dans le mode actif (pas de mélange).
+  Un programme sans réglage garde son jour normal ; priorités et « le reste du temps » inchangés (le défaut reste au
+  programme de plus haute priorité).
+- **Hier et demain sont toujours des jours normaux.** Un jour férié va de 00:00 à 24:00 : à côté d'un férié, les
+  horaires s'arrêtent à minuit (la veille d'un férié, le férié lui-même, et le lendemain d'un férié connu : la valeur
+  d'hier est gardée avec sa date). Un horaire qui ne garde rien avant minuit est ignoré (`holiday_cut` / `too_short`).
+  Pas de contrôle de chevauchement entre un férié et ses voisins ; la journée propre est contrôlée seule.
+  **Conséquence assumée (propriétaire, 2026-11-12)** : un horaire de nuit (« Fermé 21:00 → 07:00 ») est coupé à minuit la
+  veille et le lendemain d'un férié, donc « le reste du temps » part vers 00:00 (fin de l'attente de minuit). Conseil
+  documenté : une journée férié propre qui commence à 00:00 avec le réglage de nuit.
+  « Ensuite : demain … » ignore un férié possible demain (limite connue).
+- **Valeur** : seul le booléen compte (`on`/`off`, inversé si demandé) ; `unavailable`/`unknown`/absente garde la valeur
+  connue **pour aujourd'hui** (persistée avec sa date dans le runtime) ; sans valeur du jour, jour normal.
+  Réparation `holiday_entity_missing` si l'entité n'existe pas ; un renommage met le réglage à jour.
+- **Changement en journée** : anti-rebond de 30 s (`HOLIDAY_DEBOUNCE_S`), un retour en arrière dans ce délai est ignoré ;
+  ensuite, chemin d'un changement de mode pour les programmes dont le mode actif a un réglage : état recalculé,
+  `reapply` respecté, ponctuels passés de `(last_tick, now]` jamais rejoués, `skip_next` en attente annulé.
+- **Minuit** : après minuit local, tant que l'entité n'a pas parlé depuis minuit (puis 30 s sans changement), les ordres
+  et ponctuels des programmes ayant un réglage attendent, au plus 2 min (`HOLIDAY_SETTLE_S`) ; à la fin de l'attente la
+  valeur du jour est prise, les ordres partent une fois et les ponctuels de l'attente sont exécutés une fois.
+  Au démarrage (après la stabilisation de 30 s), la valeur stockée pour aujourd'hui s'applique ; une lecture valide
+  différente ne la remplace qu'après le même anti-rebond de 30 s (sans valeur du jour, la lecture est prise aussitôt).
+- **Limites connues** : l'attente de minuit retient tous les appareils d'un programme qui a un réglage (même ceux
+  partagés avec un programme sans réglage) et dure 2 min quand l'entité confirme sa valeur sans la changer ; l'attente
+  n'est pas persistée (un redémarrage pendant l'attente perd les ponctuels de 00:00) ; une bascule juste avant un
+  ponctuel du jour normal le laisse partir (anti-rebond) ; `program/holiday` accepte `revision` sans l'exiger, comme
+  `program/mode_follow`.
+- **Cache** : la clé de `OccurrenceCache` contient les drapeaux du jour (férié, coupé à minuit).
 
 ## 6. Actions (un seul modèle pour toute entité)
 
@@ -253,13 +308,19 @@ service `override` ni `resume`. Seul l'**affichage** du graphique montre les cha
 ## 8. Données et stockage
 
 `.storage/weekly_planner` (`Store`, `version` + `minor_version`, `atomic_writes`, écriture différée 1 s, migrations testées).
-**Version 2, minor 1** (`STORAGE_VERSION = 2`, `STORAGE_MINOR_VERSION = 1`) ; la version 1 est migrée
-automatiquement (voir ci-dessous). Runtime : version 2 (migration depuis la 1), écriture différée 1 s. Journal : version 1,
+**Version 3, minor 2** (`STORAGE_VERSION = 3`, `STORAGE_MINOR_VERSION = 2`) ; les versions 1 et 2 sont migrées
+automatiquement (voir ci-dessous). Minor 2 (#54) ajoute les clés facultatives `holiday_entity`, `holiday_invert` et
+`profiles[].holiday` : un fichier 3.1 se charge tel quel et est réécrit en 3.2 ; un fichier d'un minor **plus récent**
+que celui du code est refusé (entrée non chargée, fichier intact, comme un fichier illisible) au lieu de perdre ce
+qu'une version ancienne ne connaît pas. Les versions publiées avant le minor 2 ne contiennent pas ce refus : un retour
+en arrière se fait en restaurant la sauvegarde. Runtime : version 2 (migration depuis la 1), écriture différée 1 s. Journal : version 1,
 écriture différée 5 s.
 
 ```text
 racine
 ├─ vacation        : bool
+├─ mode_selector?, default_mode? : sélecteur de mode global et mode par défaut (§ 37.2)
+├─ holiday_entity? : entité jour férié (§ 5.11) ; holiday_invert : bool
 ├─ labels[]        : id, name (1–30 car.), color, action
 └─ programs[]      : id, revision, created_at, name (1–60 car.), icon?, area?, priority (1–100, défaut 10), enabled, reapply,
                      entities[] (1–100) : entity_id, default_label? (id de réglage), label_overrides{ label_id: action },
@@ -269,8 +330,10 @@ racine
                      active_profile, profiles[] (1–20) : id, name (1–40 car., unique),
                        days[0..6] : slots[] (≤ 50 par jour) : id, start, end?, conditions[] (≤ 10), color?, label (id de réglage),
                                          entities? (appareils visés, § 8.2), seed? (graine du délai, § 8.2)
+                       follows? (§ 37.2, ADR 0002), holiday? : {copy: 0..6, day?: slots[], off?: true} | {day: slots[], off?: true} (§ 5.11)
 runtime (`weekly_planner.runtime`) : par entité → segment courant, action en attente, reprises ; par programme → profil actif,
-                     skip_at ; `conditions` → dernières valeurs connues des conditions (persistées pour le démarrage, § 5.5)
+                     skip_at ; `conditions` → dernières valeurs connues des conditions (persistées pour le démarrage, § 5.5) ;
+                     `holiday` → {date, on, previous?: {date, on}} : drapeau férié du jour et de la veille (§ 5.11)
 journal (`weekly_planner.journal`) : 14 jours glissants, deux sortes d'entrées : segment décidé
                      (`at, entity_id, segment, program_id, slot_id, action`) et action réellement envoyée (`at, entity_id, sent: true, action, reason`)
 ```
@@ -367,7 +430,8 @@ Planner » (`integration_type: service`) ; un `select` par programme nommé « M
 
 **Services** (`weekly_planner.*`) :
 - `apply_now` (programme) : envoie l'action en cours aux entités du programme dont le segment en cours appartient à ce
-  programme, quel que soit `reapply` ;
+  programme, quel que soit `reapply`, et le dernier ponctuel de moins de 24 h sauf intervention manuelle visible
+  (§ 5.8) ; renvoie la liste des entités envoyées et ignorées ;
 - `skip_next` (programme) : la prochaine transition du programme n'est pas appliquée (persisté, une seule fois, annulable) ;
 - `reload` (admin).
 
@@ -377,18 +441,27 @@ Planner » (`integration_type: service`) ; un `select` par programme nommé « M
   (`defaults` : champ additif, valeurs par défaut du serveur — option `reapply_default`, `DEFAULT_PRIORITY` = 10 — dont la carte
   initialise les nouveaux programmes, avec repli vrai / 10) ; `get` ajoute `is_admin` ;
   `subscribe` renvoie l'instantané à chaque changement ; `can_edit` est calculé par connexion.
+  Champs additifs (#54) : `holiday_entity` (null = fonction masquée), `holiday_invert`, `holiday_today` (aujourd'hui est
+  férié, après anti-rebond ou attente de minuit) ; `status{programme}.holiday` présent seulement quand le férié change la
+  journée du programme : `{copy: 0..6}` ou `{own: true}`.
 - `program/save` (édition ; `revision` vérifiée) · `program/delete` (édition) · `label/save` · `label/delete` (suppression
   refusée tant qu'un programme l'utilise, erreur `in_use` avec la liste).
 - `program/set_enabled` et `program/set_profile` : **ouverts à tous** (comme le switch et le select HA), même avec `admin_only` ;
   `set_profile` est refusé (`invalid`) sous contrôle d'une source de mode.
-- `preview {program_id, date? (AAAA-MM-JJ, défaut aujourd'hui), profile_id?}` → `{date, slots: [{slot_id, start, end, ignored, sun}]}`
-  (heures résolues, raison d'ignorance § 5.7).
+- `preview {program_id, date? (AAAA-MM-JJ, défaut aujourd'hui), profile_id?}` → `{date, holiday, slots: [{slot_id, start, end, ignored, sun}]}`
+  (heures résolues, raison d'ignorance § 5.7 ; `holiday` : la date est aujourd'hui et aujourd'hui est férié, les horaires
+  sont alors ceux qui tournent vraiment, § 5.11).
+- `program/holiday {program_id, profile_id, holiday: null | {copy} | {day}, revision?}` (#54) : règle ou efface le férié
+  d'un mode ; mêmes droits et contrôles que `program/save` (`admin_only`, actions sensibles, validation, `conflict`).
+  `program/save` sans clé `holiday` dans un profil garde le réglage stocké ; `holiday: null` l'efface.
 - `journal {entity_id?, days? (1–14, défaut 1)}` → `{segments: […]}` (les deux sortes d'entrées du journal, § 8).
 - Codes d'erreur : `conflict` (révision changée), `invalid` (validation), `unauthorized`, `not_found`, `in_use`, `not_loaded`.
 - Codes de validation (dans le message de `invalid`) : `unknown_service`, `invalid_service_data`, `service_not_for_entity`,
   `unknown_label`, `unknown_mode_profile`, `empty_mode_state`, `circular_mode_source`, `duplicate_profile_name`,
   `overlapping_slots`, `random_window_too_short`, `earliest_after_latest`, `service_data_target`, `invalid_random_minutes`,
-  `invalid_service_data_sources`.
+  `invalid_service_data_sources`, `invalid_holiday` / `invalid_holiday_copy` (forme du férié), « … has its own day off »
+  (mode qui suit avec un férié propre). Options : `invalid_holiday_entity_domain`, `circular_holiday_entity`,
+  `driven_holiday_entity`, `invalid_holiday_invert`.
 
 **Droits**
 - `admin_only` (option globale, désactivée par défaut) : si actif, seule l'édition des programmes et réglages est réservée
@@ -401,7 +474,8 @@ actif sur la même entité), `automation` (automatisation active qui la vise), `
 `incompatible_label` (réglages ignorées pour cette entité), `missing` (entité absente).
 
 **Options** : `admin_only` ; délai d'alerte `notify_delay_min` (1–1440 min, 30 par défaut) ; `reapply_default` (valeur
-proposée aux nouveaux programmes) ; anti-rebond `debounce_min` (0–60 min, 2 par défaut). Une modification des options recharge
+proposée aux nouveaux programmes) ; anti-rebond `debounce_min` (0–60 min, 2 par défaut) ; sélecteur de mode et entité
+jour férié (`holiday_entity`, `holiday_invert`, § 5.11), regroupés avec lui dans une sous-section « Mode et jour férié » du formulaire (`section` de Home Assistant, dépliée ; sa description dit que le mode est prioritaire sur le jour férié, qui ne s'applique qu'au mode actuel), rangés dans `store.config` et non dans les options de l'entrée. Une modification des options recharge
 l'entrée. Instance unique.
 **Désinstallation** (`async_remove_entry`) : retrait de la ressource Lovelace, des entités et du stockage.
 
@@ -410,20 +484,43 @@ l'entrée. Instance unique.
 ### 10.1 Configuration de la carte (éditeur visuel)
 Options réelles : `title` ; `program: <id>` **ou** `filter: {types: [domaines], area: <zone du programme>, programs:
 [ids]}` (`programs` absent = tous, futurs compris ; liste vide = aucun ; intersection avec type et zone) ;
-`schedule_view: bars | radial | radial_12h | list` (défaut `bars`) ; `show_chart` (défaut vrai).
+`schedule_view: bars | radial | radial_12h | list | times` (défaut `bars`) ; `show_chart` (défaut vrai).
+`sort: type | area | name | custom` (défaut `type`) et `order: [ids de programmes]` règlent l'ordre de la liste (#55) :
+`type` = domaine HA du premier appareil, nommé par HA (domaine brut à défaut), types A→Z dans la langue de la carte,
+puis nom ; `area` = pièce du programme A→Z, puis nom, sans pièce ou type inconnu en dernier groupe « Autres » ;
+`name` = A→Z ; `custom` = `order`, un identifiant absent va à la fin (type puis nom), un inconnu est ignoré sans
+erreur ni réécriture. Petit titre non interactif au-dessus de chaque groupe pour `type` et `area` seulement. Ordre
+personnalisé réglé dans l'éditeur (poignée de glissement et boutons monter/descendre). Valeur invalide : défaut.
 `chart_collapsed` (défaut vrai) donne l'état initial du graphique. Les clés inconnues ou obsolètes (`show_week`,
 `show_advanced`) sont acceptées et ignorées ; la semaine est toujours repliable.
 Éditeur visuel Lovelace : onglets « Affichage de la carte » et « Réglages des programmes » (ce dernier pour les
 administrateurs) ; filtres de types dynamiques (§ 14.12), zone, programmes à afficher (section repliable), vue, graphique.
 
 ### 10.2 Consultation (par défaut)
-- Quatre vues : barres (défaut), cadran 24 h, double cadran 12 h, liste compacte (un programme déplié à la fois, chevron).
+- **Format de l'heure** : toute heure affichée suit `hass.locale.time_format` (aucune option propre à la carte). « 12 » : am/pm (« 7 pm », « 6:05 am ») dans toutes les langues ; « 24 » : « 19:00 » (français : « 19 h », « 6 h 05 ») ; « language » ou absent : selon la langue (français « 22 h », autres Intl). Fin de journée : « 24 h », « 12 am » en 12 h. Graphique : repères « 7 am » en 12 h, moins nombreux sous l'heure. Le stockage et les calculs restent en 24 h / UTC / fuseau du serveur.
+- Cinq vues : barres (défaut), cadran 24 h, double cadran 12 h, liste compacte (un programme déplié à la fois, chevron), horaires du jour (§ 10.2.1).
+
+- **Jour férié (#54, carte)** : le serveur décide (`status[pid].holiday` = `{copy: n}` ou `{own: true}`, présent seulement quand le férié change le jour du programme ; `holiday_today` ; `preview.holiday`), la carte ne recalcule rien (repli : le jour nommé par le statut tant qu'un aperçu n'est pas arrivé). Une ligne sous « Mode : … » (« Aujourd'hui férié : horaires du dimanche » / « Aujourd'hui férié : horaires propres »), masquée quand le jour copié est le vrai jour, une ligne par programme seulement si les textes diffèrent. Barre d'aujourd'hui, ligne d'aujourd'hui de la semaine et vue « Horaires du jour » montrent ce qui tourne ; leur modification directe est désactivée ce jour-là pour les programmes concernés (lignes de la vue « Horaires du jour » non cliquables, bouton « Modifier la journée » actif). Le cache d'aperçus est vidé quand `holiday_today` change. Écran d'horaires : section repliable « Jour férié » (fermée, `aria-expanded`, masquée si `holiday_entity` est nul), placée à la fin du cadre « Horaires », après la liste des horaires et le bouton d'ajout (masquée pendant l'édition d'un horaire ; jamais dans le formulaire d'un horaire, car un jour férié peut contenir plusieurs horaires), un interrupteur « Horaires différents les jours fériés » (`role="switch"`, désactivé écrit `off: true` : le réglage reste en mémoire et le jour normal s'applique, sans question ; réactivé, le réglage gardé revient ; sans réglage, activé écrit `{copy: 6}`, le dimanche) puis deux choix (« Mêmes horaires que : » un des 7 jours, copie vivante, « Mes propres horaires » avec la liste d'horaires habituelle et avertissement « coupé à minuit »), écrite par `weekly_planner/program/holiday` avec la révision ; un mode qui en suit un autre montre celui de sa source en lecture seule. Schémas de la semaine (fenêtre des horaires et bloc « Semaine » de la carte) : quand le mode affiché a un réglage de jour férié activé (et qu'une entité jour férié est choisie), une huitième ligne « Férié » (EN « Off », nom accessible « Jour férié ») est dessinée sous le dimanche avec les horaires du jour copié ou les horaires propres, coupés à 24 h ; elle est en lecture seule. La section s'affiche pour tout mode ouvert, actif ou non (chaque mode a son réglage, comme ses jours de semaine). Passer à « Mêmes horaires que » garde les horaires propres en mémoire. Un jour férié qui copie le vrai jour de la semaine ne remplace rien : ce jour-là, ni verrou ni note. Sous la barre verrouillée, la note dit où changer les horaires : le jour copié (« modifiez le dimanche ») ou la section « Jour férié » (horaires propres).
+
+#### 10.2.1 Horaires du jour (`schedule_view: times`)
+Vue de **lecture** de la journée d'aujourd'hui ; elle remplace la barre / le cadran du jour (la semaine et le graphique restent en barres).
+- Une ligne par **tronçon** déjà calculé pour les barres, triée par instant réel (jour de 23 h ou 25 h compris). Deux niveaux : heure + réglage, puis « jusqu'à … » / « jusqu'à demain … », la règle solaire en toutes lettres (« 30 min avant le coucher du soleil », « 15 min après le lever du soleil », « au coucher du soleil », jamais de signe « − ») et « heure variable, quelques minutes d'écart ». **Fusion** : deux tronçons voisins consécutifs du même réglage (même réglage = même étiquette, pas seulement même nom ; fin = début suivant, comparés à l'instant réel quand il est connu) forment une seule ligne (début du premier, fin du dernier, « Maintenant » si l'un des deux). Un suffixe comme « (2) » vient du nom de l'étiquette lui-même et n'est pas masqué. Jamais de plage pour une heure solaire ou aléatoire : seule l'heure résolue du jour est affichée. Format de l'heure : celui des barres (hors périmètre, issue #53).
+- Report de minuit : une ligne « depuis hier 22 h » en tête ; « jusqu'à demain 6 h » sur la ligne de départ. Horaire ponctuel : sans fin, jamais « maintenant ».
+- Absents : programme désactivé (comme les barres), horaires ignorés, et tronçons de priorité plus basse entièrement recouverts par un gagnant.
+- Repère « Maintenant » (texte + `aria-current`, pas la couleur seule) sur une seule ligne et seulement aujourd'hui.
+- Journée vide, **seulement quand l'aperçu est arrivé** : « Rien de prévu aujourd'hui » + « Le reste du temps : {réglage} » + bouton « Ajouter un horaire » (si l'édition est permise) qui ouvre l'écran d'horaires sur aujourd'hui. **Exception décidée par le propriétaire (2026-11-12)** : c'est le seul bouton texte qui double l'icône de l'en-tête, parce qu'une journée vide ne montre rien d'autre à toucher.
+- Lisibilité : tout texte de la vue (détails, « Maintenant », messages, boutons) ≥ 16 px ; gris secondaire = texte du thème mélangé à 75 % avec le fond de la carte (jetons existants), pas `--secondary-text-color`. Bouton visible « Modifier la journée » (même libellé que le bouton de la barre) sous la liste quand l'édition est permise ; les lignes restent touchables, leur infobulle dit « Modifier la journée, {nom} ».
+- Plusieurs appareils : onglets comme pour les barres, une liste par appareil. Vraie liste `<ul>` ; une ligne est un bouton (≥ 44 px) **seulement** si l'édition est permise (ni lecture seule, ni mode qui en suit un autre) ; elle ouvre l'écran d'horaires sur aujourd'hui.
+- **Heure variable** : l'heure résolue du jour est précédée de « vers » (« vers 7 h 05 », EN « around 7:05 am ») ; la ligne secondaire « heure variable, quelques minutes d'écart » reste. Une ligne reportée d'hier (« depuis hier 22 h ») garde son heure réelle, sans « vers ».
+- **Ligne déjà terminée** (aujourd'hui seulement, fin ≤ maintenant, report d'hier compris) : le mot « terminé » (EN « done ») en tête de la ligne secondaire et texte atténué (gris secondaire du thème, contraste ≥ 4,5:1 en clair et en sombre, ≥ 16 px) ; jamais la couleur seule. Jamais « terminé » pour la ligne « Maintenant », un ponctuel (sans fin) ou un autre jour que aujourd'hui.
+- **Icône de l'en-tête** (`mdi:calendar-edit`) : toujours présente, comme dans toutes les autres vues (décision du propriétaire du 2026-11-12 : une seule façon d'ouvrir les horaires). Le bouton texte « Modifier la journée » sous la liste est supprimé ; dans la liste compacte, l'icône est visible aussi quand la ligne est repliée ; un appui sur une ligne ouvre toujours la journée quand l'édition est permise.
+- Un ancien fichier de la carte retombe sur les barres (valeur inconnue ignorée).
 - Une ligne par appareil : **icône, nom du programme, état traduit** (`formatEntityState`), et
-  « → libellé de la prochaine action + heure » (« demain » si c'est demain) ; ligne « Mode : … » quand le programme a
+  « Ensuite : libellé de la prochaine action + heure » (« demain » si c'est demain ; EN « Next: » ; plus de flèche) ; ligne « Mode : … » quand le programme a
   plusieurs modes ou une source de mode.
 - À droite : interrupteur du programme (arrêt confirmé, double envoi bloqué, désactivé en lecture seule), bouton
   calendrier (`mdi:calendar-edit`) qui ouvre l'**écran d'horaires**, badge rouge « Désactivé » sous les contrôles.
-- Dessous : barre du jour avec trait « maintenant » (heure du **serveur**), « Semaine » repliable (7 barres, lundi →
+- Dessous : barre du jour avec trait « maintenant » (heure du **serveur**), « Semaine » repliable (icône `mdi:calendar-week`, 7 barres, lundi →
   dimanche, chaque nom de jour est un bouton qui ouvre l'écran d'horaires sur ce jour). Aucune commande immédiate (c'est un planificateur).
 - La ligne elle-même **n'est pas cliquable** : un appui court au doigt sur une barre ouvre l'écran d'horaires ; un appui
   long (doigt) ou un clic (souris) entre dans l'édition sur place (§ 10.8).
@@ -637,7 +734,7 @@ For fixed-time ranges, reject settings whose maximum start delay would leave les
 
 ## 20. Solar time limits
 
-Un début ou une fin solaire (lever / coucher) accepte déjà `earliest` et `latest` (heures `HH:MM`, minute libre). Le formulaire d'horaire les expose : deux champs d'heure facultatifs « Au plus tôt à » / « Au plus tard à » sous les pastilles Lever / Coucher, chacun avec un bouton pour retirer la limite. Ils n'apparaissent que pour une heure solaire. Résolution inchangée : décalage, puis limites, puis délai aléatoire (la limite « après » plafonne aussi le résultat).
+Un début ou une fin solaire (lever / coucher) accepte déjà `earliest` et `latest` (heures `HH:MM`, minute libre). Le formulaire d'horaire les expose : deux champs d'heure facultatifs « Au plus tôt à » / « Au plus tard à » sous les pastilles Lever / Coucher, chacun avec un bouton pour retirer la limite. Ils n'apparaissent que pour une heure solaire. **Placement (2026-11-13)** : le formulaire d'horaire s'ouvre sur les **Jours** (pastilles Lun…Dim et raccourcis Tous les jours / Semaine / Week-end), puis les heures de Début et de Fin, puis le repli « Options avancées » ; ce repli contient, par frontière (Début, Fin), les pastilles Lever / Coucher avec leurs limites et le délai aléatoire, et s'ouvre d'office si l'horaire utilise déjà une heure solaire, un délai ou une limite. Le sélecteur de mode de la fenêtre reste actif pendant l'édition d'un horaire : choisir un autre mode l'abandonne, après confirmation s'il y a des changements non enregistrés. Résolution inchangée : décalage, puis limites, puis délai aléatoire (la limite « après » plafonne aussi le résultat).
 
 Les limites survivent au changement de décalage, au délai aléatoire, au passage lever/coucher, au regroupement et à la duplication ; revenir à une heure fixe ou glisser une barre vers une heure exacte remplace la définition, comme avant. Une limite « avant » postérieure à « après » est refusée dans le formulaire (message clair) et par le serveur (`earliest_after_latest`) ; des limites égales sont acceptées.
 

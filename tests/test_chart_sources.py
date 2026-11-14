@@ -5,9 +5,10 @@ from unittest.mock import AsyncMock, patch
 import pytest
 import voluptuous as vol
 
+from custom_components.weekly_planner.registry import rename_entity
 from custom_components.weekly_planner.validation import check_program
 from custom_components.weekly_planner.websocket import _chart_metadata_only
-from custom_components.weekly_planner.registry import rename_entity
+
 from .helpers import Recorder, labels, program, setup
 
 

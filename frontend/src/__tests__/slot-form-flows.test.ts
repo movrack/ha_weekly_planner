@@ -29,6 +29,21 @@ describe("slot form: advanced options fold", () => {
     expect(html).toContain('type="time"');
     expect(html).toContain("chip small");
   });
+  it("lays out days first, then start and end times, then the advanced fold", () => {
+    const html = flat(form({ end: { time: "09:00" } }).el.render());
+    const at = (s: string) => html.indexOf(s);
+    expect(at('class="days"')).toBeGreaterThan(-1);
+    expect(at('class="days"')).toBeLessThan(at('type="time"'));
+    expect(at("chip small")).toBeLessThan(at('type="time"'));
+    expect(at('type="time"')).toBeLessThan(at('class="row opts"'));
+    expect(html.lastIndexOf('type="time"')).toBeLessThan(at('class="row opts"'));
+    expect(at('class="row opts"')).toBeLessThan(at("<wp-label-picker"));
+  });
+  it("has no day-off section: the day off is set under the week, never inside one schedule", () => {
+    const html = flat(form({ end: { time: "09:00" } }).el.render());
+    expect(html).not.toContain("after-days");
+    expect(html).not.toContain("wp-holiday");
+  });
   it("opens by clicking and then shows the sun choice and random delay for start and end", () => {
     const { el } = form({});
     openFold(el);
@@ -122,7 +137,8 @@ describe("slot form", () => {
     const { el, seen } = form({ end: null });
     const r = el.render();
     const clicks = handlers(r).filter((h) => h.event === "click");
-    const chips = clicks.slice(clicks.length - 13, clicks.length - 11);
+    // days (7) + shortcuts (3) come first, then the start steps (2), then the two end chips
+    const chips = clicks.slice(12, 14);
     chips[0].fn(); expect(seen[0].slot.end).toBeNull();
     chips[1].fn(); expect(seen[1].slot.end).toEqual({ time: "09:00" });
     form({ start: { sun: "sunrise" }, end: null }).el._toggleEnd(true);
@@ -150,5 +166,15 @@ describe("slot form", () => {
     find(el.render(), "label-change", "wp-label-picker").fn({ stopPropagation() {}, detail: "x" });
     find(el.render(), "label-change", "wp-label-picker").fn({ stopPropagation() {}, detail: null });
     expect(seen.map((s) => s.slot.label)).toEqual(["x", ""]);
+  });
+});
+
+describe("slot form: noDays", () => {
+  it("hides the whole Days section and keeps start and end", () => {
+    const html = flat(form({}, [0], { noDays: true }).el.render());
+    expect(html).not.toContain('class="days"');
+    expect(html).not.toContain("chip small");
+    expect(html).toContain('type="time"');
+    expect(flat(form({}).el.render())).toContain('class="days"');
   });
 });

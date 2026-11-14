@@ -1,16 +1,19 @@
 // Visual editor of the card (Lovelace "edit card" panel).
 
+import { repeat } from "lit/directives/repeat.js";
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "./editors/program-editor";
 import type { WpProgramEditor } from "./editors/program-editor";
-import { friendlyName, subscribePlanner } from "./planner";
+import { entityDomain, filterPrograms, friendlyName, subscribePlanner } from "./planner";
 import { syncSelectValues } from "./select-value";
 import { programAreas } from "./program-areas";
 import { domainIcon, programDomains, type DomainLocalize } from "./domains";
 import { normalizeConfig, withDefaults } from "./config";
 import { allPrograms, isOn, selectCreated, toggleAllOff, toggleProgram, programRows, toggleType, typeGroups, typeState, type FilterConfig, type FilterPatch } from "./filter-editor";
 import { t } from "./i18n";
+import { moveId, sortItems, sortMode, SORTS } from "./list-order";
+import { setTimeFormat } from "./time";
 import { callout } from "./styles";
 import type { CardConfig, HomeAssistant, PlannerData, Program } from "./types";
 import { editorStyles, langOf } from "./editors/shared";
@@ -75,6 +78,10 @@ export class WeeklyPlannerCardEditor extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     this.requestUpdate();
+  }
+
+  willUpdate(): void {
+    setTimeFormat(this.hass);
   }
 
   updated(): void {
@@ -331,6 +338,79 @@ export class WeeklyPlannerCardEditor extends LitElement {
     </details>`;
   }
 
+  /** Programs the card shows, in the personal order (`order`; missing ones last, unknown ids ignored). */
+  private _customRows() {
+    const programs = this._data ? filterPrograms(this._data, this._config) : [];
+    const items = programs.map((p) => ({ id: p.id, name: p.name, type: entityDomain(p.entities[0]?.entity_id ?? ""), area: p.area }));
+    return sortItems(items, "custom", { order: this._config.order, typeLabel: (ty) => this._typeLabel(ty), lang: this._lang });
+  }
+
+  /** Saves the new order of the shown programs; saved ids of hidden programs stay after them. */
+  private _setOrder(ids: string[]): void {
+    const rest = (this._config.order ?? []).filter((id) => !ids.includes(id));
+    this._set("order", [...ids, ...rest]);
+  }
+
+  @state() private _moved = "";
+  @state() private _announce = "";
+  private _movedTimer?: ReturnType<typeof setTimeout>;
+
+  private _move(ids: string[], from: number, to: number): void {
+    if (to < 0 || to >= ids.length || to === from) return;
+    this._moved = ids[from];
+    clearTimeout(this._movedTimer);
+    this._movedTimer = setTimeout(() => (this._moved = ""), 1000);
+    this._setOrder(moveId(ids, from, to));
+    const name = this._customRows().find((r) => r.id === ids[from])?.name ?? "";
+    this._announce = this._tr("ce_moved", { name, n: String(to + 1), total: String(ids.length) });
+    setTimeout(() => (this._announce = ""), 3000);
+    void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(`[data-order="${ids[from]}"] .move:not([disabled])`)?.focus());
+  }
+
+  /** Drag by the handle only (the page still scrolls elsewhere); the row under the pointer gives the new place. */
+  private _drag(e: PointerEvent, ids: string[], from: number): void {
+    const handle = e.currentTarget as HTMLElement;
+    const list = handle.closest(".order-list")!;
+    e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
+    let to = from;
+    const rows = () => Array.from(list.querySelectorAll<HTMLElement>(".order-row"));
+    const mark = () => rows().forEach((r, i) => r.classList.toggle("target", i === to && to !== from));
+    const over = (ev: PointerEvent) => {
+      const at = rows().findIndex((r) => { const b = r.getBoundingClientRect(); return ev.clientY >= b.top && ev.clientY <= b.bottom; });
+      if (at >= 0) { to = at; mark(); }
+    };
+    const end = () => {
+      handle.removeEventListener("pointermove", over);
+      handle.removeEventListener("pointerup", end);
+      handle.removeEventListener("pointercancel", cancel);
+      rows().forEach((r) => r.classList.remove("target"));
+      if (to !== from) this._setOrder(moveId(ids, from, to));
+    };
+    const cancel = () => { to = from; end(); };
+    handle.addEventListener("pointermove", over);
+    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", cancel);
+  }
+
+  private _sortField() {
+    const sort = sortMode(this._config.sort);
+    const rows = sort === "custom" ? this._customRows() : [];
+    const ids = rows.map((r) => r.id);
+    return html`<div class="field"><label class="big" for="ce-sort">${this._tr("ce_sort")}</label>
+        <select id="ce-sort" data-value=${sort} @change=${(e: Event) => this._set("sort", (e.target as HTMLSelectElement).value)}>
+          ${SORTS.map((v) => html`<option value=${v} ?selected=${v === sort}>${this._tr(`ce_sort_${v}`)}</option>`)}
+        </select></div>
+      ${sort === "custom" ? html`<p class="hint">${this._tr("ce_sort_custom_hint")}</p><ol class="order-list" aria-label=${this._tr("ce_order_list")}>
+        ${repeat(rows, (r) => r.id, (r, i) => html`<li class="order-row ${r.id === this._moved ? "moved" : ""}" data-order=${r.id}>
+          <button class="handle" tabindex="-1" aria-hidden="true" aria-label=${this._tr("ce_drag", { name: r.name })} @pointerdown=${(e: PointerEvent) => this._drag(e, ids, i)}><ha-icon icon="mdi:drag"></ha-icon></button>
+          <span class="grow titles"><span class="type-title">${r.name}</span>
+            <span class="type-names"><ha-icon class="mini" icon=${this._typeIcons.get(r.type) ?? "mdi:shape-outline"}></ha-icon>${r.type ? this._typeLabel(r.type) : this._tr("sort_other")}</span></span>
+          <button class="move up" aria-label=${this._tr("ce_move_up", { name: r.name })} ?disabled=${i === 0} @click=${() => this._move(ids, i, i - 1)}><ha-icon icon="mdi:arrow-up"></ha-icon></button>
+          <button class="move down" aria-label=${this._tr("ce_move_down", { name: r.name })} ?disabled=${i === ids.length - 1} @click=${() => this._move(ids, i, i + 1)}><ha-icon icon="mdi:arrow-down"></ha-icon></button></li>`)}
+      </ol><p class="sr-only" role="status">${this._announce}</p>` : nothing}`;
+  }
+
   private _tabKey = (event: KeyboardEvent): void => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
@@ -374,12 +454,14 @@ export class WeeklyPlannerCardEditor extends LitElement {
               </select><p id="ce-area-help" class="hint">${this._tr("ce_area_hint")}</p></div>
             ${this._displayPrograms()}`}
 
+      ${this._isProgram ? nothing : this._sortField()}
       <div class="field"><label for="ce-view">${this._tr("ce_schedule_view")}</label>
         <select id="ce-view" data-value=${c.schedule_view ?? "bars"} @change=${(e: Event) => this._set("schedule_view", (e.target as HTMLSelectElement).value)}>
           <option value="bars">${this._tr("ce_bars")}</option>
           <option value="radial">${this._tr("ce_radial")}</option>
           <option value="radial_12h">${this._tr("ce_radial_12h")}</option>
           <option value="list">${this._tr("ce_list")}</option>
+          <option value="times">${this._tr("ce_times")}</option>
         </select>
       </div>
       <div class="switch-row"><span class="grow">${this._tr("ce_show_chart")}</span>
@@ -400,7 +482,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
         @closed=${(e: Event) => { e.stopPropagation(); this._scheduleProgramId = null; }}></wp-schedule>` : nothing}`;
   }
 
-  static styles = [editorStyles, css`:host { display: block; padding: 4px 0; } h3 { margin: 12px 0; font-size: 1rem; } .program-settings { padding-top: 4px; } nav { display: flex; border-bottom: 1px solid var(--divider-color); margin-bottom: 12px; } nav button { flex: 1; min-height: 48px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--secondary-text-color); cursor: pointer; } nav button[aria-selected="true"] { color: var(--wp-primary-text); border-bottom-color: var(--wp-primary-text); font-weight: 600; } .hint { line-height: 1.5; } .display-programs { margin: 12px 0; border: 1px solid var(--wp-field-border); border-radius: 8px; padding: 8px 12px; } summary { min-height: 44px; align-content: center; cursor: pointer; } .display-programs .check { min-height: 44px; overflow-wrap: anywhere; } .switch-row { display: flex; align-items: center; gap: 8px; min-height: 48px; overflow-wrap: anywhere; } .type-head { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; min-height: 48px; border: 0; background: none; color: inherit; text-align: start; cursor: pointer; } .type-body[hidden] { display: none; } ha-switch { padding: 12px 8px; margin: -12px -8px; flex: none; } ha-switch.partial { --mdc-theme-secondary: var(--warning-color, #ffa600); } .type-icon { flex: none; color: var(--secondary-text-color); } .titles { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; } .type-title { font-size: 1rem; overflow-wrap: normal; word-break: keep-all; } .type-names { font-size: 0.875rem; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .mini { --mdc-icon-size: 16px; vertical-align: -3px; margin-inline-end: 4px; } .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; } .chip { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 12px; border: 1px solid var(--wp-field-border); border-radius: 22px; background: none; color: var(--primary-text-color); font: inherit; cursor: pointer; } .chip.on { background: var(--wp-primary-fill); border-color: var(--wp-primary-fill); color: #fff; } .chip.partial { border: 2px dashed var(--wp-primary-text); } .chip .count { font-size: 0.8125rem; opacity: .85; color: inherit; } .chip.on .count { opacity: 1; color: #fff; } .quick .hint { margin: 0; } .count { font-size: 0.875rem; color: var(--secondary-text-color); } .count b { color: var(--primary-text-color); } .type-head.static { cursor: default; } .chev-space { flex: none; width: 24px; } .program-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }`];
+  static styles = [editorStyles, css`:host { display: block; padding: 4px 0; } h3 { margin: 12px 0; font-size: 1rem; } .program-settings { padding-top: 4px; } nav { display: flex; border-bottom: 1px solid var(--divider-color); margin-bottom: 12px; } nav button { flex: 1; min-height: 48px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--secondary-text-color); cursor: pointer; } nav button[aria-selected="true"] { color: var(--wp-primary-text); border-bottom-color: var(--wp-primary-text); font-weight: 600; } .hint { line-height: 1.5; } .display-programs { margin: 12px 0; border: 1px solid var(--wp-field-border); border-radius: 8px; padding: 8px 12px; } summary { min-height: 44px; align-content: center; cursor: pointer; } .display-programs .check { min-height: 44px; overflow-wrap: anywhere; } .switch-row { display: flex; align-items: center; gap: 8px; min-height: 48px; overflow-wrap: anywhere; } .type-head { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; min-height: 48px; border: 0; background: none; color: inherit; text-align: start; cursor: pointer; } .type-body[hidden] { display: none; } ha-switch { padding: 12px 8px; margin: -12px -8px; flex: none; } ha-switch.partial { --mdc-theme-secondary: var(--warning-color, #ffa600); } .type-icon { flex: none; color: var(--secondary-text-color); } .titles { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; } .type-title { font-size: 1rem; overflow-wrap: normal; word-break: keep-all; } .type-names { font-size: 0.875rem; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .mini { --mdc-icon-size: 16px; vertical-align: -3px; margin-inline-end: 4px; } .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; } .chip { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 12px; border: 1px solid var(--wp-field-border); border-radius: 22px; background: none; color: var(--primary-text-color); font: inherit; cursor: pointer; } .chip.on { background: var(--wp-primary-fill); border-color: var(--wp-primary-fill); color: #fff; } .chip.partial { border: 2px dashed var(--wp-primary-text); } .chip .count { font-size: 0.8125rem; opacity: .85; color: inherit; } .chip.on .count { opacity: 1; color: #fff; } .quick .hint { margin: 0; } .count { font-size: 0.875rem; color: var(--secondary-text-color); } .count b { color: var(--primary-text-color); } .type-head.static { cursor: default; } .chev-space { flex: none; width: 24px; } .order-list { list-style: none; margin: 0 0 12px; padding: 0; } .order-row { display: flex; align-items: center; gap: 4px; min-height: 56px; border-bottom: 1px solid var(--divider-color); } .order-row.target { border-top: 2px solid var(--wp-primary-text); } .field > label.big { font-size: 1rem; } .order-row.moved { background: var(--wp-field-border); box-shadow: inset 4px 0 0 var(--wp-primary-text); } .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } .order-row button.move { width: 48px; height: 48px; } .order-row button { flex: none; width: 44px; height: 48px; display: inline-flex; align-items: center; justify-content: center; border: 0; background: none; color: var(--primary-text-color); cursor: pointer; } .order-row button[disabled] { opacity: .35; cursor: default; } .order-row .handle { touch-action: none; cursor: grab; } .order-row .grow { flex: 1 1 0; min-width: 0; } .program-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }`];
 }
 
 declare global {

@@ -38,7 +38,7 @@ describe("vocabulary", () => {
     expect(fr.ce_one_program).toBe("Un seul programme");
     expect(fr.ce_area).toBe("Pièce (facultatif)");
     expect(fr.ce_schedule_view).toBe("Présentation de la journée");
-    expect(fr.ce_area_hint).toContain("Réglages des programmes > Général");
+    expect(fr.ce_area_hint).toContain("dans ses réglages");
     expect(fr.chart_day).toBe("Graphique du jour");
     expect(fr.planned).toBe("Prévu");
     expect(fr.measured).toBe("Valeur mesurée");

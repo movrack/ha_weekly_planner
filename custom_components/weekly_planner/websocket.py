@@ -2,27 +2,41 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import date, datetime, timedelta
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.util import dt as dt_util
 
-from .const import CONF_ADMIN_ONLY, DEFAULT_PRIORITY, DOMAIN
+from .actions import needs_admin
 from .checks import program_warnings
+from .const import (
+    CONF_ADMIN_ONLY,
+    CONF_HOLIDAY_ENTITY,
+    CONF_HOLIDAY_INVERT,
+    DEFAULT_PRIORITY,
+    DOMAIN,
+)
 from .engine import MAX_PAUSE_DAYS, PlannerEngine
 from .frontend import CARD_VERSION_KEY
-from .resolver import OccurrenceCache, active_profile, occurrences_around
+from .modes import apply_default_mode, profile_slots
+from .resolver import NO_HOLIDAY, Holiday, OccurrenceCache, active_profile, occurrences_around
 from .slots import normalise_slot_entities, remove_device_from_slots
 from .store import new_id
-from .actions import needs_admin
-from .modes import apply_default_mode
 from .validation import (
-    PROGRAM, ProgramError, admin_required, check_label, check_mode_config, check_program, keep_pause, label_users, with_defaults,
+    PROGRAM,
+    admin_required,
+    check_holiday_loop,
+    check_label,
+    check_mode_config,
+    check_program,
+    keep_pause,
+    label_users,
+    with_defaults,
 )
 
 
@@ -59,7 +73,7 @@ def _editor_engine(hass: HomeAssistant, connection, msg) -> PlannerEngine | None
 def async_register(hass: HomeAssistant) -> None:
     for handler in (ws_get, ws_subscribe, ws_program_save, ws_program_delete, ws_label_save,
                     ws_label_delete, ws_preview, ws_journal, ws_set_enabled, ws_pause, ws_set_mode,
-                    ws_resolve_mode, ws_undo_mode_rename, ws_mode_follow, ws_dismiss_mode_rename):
+                    ws_resolve_mode, ws_undo_mode_rename, ws_mode_follow, ws_dismiss_mode_rename, ws_holiday):
         websocket_api.async_register_command(hass, handler)
 
 
@@ -107,6 +121,10 @@ def _snapshot_data(engine: PlannerEngine) -> dict[str, Any]:
             "renamed": engine.mode_renames(),
             "follow_lost": engine.mode_follow_lost(),
         },
+        # Day off (issue #54): the entity of the house (None: the feature is hidden) and whether today is one.
+        "holiday_entity": engine.store.config.get(CONF_HOLIDAY_ENTITY),
+        "holiday_invert": bool(engine.store.config.get(CONF_HOLIDAY_INVERT, False)),
+        "holiday_today": engine.holiday_today,
         "programs": engine.store.programs,
         "status": {p["id"]: engine.program_status(p["id"]) for p in engine.store.programs},
         "warnings": {p["id"]: program_warnings(engine.hass, engine.store.programs, p, engine)
@@ -169,6 +187,34 @@ def _clean_slot_entities(existing: dict | None, program: dict) -> dict:
         return program
 
 
+def _check_loop(engine: PlannerEngine, *, program: dict | None = None, label: dict | None = None) -> None:
+    """Refuse a save that would make a program command the day-off entity (``driven_holiday_entity``)."""
+    programs = [p for p in engine.store.programs if program is None or p["id"] != program["id"]]
+    labels = dict(engine.labels)
+    if program is not None:
+        programs.append(program)
+    if label is not None:
+        labels[label["id"]] = label
+    check_holiday_loop(engine.store.config.get(CONF_HOLIDAY_ENTITY), programs, labels, engine.hass)
+
+
+def _keep_holidays(existing: dict | None, program: dict) -> dict:
+    """A profile sent without a ``holiday`` key keeps its stored day-off setting (a card that does not know
+    the key never erases it); ``holiday: null`` clears it. A mode that now follows another keeps none."""
+    if not existing or not isinstance(program.get("profiles"), list):
+        return program
+    stored = {p.get("id"): p["holiday"] for p in existing.get("profiles", []) if p.get("holiday")}
+    if not stored:
+        return program
+    profiles = []
+    for profile in program["profiles"]:
+        if (isinstance(profile, dict) and "holiday" not in profile and profile.get("id") in stored
+                and not profile.get("follows")):
+            profile = {**profile, "holiday": deepcopy(stored[profile["id"]])}
+        profiles.append(profile)
+    return {**program, "profiles": profiles}
+
+
 def _chart_metadata_only(before: dict | None, after: dict, reapply_default: bool = True) -> bool:
     """Only display sources changed: do not re-evaluate schedules or send device services."""
     if before is None:
@@ -210,8 +256,9 @@ async def ws_program_save(hass, connection, msg) -> None:
         return
     try:
         descriptions = await _descriptions(hass)
-        program = _clean_slot_entities(existing, program)
+        program = _clean_slot_entities(existing, _keep_holidays(existing, program))
         program = check_program(program, engine.labels, hass, descriptions, engine.reapply_default)
+        _check_loop(engine, program=program)
     except vol.Invalid as err:
         connection.send_error(msg["id"], "invalid", str(err))
         return
@@ -281,6 +328,7 @@ async def ws_label_save(hass, connection, msg) -> None:
     label.setdefault("id", new_id())
     try:
         label = check_label(label, hass, await _descriptions(hass))
+        _check_loop(engine, label=label)
     except vol.Invalid as err:
         connection.send_error(msg["id"], "invalid", str(err))
         return
@@ -329,18 +377,20 @@ def _preview_slot(occ, slot: dict) -> dict[str, Any]:
     return item
 
 
-def _per_device_preview(engine: PlannerEngine, program: dict, profile: dict, noon: datetime) -> dict[str, Any]:
+def _per_device_preview(engine: PlannerEngine, program: dict, profile: dict, noon: datetime,
+                        holiday: Holiday = NO_HOLIDAY) -> dict[str, Any]:
     """Programs with per-device lists: slots as placed (never trimmed together) and the full timeline of each device."""
     cache = OccurrenceCache()
     tz, sun, pid = engine.tz, engine.sun, program["id"]
     midnight = datetime(noon.year, noon.month, noon.day, tzinfo=tz)
-    slots = [_preview_slot(occ, slot) for occ, slot in cache.entry(profile, noon.date(), tz, sun, pid).placed]
+    slots = [_preview_slot(occ, slot) for occ, slot in cache.entry(profile, noon.date(), tz, sun, pid, holiday).placed]
     by_entity: dict[str, list] = {}
     for entity in program["entities"]:
         eid = entity["entity_id"]
         by_entity[eid] = [
             _preview_slot(occ, slot)
-            for occ, slot in occurrences_around(profile, noon, tz, sun, days=(-1, 0), program_id=pid, cache=cache, entity_id=eid)
+            for occ, slot in occurrences_around(profile, noon, tz, sun, days=(-1, 0), program_id=pid, cache=cache,
+                                                entity_id=eid, holiday=holiday)
             if occ.start >= midnight or (occ.end is not None and occ.end > midnight)  # previous-day spill only
         ]
     return {"slots": slots, "by_entity": by_entity}
@@ -354,25 +404,33 @@ def _per_device_preview(engine: PlannerEngine, program: dict, profile: dict, noo
 })
 @callback
 def ws_preview(hass, connection, msg) -> None:
-    """Concrete slots of a day (sun times resolved, ignored slots flagged)."""
+    """Concrete slots of a day (sun times resolved, ignored slots flagged).
+
+    ``holiday``: the date is today and today is a day off (issue #54); the slots are then those that really
+    run (the day-off setting of the mode, when it has one). Yesterday and tomorrow are always normal days.
+    """
     engine = _engine(hass)
     program = engine.store.program(msg["program_id"]) if engine else None
     if program is None:
         connection.send_error(msg["id"], "not_found", "Unknown program")
         return
     day = date.fromisoformat(msg["date"]) if msg.get("date") else dt_util.now().date()
-    profiles = engine._profiles()  # noqa: SLF001
+    profiles = engine._profiles()
     if msg.get("profile_id"):
         profiles = {**profiles, program["id"]: msg["profile_id"]}
     profile = active_profile(program, profiles)
     noon = datetime(day.year, day.month, day.day, 12, tzinfo=engine.tz)
-    if any("entities" in slot for day_slots in profile["days"] for slot in day_slots):
-        connection.send_result(msg["id"], {"date": day.isoformat(), **_per_device_preview(engine, program, profile, noon)})
+    holiday = engine.holiday_view()
+    is_holiday = holiday.day == day
+    if any("entities" in slot for slot in profile_slots(profile)):
+        connection.send_result(msg["id"], {"date": day.isoformat(), "holiday": is_holiday,
+                                           **_per_device_preview(engine, program, profile, noon, holiday)})
         return
     result = []
-    for occ, slot in occurrences_around(profile, noon, engine.tz, engine.sun, days=(0,), program_id=program["id"]):
+    for occ, slot in occurrences_around(profile, noon, engine.tz, engine.sun, days=(0,), program_id=program["id"],
+                                        holiday=holiday):
         result.append(_preview_slot(occ, slot))
-    connection.send_result(msg["id"], {"date": day.isoformat(), "slots": result})
+    connection.send_result(msg["id"], {"date": day.isoformat(), "holiday": is_holiday, "slots": result})
 
 
 @websocket_api.websocket_command({
@@ -533,3 +591,60 @@ async def ws_dismiss_mode_rename(hass, connection, msg) -> None:
         connection.send_error(msg["id"], "not_found", "No rename to dismiss for this mode")
         return
     connection.send_result(msg["id"])
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/program/holiday",
+    vol.Required("program_id"): str,
+    vol.Required("profile_id"): str,
+    vol.Required("holiday"): vol.Any(None, dict),
+    vol.Optional("revision"): int,
+})
+@websocket_api.async_response
+async def ws_holiday(hass, connection, msg) -> None:
+    """Set (``{"copy": 0..6}`` or ``{"day": [slots]}``) or clear (null) the day-off setting of one mode of a
+    program (issue #54). ``off: true`` keeps the setting without applying it; ``day`` beside ``copy`` keeps
+    the own day in memory. Same rights and checks as saving the program; a mode that follows has none."""
+    engine = _editor_engine(hass, connection, msg)
+    if engine is None:
+        return
+    existing = engine.store.program(msg["program_id"])
+    if existing is None:
+        connection.send_error(msg["id"], "not_found", "Unknown program")
+        return
+    if "revision" in msg and existing.get("revision", 0) != msg["revision"]:
+        connection.send_error(msg["id"], "conflict", "Modified elsewhere, reload")
+        return
+    if not any(p["id"] == msg["profile_id"] for p in existing["profiles"]):
+        connection.send_error(msg["id"], "not_found", "Unknown mode")
+        return
+    program = deepcopy(existing)
+    for profile in program["profiles"]:
+        if profile["id"] == msg["profile_id"]:
+            profile["holiday"] = msg["holiday"]
+    try:
+        descriptions = await _descriptions(hass)
+        program = check_program(_clean_slot_entities(existing, program), engine.labels, hass, descriptions,
+                                engine.reapply_default)
+        _check_loop(engine, program=program)
+    except vol.Invalid as err:
+        connection.send_error(msg["id"], "invalid", str(err))
+        return
+    if admin_required(program, engine.labels) and not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Sensitive actions are reserved to administrators")
+        return
+    current = engine.store.program(program["id"])  # re-read after the await, as program/save does
+    if current is None:
+        connection.send_error(msg["id"], "not_found", "Unknown program")
+        return
+    if current.get("revision", 0) != existing.get("revision", 0):
+        connection.send_error(msg["id"], "conflict", "Modified elsewhere, reload")
+        return
+    program = keep_pause(current, program, keep_enabled=True)
+    active = engine.active_profile_id(program["id"]) == msg["profile_id"]
+    program["revision"] = current.get("revision", 0) + 1
+    engine.store.programs[engine.store.programs.index(current)] = program
+    engine.store.save_config()
+    # Editing another mode's day off never re-sends the active mode's actions.
+    await engine.async_config_changed(reapply=active)
+    connection.send_result(msg["id"], {"program": program})

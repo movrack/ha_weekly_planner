@@ -21,7 +21,7 @@ def test_resolve_action_label_override_and_skip():
     assert resolve_action(prog, "climate.bath", "t21", labs) == temp(22)  # the entity's own value
     assert resolve_action(prog, "climate.bath", "t15", labs) == temp(15)  # no override: the label
     assert resolve_action(prog, CLIMATE, None, labs) is None and resolve_action(prog, CLIMATE, "gone", labs) is None
-    refuse = lambda eid, action: eid != "climate.bath"  # noqa: E731
+    refuse = lambda eid, action: eid != "climate.bath"
     assert resolve_action(prog, "climate.bath", "t21", labs, refuse) is None  # incompatible: skipped
     assert resolve_action(prog, CLIMATE, "t21", labs, refuse) == temp(21)
 

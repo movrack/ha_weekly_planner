@@ -5,8 +5,8 @@ from __future__ import annotations
 from copy import deepcopy
 
 import pytest
-
-from homeassistant.helpers import entity_registry as er, issue_registry as ir
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 
 from custom_components.weekly_planner.const import DEFAULT_PRIORITY, DOMAIN
 from custom_components.weekly_planner.validation import PROGRAM, check_program
@@ -92,7 +92,7 @@ async def test_engine_missing_priority_sorts_as_default(hass, hass_storage, free
     missing = program("missing", [slot("m", "08:00", "20:00", "t25")])
     missing.pop("priority")
     engine = await setup(hass, hass_storage, freezer, [stored, missing], local(26, 9, 0))
-    assert engine._priority("missing") == DEFAULT_PRIORITY  # noqa: SLF001
+    assert engine._priority("missing") == DEFAULT_PRIORITY
     assert engine.segment(CLIMATE).program_id == "missing"  # 10 beats 11 (it used to lose against it at 100)
     assert engine.store.program("stored")["priority"] == DEFAULT_PRIORITY + 1  # stored values untouched
 

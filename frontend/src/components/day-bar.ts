@@ -5,7 +5,7 @@ import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "./tip";
 import { strings, t } from "../i18n";
-import { DAY, fmtClock } from "../time";
+import { DAY, fmtClock, fmtDayEnd } from "../time";
 import type { TimeSpec } from "../types";
 
 export interface BarSpan {
@@ -23,9 +23,14 @@ export interface BarSpan {
   ignored?: string | null;
   /** Slot this span comes from (spill: the part of the previous day's slot that crosses midnight). */
   slotId?: string;
+  /** Setting (label id) of the span. */
+  labelId?: string;
   spill?: boolean;
   /** A one-shot (no end): drawn as a small marker. */
   marker?: boolean;
+  /** Real instants (ms) of the resolved start / end, when the span comes from a resolved preview (absent from the fallbacks). */
+  startMs?: number;
+  endMs?: number | null;
 }
 
 /** Icon side of a time that follows the sun: sunrise side ("up") or sunset side ("down"), null for a fixed time. */
@@ -162,7 +167,7 @@ export class WpDayBar extends LitElement {
           <wp-tip class="nowic" no-tab text=${nowTip(this.lang, now)} label=${this.deviceName ? `${nowTip(this.lang, now)}, ${this.deviceName}` : nowTip(this.lang, now)}><ha-icon icon="mdi:clock-outline"></ha-icon></wp-tip></div>` : nothing}
       </div>
       ${this.showHours
-        ? html`<div class="hours" aria-hidden="true">${[0, 6, 12, 18, 24].map((h) => html`<span style="left:${pct(h * 60)}">${h === 24 ? "24 h" : fmtClock(this.lang, h * 60)}</span>`)}</div>`
+        ? html`<div class="hours" aria-hidden="true">${[0, 6, 12, 18, 24].map((h) => html`<span style="left:${pct(h * 60)}">${h === 24 ? fmtDayEnd(this.lang) : fmtClock(this.lang, h * 60)}</span>`)}</div>`
         : nothing}
     `;
   }
@@ -172,7 +177,7 @@ export class WpDayBar extends LitElement {
     :host { display: block; }
     .wrap { position: relative; }
     .bar {
-      position: relative; height: 28px; border-radius: 14px; overflow: hidden;
+      position: relative; height: var(--wp-bar-height, 28px); border-radius: var(--wp-bar-radius, 14px); overflow: hidden; /* taller where the bar is a touch target */
       background: var(--divider-color, rgba(127, 127, 127, 0.2));
     }
     .bar.thin { height: 10px; border-radius: 5px; }

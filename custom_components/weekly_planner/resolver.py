@@ -9,12 +9,12 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, tzinfo
+from datetime import UTC, date, datetime, timedelta, tzinfo
 
 from .const import DEFAULT_PRIORITY
 from .modes import EMPTY_PROFILE, NO_PROFILE
 from .slots import applies
-from .timeline import Occurrence, SunProvider, place_day, trim
+from .timeline import MIN_SLOT, Occurrence, SunProvider, local_datetime, place_day, trim
 
 # conditions list -> bool (all must hold); evaluated by the caller with debounce
 ConditionCheck = Callable[[list[dict]], bool]
@@ -58,11 +58,84 @@ def active_profile(program: dict, active_profiles: dict[str, str]) -> dict:
 Placed = list[tuple[Occurrence, dict]]
 
 
-def _place(profile: dict, day: date, tz: tzinfo, sun: SunProvider, program_id: str) -> Placed:
+@dataclass(frozen=True, slots=True)
+class Holiday:
+    """Which local dates are days off when schedules are placed (issue #54, docs/SPEC.md § 5.11).
+
+    ``day``: today, when the house declares it a day off; tomorrow and yesterday are always normal days.
+    ``after``: a past day off (yesterday): its slots never run into the next day.
+    Only a profile with a ``holiday`` setting is concerned; any other profile keeps its normal days.
+    """
+
+    day: date | None = None
+    after: date | None = None
+
+
+NO_HOLIDAY = Holiday()
+
+
+def holiday_setting(profile: dict) -> dict | None:
+    """The day-off setting that applies: none when the profile has none or when it is switched off
+    (``off``: kept in memory, not applied)."""
+    setting = profile.get("holiday")
+    return setting if setting and not setting.get("off") else None
+
+
+def has_holiday(profile: dict) -> bool:
+    """Does the profile have a day-off setting that applies (a copied weekday or its own day)?"""
+    return holiday_setting(profile) is not None
+
+
+def day_slots(profile: dict, day: date, is_holiday: bool) -> list[dict]:
+    """The slots that run on ``day``: the day-off setting when ``is_holiday`` and the profile has one
+    (a live copy of a weekday, or its own day), else the weekday. The only place that picks a day."""
+    setting = holiday_setting(profile) if is_holiday else None
+    if setting:
+        if "copy" in setting:
+            return profile["days"][setting["copy"]]
+        return setting["day"]
+    return profile["days"][day.weekday()]
+
+
+def _cut_at_end(profile: dict, day: date, holiday: Holiday) -> bool:
+    """A day off is a whole day, 00:00 to 24:00: the slots of the day off, of the day before it and of a
+    past day off stop at the end of their own day (nothing crosses midnight next to a day off)."""
+    if holiday is NO_HOLIDAY or not has_holiday(profile):
+        return False
+    return day in (holiday.day, holiday.after) or day + timedelta(days=1) == holiday.day
+
+
+def _cut(occ: Occurrence, boundary: datetime) -> Occurrence:
+    """``occ`` stopped at ``boundary`` (the next local midnight); ignored when nothing is left before it."""
+    if not occ.runs:
+        return occ
+    if occ.start >= boundary:
+        return Occurrence(occ.slot_id, occ.start, occ.end, "holiday_cut")
+    if occ.end is None or occ.end <= boundary:
+        return occ
+    if boundary - occ.start < MIN_SLOT:
+        return Occurrence(occ.slot_id, occ.start, boundary, "too_short")
+    return Occurrence(occ.slot_id, occ.start, boundary)
+
+
+def _day_flags(profile: dict, day: date, holiday: Holiday) -> tuple[bool, bool]:
+    """(the day-off setting replaces the day, the day stops at midnight)."""
+    if holiday is NO_HOLIDAY:
+        return False, False
+    return holiday.day == day and has_holiday(profile), _cut_at_end(profile, day, holiday)
+
+
+def _place(profile: dict, day: date, tz: tzinfo, sun: SunProvider, program_id: str,
+           holiday: Holiday = NO_HOLIDAY) -> Placed:
     """Every slot of the profile's day placed on the calendar, sorted by start, not trimmed."""
-    slots = profile["days"][day.weekday()]
+    is_holiday, cut = _day_flags(profile, day, holiday)
+    slots = day_slots(profile, day, is_holiday)
     by_id = {s["id"]: s for s in slots}
-    return [(occ, by_id[occ.slot_id]) for occ in place_day(slots, day, tz, sun, identity=(program_id, profile["id"]))]
+    placed = place_day(slots, day, tz, sun, identity=(program_id, profile["id"]))
+    if cut:
+        boundary = local_datetime(day + timedelta(days=1), 0, 0, tz)[0].astimezone(UTC)
+        placed = [_cut(occ, boundary) for occ in placed]
+    return [(occ, by_id[occ.slot_id]) for occ in placed]
 
 
 def _has_lists(placed: Placed) -> bool:
@@ -77,9 +150,9 @@ def _trim_for(placed: Placed, entity_id: str | None) -> Placed:
 
 
 def _profile_day(profile: dict, day: date, tz: tzinfo, sun: SunProvider, program_id: str,
-                 entity_id: str | None = None) -> Placed:
+                 entity_id: str | None = None, holiday: Holiday = NO_HOLIDAY) -> Placed:
     """Trimmed occurrences of a day; with ``entity_id``, only the slots that apply to that device."""
-    placed = _place(profile, day, tz, sun, program_id)
+    placed = _place(profile, day, tz, sun, program_id, holiday)
     return _trim_for(placed, entity_id if _has_lists(placed) else None)
 
 
@@ -149,22 +222,25 @@ class OccurrenceCache:
     def __init__(self) -> None:
         self._days: dict[tuple, _Day] = {}
 
-    def entry(self, profile: dict, day: date, tz: tzinfo, sun: SunProvider, program_id: str) -> _Day:
-        key = (id(profile), program_id, day)
+    def entry(self, profile: dict, day: date, tz: tzinfo, sun: SunProvider, program_id: str,
+              holiday: Holiday = NO_HOLIDAY) -> _Day:
+        # The day-off flags are part of the key: a day cached as normal is never served as a day off.
+        key = (id(profile), program_id, day, *_day_flags(profile, day, holiday))
         hit = self._days.get(key)
         if hit is not None and hit.profile is profile:
             return hit
-        found = self._days[key] = _Day(profile, _place(profile, day, tz, sun, program_id))
+        found = self._days[key] = _Day(profile, _place(profile, day, tz, sun, program_id, holiday))
         return found
 
     def day(self, profile: dict, day: date, tz: tzinfo, sun: SunProvider, program_id: str,
-            entity_id: str | None = None) -> Placed:
-        return self.entry(profile, day, tz, sun, program_id).device(entity_id)
+            entity_id: str | None = None, holiday: Holiday = NO_HOLIDAY) -> Placed:
+        return self.entry(profile, day, tz, sun, program_id, holiday).device(entity_id)
 
 
 def occurrences_around(
     profile: dict, moment: datetime, tz: tzinfo, sun: SunProvider, days: Iterable[int] = (-1, 0, 1),
     *, program_id: str = "", cache: OccurrenceCache | None = None, entity_id: str | None = None,
+    holiday: Holiday = NO_HOLIDAY,
 ) -> Placed:
     """Occurrences of a profile for the days around ``moment`` (yesterday covers midnight).
 
@@ -176,15 +252,15 @@ def occurrences_around(
     for delta in days:
         day: date = local_day + timedelta(days=delta)
         if cache is None:
-            result.extend(_profile_day(profile, day, tz, sun, program_id, entity_id))
+            result.extend(_profile_day(profile, day, tz, sun, program_id, entity_id, holiday))
         else:
-            result.extend(cache.day(profile, day, tz, sun, program_id, entity_id))
+            result.extend(cache.day(profile, day, tz, sun, program_id, entity_id, holiday))
     return result
 
 
 def device_groups_around(
     program: dict, profile: dict, moment: datetime, tz: tzinfo, sun: SunProvider, days: Iterable[int],
-    *, cache: OccurrenceCache | None = None,
+    *, cache: OccurrenceCache | None = None, holiday: Holiday = NO_HOLIDAY,
 ) -> list[Placed]:
     """Distinct device timelines of a program per day around ``moment`` (union of the subsets)."""
     cache = cache if cache is not None else OccurrenceCache()
@@ -192,7 +268,7 @@ def device_groups_around(
     ids = [e["entity_id"] for e in program["entities"]]
     result: list[Placed] = []
     for delta in days:
-        entry = cache.entry(profile, local_day + timedelta(days=delta), tz, sun, program["id"])
+        entry = cache.entry(profile, local_day + timedelta(days=delta), tz, sun, program["id"], holiday)
         result.extend(entry.groups(ids))
     return result
 
@@ -207,6 +283,7 @@ def running_slot(
     conditions_ok: ConditionCheck,
     resolve: Resolve,
     cache: OccurrenceCache | None = None,
+    holiday: Holiday = NO_HOLIDAY,
 ) -> tuple[Occurrence, dict] | None:
     """The slot of this program running at ``moment`` that acts on this entity, if any.
 
@@ -215,12 +292,12 @@ def running_slot(
     a program whose running slot targets other devices does not win the priority arbitration here.
     """
     for occ, slot in occurrences_around(profile, moment, tz, sun, program_id=program["id"], cache=cache,
-                                        entity_id=entity_id):
+                                        entity_id=entity_id, holiday=holiday):
         if not occ.runs or occ.end is None:
             continue  # one-shot slots (no end) are events, handled by the engine
-        if occ.start <= moment < occ.end and applies(slot, entity_id) and conditions_ok(slot.get("conditions", [])):
-            if resolve(program, entity_id, slot.get("label")) is not None:
-                return occ, slot
+        if (occ.start <= moment < occ.end and applies(slot, entity_id) and conditions_ok(slot.get("conditions", []))
+                and resolve(program, entity_id, slot.get("label")) is not None):
+            return occ, slot
     return None
 
 
@@ -236,6 +313,7 @@ def resolve_entity(
     vacation: bool = False,
     active_profiles: dict[str, str] | None = None,
     cache: OccurrenceCache | None = None,
+    holiday: Holiday = NO_HOLIDAY,
 ) -> Segment:
     """Winning segment for an entity at ``moment`` (UTC)."""
     active_profiles = active_profiles or {}
@@ -256,7 +334,7 @@ def resolve_entity(
         if not conditions_ok(program.get("conditions", [])):
             continue
         profile = active_profile(program, active_profiles)
-        found = running_slot(program, profile, entity_id, moment, tz, sun, conditions_ok, resolve, cache)
+        found = running_slot(program, profile, entity_id, moment, tz, sun, conditions_ok, resolve, cache, holiday)
         if found:
             occ, slot = found
             return Segment(
@@ -287,6 +365,7 @@ def next_transition(
     *,
     active_profiles: dict[str, str] | None = None,
     cache: OccurrenceCache | None = None,
+    holiday: Holiday = NO_HOLIDAY,
 ) -> datetime | None:
     """Earliest slot start or end strictly after ``moment`` among enabled programs.
 
@@ -299,7 +378,8 @@ def next_transition(
         if not program.get("enabled", True):
             continue
         profile = active_profile(program, active_profiles)
-        for timeline in device_groups_around(program, profile, moment, tz, sun, (-1, 0, 1, 2), cache=cache):
+        for timeline in device_groups_around(program, profile, moment, tz, sun, (-1, 0, 1, 2), cache=cache,
+                                             holiday=holiday):
             for occ, _slot in timeline:
                 if not occ.runs:
                     continue

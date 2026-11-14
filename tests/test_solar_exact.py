@@ -25,7 +25,10 @@ def utc(day: date, h: int, m: int) -> datetime:
     return datetime(day.year, day.month, day.day, h, m, tzinfo=UTC)
 
 
-def place(start, end=None, tz=UTC, day=DAY, sun=sun_at(16, 17, 12)):
+_SUN = sun_at(16, 17, 12)
+
+
+def place(start, end=None, tz=UTC, day=DAY, sun=_SUN):
     return occurrence({"id": "s", "start": start, "end": end}, day, tz, sun)
 
 

@@ -7,7 +7,15 @@ from datetime import timedelta
 from custom_components.weekly_planner.const import DOMAIN
 
 from .helpers import (
-    CLIMATE, COVER, Recorder, go_to, local, program, setup, slot, tick,
+    CLIMATE,
+    COVER,
+    Recorder,
+    go_to,
+    local,
+    program,
+    setup,
+    slot,
+    tick,
 )
 
 
@@ -53,10 +61,12 @@ async def test_one_shot_runs_once_and_is_never_rerun(hass, hass_storage, freezer
     assert len(rec.calls) == 1  # no end, nothing undone
     for reason in ("startup", "modification", "profile"):
         await engine.async_recompute(reason)
-    await engine.async_apply_now("office")
+    assert [c for c in rec.calls if c[0] == "climate.set_preset_mode"] == [
+        ("climate.set_preset_mode", {"preset_mode": "boost"})]  # nothing replays it by itself
+    await engine.async_apply_now("office")  # the resynchronisation exception (spec 5.8): the last one-shot, < 24 h
     await hass.async_block_till_done()
     assert [c for c in rec.calls if c[0] == "climate.set_preset_mode"] == [
-        ("climate.set_preset_mode", {"preset_mode": "boost"})]
+        ("climate.set_preset_mode", {"preset_mode": "boost"})] * 2
 
 
 async def test_reapply_on_resends_the_current_action(hass, hass_storage, freezer):  # S7

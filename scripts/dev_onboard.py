@@ -12,6 +12,7 @@ import json
 import sys
 import urllib.parse
 import urllib.request
+from pathlib import Path
 
 BASE = "http://localhost:8124"
 CLIENT_ID = f"{BASE}/"
@@ -64,7 +65,7 @@ def main() -> None:
     steps = {s["step"]: s["done"] for s in call("GET", "/api/onboarding")}
     if all(steps.values()):
         # Already onboarded: reuse the token saved by the first run.
-        token = open("dev/config/.dev_token").read().strip()
+        token = Path("dev/config/.dev_token").read_text().strip()
         ensure_integration(token)
         print(token)
         return

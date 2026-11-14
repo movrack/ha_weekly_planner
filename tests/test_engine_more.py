@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from pytest_homeassistant_custom_component.common import MockConfigEntry
-
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
-from homeassistant.helpers import entity_registry as er, issue_registry as ir
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.weekly_planner.const import DOMAIN
 from custom_components.weekly_planner.store import PlannerStore
@@ -47,7 +47,7 @@ async def test_missed_end_is_caught_up(hass, hass_storage, freezer):  # S8
     engine = await setup(hass, hass_storage, freezer, [program(reapply=False)], local(26, 9, 0))
     entry = hass.config_entries.async_entries(DOMAIN)[0]
     engine.store.runtime["entities"][CLIMATE]["segment"] = ["slot", "office", "s1", "x"]
-    await engine.store._runtime.async_save(engine.store.runtime)  # noqa: SLF001
+    await engine.store._runtime.async_save(engine.store.runtime)
     await hass.config_entries.async_unload(entry.entry_id)
     freezer.move_to(local(26, 13, 0))
     await hass.config_entries.async_setup(entry.entry_id)
@@ -60,7 +60,7 @@ async def test_stale_action_dropped(hass, hass_storage, freezer):  # S21
     rec = Recorder(hass)
     engine = await setup(hass, hass_storage, freezer, [program()], local(26, 9, 0))
     count = len(rec.calls)
-    await engine._async_send_call(  # noqa: SLF001
+    await engine._async_send_call(
         CLIMATE, temp(30), "test", ["slot", "office", "s1", "stale"], False)
     assert len(rec.calls) == count
 
@@ -125,7 +125,7 @@ async def test_service_error_is_retried_then_notified(hass, hass_storage, freeze
     assert len(calls) == 6  # given up after the last step
     from homeassistant.components import persistent_notification
 
-    notifications = persistent_notification._async_get_or_create_notifications(hass)  # noqa: SLF001
+    notifications = persistent_notification._async_get_or_create_notifications(hass)
     assert f"{DOMAIN}_{VACUUM}_failed" in notifications
 
 

@@ -4,7 +4,7 @@ import { LitElement, css, html, svg, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { sunTip, nowTip, type BarSpan } from "./day-bar";
 import { radialSegments } from "../radial";
-import { fmtClock } from "../time";
+import { fmtClock, fmtDayEnd } from "../time";
 import { t } from "../i18n";
 import "./tip";
 
@@ -103,7 +103,7 @@ export class WpRadialDay extends LitElement {
           const q = point(nowTurn, radius(nowRing) + width / 2 + 4);
           return svg`<line x1=${p.x} y1=${p.y} x2=${q.x} y2=${q.y} stroke="var(--primary-text-color)" stroke-width="3" />`;
         })()}
-        ${this.selectedTime ? nothing : svg`<text x="160" y="156" text-anchor="middle">${now === null ? "24 h" : fmtClock(this.lang, now)}</text>
+        ${this.selectedTime ? nothing : svg`<text x="160" y="156" text-anchor="middle">${now === null ? fmtDayEnd(this.lang) : fmtClock(this.lang, now)}</text>
         <text x="160" y="180" text-anchor="middle">${t(this.lang, "hours")}</text>`}
       </svg></button>
       ${outsideSelection ? nothing : selection}

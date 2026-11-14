@@ -1,6 +1,7 @@
 // Time helpers. Everything displayed uses the Home Assistant server time zone, not the
 // browser's (someone abroad must still see the house's schedule).
 
+import { t } from "./i18n";
 import type { Slot, TimeSpec } from "./types";
 
 const formatters = new Map<string, Intl.DateTimeFormat>();
@@ -11,6 +12,26 @@ export function dateFormat(locale: string, options: Intl.DateTimeFormatOptions):
   let format = formatters.get(key);
   if (!format) formatters.set(key, (format = new Intl.DateTimeFormat(locale, options)));
   return format;
+}
+
+/** Home Assistant's `locale.time_format`: "12", "24" or "language" (the card language decides, as before). */
+export type TimeFormat = "12" | "24" | "language";
+
+let currentFormat: TimeFormat = "language";
+
+/** Normalise what Home Assistant gives (absent or unknown means "language"). */
+export function timeFormat(hass?: { locale?: { time_format?: string } } | null): TimeFormat {
+  const value = hass?.locale?.time_format;
+  return value === "12" || value === "24" ? value : "language";
+}
+
+/** The single entry point: the card, the chart and the editor call it with `hass`; every display helper reads it. */
+export function setTimeFormat(hass?: { locale?: { time_format?: string } } | null): void {
+  currentFormat = timeFormat(hass);
+}
+
+export function currentTimeFormat(): TimeFormat {
+  return currentFormat;
 }
 
 export function addDaysIso(dateIso: string, days: number): string {
@@ -75,16 +96,36 @@ export function spillover(previousDay: Slot[]): { slot: Slot; end: number }[] {
   return result;
 }
 
-/** Spoken-style clock: "22 h" / "22 h 30" in French, "10 pm" / "10:30 pm" elsewhere (Intl). */
-export function fmtClock(language: string, minutes: number): string {
+/**
+ * Clock text following the Home Assistant time format (`format`, default: the one set by `setTimeFormat`).
+ * "language": "22 h" / "22 h 30" in French, "10 pm" / "10:30 pm" elsewhere (Intl), as before.
+ * "24": French keeps "22 h" / "22 h 30", other languages read "22:00" / "06:05".
+ * "12": am/pm in every language ("10 pm", "10:30 pm"), French included.
+ */
+export function fmtClock(language: string, minutes: number, format: TimeFormat = currentFormat): string {
   const m = ((Math.round(minutes) % DAY) + DAY) % DAY;
   const h = Math.floor(m / 60);
   const min = m % 60;
-  if (language.toLowerCase().startsWith("fr")) return min ? `${h} h ${String(min).padStart(2, "0")}` : `${h} h`;
+  if (language.toLowerCase().startsWith("fr") && format !== "12") return min ? `${h} h ${String(min).padStart(2, "0")}` : `${h} h`;
+  // 12 h: a bare "12 am" / "12 pm" is easily read the wrong way round, so it is said in words
+  if (format === "12" && !min && h % 12 === 0) return t(language, h === 0 ? "midnight" : "noon");
   const date = new Date(Date.UTC(2000, 0, 1, h, min));
+  if (format === "24") return dateFormat(language, { timeZone: "UTC", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(date);
   const opts: Intl.DateTimeFormatOptions = { timeZone: "UTC", hour: "numeric" };
+  if (format === "12") opts.hour12 = true;
   if (min) opts.minute = "2-digit";
   return dateFormat(language, opts).format(date).replace(/\s?(AM|PM)/, (_, x: string) => ` ${x.toLowerCase()}`);
+}
+
+/** Compact 12 h tick: "7 am", "noon", "7:30 am" (minutes only on sub-hour ticks). */
+export function fmtTick12(h: number, min: number, minutes = false, language = "en"): string {
+  if (!min && h % 12 === 0) return t(language, h % 24 === 0 ? "midnight" : "noon");
+  return `${h % 12 || 12}${minutes ? `:${String(min).padStart(2, "0")}` : ""} ${h % 24 < 12 ? "am" : "pm"}`;
+}
+
+/** End of the day: "24 h" ("midnight" in 12 h), never a second "0 h". */
+export function fmtDayEnd(language: string, format: TimeFormat = currentFormat): string {
+  return format === "12" ? fmtClock(language, 0, format) : "24 h";
 }
 
 /** "22 h" today, "lun. 22 h" another day (server zone). */

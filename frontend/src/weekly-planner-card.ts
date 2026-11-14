@@ -25,10 +25,16 @@ import { loadServiceNames, onServiceNames, serviceNamesVersion } from "./service
 import { reloadIfOutdated } from "./update";
 import { deviceDays, fetchPreviewResponse } from "./preview-cache";
 import { applies } from "./slots";
+import { timesRows } from "./times-list";
 import { configDefaults, normalizeConfig } from "./config";
-import { activeFollow, activeProfile, filterPrograms, friendlyName, subscribePlanner } from "./planner";
+import { activeFollow, activeProfile, entityDomain, filterPrograms, friendlyName, subscribePlanner } from "./planner";
+import { groupItems, sortMode } from "./list-order";
+import { allSlots, dayInText, holidayApplies, holidayChoice, holidayDayToday, holidayLine, holidayOwnSlots, holidayReplaces } from "./holiday";
+import { passesMidnight } from "./components/holiday-section";
+import { specMinutes } from "./slots";
+import type { DomainLocalize } from "./domains";
 import { dayBounds, addDaysIso } from "./components/chart";
-import { formatPauseEnd, formatWhen, localDateIso, localMinutes, localWeekday, nominal, pauseEnd, spillover, DAY } from "./time";
+import { currentTimeFormat, formatPauseEnd, formatWhen, setTimeFormat, localDateIso, localMinutes, localWeekday, nominal, pauseEnd, spillover, DAY } from "./time";
 import type { CardConfig, HomeAssistant, PlannerData, PreviewResponse, Program, Slot } from "./types";
 
 /** How long a confirmation message stays (ms), counted from the end of any hover or focus on it. */
@@ -88,6 +94,37 @@ export class WeeklyPlannerCard extends LitElement {
   }
 
   private _offNames?: () => void;
+  private _domainLocalize?: DomainLocalize;
+  private _domainKey = "";
+
+  /** HA's own domain names (type headings), loaded once per language and set of domains. */
+  private _loadDomainNames(): void {
+    if (!this._data || !this.hass?.loadBackendTranslation) return;
+    const domains = [...new Set(this._data.programs.map((p) => entityDomain(p.entities[0]?.entity_id ?? "")).filter(Boolean))].sort();
+    const key = `${this._lang}|${domains.join(",")}`;
+    if (key === this._domainKey || !domains.length) return;
+    this._domainKey = key;
+    void this.hass.loadBackendTranslation("title", domains).then((localize) => {
+      if (key !== this._domainKey) return;
+      this._domainLocalize = localize;
+      this.requestUpdate();
+    }).catch(() => { if (key === this._domainKey) this._domainKey = ""; });
+  }
+
+  private _typeLabel = (type: string): string =>
+    this.hass?.localize?.(`component.${type}.title`) || this._domainLocalize?.(`component.${type}.title`) || type;
+
+  /** The programs in the order of the `sort` option, with a small heading above each type or room (not with name / custom). */
+  private _list(programs: Program[]) {
+    const mode = sortMode(this._config.sort);
+    const items = programs.map((p) => ({ id: p.id, name: p.name, type: entityDomain(p.entities[0]?.entity_id ?? ""), area: p.area, p }));
+    const grouped = mode === "type" || mode === "area";
+    const view = (ps: Program[]) => (this._config.schedule_view === "list" ? this._compactList(ps) : this._bySchedule(ps, grouped));
+    return groupItems(items, mode, { order: this._config.order, typeLabel: this._typeLabel, lang: this._lang }).map((g) => {
+      const label = g.key === "" ? t(this._lang, "sort_other") : mode === "type" ? this._typeLabel(g.key) : g.key;
+      return html`${g.header ? html`<h2 class="group">${label}</h2>` : nothing}${view(g.items.map((i) => i.p))}`;
+    });
+  }
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -150,7 +187,12 @@ export class WeeklyPlannerCard extends LitElement {
     window.clearInterval(this._clock);
   }
 
+  willUpdate(): void {
+    setTimeFormat(this.hass);
+  }
+
   updated(): void {
+    this._loadDomainNames();
     if (this._idle && this._data?.card_version) this._checkVersion();
     if (this.isConnected && this.hass && !this._unsub) {
       this._unsub = subscribePlanner(this.hass, (data) => {
@@ -188,7 +230,7 @@ export class WeeklyPlannerCard extends LitElement {
     if (!this._data) return;
     const dates = [-1, 0, 1, 2, 3, 4, 5, 6].map((o) => localDateIso(this._dateAt(o), this._tz));
     const programs = filterPrograms(this._data, this._config);
-    const key = `${dates[0]}|${programs.map((p) => `${p.id}:${p.revision}:${activeProfile(p, this._data!).id}`).join(",")}`;
+    const key = `${dates[0]}|${this._data.holiday_today ? "off" : ""}|${programs.map((p) => `${p.id}:${p.revision}:${activeProfile(p, this._data!).id}`).join(",")}`;
     if (key === this._previewKey || (key === this._failedPreviewKey && Date.now() < this._previewRetryAt)) return;
     this._previewKey = key;
     let failed = false;
@@ -206,6 +248,14 @@ export class WeeklyPlannerCard extends LitElement {
         this._previewRetryAt = Date.now() + 5000;
       } else this._failedPreviewKey = "";
     }
+  }
+
+  /** "Try again" of a failed preview: lifts the wait and runs the same loading as any other reload. */
+  private _retryPreviews(): void {
+    this._previewRetryAt = 0;
+    this._failedPreviewKey = ""; // back to "loading" until the answer
+    this.requestUpdate();
+    void this._loadPreviews();
   }
 
   /* ---- blocks ---- */
@@ -238,12 +288,12 @@ export class WeeklyPlannerCard extends LitElement {
       const of = (slot: Slot) => appliedAction(this.hass, program, entityId, labelOf(data, slot.label), slot);
       const mk = (slot: Slot, start: number, end: number, extra: Partial<BarSpan> = {}): BarSpan => {
         const label = labelOf(data, slot.label)!;
-        return { start, end, color: label.color, label: labelName(this.hass, label), slotId: slot.id, startSun: sunDir(slot.start),
+        return { start, end, color: label.color, label: labelName(this.hass, label), labelId: label.id, slotId: slot.id, startSun: sunDir(slot.start),
           endSun: slot.end ? sunDir(slot.end) : null, startSpec: slot.start, endSpec: slot.end ?? null, marker: !slot.end, ...extra };
       };
       const date = localDateIso(at, this._tz);
       const { today: resolved, previous } = this._deviceDays(program.id, date, entityId);
-      const byId = new Map(profile.days.flat().map((slot) => [slot.id, slot]));
+      const byId = new Map(allSlots(profile).map((slot) => [slot.id, slot]));
       const bounds = dayBounds(date, this._tz);
       const seen = new Set<string>();
       for (const r of [...(previous ?? []), ...(resolved ?? [])]) {
@@ -258,20 +308,48 @@ export class WeeklyPlannerCard extends LitElement {
         const end = endMs === null ? null : endMs >= bounds.endMs ? DAY : localMinutes(r.end!, this._tz);
         spans.push(mk(slot, start, end === null ? Math.min(DAY, start + 10) : end, {
           spill, startSun: spill ? null : sunDir(slot.start), ignored: r.ignored ?? null,
-          sun: "sun" in slot.start || Boolean(slot.end && "sun" in slot.end),
+          sun: "sun" in slot.start || Boolean(slot.end && "sun" in slot.end), startMs, endMs,
         }));
       }
       // Until a preview arrives, only exact fixed schedules have an honest fallback.
       if (!previous) for (const { slot, end } of spillover(profile.days[(today + 6) % 7])) {
         if (!slot.start.random_minutes && !slot.end?.random_minutes && of(slot)) spans.push(mk(slot, 0, end, { spill: true, startSun: null }));
       }
-      if (!resolved) for (const slot of profile.days[today]) {
+      // a day off: the server says so (`holiday_today` and the program's status), the day that runs is the setting's
+      const dayOff = offset === 0 ? holidayDayToday(profile, data, holidayApplies(data, program.id)) : null;
+      if (!resolved) for (const slot of dayOff ?? profile.days[today]) {
         if (!of(slot) || slot.start.random_minutes || slot.end?.random_minutes) continue;
         const start = nominal(slot.start), end = nominal(slot.end ?? null);
         if (start !== null) spans.push(mk(slot, start, end === null ? start + 10 : end > start ? end : DAY));
       }
     }
     return spans;
+  }
+
+  /**
+   * The day-off row under Sunday in the week: the mode's day-off schedule, display only, cut at 24:00 (nothing carried over
+   * from the day before). Empty without a day-off entity or when the shown mode has no day off that applies.
+   */
+  private _holidayRow(entityId: string, program: Program) {
+    const data = this._data;
+    if (!data?.holiday_entity) return nothing;
+    const profile = activeProfile(program, data);
+    if (holidayChoice(profile) === "none" || !profile.holiday) return nothing;
+    const slots = "copy" in profile.holiday ? profile.days[profile.holiday.copy] ?? [] : holidayOwnSlots(profile);
+    const spans: BarSpan[] = [];
+    for (const slot of slots) {
+      const label = labelOf(data, slot.label);
+      if (!label || !appliedAction(this.hass, program, entityId, label, slot)) continue;
+      const start = specMinutes(this.hass, slot.start);
+      const cut = passesMidnight(this.hass, slot);
+      const end = slot.end ? (cut ? DAY : specMinutes(this.hass, slot.end)) : null;
+      spans.push({ start, end: end ?? Math.min(DAY, start + 10), color: label.color, label: labelName(this.hass, label), labelId: label.id, slotId: slot.id,
+        startSun: sunDir(slot.start), endSun: cut ? null : sunDir(slot.end), startSpec: slot.start, endSpec: slot.end ?? null, marker: !slot.end });
+    }
+    const lang = this._lang;
+    return html`<div class="wday wday-off" role="group" aria-label=${t(lang, "holiday_title")}>
+      <span class="wname">${t(lang, "holiday_row")}</span>
+      <wp-day-bar lang=${lang} notches .spans=${spans}></wp-day-bar></div>`;
   }
 
   /** Resolved occurrences of one device for a date and the day before (see `deviceDays`). */
@@ -383,6 +461,35 @@ export class WeeklyPlannerCard extends LitElement {
   }
 
   /** The active mode, once, as plain text above the programs; nothing when there is a single mode. */
+  /** "Day off today: Sunday’s schedule": only when today is a day off that changes a shown program's day. */
+  private _holidayLine(programs: Program[]) {
+    const data = this._data;
+    if (!data?.holiday_today) return nothing;
+    const real = localWeekday(this._now, this._tz);
+    const lines = programs.flatMap((p) => {
+      const h = data.status[p.id]?.holiday;
+      const text = h ? holidayLine(this._lang, h, real) : null;
+      return text ? [{ name: p.name, text }] : [];
+    });
+    if (!lines.length) return nothing;
+    const same = lines.every((l) => l.text === lines[0].text);
+    return html`<div class="mode-line holiday-line">${same ? html`<p>${lines[0].text}</p>` : lines.map((l) => html`<p>${l.name} · ${l.text}</p>`)}</div>`;
+  }
+
+  /** Why today's bar cannot be edited in place on a day off (shown under the bar, and on a tap of the bar). */
+  /** Why today's bar is not edited in place; "" when today's schedule is not really replaced (a copy of the real weekday). */
+  private _lockedText(program: Program): string {
+    const real = localWeekday(this._now, this._tz);
+    if (!holidayReplaces(this._data, program.id, real)) return "";
+    const h = this._data?.status[program.id]?.holiday;
+    return h && "copy" in h ? t(this._lang, "holiday_locked_copy", { day: dayInText(this._lang, h.copy) }) : t(this._lang, "holiday_locked");
+  }
+
+  private _lockedNote(program: Program) {
+    const text = this._lockedText(program);
+    return text ? html`<p class="locked-note">${text}</p>` : nothing;
+  }
+
   private _modeLine() {
     const mode = this._data?.mode;
     return mode?.selector && mode.options.length && mode.active
@@ -450,11 +557,44 @@ export class WeeklyPlannerCard extends LitElement {
     return html`<wp-bar-editor .hass=${this.hass} .data=${this._data} .program=${program} entity-id=${entityId}
       weekday=${weekday} .spans=${this._spans(entityId, programs, offset)} .preview=${this._deviceDays(program.id, date, entityId).today}
       .now=${offset === 0 ? localMinutes(this._now, this._tz) : null} ?hours=${kind === "today"}
-      ?editing=${this._edit === key} ?editable=${Boolean(this._data?.can_edit) && !this._data?.read_only && !activeFollow(program, this._data!)}
+      ?editing=${this._edit === key} ?editable=${this._barEditable(program, offset)}
       device-name=${this._deviceLabel(program, entityId)} lang=${this._lang} tz=${this._tz} view=${kind === "today" ? this._config.schedule_view ?? "bar" : "bar"}
       .rest=${(() => { const l = labelOf(this._data!, program.entities.find((e) => e.entity_id === entityId)?.default_label); return l ? labelName(this.hass, l) : t(this._lang, "rest_none"); })()}
       @edit-request=${() => (this._edit = key)} @edit-exit=${() => { if (this._edit === key) this._edit = null; }}
+      locked-reason=${offset === 0 ? this._lockedText(program) : ""}
+      @locked-request=${() => this._say(this._lockedText(program))}
       @open-day=${openDay} @edited=${(e: CustomEvent<{ undo: () => Promise<boolean> }>) => this._showSnack(e.detail.undo)}></wp-bar-editor>`;
+  }
+
+  /** A bar is edited in place when editing is allowed, the mode is not followed, and no day off replaces today's schedule. */
+  private _barEditable(program: Program, offset: number): boolean {
+    return Boolean(this._data?.can_edit) && !this._data?.read_only && !activeFollow(program, this._data!) && !(offset === 0 && this._lockedText(program) !== "");
+  }
+
+  /** Where today's preview stands for a device: "ready" once it arrived (only then may the day be called empty), "failed" after an error. */
+  private _previewState(program: Program, entityId: string): "ready" | "failed" | "loading" {
+    const date = localDateIso(this._now, this._tz);
+    if (this._deviceDays(program.id, date, entityId).today !== undefined) return "ready";
+    return this._failedPreviewKey ? "failed" : "loading";
+  }
+
+  /** Today as "daily times" (`schedule_view: times`): a reading list; a row opens the editor on today only when editing is allowed. */
+  private _todayBlock(entityId: string, program: Program, open: () => void) {
+    const state = this._previewState(program, entityId);
+    const editable = Boolean(this._data?.can_edit) && !this._data?.read_only && !activeFollow(program, this._data!);
+    const rows = state === "ready" ? timesRows(this._spans(entityId, [program], 0), {
+      tz: this._tz, nowMin: localMinutes(this._now, this._tz), nowMs: this._now.getTime() }) : [];
+    const rest = labelOf(this._data!, program.entities.find((e) => e.entity_id === entityId)?.default_label);
+    return html`<wp-times-day .rows=${rows} state=${state} .rest=${rest ? labelName(this.hass, rest) : t(this._lang, "rest_none")}
+      ?editable=${editable} ?locked=${this._lockedText(program) !== ""} lang=${this._lang} device-name=${this._deviceLabel(program, entityId)}
+      @open-day=${open} @retry=${() => this._retryPreviews()}></wp-times-day>`;
+  }
+
+  /** "7 am"; "at 7 am" in 12 h for today (the label before it has no separator otherwise). */
+  private _whenText(iso: string): string {
+    const when = formatWhen(iso, this._tz, this._lang, this._now);
+    const today = localDateIso(new Date(iso), this._tz) === localDateIso(this._now, this._tz);
+    return currentTimeFormat() === "12" && today ? t(this._lang, "at_time", { time: when }) : when;
   }
 
   private _line(entityId: string, programs: Program[], opts: { name: string | null; icon?: string; button: Scope | null; open: Scope }) {
@@ -479,8 +619,8 @@ export class WeeklyPlannerCard extends LitElement {
             ${opts.button ? this._disabledBadge(paused, programs) : nothing}
             <span class="now">
               <span class="state">${stateObj ? (this.hass.formatEntityState?.(stateObj) ?? stateObj.state) : "—"}</span>
-              ${next ? html`<span class="next"><span class="arrow">→</span> <span class="lbl">${nextLabel ? labelName(this.hass, nextLabel) : actionText(this.hass, lang, next.action)}</span>
-                <span class="when nw">${nb(formatWhen(next.at, this._tz, lang, this._now))}</span></span>` : nothing}
+              ${next ? html`<span class="next"><span class="arrow">${t(lang, "next_then")}</span> <span class="lbl">${nextLabel ? labelName(this.hass, nextLabel) : actionText(this.hass, lang, next.action)}</span>
+                <span class="when nw">${nb(this._whenText(next.at))}</span></span>` : nothing}
             </span>
             ${this._skipped(entityId, programs)}
           </div>
@@ -489,10 +629,11 @@ export class WeeklyPlannerCard extends LitElement {
             <button class="hours" aria-label=${t(lang, "hours_of", { name: opts.name ?? friendlyName(this.hass, entityId) })} title=${t(lang, "hours")} @click=${open}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
           </div></div>` : nothing}
         </div>
-        ${create ? this._createButton(opts.open) : (this._config.schedule_view === "radial" || this._config.schedule_view === "radial_12h") ? this._bar(entityId, programs[0], 0, "today", open) : html`<div class="today">
+        ${create ? this._createButton(opts.open) : this._config.schedule_view === "times" ? this._todayBlock(entityId, programs[0], open) : (this._config.schedule_view === "radial" || this._config.schedule_view === "radial_12h") ? this._bar(entityId, programs[0], 0, "today", open) : html`<div class="today">
           <span class="wname" title=${t(lang, "today")}>${t(lang, "today_short")}</span>
           ${this._bar(entityId, programs[0], 0, "today", open)}
         </div>`}
+        ${create ? nothing : this._lockedNote(programs[0])}
         ${create ? nothing : this._extras(opts.open, entityId, programs)}
       </div>`;
   }
@@ -529,7 +670,7 @@ export class WeeklyPlannerCard extends LitElement {
     return html`
       <div class="toggles">
         <button class="weekbtn" aria-label=${t(lang, "week_of", { name: who })} aria-expanded=${weekOpen} @click=${toggleWeek}>
-          <ha-icon icon=${weekOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>${t(lang, "week")}</button>
+          <ha-icon icon="mdi:calendar-week"></ha-icon>${t(lang, "week")}<ha-icon class="after" icon=${weekOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>
         ${showChart ? html`<button class="weekbtn chartbtn" aria-label=${t(lang, "chart_day_of", { name: who })} aria-expanded=${chartOpen} @click=${toggleChart}>
           <ha-icon icon="mdi:chart-line"></ha-icon>${t(lang, "chart_day")}<ha-icon class="after" icon=${chartOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>` : nothing}
       </div>
@@ -543,13 +684,14 @@ export class WeeklyPlannerCard extends LitElement {
               <span class="wname ${o === 0 ? "today" : ""}">${days[weekday]}</span></button>
             ${this._bar(entityId, program, o, "week", openDay)}</div>`;
         })}
+        ${this._holidayRow(entityId, program)}
       </div>` : nothing}
       ${chartOpen ? html`<div class="chartbox"><wp-chart .hass=${this.hass} .data=${this._data} .program=${program}
         entity-id=${entityId} date=${date} .slots=${slots ? [...(previous ?? []), ...slots] : null}
         @open-history=${(e: CustomEvent<string>) => openHistory(e.detail)}></wp-chart></div>` : nothing}`;
   }
 
-  private _bySchedule(programs: Program[]) {
+  private _bySchedule(programs: Program[], grouped = false) {
     const lang = this._lang;
     return programs.map((p) => {
       const scope: Scope = { kind: "program", programId: p.id };
@@ -561,7 +703,7 @@ export class WeeklyPlannerCard extends LitElement {
       <section class="prog">
         <div class="phead">
           <ha-icon icon=${p.icon ?? "mdi:calendar-clock"}></ha-icon>
-          <h2>${p.name}${this._noSchedule(p)}${this._disabledBadge(!p.enabled, [p])}</h2>
+          ${grouped ? html`<h3>${p.name}${this._noSchedule(p)}${this._disabledBadge(!p.enabled, [p])}</h3>` : html`<h2>${p.name}${this._noSchedule(p)}${this._disabledBadge(!p.enabled, [p])}</h2>`}
           <div class="header-actions"><div class="header-icons">${this._programToggle(p)}
             <button class="hours" aria-label=${t(lang, "hours_of", { name: p.name })} title=${t(lang, "hours")} @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
           </div></div>
@@ -585,14 +727,15 @@ export class WeeklyPlannerCard extends LitElement {
           <strong>${p.name}<ha-icon icon=${expanded ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></strong>${this._noSchedule(p)}${this._disabledBadge(!p.enabled, [p])}
           ${next.length ? html`<span>${(() => { const l = labelOf(this._data!, next[0].next!.label); return l ? labelName(this.hass, l) : actionText(this.hass, this._lang, next[0].next!.action); })()} · ${t(this._lang, "then_label")} ${nb(formatWhen(next[0].next!.at, this._tz, this._lang, this._now))}</span>` : html`${p.enabled ? html`<span>${t(this._lang, "hours")}</span>` : nothing}`}
         </button><div class="header-actions"><div class="header-icons">${this._programToggle(p)}
-        ${expanded ? html`<button class="hours" aria-label=${t(this._lang, "hours_of", { name: p.name })} title=${t(this._lang, "hours")}
-          @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>` : nothing}</div></div></div>
+        <button class="hours" aria-label=${t(this._lang, "hours_of", { name: p.name })} title=${t(this._lang, "hours")}
+          @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button></div></div></div>
         ${expanded ? html`<div id=${`compact-${p.id}`} class="compact-details" role="region" aria-label=${p.name}>
           ${this._deviceTabs(p)}
           ${p.entities.filter((e) => p.entities.length < 2 || e.entity_id === this._shownDevice(p)).map((e) => {
             const own: Scope = p.entities.length > 1 ? { ...scope, entityId: e.entity_id } : scope;
             return html`
-            ${this._needsCreate(p, e.entity_id) ? this._createButton(own) : html`<div class="today"><span class="wname" title=${t(this._lang, "today")}>${t(this._lang, "today_short")}</span>
+            ${this._needsCreate(p, e.entity_id) ? this._createButton(own) : this._config.schedule_view === "times"
+              ? html`${this._todayBlock(e.entity_id, p, () => this._open(own))}${this._extras(own, e.entity_id, [p])}` : html`<div class="today"><span class="wname" title=${t(this._lang, "today")}>${t(this._lang, "today_short")}</span>
               ${this._bar(e.entity_id, p, 0, "today", () => this._open(own))}</div>
             ${this._extras(own, e.entity_id, [p])}`}`;
           })}
@@ -615,13 +758,14 @@ export class WeeklyPlannerCard extends LitElement {
             </div>`
           : nothing}
         ${this._modeLine()}
+        ${this._holidayLine(programs)}
         ${this._info ? html`<div class="info" @pointerenter=${() => this._holdInfo(true)} @pointerleave=${() => this._holdInfo(false)}
           @focusin=${() => this._holdInfo(true)} @focusout=${() => this._holdInfo(false)}>${callout("success", "", this._info, { role: "status" })}</div>` : nothing}
         ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
         ${data?.read_only ? html`${callout("error", "", t(lang, "read_only"))}` : nothing}
         ${!data ? html`<div class="empty">…</div>` : nothing}
         ${data && !programs.length ? html`<div class="empty" role="status">${t(lang, data.programs.length && this._config.program === undefined ? "no_matching_program" : "no_program")}</div>` : nothing}
-        ${data ? this._config.schedule_view === "list" ? this._compactList(programs) : this._bySchedule(programs) : nothing}
+        ${data ? this._list(programs) : nothing}
       </ha-card>
       ${this._snack ? html`<div class="snack" role="status"><span>${t(lang, "edited")} ·</span>
         <button @click=${() => void this._undo()}>${t(lang, "undo")}</button></div>` : nothing}
@@ -667,7 +811,9 @@ export class WeeklyPlannerCard extends LitElement {
     .line { display: flex; align-items: flex-start; gap: 10px; min-height: 28px; }
     .dev { --mdc-icon-size: 26px; flex: none; color: var(--secondary-text-color); margin-top: -1px; }
     .info { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 0; }
-    .mode-line { margin: 0; padding: 4px 0 8px; font-size: 0.875rem; line-height: 20px; color: var(--secondary-text-color); }
+    .locked-note { margin: 0; padding: 4px 0; font-size: 1rem; line-height: 1.4; color: var(--secondary-text-color); }
+    .holiday-line p { margin: 0; color: var(--primary-text-color); }
+    .mode-line { margin: 0; padding: 4px 0 8px; font-size: 1rem; line-height: 22px; color: var(--secondary-text-color); }
     .no-schedule { display: block; flex-basis: 100%; font-size: 0.8125rem; font-weight: 400; color: var(--secondary-text-color); line-height: 20px; }
     .name { font-size: 1.0625rem; font-weight: 600; }
     .skip { flex-basis: 100%; display: inline-flex; align-items: center; gap: 4px; font-size: 0.8125rem; color: var(--secondary-text-color); --mdc-icon-size: 16px; }
@@ -695,13 +841,15 @@ export class WeeklyPlannerCard extends LitElement {
     }
     button.create:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
     button.hours:hover { background: var(--secondary-background-color); }
+    button.hours:disabled { opacity: 0.4; cursor: default; }
+    button.hours:disabled:hover { background: none; }
     wp-bar-editor { margin-top: 2px; }
     .toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }
     .weekbtn {
       display: inline-flex; align-items: center; gap: 4px; min-height: 48px; min-width: 48px; padding: 0 8px 0 0; border: none;
       background: none; color: var(--wp-primary-text); font: inherit; font-size: 1rem; cursor: pointer; --mdc-icon-size: 22px;
     }
-    .chartbtn .after { --mdc-icon-size: 20px; }
+    .weekbtn .after { --mdc-icon-size: 20px; }
     .chartbox { padding: 4px 0 8px; }
     .week { display: flex; flex-direction: column; gap: 0; padding-bottom: 4px; }
     .wday { display: flex; align-items: flex-start; gap: ${TIMELINE.gap}px; min-height: 48px; width: 100%; }
@@ -709,19 +857,26 @@ export class WeeklyPlannerCard extends LitElement {
       flex: none; width: ${TIMELINE.label + TIMELINE.gap}px; margin-right: -${TIMELINE.gap}px; height: 48px; padding: 0; border: none; border-radius: 8px; background: none; color: inherit;
       font: inherit; cursor: pointer; text-align: left; display: flex; align-items: center;
     }
-    .wday .wnamebtn { margin-top: 6px; }
     .wnamebtn:hover .wname { text-decoration: underline; }
-    .wday wp-bar-editor { margin: 16px 0 10px; }
+    /* one row = 48 px, the touch target: the bar fills it (44 px) and only 4 px separate two bars (owner, 2026-11-14:
+       small gaps, a taller bar for the finger); the day name is level with the bar; the weekend stands a little apart */
+    .wday wp-bar-editor, .wday wp-day-bar { --wp-bar-height: 44px; --wp-bar-radius: 12px; margin: 2px 0; }
+    .wday:has(.wname.today) { margin-top: 18px; } /* room for the "now" clock above today's bar */
+    .week > .wday:nth-child(6), .wday-off { margin-top: 6px; }
+    .week > .wday:nth-child(6):has(.wname.today) { margin-top: 18px; }
+    .wday-off { align-items: center; }
+    .wday-off .wname { line-height: 1.2; }
     .wname { flex: none; width: ${TIMELINE.label}px; font-size: 0.875rem; color: var(--secondary-text-color); }
-    .wday wp-bar-editor, .today wp-bar-editor { flex: 1; min-width: 0; }
+    .wday wp-bar-editor, .wday wp-day-bar, .today wp-bar-editor { flex: 1; min-width: 0; }
     .wname.today { color: var(--primary-text-color); font-weight: 600; }
     .today { display: flex; align-items: flex-start; gap: ${TIMELINE.gap}px; padding-top: 20px; } /* room for the "now" clock above the bar */
     .today .wname { line-height: 28px; margin-top: 2px; }
+    .wname.today { display: block; padding-top: 0; } /* the name of today in the week is not the "today" row above */
     .prog { padding: 8px 0 4px; border-top: 1px solid var(--divider-color); }
     .prog:first-of-type, .head + .prog { border-top: none; }
     .prog .block { border-top: none; padding: 2px 0 4px; }
     .phead { display: flex; align-items: center; gap: 10px; min-height: 48px; --mdc-icon-size: 24px; }
-    .phead h2 { flex: 1; min-width: 0; margin: 0; font-size: 1.125rem; font-weight: 600; overflow-wrap: anywhere; }
+    .phead h2, .phead h3 { flex: 1; min-width: 0; margin: 0; font-size: 1.125rem; font-weight: 600; overflow-wrap: anywhere; }
     .snack {
       position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 8; display: flex; align-items: center; gap: 12px;
       min-height: 48px; padding: 0 8px 0 16px; border-radius: 24px; font-size: 0.9375rem; white-space: nowrap;
@@ -731,6 +886,7 @@ export class WeeklyPlannerCard extends LitElement {
       min-height: 48px; padding: 0 12px; border: none; background: none; font: inherit; font-weight: 600; cursor: pointer;
       color: inherit; text-decoration: underline; border-radius: 24px;
     }
+    .group { margin: 12px 0 0; padding: 0 0 4px; font-size: 1rem; font-weight: 700; color: var(--primary-text-color); overflow-wrap: anywhere; }
     .empty { color: var(--primary-text-color); opacity: 0.8; padding: 16px 0; text-align: center; }
   `];
 }

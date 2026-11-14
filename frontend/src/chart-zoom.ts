@@ -65,8 +65,8 @@ export function minuteAt(w: ZoomWindow, frac: number): number {
 const STEPS = [5, 10, 15, 30, 60, 120, 180, 360];
 
 /** Distance between two time labels (minutes): the smallest round step giving at most about 8 labels. */
-export function tickStep(len: number): number {
-  return STEPS.find((s) => len / s <= 8.5) ?? STEPS[STEPS.length - 1];
+export function tickStep(len: number, maxLabels = 8.5): number {
+  return STEPS.find((s) => len / s <= maxLabels) ?? STEPS[STEPS.length - 1];
 }
 
 /** Minutes of the labels inside the window: multiples of the step. */

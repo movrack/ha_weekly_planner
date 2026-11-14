@@ -14,18 +14,44 @@
     "step": {
       "init": {
         "title": "Weekly Planner",
+        "description": "What do you want to do?",
+        "menu_options": {
+          "settings": "Settings",
+          "resync": "Resynchronise the devices"
+        }
+      },
+      "settings": {
+        "title": "Weekly Planner",
         "data": {
           "admin_only": "Only administrators can edit programs",
           "reapply_default": "Send the current setting again after a restart or a change (default for new programs)",
           "notify_delay_min": "Alert when a device has been unavailable for",
-          "debounce_min": "Wait before applying a change of condition",
-          "mode_selector": "Mode selector (optional)"
+          "debounce_min": "Wait before applying a change of condition"
         },
         "data_description": {
           "notify_delay_min": "If a device driven by a schedule stays unavailable longer than this, Home Assistant shows a notification. The setting is sent again by itself when the device comes back.",
-          "debounce_min": "A program can have conditions that you add yourself, for example “someone is home” or “temperature > 24 °C”. When one of them changes, Weekly Planner waits this long before acting, to ignore brief flickers. 0 = immediately.",
-          "mode_selector": "A Home Assistant selector (input_select or select) whose current choice is the active Mode of the house, for example Home, Away or Vacation. Weekly Planner only reads it and never changes it. Leave empty to have a single Mode."
+          "debounce_min": "A program can have conditions that you add yourself, for example “someone is home” or “temperature > 24 °C”. When one of them changes, Weekly Planner waits this long before acting, to ignore brief flickers. 0 = immediately."
+        },
+        "sections": {
+          "mode_and_day_off": {
+            "name": "Mode and day off",
+            "description": "The mode has priority over the day off. The day off only applies to the current mode: when the mode changes, the new mode uses its own day-off setting.",
+            "data": {
+              "mode_selector": "Mode selector (optional)",
+              "holiday_entity": "Holiday or day off (optional)",
+              "holiday_invert": "This entity is on during working days, not on days off"
+            },
+            "data_description": {
+              "mode_selector": "A Home Assistant selector (input_select or select) whose current choice is the active Mode of the house, for example Home, Away or Vacation. Weekly Planner only reads it and never changes it. Leave empty to have a single Mode.",
+              "holiday_entity": "A Home Assistant entity that is on (“on”) on a holiday or day off: for example a toggle that you switch on yourself, or a public-holiday calendar. On such a day, a Mode with a Day off setting uses it instead of the weekday. Leave empty to ignore days off.",
+              "holiday_invert": "Tick only if the chosen entity is on (“on”) on the days you work, like the Workday sensor. If in doubt, leave it unticked: a wrong tick swaps days off and normal days. With a Workday sensor, weekends count as days off too: prefer a public-holiday calendar (Holiday integration)."
+            }
+          }
         }
+      },
+      "resync": {
+        "title": "Resynchronise the devices",
+        "description": "Use this after an outage. Every program is looked at. Nothing has been sent yet. Pressing Submit sends the commands below for real to your devices (shutters, heating, lights…), one device at a time, and they will act immediately. Programs that are paused or off, and devices changed by a person since their last one-shot, are left alone.\n\n{plan}"
       },
       "default_mode": {
         "title": "Default Mode",
@@ -39,13 +65,19 @@
       }
     },
     "abort": {
-      "not_loaded": "Weekly Planner is not loaded."
+      "not_loaded": "Weekly Planner is not loaded.",
+      "resync_done": "Done: {count} command(s) sent.",
+      "resync_nothing": "Nothing to send: every device is left alone."
     },
     "error": {
       "invalid_mode_selector_domain": "Choose an input_select or a select.",
       "circular_mode_selector": "This entity belongs to Weekly Planner. Choose another one.",
       "invalid_default_mode": "Enter a Mode name of 1 to 40 characters.",
-      "unknown_default_mode": "This Mode is not an option of the selector. Choose one from the list."
+      "unknown_default_mode": "This Mode is not an option of the selector. Choose one from the list.",
+      "invalid_holiday_entity_domain": "Choose a binary_sensor, an input_boolean, a switch or a calendar.",
+      "circular_holiday_entity": "This entity belongs to Weekly Planner. Choose another one.",
+      "driven_holiday_entity": "A program controls this entity. Choose another one.",
+      "invalid_holiday_invert": "Tick the box or leave it empty."
     }
   },
   "entity": {
@@ -58,7 +90,7 @@
   "services": {
     "apply_now": {
       "name": "Apply now",
-      "description": "Apply what the program wants right now to its entities.",
+      "description": "Sends right now what the devices of the program should be doing, even if they are already in that state; also the last one-shot started less than 24 hours ago, unless a person changed the device since. Returns the devices sent and left alone.",
       "fields": {
         "program_id": {
           "name": "Program",
@@ -129,6 +161,10 @@
     "mode_option_missing": {
       "title": "Weekly Planner: a mode matches no option",
       "description": "These modes have schedules but are no longer an option of the mode selector: {modes}. They are kept, inactive, and nothing was erased. Options no program uses yet: {options}. Open the schedules screen to match each mode to an option, or to delete it."
+    },
+    "holiday_entity_missing": {
+      "title": "Weekly Planner: day off entity missing",
+      "description": "The holiday or day off entity {entity} does not exist. Day off settings are kept but every day is a normal day. Choose another entity in the Weekly Planner settings, or restore it."
     }
   },
   "exceptions": {

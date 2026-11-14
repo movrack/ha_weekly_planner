@@ -378,7 +378,7 @@ async def test_yaml_import_keeps_a_stored_pause(hass, hass_storage, freezer, yam
 
 
 async def test_cancel_leaves_a_plain_suspension_alone(hass, hass_storage, freezer):
-    rec, engine = await _start(hass, hass_storage, freezer)
+    _rec, engine = await _start(hass, hass_storage, freezer)
     await engine.async_set_enabled("office", False)
     await engine.async_pause("office", None)
     assert engine.store.program("office")["enabled"] is False and _until(engine) is None

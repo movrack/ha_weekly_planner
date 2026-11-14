@@ -333,7 +333,9 @@ export class WpLabelPicker extends LitElement {
   render() {
     if (!this.hass || !this.data) return nothing;
     const lang = this._lang;
-    const labels = labelsFor(this.hass, this.data, this.entityIds, this.program);
+    // ascending order by name, numbers as numbers ("15 °C" before "20 °C")
+    const labels = [...labelsFor(this.hass, this.data, this.entityIds, this.program)]
+      .sort((a, b) => labelName(this.hass, a).localeCompare(labelName(this.hass, b), lang, { numeric: true, sensitivity: "base" }));
     const chosen = labelOf(this.data, this.value);
     const chip = (name: string, on: boolean, click: () => void, color?: string) => html`
       <button class="chip ${on ? "on" : ""}" role="radio" aria-checked=${on} ?disabled=${this.disabled} @click=${click}>

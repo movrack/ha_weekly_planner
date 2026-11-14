@@ -12,6 +12,7 @@ interface Entry { at: number; promise: Promise<PreviewResponse> }
 const entries = new Map<string, Entry>();
 const latestRevision = new Map<string, number>();
 let version: string | null | undefined;
+let holidayToday: boolean | undefined;
 
 /** Forget every cached answer (card version change, reload). */
 export function clearPreviewCache(): void {
@@ -23,9 +24,12 @@ export function clearPreviewCache(): void {
  * Called with every pushed snapshot: a new card version drops everything; a program that changed revision
  * (or disappeared) drops its entries.
  */
-export function syncPreviewCache(data: { card_version?: string | null; programs: { id: string; revision: number }[] }): void {
+export function syncPreviewCache(data: { card_version?: string | null; holiday_today?: boolean; programs: { id: string; revision: number }[] }): void {
   if (version !== undefined && data.card_version !== version) clearPreviewCache();
   version = data.card_version;
+  // a day off starting or ending changes today's schedules without changing any program revision
+  if (holidayToday !== undefined && Boolean(data.holiday_today) !== holidayToday) clearPreviewCache();
+  holidayToday = Boolean(data.holiday_today);
   const known = new Set<string>();
   for (const p of data.programs) {
     known.add(p.id);
@@ -60,7 +64,7 @@ export function fetchPreviewResponse(
   if (entries.size >= MAX_ENTRIES) entries.delete(entries.keys().next().value as string);
   const promise = hass.callWS<PreviewResponse>({
     type: "weekly_planner/preview", program_id: programId, date, ...(profileId && send ? { profile_id: profileId } : {}),
-  }).then((res) => ({ slots: res?.slots ?? [], ...(res?.by_entity ? { by_entity: res.by_entity } : {}) }));
+  }).then((res) => ({ slots: res?.slots ?? [], ...(res?.by_entity ? { by_entity: res.by_entity } : {}), ...(res?.holiday ? { holiday: true } : {}) }));
   entries.set(key, { at: now, promise });
   promise.catch(() => { if (entries.get(key)?.promise === promise) entries.delete(key); }); // never keep a failure
   return promise;

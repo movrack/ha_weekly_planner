@@ -8,7 +8,8 @@ DOMAIN: Final = "weekly_planner"
 
 STORAGE_KEY: Final = DOMAIN
 STORAGE_VERSION: Final = 3
-STORAGE_MINOR_VERSION: Final = 1
+# Minor 2 (issue #54): optional ``holiday`` per profile, ``holiday_entity`` / ``holiday_invert`` in the configuration.
+STORAGE_MINOR_VERSION: Final = 2
 
 CONF_ADMIN_ONLY: Final = "admin_only"
 CONF_NOTIFY_DELAY_MIN: Final = "notify_delay_min"
@@ -33,3 +34,10 @@ CONF_MODE_SELECTOR: Final = "mode_selector"
 CONF_DEFAULT_MODE: Final = "default_mode"
 MODE_SELECTOR_DOMAINS: Final = ("input_select", "select")
 MODE_NAME_MAX: Final = 40
+
+# Day off (issue #54): one optional boolean entity for the whole house says whether today is a day off.
+CONF_HOLIDAY_ENTITY: Final = "holiday_entity"
+CONF_HOLIDAY_INVERT: Final = "holiday_invert"  # the entity is "on" on a working day (Workday)
+HOLIDAY_DOMAINS: Final = ("binary_sensor", "input_boolean", "switch", "calendar")
+HOLIDAY_DEBOUNCE_S: Final = 30  # a change of the flag waits this long; a flip back inside it is ignored
+HOLIDAY_SETTLE_S: Final = 120  # after local midnight, wait at most this long for the entity to speak

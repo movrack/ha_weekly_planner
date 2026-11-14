@@ -1,6 +1,6 @@
 """Day placement of slots: midnight, sun bounds, daylight saving time (S2, S3, S4, S26, S27)."""
 
-from datetime import date, datetime, timedelta, UTC
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest

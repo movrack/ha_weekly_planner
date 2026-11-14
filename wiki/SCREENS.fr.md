@@ -2,28 +2,13 @@
 
 [Lire le guide pas à pas](GUIDE.fr.md)
 
-Les captures de Weekly Planner ont été réalisées
-avec des programmes et appareils de démonstration du salon. Les écrans utilisent
-les vrais composants de l’application ; leurs données sont préparées pour
-expliquer les fonctions. Les vues d’historique et d’options sont celles
-de Home Assistant local. Aucune configuration de production n’a été modifiée.
-
-Les modifications de programme n’ont pas été enregistrées pour réaliser cet
-atlas. Le bandeau de la capture S21 utilise un enregistrement simulé en mémoire,
-sans appel d’écriture au serveur. Les images documentent les écrans ; elles ne
-prouvent pas à elles seules le fonctionnement d’un appareil réel.
+Les captures montrent des programmes et des appareils de démonstration.
 
 Les captures principales sont prises sur un téléphone de **360 × 780 pixels CSS**,
 en thème clair, sauf la fenêtre agrandie sur ordinateur. Cliquer sur une miniature
 permet d’ouvrir l’image complète. Les écrans longs disposent de captures de suite.
 
 ## Création, pièce, filtres et graphique
-
-S37 à S45 sont capturés à 360 × 780 pixels CSS, sur
-l’instance locale, avec les vrais composants et des données préparées en mémoire.
-Aucune sauvegarde ni commande d’appareil n’a été exécutée. Les sélecteurs natifs
-utilisent les appareils de test. Les images d’action, de cadran et de graphique
-sont des fragments. Le fond clair du montage ne valide pas tous les thèmes.
 
 <a id="s37"></a>
 
@@ -51,7 +36,7 @@ Le sélecteur de mode se règle une fois dans les options de l’intégration ([
 
 <a id="s40"></a>
 
-### S40 — Zone du programme
+### S40 — Pièce du programme
 
 Définir la pièce dans Général (« Pièce du programme ») puis Appliquer au programme. Elle ne vient pas automatiquement des pièces des appareils.
 
@@ -143,7 +128,7 @@ Le bouton Semaine affiche les sept jours. Le nom d’un jour ouvre ses horaires.
 
 ## S06 — Tous les horaires
 
-La fenêtre des horaires rassemble l’interrupteur **Programme actif**, le cadre **Mode** (avec un sélecteur de mode), le cadre **Horaires** (la ligne **Le reste du temps** au-dessus de la liste des horaires) et le schéma de la semaine.
+La fenêtre des horaires rassemble l’interrupteur **Programme actif**, le cadre **Mode** (avec un sélecteur de mode), le cadre **Horaires** (la ligne **Le reste du temps** au-dessus de la liste des horaires, puis la section repliable **Jour férié** quand une entité jour férié est réglée) et le schéma de la semaine ; quand le jour férié du mode est activé, une ligne **Férié** y montre ses horaires sous le dimanche.
 
 <a href="images/guide/s06-schedules.png"><img src="images/guide/s06-schedules.png" width="320" alt="S06 — Tous les horaires" /></a>
 
@@ -179,7 +164,7 @@ Dans **Options avancées**, les choix Lever et Coucher remplacent l’heure fixe
 
 ## S10 — Action sans fin
 
-Sans fin crée une action ponctuelle : elle est lancée au début, sans retour automatique au réglage par défaut.
+Sans fin crée une action ponctuelle : elle est lancée au début, sans retour automatique à « Le reste du temps ».
 
 <a href="images/guide/s10-one-shot.png"><img src="images/guide/s10-one-shot.png" width="320" alt="S10 — Action sans fin" /></a>
 
@@ -211,7 +196,7 @@ Une valeur propre adapte l’action pour cet appareil. Revenir à la valeur comm
 
 ## S14 — Le reste du temps
 
-Cette ligne, au-dessus de la liste des horaires, définit l’action par défaut de l’appareil. Laisser tel quel signifie qu’aucune action par défaut n’est envoyée.
+Cette ligne, au-dessus de la liste des horaires, définit l’action du reste du temps de l’appareil. Laisser tel quel signifie qu’aucune action n’est envoyée à la fin d’un horaire.
 
 <a href="images/guide/s14-rest-of-time.png"><img src="images/guide/s14-rest-of-time.png" width="320" alt="S14 — Le reste du temps" /></a>
 
@@ -291,7 +276,7 @@ Le programme fixé à la carte peut être présenté en barres, en cadran de 24 
 
 ## S26 — Choisir le programme à configurer
 
-Le menu est fermé sur cette capture : sa liste native n’est pas exportée par la capture du navigateur. Son ordre est Choisir un programme, Nouveau programme, puis les programmes existants, avec des séparateurs.
+Le menu est fermé sur cette capture. Son ordre est Choisir un programme, Nouveau programme, puis les programmes existants, avec des séparateurs.
 
 <a href="images/guide/s26-program-selector.png"><img src="images/guide/s26-program-selector.png" width="320" alt="S26 — Choisir le programme à configurer" /></a>
 
@@ -371,7 +356,7 @@ Ces options Home Assistant concernent l’intégration entière : droits d’éd
 
 ## S36 — Une seule intégration suffit
 
-Home Assistant refuse une seconde configuration de Weekly Planner. Pour ajouter un programme, utiliser Réglages des programmes dans la carte ; il n’est pas nécessaire d’ajouter une autre intégration. Cette capture est prise sur l’instance de test déjà configurée, sans supprimer l’intégration pour simuler une première installation.
+Home Assistant refuse une seconde configuration de Weekly Planner. Pour ajouter un programme, utiliser Réglages des programmes dans la carte ; il n’est pas nécessaire d’ajouter une autre intégration.
 
 <a href="images/guide/s36-single-instance.png"><img src="images/guide/s36-single-instance.png" width="320" alt="S36 — Une seule intégration suffit" /></a>
 

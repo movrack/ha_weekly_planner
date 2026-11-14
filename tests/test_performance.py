@@ -16,12 +16,12 @@ import asyncio
 import statistics
 import sys
 import time
-from datetime import date, timedelta
+from datetime import date
 from zoneinfo import ZoneInfo
 
 import pytest
-from homeassistant.core import callback
 from freezegun import freeze_time
+from homeassistant.core import callback
 
 from custom_components.weekly_planner import engine as engine_module
 from custom_components.weekly_planner import timeline, validation, websocket
@@ -133,9 +133,9 @@ async def big(hass, hass_storage):
     # The engine's timer was armed on the simulated clock; once released it could fire in the middle of a
     # measured section (it does when the monotonic clock is past it) and add a whole recompute to the
     # counts. Each test triggers its own work.
-    if eng._timer:  # noqa: SLF001
-        eng._timer()  # noqa: SLF001
-        eng._timer = None  # noqa: SLF001
+    if eng._timer:
+        eng._timer()
+        eng._timer = None
     return eng
 
 
@@ -162,7 +162,7 @@ def frozen_at(moment: tuple[int, int, int]):
 def test_day_occurrences_all_programs():
     programs = big_programs()
     day = date(2026, 10, 26)
-    sun = lambda event, d: None  # noqa: E731 - solar slots resolve to "event missing", cheapest path
+    sun = lambda event, d: None
 
     def run():
         for program in programs:
@@ -207,15 +207,15 @@ async def test_status_occurrence_work_is_bounded(big, monkeypatch):
 # ------------------------------------------------------------------ (c) websocket snapshot
 
 async def test_snapshot_build(big):
-    within("snapshot_build", best_of(lambda: websocket._build_snapshot(big)))  # noqa: SLF001
+    within("snapshot_build", best_of(lambda: websocket._build_snapshot(big)))
 
 
 async def test_snapshot_built_once_per_notification(big, monkeypatch):
     """Many open cards (connections) share one derived snapshot during a notification."""
     builds = Counter(monkeypatch, websocket, "_build_snapshot")
     seen = []
-    unsubs = [big.add_listener(lambda: seen.append(websocket._snapshot(big))) for _ in range(5)]  # noqa: SLF001
-    big._notify_listeners()  # noqa: SLF001
+    unsubs = [big.add_listener(lambda: seen.append(websocket._snapshot(big))) for _ in range(5)]
+    big._notify_listeners()
     for unsub in unsubs:
         unsub()
     assert builds.count == 1 and len(seen) == 5
@@ -254,7 +254,7 @@ def test_overlap_check_work_is_bounded(monkeypatch):
 # ------------------------------------------------------------------ (e) engine start and recompute
 
 async def test_engine_startup(big):
-    within("engine_startup", await best_of_async(big._async_startup, runs=3))  # noqa: SLF001
+    within("engine_startup", await best_of_async(big._async_startup, runs=3))
 
 
 async def test_recompute_after_state_change(big):
@@ -313,7 +313,7 @@ async def _burst(big, attempt: int, *, late: bool) -> tuple[float, float]:
     """
     hass = big.hass
     longest = 0.0
-    original = big._on_state  # noqa: SLF001
+    original = big._on_state
 
     @callback
     def timed(event):
@@ -334,8 +334,8 @@ async def _burst(big, attempt: int, *, late: bool) -> tuple[float, float]:
             gap = max(gap, now - last)
             last = now
 
-    big._on_state = timed  # noqa: SLF001
-    big._subscribe()  # noqa: SLF001 - rebind the state listener to the timed wrapper
+    big._on_state = timed
+    big._subscribe()
     task = asyncio.get_running_loop().create_task(probe())
     try:
         for index in range(PROGRAMS):
@@ -348,7 +348,7 @@ async def _burst(big, attempt: int, *, late: bool) -> tuple[float, float]:
     finally:
         running = False
         await task
-        big._on_state = original  # noqa: SLF001
+        big._on_state = original
     return longest, gap
 
 
@@ -392,9 +392,9 @@ async def _started(hass, hass_storage, programs, eids):
         eng = await setup(hass, hass_storage, factory, programs, None)
     finally:
         frozen.stop()
-    if eng._timer:  # noqa: SLF001
-        eng._timer()  # noqa: SLF001
-        eng._timer = None  # noqa: SLF001
+    if eng._timer:
+        eng._timer()
+        eng._timer = None
     return eng
 
 

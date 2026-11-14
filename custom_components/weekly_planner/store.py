@@ -7,14 +7,14 @@ user's programs.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from datetime import datetime, timedelta
 import inspect
 import logging
-from pathlib import Path
 import shutil
-from typing import Any
 import uuid
+from collections.abc import Callable
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
@@ -22,7 +22,6 @@ from homeassistant.helpers.translation import async_get_translations
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, STORAGE_MINOR_VERSION, STORAGE_VERSION
-
 from .migration import migrate_config_v1, migrate_config_v2, migrate_runtime_v1
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,7 +34,8 @@ def new_id() -> str:
 
 def empty_config() -> dict[str, Any]:
     """Fresh configuration."""
-    return {"vacation": False, "mode_selector": None, "default_mode": None, "labels": [], "programs": []}
+    return {"vacation": False, "mode_selector": None, "default_mode": None, "holiday_entity": None,
+            "holiday_invert": False, "labels": [], "programs": []}
 
 
 class ConfigStoreError(Exception):
@@ -52,6 +52,12 @@ class _VersionedStore(Store):
         self.active_profiles: dict[str, str] = {}  # runtime: program id -> active profile id (migration 2 -> 3)
 
     async def _async_migrate_func(self, old_major: int, old_minor: int, old_data: dict) -> dict:
+        if old_major == self.version and old_minor > self.minor_version and self.key == DOMAIN:
+            # Written by a newer Weekly Planner (for example 3.2 adds the day off, issue #54): this version
+            # would drop what it does not know at its next save. Refuse it: read-only, nothing is lost.
+            raise ConfigStoreError(
+                f"{self.key} was saved by a newer version ({old_major}.{old_minor} > "
+                f"{self.version}.{self.minor_version}); restore the backup or update Weekly Planner")
         _LOGGER.info("Migrating %s from %s.%s", self.key, old_major, old_minor)
         if old_major < self.version and self._migrate is not None:
             path = Path(self.path)
@@ -111,7 +117,7 @@ class PlannerStore:
             if rt.get("active_profile")}
         try:
             data = await self._config.async_load()
-        except Exception as err:  # noqa: BLE001 - unsupported version, invalid JSON…
+        except Exception as err:
             self.read_only = True
             raise ConfigStoreError(str(err)) from err
         if data is None and existed:

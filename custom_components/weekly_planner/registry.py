@@ -5,9 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.core import Event, HomeAssistant, callback
-from homeassistant.helpers import entity_registry as er, issue_registry as ir
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 
-from .const import DOMAIN
+from .const import CONF_HOLIDAY_ENTITY, DOMAIN
+from .modes import profile_slots
 
 
 def rename_entity(config: dict[str, Any], old: str, new: str) -> bool:
@@ -40,7 +42,7 @@ def rename_entity(config: dict[str, Any], old: str, new: str) -> bool:
     labels_changed = False
     for label in config.get("labels", []):
         labels_changed |= swap_action(label["action"])
-    changed = labels_changed | swap(config, "mode_selector")
+    changed = labels_changed | swap(config, "mode_selector") | swap(config, CONF_HOLIDAY_ENTITY)
     for program in config["programs"]:
         program_changed = labels_changed
         for condition in program.get("conditions", []):
@@ -52,11 +54,10 @@ def rename_entity(config: dict[str, Any], old: str, new: str) -> bool:
             for action in entity.get("label_overrides", {}).values():
                 program_changed |= swap_action(action)
         for profile in program["profiles"]:
-            for day in profile["days"]:
-                for slot in day:
-                    for condition in slot.get("conditions", []):
-                        program_changed |= swap(condition)
-                    program_changed |= swap_slot_entities(slot)
+            for slot in profile_slots(profile):  # the seven days and the own day of a day off
+                for condition in slot.get("conditions", []):
+                    program_changed |= swap(condition)
+                program_changed |= swap_slot_entities(slot)
         if program_changed:
             program["revision"] = program.get("revision", 0) + 1
         changed |= program_changed
@@ -82,6 +83,7 @@ def async_track_registry(hass: HomeAssistant, engine) -> callback:
         data = event.data
         if data["action"] == "update" and "old_entity_id" in data:
             if rename_entity(engine.store.config, data["old_entity_id"], data["entity_id"]):
+                engine.note_holiday_rename(data["old_entity_id"], data["entity_id"])
                 rt = engine.store.runtime["entities"].pop(data["old_entity_id"], None)
                 if rt is not None:
                     engine.store.runtime["entities"][data["entity_id"]] = rt
@@ -110,6 +112,15 @@ def async_check_missing(hass: HomeAssistant, engine) -> None:
         )
     else:
         ir.async_delete_issue(hass, DOMAIN, "missing_entities")
+    # Day off (issue #54): the chosen entity does not exist; its settings are kept, normal days apply.
+    holiday = engine.store.config.get(CONF_HOLIDAY_ENTITY)
+    if holiday and not exists(holiday):
+        ir.async_create_issue(
+            hass, DOMAIN, "holiday_entity_missing", is_fixable=False, severity=ir.IssueSeverity.WARNING,
+            translation_key="holiday_entity_missing", translation_placeholders={"entity": holiday},
+        )
+    else:
+        ir.async_delete_issue(hass, DOMAIN, "holiday_entity_missing")
 
 
 @callback

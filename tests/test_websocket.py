@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from custom_components.weekly_planner.const import DOMAIN
 
-from .helpers import CLIMATE, Recorder, act, labels, program, setup, slot
+from .helpers import CLIMATE, Recorder, act, program, setup, slot
 
 
 async def _client(hass, hass_ws_client):

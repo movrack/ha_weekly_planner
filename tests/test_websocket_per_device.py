@@ -68,7 +68,7 @@ async def test_preview_without_lists_keeps_the_old_response(hass, hass_storage, 
     ws = await hass_ws_client(hass)
     res = await ask(ws, {"type": f"{DOMAIN}/preview", "program_id": "office", "date": "2026-10-26"})
     # fixture of the response before #34: globally trimmed, no "entities", no "by_entity"
-    assert res["result"] == {"date": "2026-10-26", "slots": [
+    assert res["result"] == {"date": "2026-10-26", "holiday": False, "slots": [  # "holiday": additive (#54)
         {"slot_id": "a", "start": "2026-10-26T07:00:00+00:00", "end": "2026-10-26T11:00:00+00:00", "ignored": None, "sun": False},
         {"slot_id": "b", "start": "2026-10-26T11:00:00+00:00", "end": "2026-10-26T12:00:00+00:00", "ignored": None, "sun": False},
     ]}
@@ -172,7 +172,7 @@ async def test_snapshot_and_subscribe_carry_lists_seed_and_skip_targets(hass, ha
     prog = owner()
     for day in prog["profiles"][0]["days"]:
         day[0]["seed"] = "shared"
-    engine = await setup(hass, hass_storage, freezer, [prog], None)
+    await setup(hass, hass_storage, freezer, [prog], None)
     ws = await hass_ws_client(hass)
     data = (await ask(ws, {"type": f"{DOMAIN}/get"}))["result"]
     day = data["programs"][0]["profiles"][0]["days"][0]

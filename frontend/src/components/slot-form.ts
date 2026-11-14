@@ -10,7 +10,7 @@ import { applicable, sunBoundsInvalid } from "../slots";
 import { devicesOf, forDevices } from "../device-edits";
 import { friendlyName } from "../planner";
 import { compatibleDevices, labelOf } from "../labels";
-import { DAY, clockToMinutes, fmtClock, localDateIso, localMinutes, minutesToClock } from "../time";
+import { DAY, clockToMinutes, currentTimeFormat, fmtClock, fmtDayEnd, localDateIso, localMinutes, minutesToClock } from "../time";
 import { editorStyles, foldSection, langOf } from "../editors/shared";
 import type { HomeAssistant, PlannerData, Program, TimeSpec } from "../types";
 
@@ -32,7 +32,7 @@ function sunWord(lang: string, spec: Extract<TimeSpec, { sun: string }>, long: b
 
 /** ", mais pas avant 18:00 ni après 19:00" for the bounds that are set, or an empty string. */
 function boundsText(lang: string, spec: Extract<TimeSpec, { sun: string }>): string {
-  const shown = (clock: string) => { const m = clockToMinutes(clock); return m >= DAY ? "24 h" : fmtClock(lang, m); };
+  const shown = (clock: string) => { const m = clockToMinutes(clock); return m >= DAY ? fmtDayEnd(lang) : fmtClock(lang, m); };
   const a = spec.earliest ? shown(spec.earliest) : "", b = spec.latest ? shown(spec.latest) : "";
   if (spec.earliest && spec.latest) return t(lang, "sun_limits_both", { a, b });
   if (spec.earliest) return t(lang, "sun_limits_earliest", { a });
@@ -103,6 +103,8 @@ export class WpSlotForm extends LitElement {
   /** Show "Also for: …" (the other devices of the program); off while editing for this device only (D1). */
   @property({ attribute: false }) also = true;
   /** Opened from one day of the week: edit that day only, other days on request. */
+  /** A day-off schedule has no weekday: the Days section is not shown. */
+  @property({ type: Boolean }) noDays = false;
   @property({ type: Number }) dayOnly: number | null = null;
   @state() private _more = false;
   /** "Advanced options" fold (sun times, random delay, time limits): closed unless the slot already uses one. */
@@ -171,6 +173,21 @@ export class WpSlotForm extends LitElement {
   }
 
   /** Keep each boundary open while its optional bounds are still empty. */
+  /** What is being typed in a time field (the browser shows its own 12/24 h style): the hint follows each keystroke. */
+  @state() private _typed: Record<string, string> = {};
+  private _hintText(id: string, value: string | undefined): string | null {
+    const v = this._typed[id] ?? value;
+    return currentTimeFormat() !== "12" || !v || !/^\d{1,2}:\d{2}$/.test(v) ? null : fmtClock(this._lang, clockToMinutes(v));
+  }
+  /** Id of the hint for `aria-describedby` (only when the hint is shown). */
+  private _hintId(id: string, value: string | undefined) { return this._hintText(id, value) === null ? nothing : `hint12-${id}`; }
+  private _hint(id: string, value: string | undefined) {
+    if (this._hintText(id, value) === null) return nothing;
+    return html`<div class="hint12" id=${`hint12-${id}`}>= ${this._hintText(id, value)}</div>`;
+  }
+  private _type(id: string, e: Event): void { this._typed = { ...this._typed, [id]: (e.target as HTMLInputElement).value }; }
+  private _typedDone(id: string): void { const { [id]: _x, ...rest } = this._typed; this._typed = rest; }
+
   @state() private _limitOpen: Record<Which, boolean> = { start: false, end: false };
 
   private _setLimitOption(which: Which, on: boolean): void {
@@ -209,10 +226,10 @@ export class WpSlotForm extends LitElement {
         <button class="step" ?disabled=${dis} aria-label=${t(lang, "minus15")} title=${t(lang, "minus15")} @click=${() => this._update(which, shiftSpec(spec, -15))}><ha-icon icon="mdi:minus"></ha-icon></button>
         ${"time" in spec
           ? html`<input type="time" step="60" .value=${spec.time === "24:00" ? "00:00" : spec.time} ?disabled=${dis}
-              aria-label=${title} @change=${(e: Event) => this._fromInput(which, (e.target as HTMLInputElement).value)} />`
+              aria-label=${title} aria-describedby=${this._hintId(which, spec.time === "24:00" ? "00:00" : spec.time)} @input=${(e: Event) => this._type(which, e)} @change=${(e: Event) => { this._typedDone(which); this._fromInput(which, (e.target as HTMLInputElement).value); }} />`
           : html`<output class="sun">${specText(lang, { ...spec, random_minutes: 0 })}</output>`}
         <button class="step" ?disabled=${dis} aria-label=${t(lang, "plus15")} title=${t(lang, "plus15")} @click=${() => this._update(which, shiftSpec(spec, 15))}><ha-icon icon="mdi:plus"></ha-icon></button>
-      </div>`;
+      </div>${"time" in spec ? this._hint(which, spec.time === "24:00" ? "00:00" : spec.time) : nothing}`;
   }
 
   /** Sun choice, time limits and random delay of one boundary (inside the "Advanced options" fold). */
@@ -224,7 +241,7 @@ export class WpSlotForm extends LitElement {
     const dis = this.disabled;
     return html`
       <h5>${title}</h5>
-      <div class="chips">
+      <div class="chips" role="group" aria-label=${`${title}: ${t(lang, "sun_chips")}`}>
         ${SUNS.map((sun) => {
           const on = "sun" in spec && spec.sun === sun;
           return html`<button class="chip ${on ? "on" : ""}" aria-pressed=${on} ?disabled=${dis}
@@ -249,8 +266,9 @@ export class WpSlotForm extends LitElement {
     const field = (key: "earliest" | "latest") => html`<div class="limit">
       <label>${t(lang, key === "earliest" ? "sun_earliest" : "sun_latest")}
         <input type="time" step="60" .value=${spec[key] === "24:00" ? "00:00" : spec[key] ?? ""} ?disabled=${this.disabled}
-          aria-label=${`${title}: ${t(lang, key === "earliest" ? "sun_earliest" : "sun_latest")}`}
-          @change=${(e: Event) => this._limit(which, key, (e.target as HTMLInputElement).value)} /></label>
+          aria-label=${`${title}: ${t(lang, key === "earliest" ? "sun_earliest" : "sun_latest")}`} aria-describedby=${this._hintId(`${which}-${key}`, spec[key])}
+          @input=${(e: Event) => this._type(`${which}-${key}`, e)} @change=${(e: Event) => { this._typedDone(`${which}-${key}`); this._limit(which, key, (e.target as HTMLInputElement).value); }} />
+        ${this._hint(`${which}-${key}`, spec[key])}</label>
       ${spec[key] ? html`<button class="clear" ?disabled=${this.disabled} aria-label=${t(lang, "sun_limit_clear")} title=${t(lang, "sun_limit_clear")}
         @click=${() => this._limit(which, key, "")}><ha-icon icon="mdi:close"></ha-icon></button>` : nothing}
     </div>`;
@@ -316,6 +334,20 @@ export class WpSlotForm extends LitElement {
     const shortcut = (label: string, set: number[]) => html`<button class="chip small ${eq(days, set) ? "on" : ""}"
       aria-pressed=${eq(days, set)} ?disabled=${this.disabled} @click=${() => this._set({}, set === ALL_DAYS && eq(days, set) ? [] : [...set])}>${eq(days, set) ? html`<ha-icon icon="mdi:check"></ha-icon>` : nothing}${label}</button>`;
     return html`
+      ${this.noDays ? nothing : html`<section>
+        <h4>${t(lang, "days_label")}</h4>
+        ${this.dayOnly !== null && !this._more && eq(days, [this.dayOnly])
+          ? html`<div class="chips"><span class="only">${s.days[this.dayOnly]}</span>
+              <button class="chip" ?disabled=${this.disabled} @click=${() => (this._more = true)}>
+                <ha-icon icon="mdi:calendar-plus"></ha-icon>${t(lang, "apply_other_days")}</button></div>`
+          : html`<div class="days" role="group" aria-label=${t(lang, "days_label")}>
+          ${s.days_short.map((name, d) => html`<button class="day ${days.includes(d) ? "on" : ""}" aria-pressed=${days.includes(d)}
+            aria-label=${s.days[d]} ?disabled=${this.disabled} @click=${() => this._toggleDay(d)}>${days.includes(d) ? html`<ha-icon icon="mdi:check"></ha-icon>` : nothing}<span>${name}</span></button>`)}
+        </div>
+        <div class="chips">
+          ${shortcut(t(lang, "all_days"), ALL_DAYS)}${shortcut(t(lang, "weekdays"), WEEKDAYS)}${shortcut(t(lang, "weekend"), WEEKEND)}
+        </div>`}
+      </section>`}
       <section>
         <h4>${t(lang, "start")}</h4>
         ${this._timeBlock("start", t(lang, "start"))}
@@ -330,29 +362,15 @@ export class WpSlotForm extends LitElement {
         </div>
         ${slot.end ? this._timeBlock("end", t(lang, "end")) : nothing}
       </section>
-      <section>
-        <h4>${t(lang, "days_label")}</h4>
-        ${this.dayOnly !== null && !this._more && eq(days, [this.dayOnly])
-          ? html`<div class="chips"><span class="only">${s.days[this.dayOnly]}</span>
-              <button class="chip" ?disabled=${this.disabled} @click=${() => (this._more = true)}>
-                <ha-icon icon="mdi:calendar-plus"></ha-icon>${t(lang, "apply_other_days")}</button></div>`
-          : html`<div class="days" role="group" aria-label=${t(lang, "days_label")}>
-          ${s.days_short.map((name, d) => html`<button class="day ${days.includes(d) ? "on" : ""}" aria-pressed=${days.includes(d)}
-            aria-label=${s.days[d]} ?disabled=${this.disabled} @click=${() => this._toggleDay(d)}>${days.includes(d) ? html`<ha-icon icon="mdi:check"></ha-icon>` : nothing}<span>${name}</span></button>`)}
-        </div>
-        <div class="chips">
-          ${shortcut(t(lang, "all_days"), ALL_DAYS)}${shortcut(t(lang, "weekdays"), WEEKDAYS)}${shortcut(t(lang, "weekend"), WEEKEND)}
-        </div>`}
-      </section>
+      ${foldSection(lang, this._advIsOpen(), () => { const open = this._advIsOpen(); this._advTouched = true; this._advOpen = !open; },
+        html`${this._advancedBlock("start", t(lang, "start"))}${slot.end ? this._advancedBlock("end", t(lang, "end")) : nothing}`)}
       <section>
         <h4>${t(lang, "action")}</h4>
         <wp-label-picker embedded .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${this.entityIds}
           .value=${slot.label || null} ?disabled=${this.disabled}
           @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._set({ label: e.detail ?? "" }); }}></wp-label-picker>
       </section>
-      ${this._alsoFor()}
-      ${foldSection(lang, this._advIsOpen(), () => { const open = this._advIsOpen(); this._advTouched = true; this._advOpen = !open; },
-        html`${this._advancedBlock("start", t(lang, "start"))}${slot.end ? this._advancedBlock("end", t(lang, "end")) : nothing}`)}`;
+      ${this._alsoFor()}`;
   }
 
   static styles = [editorStyles, css`
@@ -378,6 +396,8 @@ export class WpSlotForm extends LitElement {
       flex: 1; min-width: 0; border: none; border-radius: 0; background: none; outline: none;
       text-align: center; font-size: 1.5rem; font-weight: 600; min-height: 56px; color: var(--primary-text-color);
     }
+    .hint12 { text-align: center; font-size: 1rem; color: var(--primary-text-color); margin-top: 2px; }
+    .limit .hint12 { text-align: start; }
     .time output.sun { flex: 1; min-width: 0; align-self: center; text-align: center; font-size: 1.25rem; font-weight: 600; }
     .ibtn.round { border: 1px solid var(--divider-color); min-width: 64px; font-weight: 600; }
     .limits { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 8px; margin: 8px 0; } /* one column on a phone: a time needs about 7 rem plus its clear button */

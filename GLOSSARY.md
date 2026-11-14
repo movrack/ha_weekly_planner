@@ -40,6 +40,10 @@ _Avoid_: mode orphelin, mode supprimé
 Une règle « de telle heure à telle heure, tels jours, tel réglage » d'un programme pour un mode. Sans heure de fin, c'est une action unique.
 _Avoid_: créneau, plage, slot, planning
 
+**Horaires du jour**:
+La vue de lecture de la journée d'aujourd'hui : une ligne par tronçon (heure, réglage, jusqu'à quand). Distincte de la « Liste compacte », qui liste les programmes.
+_Avoid_: créneau, planning
+
 **Réglage**:
 Ce que les appareils doivent faire, avec un nom et une couleur : par exemple « Confort = 20 °C ». Partagé par tous les modes et tous les programmes ; une valeur propre peut être donnée à un appareil.
 _Avoid_: label, étiquette, preset, action (pour le nom donné par l'utilisateur)
@@ -56,6 +60,10 @@ _Avoid_: garde, filtre
 **Priorité**:
 Quand plusieurs programmes pilotent le même appareil, le programme au numéro le plus bas l'emporte. Les modes n'ajoutent pas de priorité.
 _Avoid_: ordre, importance
+
+**Jour férié** (EN : Day off):
+Un jour déclaré spécial par une entité externe de Home Assistant (jour férié ou congé), choisie une fois pour toute la maison. Ce jour-là, dans le mode actif, le réglage « Jour férié » du mode remplace le jour de la semaine : mêmes horaires qu'un autre jour, ou horaires propres. Sans réglage, le jour normal s'applique. Ce n'est ni un mode, ni le mode « Vacances », ni la suspension de tous les programmes ; hier et demain restent des jours normaux.
+_Avoid_: vacances, congés (seul), jour spécial, mode férié
 
 ## Marche et arrêt
 

@@ -9,7 +9,7 @@ from homeassistant.helpers import issue_registry as ir
 from custom_components.weekly_planner.const import DOMAIN
 
 from .helpers import Recorder, local, setup
-from .test_global_mode import CONFIG, OPTIONS, SECOND, SELECTOR, choose, moded, snapshot, started
+from .test_global_mode import CONFIG, OPTIONS, SECOND, choose, moded, snapshot, started
 
 
 def _names(engine, pid="office") -> list[str]:
@@ -38,7 +38,7 @@ async def _options(hass, options, state):
 
 
 async def test_unambiguous_rename_follows_in_every_program(hass, hass_storage, freezer, hass_ws_client, caplog):
-    engine, ws, rec = await _start(hass, hass_storage, freezer, hass_ws_client)
+    engine, ws, _rec = await _start(hass, hass_storage, freezer, hass_ws_client)
     assert engine.store.runtime["mode_options_seen"] == OPTIONS
     revision = engine.store.program("office")["revision"]
     with caplog.at_level(logging.INFO, logger="custom_components.weekly_planner.engine"):
@@ -55,7 +55,7 @@ async def test_unambiguous_rename_follows_in_every_program(hass, hass_storage, f
 
 
 async def test_renaming_the_active_mode_keeps_the_profile_and_sends_nothing(hass, hass_storage, freezer, hass_ws_client):
-    engine, ws, rec = await _start(hass, hass_storage, freezer, hass_ws_client, state="Away")
+    engine, _ws, rec = await _start(hass, hass_storage, freezer, hass_ws_client, state="Away")
     rec.calls.clear()
     await _options(hass, ["Home", "Elsewhere", "Night"], "Elsewhere")
     assert engine.active_mode == "Elsewhere" and engine.active_profile_id("office") == "away"
@@ -144,7 +144,7 @@ async def test_unavailable_selector_changes_nothing(hass, hass_storage, freezer,
 
 
 async def test_orphans_are_inactive_and_erase_nothing(hass, hass_storage, freezer, hass_ws_client):
-    engine, ws, rec = await _start(hass, hass_storage, freezer, hass_ws_client)
+    engine, _ws, _rec = await _start(hass, hass_storage, freezer, hass_ws_client)
     before = [p for p in engine.store.programs]
     snapshot_before = str(before)
     await _options(hass, ["Home", "Night"], "Night")  # no profile for Night, "Away" has no option
@@ -245,7 +245,7 @@ async def test_resolve_and_undo_follow_the_program_edit_rights(hass, hass_storag
 
 
 async def test_issue_lifecycle_without_spam(hass, hass_storage, freezer, hass_ws_client):
-    engine, ws, _rec = await _start(hass, hass_storage, freezer, hass_ws_client)
+    _engine, ws, _rec = await _start(hass, hass_storage, freezer, hass_ws_client)
     assert _issue(hass) is None
     await _options(hass, ["Home", "Night"], "Home")
     issue = _issue(hass)
