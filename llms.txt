@@ -7,7 +7,8 @@ Start with the AI guide: it explains how to discover what is configured, how to 
 ## Docs
 - [AI guide](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/custom_components/weekly_planner/AI_GUIDE.md): discover, configure, verify, cautions
 - [YAML example](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/custom_components/weekly_planner/example.yml): annotated, validated by tests
-- [README](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/README.md): installation, entities, actions, YAML file, limits
+- [README](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/README.md): installation, options, entities, actions, removal
+- [Reference](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/REFERENCE.md): card options, scheduling model, modes and day off, storage and API, YAML file, limits
 - [Services](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/custom_components/weekly_planner/services.yaml): apply_now, skip_next, pause, resume, reload
 
 ## Optional

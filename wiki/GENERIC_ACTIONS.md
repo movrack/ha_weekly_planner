@@ -123,4 +123,4 @@ are not among them.
 Automated checks cover metadata discovery, unknown domains, service restrictions,
 explicit targets and dynamic sources. These examples do not claim a physical test
 of a particular thermostat or blind. Replace example entity IDs with actual IDs.
-See [the integrator README](../README.md) and [mode reference](MODES.md).
+See [the integrator reference](REFERENCE.md) and [mode reference](MODES.md).

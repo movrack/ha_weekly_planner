@@ -128,6 +128,51 @@ horaires, **Options avancées → Mêmes horaires que** permet à « Jour de con
 « Vacances scolaires » (ou l'inverse), pour chaque programme ; une modification faite dans la source
 se voit tout de suite ([Modes](Modes)).
 
+## Recette 6 : un interrupteur « Jour férié »
+
+Weekly Planner peut appliquer d'autres horaires les jours fériés ou de congé, **sans changer de mode** :
+une entité lui dit si aujourd'hui est un tel jour. La plus simple est un interrupteur (`input_boolean`)
+que vous allumez vous-même, par exemple pour un jour de congé.
+
+1. Créez l'interrupteur : **Paramètres → Appareils et services → Entrées → Créer une entrée →
+   Interrupteur**, nom `Jour férié` (entité `input_boolean.jour_ferie`).
+2. Choisissez-le dans **Paramètres → Appareils et services → Weekly Planner → Configurer → Réglages →
+   Mode et jour férié → Jour férié ou congé**. Laissez **Cette entité est allumée les jours travaillés, pas les jours fériés**
+   décoché : interrupteur allumé veut dire « aujourd'hui est férié ».
+3. Dans la fenêtre des horaires de chaque programme concerné, ouvrez **Jour férié** sous la semaine et
+   activez **Horaires différents les jours fériés** : les mêmes horaires qu'un jour de la semaine
+   (dimanche au départ) ou des horaires propres. Un programme sans ce réglage garde son jour normal.
+4. Ajoutez l'interrupteur à un tableau de bord. Allumez-le le jour de congé : les horaires du jour férié
+   s'appliquent après 30 secondes. Éteignez-le pour revenir au jour normal.
+
+Pour ne pas l'oublier allumé, cette automatisation l'éteint chaque nuit :
+
+```yaml
+alias: Weekly Planner – éteindre « Jour férié » à minuit
+triggers:
+  - trigger: time
+    at: "00:00:00"
+actions:
+  - action: input_boolean.turn_off
+    target:
+      entity_id: input_boolean.jour_ferie
+```
+
+Avec elle, allumez l'interrupteur le jour même, pas la veille.
+
+**Jours fériés officiels en plus, sans y penser** : gardez l'interrupteur pour vos congés et créez le
+capteur de la [note ci-dessous](#note--un-capteur--jour-férié-ou-congé-scolaire--seul), nommé par exemple
+`Férié ou congé`, avec ce modèle d'état :
+
+```jinja
+{{ is_state('calendar.belgique', 'on') or is_state('input_boolean.jour_ferie', 'on') }}
+```
+
+Choisissez alors ce capteur à l'étape 2, à la place de l'interrupteur.
+
+À savoir : le mode est prioritaire sur le jour férié. Le jour férié ne s'applique qu'au mode actuel :
+quand le mode change, le nouveau mode applique son propre réglage de jour férié.
+
 ## Note : un capteur « jour férié ou congé scolaire » seul
 
 Le capteur « Jour ouvré » ne dit pas pourquoi il est `off` (week-end ou jour férié). Pour savoir **si
@@ -155,10 +200,12 @@ aujourd'hui est férié ou un jour de congé scolaire**, créez un capteur dédi
    ```
 
 Pour un capteur **uniquement** férié, retirez la partie `calendar.vacances_scolaires_fwb`. Utilisez
-ensuite `binary_sensor.jour_ferie` comme déclencheur ou condition d'une recette. Un capteur binaire est
-préférable à une entrée « interrupteur » (`input_boolean`) : sa valeur se calcule seule, sans
-automatisation pour la mettre à jour. Le week-end n'est pas compris : ajoutez-le avec « Jour ouvré »
-si besoin.
+ensuite `binary_sensor.jour_ferie` comme déclencheur ou condition d'une recette, ou choisissez-le comme
+entité **Jour férié ou congé** de Weekly Planner ([recette 6](#recette-6--un-interrupteur--jour-férié-),
+étape 2). Pour des jours qui se calculent seuls, un capteur binaire est préférable à une entrée
+« interrupteur » (`input_boolean`) : aucune automatisation ne doit le mettre à jour. L'interrupteur
+reste utile pour un congé décidé à la main (recette 6). Le week-end n'est pas compris : ajoutez-le avec
+« Jour ouvré » si besoin.
 
 ## Pièges
 

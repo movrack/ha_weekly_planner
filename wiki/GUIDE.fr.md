@@ -409,7 +409,7 @@ fermer l’éditeur abandonne ce qui n’a pas été appliqué.
 ## Je veux comprendre ce qui s’est passé
 
 Sur la carte, toucher **Graphique du jour** sous un appareil ouvre ou ferme son graphique
-(réglable : `show_chart`, `chart_collapsed`, voir le README). Dans la fenêtre des horaires, le graphique
+(réglable : `show_chart`, `chart_collapsed`, voir la [référence](REFERENCE.fr.md#configuration-de-la-carte)). Dans la fenêtre des horaires, le graphique
 est sous les horaires. Ses flèches changent le jour. Il compare ce
 qui était prévu avec les données disponibles de l’appareil. Toucher le graphique
 ouvre l’historique de Home Assistant : [S15 et S16](SCREENS.fr.md#s15).
@@ -497,7 +497,7 @@ droits de modification avec la personne qui a installé la carte.
   « X : action n’a pas pu être exécuté », et « Le fichier de configuration … n’a pas pu être lu »
   (les programmes sont alors en pause et rien n’est écrasé). Réparations de Home Assistant :
   entités supprimées, fichier YAML ignoré, modes devenus globaux, mode qui ne correspond à aucune option du sélecteur.
-- Le fichier YAML `/config/www/weekly_planner.yml` est public : voir l’avertissement du [README](../README.fr.md#fichier-yaml).
+- Le fichier YAML `/config/www/weekly_planner.yml` est public : voir l’avertissement de la [référence](REFERENCE.fr.md#fichier-yaml).
 - Les captures sont locales : programmes synthétiques du salon et écrans natifs
   de test. S21 utilise un enregistrement simulé en mémoire,
   sans écriture de programme ni commande d’appareil. Ce n’est pas un essai physique.
