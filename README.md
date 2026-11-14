@@ -93,7 +93,7 @@ loads the module through Home Assistant’s extra-JavaScript mechanism.
 2. Under **Program settings**, choose **New program** (administrators only).
 3. Name the program, add its devices and choose the actions offered for each device.
 4. **Apply to program** saves it at once, for every card that shows this program.
-5. Open the schedules of the program and add a schedule: the days, the start and end times, then the setting.
+5. **Set schedules** opens the schedules of the program. Add a schedule: the days, the start and end times, then the setting.
 
 The [illustrated guide](https://github.com/movrack/ha_weekly_planner/wiki/Guide-utilisateur) (in French)
 shows every step with screenshots.
@@ -107,7 +107,7 @@ shows every step with screenshots.
 | Option | Default | What it does |
 |---|---|---|
 | Only administrators can edit programs | off | Reserves program and setting changes to administrators. |
-| Send the current setting again after a restart or a change | on | Starting value of **Reapply** for every new program. |
+| Send the current setting again after a restart or a change | on | Starting value of the **Re-apply the current setting after a restart or a change** box for every new program. |
 | Alert when a device has been unavailable for | 30 min | Delay before the notification, 1 to 1440 minutes. |
 | Wait before applying a change of condition | 2 min | Stability delay of the program conditions, 0 to 60 minutes. |
 | Mode selector (optional) | none | An `input_select` or `select` entity whose state is the mode of the house; a default mode is asked next. |
@@ -144,8 +144,8 @@ do not assume a generated English entity ID on another installation.
 
 | Entity | Integration behavior |
 |---|---|
-| Program `switch` | Enable/suspend the program. Attributes: `program_id`, `no_schedule_for_mode`, `current_slots`, `next_change`, `skip_next`, `skip_next_targets`, `next_actions`, and when relevant `paused_until`, `verification` and `holiday` (today's day off replaces the weekday: `{copy: 0..6}` or `{own: true}`). There is no active-mode attribute: read the mode on the selector entity. |
-| Global suspension `switch` (all programs) | Suspend all programs and apply the applicable defaults once. |
+| Program `switch` | Turn the program on or off. Attributes: `program_id`, `no_schedule_for_mode`, `current_slots`, `next_change`, `skip_next`, `skip_next_targets`, `next_actions`, and when relevant `paused_until`, `verification` and `holiday` (today’s day off replaces the weekday: `{copy: 0..6}` or `{own: true}`). There is no active-mode attribute: read the mode on the selector entity. |
+| Global suspension `switch` (all programs) | Suspend all programs and apply each device’s “rest of the time” setting once. |
 
 | Action | Fields | Who can call it |
 |---|---|---|
@@ -191,7 +191,7 @@ data:
 action: weekly_planner.reload
 ```
 
-Program and vacation switches use the usual `switch.turn_on` / `switch.turn_off`
+The program and global switches use the usual `switch.turn_on` / `switch.turn_off`
 actions. Enabling an `automation.*` entity with a scheduled `automation.turn_on`
 action enables its triggers; it is not the same as `automation.trigger`.
 
@@ -243,7 +243,7 @@ and [setting actions](https://github.com/movrack/ha_weekly_planner/wiki/Actions-
 
 Everything is computed locally in Home Assistant; no device is polled and no cloud service is used. The
 engine works out what each device should be doing and acts when that changes: at the start and end of
-a schedule, on a mode or day-off change and, when **Reapply** is on, after a restart or an edit. It
+a schedule, on a mode or day-off change and, when re-applying is on for the program, after a restart or an edit. It
 does not keep enforcing the state of a device, and it does not undo a manual change. The card receives
 live updates from the integration.
 
@@ -256,7 +256,7 @@ restart Home Assistant. An open card reloads by itself once idle when its bundle
 
 - A manual change on a device is not detected or undone; it may be shown on the chart.
 - A schedule that has no end is sent once and is not replayed after its time has passed.
-- The area filter of the card matches the area given to a program, not the Home Assistant rooms of its devices.
+- The room filter of the card matches the room given to a program, not the Home Assistant rooms of its devices.
 - Schedules cannot have their own conditions in the form; conditions are set for the whole program.
 - The recorded part of the chart depends on the Home Assistant history.
 - `/config/www/weekly_planner.yml` is served **without authentication** at

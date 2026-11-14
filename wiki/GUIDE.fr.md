@@ -78,7 +78,8 @@ Toucher le **calendrier avec un crayon**, à droite de Chauffage du salon.
 Les horaires déjà créés apparaissent sous les sept barres de la semaine.
 Si rien n'est encore réglé pour un appareil, la carte affiche sur sa ligne un bouton **Créer un réglage** à la place des barres : il ouvre directement le formulaire d'un premier horaire pour cet appareil.
 En haut de l’écran, l’interrupteur **Programme actif** arrête ou remet en marche le programme ; viennent ensuite,
-dans le cadre **Mode** (si un sélecteur de mode est réglé), le choix du mode, puis le cadre **Horaires**.
+dans le cadre **Mode** (si un sélecteur de mode est réglé), le choix du mode, puis le cadre **Horaires** ; à la fin de ce cadre, la section repliable **Jour férié**
+(visible seulement si une entité jour férié est réglée).
 
 <a href="images/guide/s06-schedules.png"><img src="images/guide/s06-schedules.png" width="320" alt="Les horaires du chauffage : Confort le matin et le soir, Éco le reste du temps." /></a>
 
@@ -194,12 +195,12 @@ les heures. **C’est enregistré dès que vous relâchez**, pour ce jour seulem
 Le bandeau **Enregistré · Annuler** permet de revenir en arrière pendant quelques
 secondes : [S21](SCREENS.fr.md#s21).
 
-Sous la barre, quand un horaire est sélectionné, deux boutons à ne pas confondre :
+Sous la barre, quand un horaire est sélectionné, trois boutons à ne pas confondre :
 
 - **Couper en deux** (icône « fente au milieu ») coupe l’horaire en deux parties,
   l’une après l’autre dans le temps ; la première garde le réglage. Sur la seconde, il n’y a plus
   d’horaire : le reste du temps s’applique. Quand la coupure tombe dans un trou, elle crée sur la
-  seconde partie un horaire avec le réglage par défaut.
+  seconde partie un horaire avec le réglage de « Le reste du temps ».
 - **Copier sur d’autres jours** (icône « deux feuilles ») recopie l’horaire sur d’autres jours.
 - **Effacer** enlève l’horaire sélectionné : le reste du temps s’applique à sa place.
 
@@ -254,7 +255,7 @@ l’onglet est retenu pour chaque programme tant que la carte reste ouverte.
   dans **tous les modes** ; les autres appareils gardent les leurs. Pour un programme à **un seul
   appareil**, il supprime **le programme entier**, avec ses horaires de tous les modes. Ce bouton
   n’apparaît que sur le mode actif et pas pendant la modification d’un horaire.
-- Dans **Réglages des programmes > Appareils**, retirer un appareil supprime aussi
+- Dans **Réglages des programmes → Appareils**, retirer un appareil supprime aussi
   ses horaires propres (un message dit combien). Un appareil ajouté suit les
   horaires communs à tous les appareils. Retirer une commande d’un appareil
   propose de lui retirer les horaires qui l’utilisent.
@@ -296,9 +297,9 @@ Le mode se choisit avec un sélecteur Home Assistant (`input_select` ou `select`
 que vous avez déjà ou que vous créez : un bouton du tableau de bord, une alarme, une
 automatisation… Pour le faire connaître à Weekly Planner :
 
-1. Ouvrir **Paramètres → Appareils et services → Weekly Planner → Configurer**
+1. Ouvrir **Paramètres → Appareils et services → Weekly Planner → Configurer**, puis **Réglages**
    (réservé aux administrateurs).
-2. Choisir le **Sélecteur de mode** (facultatif).
+2. Dans **Mode et jour férié**, choisir le **Sélecteur de mode** (facultatif).
 3. Choisir le **Mode par défaut** parmi les options du sélecteur : c’est le mode
    utilisé quand le sélecteur n’a pas de choix utilisable.
 
@@ -336,7 +337,7 @@ un autre « (mêmes horaires que X) ».
 Si une seule option est renommée, les horaires suivent le nouveau nom dans tous
 les programmes ; **Le mode X a été renommé en Y** s’affiche, dans l’écran des horaires
 seulement, avec un bouton **Annuler** pendant une semaine et un bouton **OK** qui ferme
-l’avis. Dans les autres cas, Weekly Planner ne devine pas : l’ancien mode
+l’avis. Dans les autres cas, Weekly Planner ne devine pas : le mode sans option
 garde ses horaires, marqué **n’existe plus** (« Le mode X n’existe plus dans la liste des
 modes. »), et rien n’est effacé. L’écran des horaires propose chaque nouvelle option
 (**Est-ce devenu… ?**) ou **Effacer ses horaires**, et un message de **Réparations** de Home
@@ -346,6 +347,27 @@ La **Suspension de tous les programmes** reste une commande à part, qui l’emp
 sur le mode. C’est un interrupteur Home Assistant : pour la mettre ou la lever, ouvrir
 **Paramètres → Appareils et services → Weekly Planner**, puis l’entité **Suspension de tous les
 programmes**. La carte l’affiche seulement (voir plus bas). Voir le [détail des modes](MODES.md).
+
+## Je veux d’autres horaires les jours fériés
+
+Un jour férié ou de congé, la maison peut suivre d’autres horaires que ceux du jour de la semaine. Ce
+réglage se fait pour chaque mode : le jour férié de « Maison » peut être différent de celui de « Vacances ».
+
+1. Ouvrir les horaires du programme. À la fin du cadre **Horaires**, ouvrir **Jour férié**.
+2. Activer **Horaires différents les jours fériés**.
+3. Choisir **Mêmes horaires que :** puis un jour de la semaine (dimanche au départ), ou **Mes propres
+   horaires** pour régler une journée à part.
+
+Le schéma de la semaine montre alors une ligne **Férié** sous le dimanche. Désactiver l’interrupteur ne
+supprime rien : le jour normal s’applique, et le réglage revient quand on le réactive.
+
+Le jour férié, la carte l’indique sous **Mode** et montre ce qui tourne vraiment. La ligne du jour ne se
+modifie pas directement ce jour-là.
+
+La section **Jour férié** n’apparaît que si une entité « jour férié » est choisie dans **Paramètres →
+Appareils et services → Weekly Planner → Configurer → Réglages → Mode et jour férié** (réservé aux
+administrateurs). Pour créer cette entité, voir la
+[recette 6](MODES_COOKBOOK.fr.md#recette-6--un-interrupteur--jour-férié-).
 
 ## Je veux changer la présentation ou créer un programme
 
@@ -425,13 +447,13 @@ et les dates s’affichent sous lui. Les flèches montrent la période précéde
 La légende est sous les flèches et la date : d’abord les courbes de l’appareil, puis les sources ajoutées.
 
 Les valeurs chiffrées du programme forment une ligne en escalier. Les réglages sans valeur chiffrée
-(Comfort, Eco…) apparaissent dans une rangée **Programme** sous les courbes : chaque bande porte
+(Confort, Éco…) apparaissent dans une rangée **Programme** sous les courbes : chaque bande porte
 le nom et la couleur du réglage, y compris le « reste du temps » lorsqu’il agit sur cet appareil.
 Les noms trop longs sont raccourcis ; leur nom complet est disponible au survol. Les bandes suivent
 le zoom et le déplacement dans les jours voisins.
 
 Le point plein indique le début d’un palier du programme ; l’anneau creux indique le retour au « reste du temps ».
-Leur ligne pointillée repère l’heure. Par exemple, lundi : point plein Comfort à 08:45, anneau Eco à 17:00.
+Leur ligne pointillée repère l’heure. Par exemple, lundi : point plein Confort à 08:45, anneau Éco à 17:00.
 À minuit, un point plein montre le réglage déjà en cours, y compris celui commencé la veille.
 
 ### Comparer avec une autre entité
@@ -494,12 +516,9 @@ droits de modification avec la personne qui a installé la carte.
   décalage solaire de −240 à +240 minutes ; délai aléatoire de 1 à 240 minutes ; nom affiché d’une source de
   graphique 60 caractères, 100 états mis en évidence.
 - Notifications persistantes : « X est indisponible : son action planifiée est toujours en attente »,
-  « X : action n’a pas pu être exécuté », et « Le fichier de configuration … n’a pas pu être lu »
+  « X : … n’a pas pu être exécuté », et « Le fichier de configuration … n’a pas pu être lu »
   (les programmes sont alors en pause et rien n’est écrasé). Réparations de Home Assistant :
   entités supprimées, fichier YAML ignoré, modes devenus globaux, mode qui ne correspond à aucune option du sélecteur.
 - Le fichier YAML `/config/www/weekly_planner.yml` est public : voir l’avertissement de la [référence](REFERENCE.fr.md#fichier-yaml).
-- Les captures sont locales : programmes synthétiques du salon et écrans natifs
-  de test. S21 utilise un enregistrement simulé en mémoire,
-  sans écriture de programme ni commande d’appareil. Ce n’est pas un essai physique.
 
 [Voir tous les écrans dans l’atlas](SCREENS.fr.md)

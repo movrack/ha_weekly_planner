@@ -11,14 +11,14 @@ suivent. Weekly Planner ne change jamais le mode lui-même ([Modes](Modes)) : le
    déroulante**. Exemple : `input_select.mode_maison` avec les options utilisées dans la recette
    (ici `Jour travaillé`, `Jour de congé`, `Vacances scolaires`).
 2. Choisissez-le dans **Paramètres → Appareils et services → Weekly Planner → Configurer →
-   Sélecteur de mode**, puis le mode par défaut.
+   Réglages → Mode et jour férié → Sélecteur de mode**, puis le mode par défaut.
 3. Dans l'écran des horaires de chaque programme, donnez des horaires à chaque mode. Les noms
    doivent être **exactement** les options du sélecteur.
 4. Créez l'automatisation de la recette. Testez d'abord en changeant le sélecteur à la main : la
    carte affiche **Mode : …** et les appareils suivent.
 
 À savoir : un changement de mode recalcule le réglage de l'heure courante. Il ne rejoue pas le
-passé, n'active pas un programme désactivé et ne saute pas ses conditions.
+passé, n'active pas un programme en pause et ne saute pas ses conditions.
 
 ## Recette 1 : jour travaillé ou jour de congé
 
@@ -139,7 +139,7 @@ que vous allumez vous-même, par exemple pour un jour de congé.
 2. Choisissez-le dans **Paramètres → Appareils et services → Weekly Planner → Configurer → Réglages →
    Mode et jour férié → Jour férié ou congé**. Laissez **Cette entité est allumée les jours travaillés, pas les jours fériés**
    décoché : interrupteur allumé veut dire « aujourd'hui est férié ».
-3. Dans la fenêtre des horaires de chaque programme concerné, ouvrez **Jour férié** sous la semaine et
+3. Dans la fenêtre des horaires de chaque programme concerné, ouvrez **Jour férié** à la fin du cadre **Horaires** et
    activez **Horaires différents les jours fériés** : les mêmes horaires qu'un jour de la semaine
    (dimanche au départ) ou des horaires propres. Un programme sans ce réglage garde son jour normal.
 4. Ajoutez l'interrupteur à un tableau de bord. Allumez-le le jour de congé : les horaires du jour férié

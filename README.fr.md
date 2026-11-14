@@ -27,7 +27,7 @@ Ce projet a été réalisé avec l’aide d’agents d’intelligence artificiel
 - **Le reste du temps** : un réglage par défaut facultatif pour chaque appareil, en dehors de ses horaires.
 - **Soleil et délai aléatoire** : début ou fin au lever ou au coucher du soleil, avec un décalage, une
   heure au plus tôt et au plus tard, et un délai aléatoire facultatif.
-- **Modes** : une semaine d’horaires par mode de la maison (Présent, Absent, Vacances…), lu sur une
+- **Modes** : une semaine d’horaires par mode de la maison (Maison, Absent, Vacances…), lu sur une
   entité sélecteur que vous choisissez.
 - **Jour férié** : une autre journée d’horaires un jour férié ou de congé, lu sur une entité que vous choisissez.
 - **Une carte, cinq affichages** : barres, liste compacte, cadran 24 h, cadrans 12 h ou horaires du jour,
@@ -79,8 +79,8 @@ sont prises en charge aussi.
 [![Ouvrir votre Home Assistant et commencer la configuration de Weekly Planner.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=weekly_planner)
 
 Utiliser le bouton ci-dessus, ou ouvrir **Paramètres → Appareils et services → Ajouter une intégration →
-Weekly Planner**. Rien n’est demandé à cette étape. Une seule instance de l’intégration contient tous
-les programmes. Ne pas en ajouter une autre pour créer un autre programme.
+Weekly Planner**. Rien n’est demandé à cette étape. Une seule entrée de l’intégration par installation de
+Home Assistant ; elle contient tous les programmes. Ne pas en ajouter une autre pour créer un autre programme.
 
 ### Ajouter la carte
 
@@ -110,7 +110,7 @@ Le [guide illustré](https://github.com/movrack/ha_weekly_planner/wiki/Guide-uti
 | Option | Défaut | Effet |
 |---|---|---|
 | Seuls les administrateurs peuvent modifier les programmes | non | Réserve aux administrateurs les modifications des programmes et des réglages. |
-| Refaire le réglage en cours après un redémarrage ou une modification | oui | Valeur de départ de **Réappliquer** pour chaque nouveau programme. |
+| Refaire le réglage en cours après un redémarrage ou une modification | oui | Valeur de départ de la case **Réappliquer le réglage en cours après un redémarrage ou une modification** pour chaque nouveau programme. |
 | Alerte si un appareil est indisponible depuis | 30 min | Délai avant la notification, de 1 à 1440 minutes. |
 | Attendre avant d’appliquer un changement de condition | 2 min | Délai de stabilité des conditions du programme, de 0 à 60 minutes. |
 | Sélecteur de mode (facultatif) | aucun | Une entité `input_select` ou `select` dont l’état est le mode de la maison ; un mode par défaut est demandé ensuite. |
@@ -147,12 +147,12 @@ un identifiant anglais généré sur une autre installation.
 
 | Entité | Comportement |
 |---|---|
-| Interrupteur de programme | Active ou suspend. Attributs : `program_id`, `no_schedule_for_mode`, `current_slots`, `next_change`, `skip_next`, `skip_next_targets`, `next_actions` et, selon le cas, `paused_until`, `verification` et `holiday` (le jour férié remplace le jour de la semaine : `{copy: 0..6}` ou `{own: true}`). Il n’y a pas d’attribut du mode actif : le mode se lit sur l’entité sélecteur. |
-| Interrupteur global | Suspend les programmes et applique une fois les défauts éligibles. |
+| Interrupteur de programme | Met le programme en marche ou en pause. Attributs : `program_id`, `no_schedule_for_mode`, `current_slots`, `next_change`, `skip_next`, `skip_next_targets`, `next_actions` et, selon le cas, `paused_until`, `verification` et `holiday` (le jour férié remplace le jour de la semaine : `{copy: 0..6}` ou `{own: true}`). Il n’y a pas d’attribut du mode actif : le mode se lit sur l’entité sélecteur. |
+| Interrupteur global | Suspend tous les programmes et applique une fois le réglage « Le reste du temps » de chaque appareil. |
 
 | Action | Champs | Qui peut l’appeler |
 |---|---|---|
-| `weekly_planner.apply_now` | `program_id` (obligatoire) ; renvoie `sent` et `skipped` (avec la raison) ; renvoie aussi le dernier ponctuel de moins de 24 h sauf intervention d'une personne depuis | Tout le monde ; administrateurs seulement si `admin_only` est actif |
+| `weekly_planner.apply_now` | `program_id` (obligatoire) ; renvoie `sent` et `skipped` (avec la raison) ; envoie aussi de nouveau le dernier ponctuel de moins de 24 h, sauf intervention d’une personne sur l’appareil depuis | Tout le monde ; administrateurs seulement si `admin_only` est actif |
 | `weekly_planner.skip_next` | `program_id` (obligatoire), `cancel` (facultatif, `false` par défaut) | Comme `apply_now` |
 | `weekly_planner.pause` | `program_id` (obligatoire), `days` et/ou `hours` (entiers, au moins un ; de 1 heure à 365 jours au total) | Comme `apply_now` |
 | `weekly_planner.resume` | `program_id` (obligatoire) ; annule seulement une pause temporisée (un programme arrêté avec son interrupteur reste arrêté) | Comme `apply_now` |
@@ -194,7 +194,7 @@ data:
 action: weekly_planner.reload
 ```
 
-Les interrupteurs utilisent `switch.turn_on` et `switch.turn_off`. Planifier
+Les interrupteurs de programme et l’interrupteur global utilisent `switch.turn_on` et `switch.turn_off`. Planifier
 `automation.turn_on` active les déclencheurs d’une automatisation ; ce n’est pas
 `automation.trigger`.
 
@@ -246,8 +246,8 @@ et [actions des réglages](https://github.com/movrack/ha_weekly_planner/wiki/Act
 
 Tout est calculé localement dans Home Assistant ; aucun appareil n’est interrogé et aucun service
 cloud n’est utilisé. Le moteur calcule ce que chaque appareil doit faire et agit quand cela change :
-au début et à la fin d’un horaire, à un changement de mode ou de jour férié et, quand **Réappliquer**
-est actif, après un redémarrage ou une modification. Il ne force pas l’état d’un appareil en continu
+au début et à la fin d’un horaire, à un changement de mode ou de jour férié et, quand le programme
+réapplique le réglage en cours, après un redémarrage ou une modification. Il ne force pas l’état d’un appareil en continu
 et n’annule pas un changement fait à la main. La carte reçoit les mises à jour en direct de l’intégration.
 
 ## Mise à jour

@@ -19,6 +19,7 @@ The visual editor has two sections:
 Program-setting drafts and their local undo/redo history survive navigation
 between tabs and programs within the editor. Closing the editor discards unapplied
 drafts. A successful Apply resets history; it cannot undo actions already sent to HA.
+A newly created program is selected automatically, and **Set schedules** opens its schedules.
 
 Card examples are in the [README](../README.md#examples).
 
@@ -75,13 +76,11 @@ above with a real ID. Entity IDs may also vary with language and renaming.
 
 Set a program’s optional area in **Program settings → General**. This is a name
 used to group programs; it is independent of HA device rooms.
-The week is expanded interactively.
-
 The dial displays the same resolved schedule data as the bars and opens the
 existing editor. The inner 12-hour ring covers midnight–noon and the outer ring noon–midnight.
 Both dial variants use the bars’ colours, hourly marks and solar markers.
 Click or long-press a dial to edit its arcs with the handles. In a compact list,
-clicking a row expands its bar inline. A dialog has an **Expand / collapse** button
+clicking a row expands its bar inline. The week unfolds on demand. A dialog has an **Enlarge / reduce** button
 (arrows, next to the close cross) to widen it on desktop. Mobile dialogs already occupy
 the full screen; a downward swipe on the header closes them.
 
@@ -185,7 +184,7 @@ Presets come from entity attributes; no manufacturer-specific modes are synthesi
 ### Modes and the mode selector
 
 The mode is global: one optional Home Assistant `input_select` or `select` entity, chosen once in
-**Settings → Devices & services → Weekly Planner → Configure → Mode selector**, gives the active mode of
+**Settings → Devices & services → Weekly Planner → Configure → Settings → Mode and day off → Mode selector**, gives the active mode of
 every program. Its options are the modes; a **default mode** (one of the options) is asked right after.
 Weekly Planner only reads this entity and never changes it. Leave it empty to have a single mode, the default
 mode, which the card does not show.
@@ -194,7 +193,7 @@ mode, which the card does not show.
 - **Selector unavailable or in an unknown state**: the last valid mode is kept; with none known yet, the
   default mode applies. A program with no schedules for the active mode applies “the rest of the time”.
 - **Renamed option**: if exactly one option is renamed, the schedules follow it in every program (with an
-  Undo for a week). Otherwise the old mode stays, marked “no longer exists”, nothing is erased and the schedules screen
+  Undo for a week). Otherwise the mode with no option stays, marked “no longer exists”, nothing is erased and the schedules screen
   proposes the new options (or deleting the mode). The rename notice (with **Undo** and **OK**)
   is shown in the schedules screen only.
 - **Schedules screen**: a **Mode** drop-down at the top, opening on the active mode (marked “Active”); editing another mode never activates it.
@@ -238,10 +237,10 @@ is saved.
   A change waits 30 seconds (a flip back within that time is ignored), then applies like a mode change.
   Just after midnight, programs with a day-off setting wait up to 2 minutes for the entity.
 - A missing entity raises a repair issue; the settings are kept and every day is normal.
-- Going back to 0.28 or older: restore `.storage/weekly_planner` from the backup taken before the update
-  (that version does not know the day off and refuses to save a program that has one).
+- Restoring an older version: restore `.storage/weekly_planner` from the backup taken before the update
+  (a version without day-off support refuses to save a program that has one).
 - **On the card**: when today is a day off that changes a program, a line under “Mode” says “Day off today: Sunday’s schedule” or “Day off today: own schedule” (hidden when the copied day is the real one). Today’s bar, today’s row of the week and the Daily times view show what really runs today; they cannot be edited in place that day (use the **Day off** section of the schedules window; the header calendar icon still opens the window). “Next: tomorrow …” ignores a possible day off tomorrow.
-- **In the schedules window**: a collapsible **Day off** section under the week schematic, closed by default and hidden when there is no entity, with one switch, *Different schedule on days off* (off = a normal day, and the setting is kept in memory: turning it on again brings it back; on for the first time = Sunday’s schedule), then two choices: *Same as:* a weekday, or *My own schedule* (a day edited like the others, per-device schedules allowed; a schedule that passes midnight is cut at 24:00). Choosing *Same as:* keeps your own schedules in memory. The section is shown for every mode, active or not: each mode has its own setting. A mode that follows another shows the day off of its source, read-only.
+- **In the schedules window**: a collapsible **Day off** section at the end of the **Schedules** box, after the list of schedules, closed by default and hidden when there is no entity, with one switch, *Different schedule on days off* (off = a normal day, and the setting is kept in memory: turning it on again brings it back; on for the first time = Sunday’s schedule), then two choices: *Same as:* a weekday, or *My own schedule* (a day edited like the others, per-device schedules allowed; a schedule that passes midnight is cut at 24:00). Choosing *Same as:* keeps your own schedules in memory. The section is shown for every mode, active or not: each mode has its own setting. A mode that follows another shows the day off of its source, read-only.
 
 ## Permissions and integration options
 
@@ -252,7 +251,7 @@ is saved.
 | `admin_only` | `false` | Restricts program/setting mutations. Program/vacation switches remain separate controls; choosing the mode is done on the selector entity, not in Weekly Planner. |
 | `mode_selector` | none | In the **Mode and day off** sub-section of the options form. Optional `input_select` or `select` entity whose state is the active mode, then a default mode among its options. Changing them is reserved to administrators. |
 | `holiday_entity`, `holiday_invert` | none, `false` | In the same **Mode and day off** sub-section (the mode has priority over the day off, which only applies to the current mode). Optional day-off entity of the house and the box “This entity is on during working days, not on days off”. Reserved to administrators; stored with the mode selector, not in the entry options. |
-| `reapply_default` | `true` | Starting value of **Reapply** for every new program (card, WebSocket, or a YAML file program without `reapply`). |
+| `reapply_default` | `true` | Starting value of **Re-apply** for every new program (card, WebSocket, or a YAML file program without `reapply`). |
 | `notify_delay_min` | `30` | Unavailable-entity notification delay, 1–1440 minutes. |
 | `debounce_min` | `2` | Condition stability delay, 0–60 minutes. |
 

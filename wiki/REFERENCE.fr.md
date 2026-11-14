@@ -32,7 +32,7 @@ Les exemples de cartes sont dans le [README](../README.fr.md#exemples).
 | `schedule_view` | `bars` par défaut, `list`, `radial` pour 24 h, `radial_12h` pour deux cercles de 12 h, ou `times` (**Horaires du jour** : la journée d’aujourd’hui en liste, une ligne par période avec son réglage, sa fin et un repère « Maintenant » ; l’icône calendrier de l’en-tête, ou un appui sur une ligne, ouvre la journée dans la fenêtre des horaires). Disponibles pour un programme ou une liste filtrée. |
 | `sort` | Ordre de la liste : `type` (défaut : par type A→Z puis par nom ; types nommés par Home Assistant, avec un petit titre chacun), `area` (par pièce A→Z avec titres, programmes sans pièce sous « Autres »), `name` (A→Z) ou `custom` (la liste `order`). Le premier appareil d’un programme donne son type. |
 | `order` | Avec `sort: custom` : identifiants de programmes dans l’ordre voulu. Réglé dans l’éditeur (poignée ou boutons monter/descendre). Un programme absent de la liste passe à la fin (par type puis nom) ; un identifiant inconnu est ignoré. |
-| Format de l’heure | Pas d’option : la carte suit le réglage 12 h ou 24 h de votre profil Home Assistant (12 h affiche am/pm, « minuit » et « midi » ; les champs d’heure de l’éditeur de créneau affichent l’heure choisie, par exemple « = 10:30 pm », en dessous). |
+| Format de l’heure | Pas d’option : la carte suit le réglage 12 h ou 24 h de votre profil Home Assistant (12 h affiche am/pm, « minuit » et « midi » ; les champs d’heure de l’éditeur d’horaire affichent l’heure choisie, par exemple « = 10:30 pm », en dessous). |
 | `show_chart` | Booléen, `true` par défaut. Actif : un bouton **Graphique du jour** sous chaque appareil sur la carte, et le graphique dans la fenêtre des horaires. Éteint : ni bouton ni graphique nulle part sur cette carte. Dans l’éditeur : « Bouton Graphique sous chaque appareil ». |
 | `chart_collapsed` | Booléen, `true` par défaut : le graphique sous chaque appareil démarre fermé (`false` : ouvert). N’a d’effet que si `show_chart` est actif. Dans l’éditeur : l’interrupteur « Graphique ouvert d’office » (l’inverse). Un choix fait avec le bouton du graphique est mémorisé par navigateur, par carte et par appareil, et prime ensuite. |
 
@@ -70,19 +70,19 @@ filter:                         # ignoré si `program` est renseigné
 
 Un identifiant de programme est généré par l’intégration : ce n’est ni son nom ni
 un nom simplifié. Le trouver dans l’attribut `program_id` de son interrupteur ou
-dans la réponse WebSocket `weekly_planner/get`. Remplacer `YOUR_PROGRAM_ID` dans
-l’exemple. Les identifiants d’entités dépendent aussi de la langue et des renommages.
+dans la réponse WebSocket `weekly_planner/get`. Remplacer l’identifiant
+d’exemple ci-dessus par un vrai identifiant. Les identifiants d’entités dépendent aussi de la langue et des renommages.
 
 Le filtre Pièce propose les pièces existantes et conserve un choix devenu absent.
 Définir cette pièce dans **Réglages des programmes → Général** : c’est un nom pour
 regrouper les programmes, indépendant des pièces des appareils.
 
-Les cadrans partagent les couleurs, repères horaires et marqueurs solaires des
+Les cadrans affichent les mêmes horaires que les barres et ouvrent le même éditeur. Ils partagent les couleurs, repères horaires et marqueurs solaires des
 barres. Le double cadran affiche minuit–midi à l’intérieur et midi–minuit à
 l’extérieur. Un clic ou un appui long sur un cadran permet de modifier ses arcs avec les poignées.
 En liste compacte, toucher une ligne déplie sa barre. La semaine se déplie à la
-demande. Une modale a un bouton **Agrandir / réduire** (flèches, à côté de la croix)
-qui élargit sa largeur sur ordinateur ; sur téléphone elle occupe déjà l’écran et
+demande. Une fenêtre a un bouton **Agrandir / réduire** (flèches, à côté de la croix)
+qui l’élargit sur ordinateur ; sur téléphone elle occupe déjà l’écran et
 un balayage vers le bas sur son en-tête la ferme.
 
 ## Sources complémentaires du graphique
@@ -107,8 +107,8 @@ des appareils. Un programme peut en contenir plusieurs.
 
 | Objet | Sens |
 |---|---|
-| Programme | Entités, priorité, conditions, réapplication et une semaine d’horaires par mode. |
-| Réglage | Nom, couleur et action partagés globalement. |
+| Programme | Nom, entités, priorité, conditions, réapplication et une semaine d’horaires par mode. |
+| Réglage | `{id, name, color, action}` globaux, partagés par tous les programmes. |
 | Horaire | Début, fin facultative, jours, référence de réglage et, au besoin, les appareils visés (`entities` ; absent = tous les appareils du programme, y compris ceux ajoutés plus tard). |
 | Défaut d’entité | `default_label`, appliqué hors des horaires bornés selon les règles de priorité. |
 | Valeur propre | `label_overrides[label_id]`, action propre à cette entité dans ce programme. |
@@ -127,7 +127,7 @@ Leur affichage dans le graphique ne modifie pas cette règle.
 - **Sans fin** : action ponctuelle, aucun événement de fin, jamais rejouée après son heure. Un horaire borné prioritaire peut la supprimer.
 - **Priorité** : le plus petit numéro gagne entre les horaires éligibles actifs ; le programme le plus ancien départage les égalités. Sans horaire actif, le programme activé le plus prioritaire contenant l’entité fournit son défaut facultatif.
 - **Conditions** : toutes les conditions du programme doivent être satisfaites pour ses horaires. Une condition fausse n’est pas une commande d’arrêt générique ; les règles des défauts comptent encore.
-- **Redémarrage** : stabilisation de 30 s, puis réapplication facultative de l’action bornée ou du défaut en cours. Les fins manquées sont rattrapées, pas les actions ponctuelles passées.
+- **Redémarrage** : stabilisation de 30 s, puis réapplication facultative de l’action bornée ou du défaut en cours après un redémarrage, une activation ou une modification. Les fins manquées sont rattrapées, pas les actions ponctuelles passées.
 - **Temps** : construction en heure locale HA, comparaisons en UTC. Un horaire passe au lendemain si sa fin est antérieure au début **et avant midi**. `24:00` est accepté en fin.
 - **Soleil** : le modèle accepte aube, lever, coucher, crépuscule, décalages et bornes. Le formulaire actuel expose lever et coucher avec décalages et des limites facultatives (au plus tôt / au plus tard), sous **Options avancées** (le formulaire présente les jours, puis les heures, puis les options avancées).
 
@@ -179,7 +179,7 @@ Changer sa valeur ne déclenche pas à lui seul une action planifiée.
 ## Modes et sélecteur de mode
 
 Le mode est global : une entité Home Assistant `input_select` ou `select`, facultative, choisie une seule fois dans
-**Paramètres → Appareils et services → Weekly Planner → Configurer → Sélecteur de mode**, donne le mode actif de
+**Paramètres → Appareils et services → Weekly Planner → Configurer → Réglages → Mode et jour férié → Sélecteur de mode**, donne le mode actif de
 tous les programmes. Ses options sont les modes ; un **mode par défaut** (une des options) est demandé juste après.
 Weekly Planner ne fait que la lire et ne la modifie jamais. Vide : un seul mode, le mode par défaut, que la carte
 n’affiche pas.
@@ -188,7 +188,7 @@ n’affiche pas.
 - **Sélecteur indisponible ou état inconnu** : le dernier mode valide est gardé ; sans mode connu, le mode par
   défaut s’applique. Un programme sans horaires pour le mode actif applique « le reste du temps ».
 - **Option renommée** : si une seule option est renommée, les horaires la suivent dans tous les programmes (avec
-  un bouton pour défaire pendant une semaine). Sinon l’ancien mode reste, marqué « n’existe plus », rien n’est effacé et
+  un bouton pour défaire pendant une semaine). Sinon le mode sans option reste, marqué « n’existe plus », rien n’est effacé et
   l’écran des horaires propose les nouvelles options (ou la suppression du mode). L’avis de renommage
   (boutons **Annuler** et **OK**) n’apparaît que dans l’écran des horaires.
 - **Écran des horaires** : une liste **Mode** en haut, ouverte sur le mode actif (marqué « Actif ») ; modifier un autre mode ne l’active jamais.
@@ -207,7 +207,7 @@ data:
   option: Absent
 ```
 
-Voir les [exemples de modes](MODES_COOKBOOK.fr.md) et les
+Voir les [modes](MODES.md), les [exemples de modes](MODES_COOKBOOK.fr.md) et les
 [exemples d’actions natives](GENERIC_ACTIONS.md).
 
 ### Jour férié
@@ -233,10 +233,10 @@ sont refusées, aussi lors de l’enregistrement d’un programme ou d’un rég
   normal. Un changement attend 30 secondes (un retour en arrière dans ce délai est ignoré), puis s’applique comme un
   changement de mode. Juste après minuit, les programmes qui ont un réglage attendent l’entité jusqu’à 2 minutes.
 - Une entité absente ouvre un problème dans Réparations ; les réglages sont gardés et chaque jour est normal.
-- Revenir à la 0.28 ou avant : restaurez `.storage/weekly_planner` depuis la sauvegarde faite avant la mise à jour
-  (cette version ne connaît pas le jour férié et refuse d’enregistrer un programme qui en a un).
+- Revenir à une version plus ancienne : restaurez `.storage/weekly_planner` depuis la sauvegarde faite avant la mise à jour
+  (une version sans jour férié refuse d’enregistrer un programme qui en a un).
 - **Sur la carte** : quand aujourd’hui est un jour férié qui change un programme, une ligne sous « Mode » dit « Aujourd’hui férié : horaires du dimanche » ou « Aujourd’hui férié : horaires propres » (masquée si le jour copié est le vrai jour). La barre d’aujourd’hui, la ligne d’aujourd’hui de la semaine et la vue Horaires du jour montrent ce qui tourne vraiment ; elles ne se modifient pas directement ce jour-là (utilisez la section **Jour férié** de la fenêtre des horaires ; l’icône calendrier de l’en-tête ouvre toujours la fenêtre). « Ensuite : demain … » ignore un éventuel jour férié demain.
-- **Dans la fenêtre des horaires** : une section repliable **Jour férié** sous le schéma de la semaine, fermée par défaut et masquée sans entité, avec un interrupteur *Horaires différents les jours fériés* (désactivé = jour normal, et le réglage reste en mémoire : le réactiver le fait revenir ; activé pour la première fois = horaires du dimanche), puis deux choix : *Mêmes horaires que :* un jour de la semaine, ou *Mes propres horaires* (une journée réglée comme les autres, horaires par appareil permis ; un horaire qui passe minuit est coupé à 24 h). Choisir *Mêmes horaires que :* garde vos propres horaires en mémoire. La section s’affiche pour chaque mode, actif ou non : chaque mode a son propre réglage. Un mode qui en suit un autre montre le jour férié de sa source, en lecture seule.
+- **Dans la fenêtre des horaires** : une section repliable **Jour férié** à la fin du cadre **Horaires**, après la liste des horaires, fermée par défaut et masquée sans entité, avec un interrupteur *Horaires différents les jours fériés* (désactivé = jour normal, et le réglage reste en mémoire : le réactiver le fait revenir ; activé pour la première fois = horaires du dimanche), puis deux choix : *Mêmes horaires que :* un jour de la semaine, ou *Mes propres horaires* (une journée réglée comme les autres, horaires par appareil permis ; un horaire qui passe minuit est coupé à 24 h). Choisir *Mêmes horaires que :* garde vos propres horaires en mémoire. La section s’affiche pour chaque mode, actif ou non : chaque mode a son propre réglage. Un mode qui en suit un autre montre le jour férié de sa source, en lecture seule.
 
 ## Permissions et options
 
@@ -342,6 +342,6 @@ Le graphique distingue historique absent, futur ou indisponible et absence
 d’action prévue. Un échec d’historique ne masque pas les prévisions. Une liste vide
 invite à vérifier les types, pièces et programmes filtrés. Si une action manque,
 vérifier sa cible, les fonctions supportées, les attributs et `allowed_services`.
-Utiliser les attributs de l’interrupteur, Repairs, notifications et journaux HA. Réparations créées par l’intégration : `missing_entities`, `yaml_invalid`, `modes_now_global` et `mode_option_missing`. Les notifications persistantes signalent une entité indisponible dont l’action reste en attente, une action qui n’a pas pu être exécutée et un fichier de configuration illisible (programmes en pause, rien n’est écrasé).
+Utiliser les attributs de l’interrupteur, les réparations, les notifications et journaux HA. Réparations créées par l’intégration : `missing_entities`, `yaml_invalid`, `modes_now_global` et `mode_option_missing`. Les notifications persistantes signalent une entité indisponible dont l’action reste en attente, une action qui n’a pas pu être exécutée et un fichier de configuration illisible (programmes en pause, rien n’est écrasé).
 Les appels échoués ont des reprises bornées ; une valeur invalide est signalée
 sans répétition de la même valeur refusée.

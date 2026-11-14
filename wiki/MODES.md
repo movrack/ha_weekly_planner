@@ -11,8 +11,8 @@ suspend anything by itself.
 The mode comes from one Home Assistant `input_select` or `select` entity, which
 you probably already have (a dashboard button, an alarm panel, an automation).
 
-1. Open **Settings → Devices & services → Weekly Planner → Configure**.
-2. Choose the **Mode selector** (optional). Only administrators can do this.
+1. Open **Settings → Devices & services → Weekly Planner → Configure**, then **Settings**.
+2. In **Mode and day off**, choose the **Mode selector** (optional). Only administrators can do this.
 3. Choose the **Default Mode** among the options of that selector.
 
 The options of the selector are the modes. Weekly Planner only reads the
@@ -70,21 +70,29 @@ marked “(no longer exists)”, and a mode that follows another one “(same sc
   same order and exactly one name changed, the schedules follow the new name in
   every program. The schedules screen (not the card) says **The mode X was renamed to Y**, with an **Undo** button for a
   week and an **OK** button that dismisses the notice.
-- **Anything else**: Weekly Planner does not guess. The old mode stays with its
+- **Anything else**: Weekly Planner does not guess. The mode with no option stays with its
   schedules, marked **no longer exists** (it is never used), and nothing is erased. A
   notice in the schedules screen offers each new option ("Did it
   become…?") or **Delete its schedules**, and a repair message (“a mode matches no option”) points to it. Nothing
   changes until you answer.
 
+## Day off
+
+A day off is a setting of each mode, not a mode. In the schedules window, open **Day off** at the end of the
+**Schedules** box and turn on **Different schedule on days off**; choose **Same as:** a weekday, or **My own
+schedule**. Turning it off keeps the setting in memory. The mode has priority over the day off: the day off
+only applies to the current mode. The entity that says whether today is a day off is chosen in
+**Configure → Settings → Mode and day off**; see the [reference](REFERENCE.md#day-off).
+
 ## Suspension and priority
 
-**Suspension of all programs** is a separate global switch, an entity of the integration
+The **All programs suspended** switch is a separate global switch, an entity of the integration
 (**Settings → Devices & services → Weekly Planner**); the card only shows the chip “All programs suspended”. It wins over the
 mode and is not the Vacation mode. A mode never adds priority: among programs
 that share a device, the lowest priority number still wins.
 
 A change of mode recalculates the action for the current time and does not
-replay earlier actions. It does not enable a disabled program and does not skip
+replay earlier actions. It does not resume a paused program and does not skip
 its conditions.
 
 ## Automations
@@ -102,6 +110,3 @@ data:
 A time-based change (summer / winter) is an automation that changes the
 selector. Ready-to-use examples (workday sensor, school holidays, away when nobody
 is home) are in the [Recettes pour les modes](Recettes-pour-les-modes) (French).
-
-Source references: `custom_components/weekly_planner/{modes,engine,config_flow}.py`,
-`frontend/src/components/{schedule-dialog,mode-notice}.ts`.

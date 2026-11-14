@@ -74,7 +74,7 @@ This enables its triggers during the slot; it does not run the automation now.
 `automation.trigger` is a different action. Already-running actions follow HA’s
 `stop_actions` option when disabled; inspect the chosen fields when relevant.
 Priorities, conditions, global pause and reapply still follow the normal program
-rules. Vacation is an ordinary weekly mode, separate from the global pause switch.
+rules. Vacation is an ordinary weekly mode, separate from the **All programs suspended** switch.
 
 ## Run a sequence with delays
 
@@ -118,9 +118,7 @@ switched off or the mode changes, and the script's own `mode` option (`single`,
 domain and a few others stay reserved to administrators; `script` and `automation`
 are not among them.
 
-## Verification limits
+## See also
 
-Automated checks cover metadata discovery, unknown domains, service restrictions,
-explicit targets and dynamic sources. These examples do not claim a physical test
-of a particular thermostat or blind. Replace example entity IDs with actual IDs.
+Replace example entity IDs with actual IDs.
 See [the integrator reference](REFERENCE.md) and [mode reference](MODES.md).
