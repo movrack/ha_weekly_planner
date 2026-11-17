@@ -28,10 +28,10 @@ Card examples are in the [README](../README.md#examples).
 | `type` | `custom:weekly-planner-card`. |
 | `program` | Existing internal program ID, or a program name (see below). A nonempty value selects one program instead of applying filters. |
 | `filter.types` | Entity domains found in programs. Missing or empty means all domains. Unknown domains remain usable. |
-| `filter.area` | Exact match against the program’s `area`, assigned in General settings. The editor offers existing program areas and retains missing selections. Device rooms are not inferred. |
+| `filter.area` | One room (a text) or several rooms (a list of texts); a program is shown when its `area` matches any of them. The room of a program is assigned in General settings. Spellings of the same room are merged (case, accents, `_` and `-` are ignored), and a text that is the id or the name of a Home Assistant area shows that area’s name: `bureau`, `Bureau` and `chambre_celine_manu` appear as **Bureau** and **Chambre Céline Manu**. Choosing such a room stores the area id, otherwise the text; an older value still selects the right room. The editor retains missing selections. Nothing stored in the programs changes, and device rooms are not inferred. |
 | `filter.programs` | Optional list of program IDs or names (see below), intersected with type/area filters. Missing means all programs, including future ones; `[]` means none. |
 | `title` | Optional card title. |
-| `schedule_view` | `bars` (default), `list`, `radial` (24-hour dial), `radial_12h` (concentric 12-hour dials), or `times` (**Daily times**: today as a plain list, one row per stretch with its setting, until when, and a “Now” mark; the calendar icon in the header, or a tap on a row, opens today in the schedule window). All work with single-program and filtered cards. |
+| `schedule_view` | `bars` (default), `list`, `radial` (24-hour dial), `radial_12h` (concentric 12-hour dials), `compare` (**Comparison**: one day at a time for the whole card (chips Mon to Sun and **Day off**, today by default), one bar per device, every program mixed in the order of `sort` and `order`; read only, an icon at the top right opens the choice of the program to edit; the bars of a paused program are greyed and say “paused”; a **Day off** chip appears when a day off is switched on for a program of the card), or `times` (**Daily times**: today as a plain list, one row per stretch with its setting, until when, and a “Now” mark; the calendar icon in the header opens today in the schedule window). All work with single-program and filtered cards. |
 | `sort` | Order of the list: `type` (default: by type A→Z, then name; types are named by Home Assistant, with a small heading each), `area` (by room A→Z with headings, programs without a room under “Others”), `name` (A→Z) or `custom` (the `order` list). The first device of a program gives its type. |
 | `order` | With `sort: custom`: program IDs in the wanted order. Set in the editor (drag handle or up/down buttons). A program missing from the list goes last (by type, then name); an unknown ID is ignored. |
 | Time format | No option: the card follows the 12 h or 24 h setting of your Home Assistant profile (12 h shows am/pm, “midnight” and “noon”; the time fields of the slot editor show the chosen time, such as “= 10:30 pm”, under them). |
@@ -40,9 +40,9 @@ Card examples are in the [README](../README.md#examples).
 
 **YAML reference.** Every option of the visual editor can be set in the YAML code editor, with the same
 effect, and switching between both keeps all keys (including keys this card does not know). Types:
-`title`, `program`, `filter.area` are strings; `filter.types` and `filter.programs` are lists of strings
+`title` and `program` are strings; `filter.area`, `filter.types` and `filter.programs` are lists of strings
 (a single string is accepted as a one-item list); `schedule_view` is one of `bars`, `list`, `radial`,
-`radial_12h`, `times`; `sort` is one of `type`, `area`, `name`, `custom`; `order` is a list of strings; `show_chart` and `chart_collapsed` are booleans. A value of the wrong type is ignored and
+`radial_12h`, `times`, `compare`; `sort` is one of `type`, `area`, `name`, `custom`; `order` is a list of strings; `show_chart` and `chart_collapsed` are booleans. A value of the wrong type is ignored and
 the default applies; a configuration that is not a YAML mapping shows a clear error card. In the visual
 editor, the type and program switches write `filter.programs` (and only ever widen or, for an empty type,
 remove an entry of `filter.types`), so a YAML `filter.types`-only configuration keeps working.
@@ -58,14 +58,14 @@ list; the visual editor rewrites the selection as IDs (stable) on the first chan
 ```yaml
 type: custom:weekly-planner-card
 title: Schedules                # default: none
-schedule_view: bars             # bars | list | radial | radial_12h | times
+schedule_view: bars             # bars | list | radial | radial_12h | times | compare
 sort: type                      # type | area | name | custom (default type)
 order: []                       # program IDs, used when sort is custom
 show_chart: true                # default true
 chart_collapsed: true           # default true (collapsed)
 filter:                         # ignored when `program` is set
   types: [climate, cover]       # default: all
-  area: Living room             # default: all areas
+  area: Living room             # default: all rooms; one text or a list: [Living room, Office]
   programs: [ID1, Bureau]       # IDs or names; default: all (future ones included)
 ```
 
@@ -79,8 +79,8 @@ used to group programs; it is independent of HA device rooms.
 The dial displays the same resolved schedule data as the bars and opens the
 existing editor. The inner 12-hour ring covers midnight–noon and the outer ring noon–midnight.
 Both dial variants use the bars’ colours, hourly marks and solar markers.
-Click or long-press a dial to edit its arcs with the handles. In a compact list,
-clicking a row expands its bar inline. The week unfolds on demand. A dialog has an **Enlarge / reduce** button
+A single click never edits: long-press a dial or a bar (finger or mouse) to edit its arcs with the handles. In a compact list,
+clicking a row expands its bar inline. Each device takes two lines (its name, then the next action and its time in small type); the leading word shared by every device of a group is dropped. The week unfolds on demand. A dialog has an **Enlarge / reduce** button
 (arrows, next to the close cross) to widen it on desktop. Mobile dialogs already occupy
 the full screen; a downward swipe on the header closes them.
 

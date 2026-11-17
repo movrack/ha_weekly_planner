@@ -4,9 +4,10 @@
 // `filter.programs`; `filter.types` is only ever widened (to let an enabled program through) or, for a type
 // with no program left, removed. Nothing is hardcoded: groups come from the entities' domains.
 import { entityDomain, selectedProgramIds } from "./planner";
-import type { Program } from "./types";
+import { areaList, roomKey, roomKeys } from "./program-areas";
+import type { HomeAssistant, Program } from "./types";
 
-export interface FilterConfig { types?: string[]; area?: string; programs?: string[] }
+export interface FilterConfig { types?: string[]; area?: string | string[]; programs?: string[] }
 export type FilterPatch = { types?: string[]; programs?: string[] };
 export interface TypeGroup { type: string; label: string; programs: { id: string; name: string }[] }
 
@@ -70,9 +71,10 @@ export function toggleProgram(programs: Program[], filter: FilterConfig | undefi
   return build(programs, filter, ids, on && p ? domainsOf(p) : []);
 }
 
-export function toggleType(programs: Program[], filter: FilterConfig | undefined, type: string, on: boolean): FilterPatch {
+/** `visible` = the programs the editor lists (a room is chosen): only those change, the others keep their state. */
+export function toggleType(programs: Program[], filter: FilterConfig | undefined, type: string, on: boolean, visible: Program[] = programs): FilterPatch {
   const ids = currentIds(programs, filter);
-  const members = programs.filter((p) => domainsOf(p).includes(type));
+  const members = visible.filter((p) => domainsOf(p).includes(type));
   for (const p of members) { if (on) ids.add(p.id); else ids.delete(p.id); }
   const patch = build(programs, filter, ids, on ? [type] : []);
   if (!on && !members.length && patch.types) patch.types = patch.types.filter((t) => t !== type);
@@ -83,20 +85,22 @@ export function toggleType(programs: Program[], filter: FilterConfig | undefined
 export const allPrograms = (): { types: undefined; programs: undefined } => ({ types: undefined, programs: undefined });
 
 /** Master switch turned off: nothing selected yet (configured types stay), refine with the type/program switches. */
-export function toggleAllOff(programs: Program[], filter?: FilterConfig): FilterPatch {
-  return build(programs, filter, new Set(), []);
+export function toggleAllOff(programs: Program[], filter?: FilterConfig, visible: Program[] = programs): FilterPatch {
+  const keep = currentIds(programs, filter);
+  for (const p of visible) keep.delete(p.id); // with a room chosen, the programs of other rooms keep their state
+  return build(programs, filter, keep, []);
 }
 
 /** Card config after creating `created`: it must be what the card shows. Single-program mode points to it; list
  *  mode keeps its mode and only widens the filter (id list, types, area) when it would otherwise hide the new program. */
-export function selectCreated<T extends { program?: string; filter?: FilterConfig }>(config: T, programs: Program[], created: Program): T {
+export function selectCreated<T extends { program?: string; filter?: FilterConfig }>(config: T, programs: Program[], created: Program, hass?: Pick<HomeAssistant, "areas">): T {
   if (config.program !== undefined) {
     const { filter: _drop, ...rest } = config;
     return { ...rest, program: created.id } as T;
   }
   const all = programs.some((p) => p.id === created.id) ? programs : [...programs, created];
   let filter: FilterConfig = { ...(config.filter ?? {}) };
-  if (filter.area && created.area !== filter.area) delete filter.area;
+  if (areaList(filter.area).length && !roomKeys(hass, filter.area).has(roomKey(hass, created.area))) delete filter.area;
   if (!isOn(created, filter, all)) filter = { ...filter, ...toggleProgram(all, filter, created.id, true) };
   return { ...config, filter } as T;
 }

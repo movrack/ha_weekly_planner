@@ -123,6 +123,12 @@ describe("schedule screen editing", () => {
     const r = view.render();
     find(r, "label-draft", "wp-slot-form").fn({ stopPropagation() {}, detail: { problem: "p" } });
     expect(view._labelDraft).toEqual({ problem: "p" });
+    view._saveLabelDraft = vi.fn(async () => true);
+    find(view.render(), "label-commit", "wp-slot-form").fn({ stopPropagation() {} });
+    expect(view._saveLabelDraft).toHaveBeenCalled();
+    view._onLabelReplaced = vi.fn();
+    find(view.render(), "label-replaced", "wp-slot-form").fn({ stopPropagation() {}, detail: { from: "a", to: "b", revisions: {} } });
+    expect(view._onLabelReplaced).toHaveBeenCalledWith({ from: "a", to: "b", revisions: {} });
     const g = { ...view._group, days: [0, 1] };
     find(view.render(), "group-change", "wp-slot-form").fn({ stopPropagation() {}, detail: g });
     expect(view._group.days).toEqual([0, 1]);
@@ -335,10 +341,11 @@ describe("schedule screen editing", () => {
     const { view } = make();
     const editor: any = { scrollIntoView: vi.fn(), getBoundingClientRect: () => ({ top: 500 }) };
     const content: any = { scrollTop: 0, getBoundingClientRect: () => ({ top: 100, bottom: 400 }) };
-    view.renderRoot = { querySelector: (s: string) => (s === ".editor" ? editor : { shadowRoot: { querySelector: () => content } }) };
-    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    let width = 700;
+    const panel = { getBoundingClientRect: () => ({ width }) };
+    view.renderRoot = { querySelector: (s: string) => (s === ".editor" ? editor : { shadowRoot: { querySelector: (x: string) => (x === ".panel" ? panel : content) } }) };
     view._revealEditor(); expect(editor.scrollIntoView).toHaveBeenCalled();
-    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+    width = 736;
     view._revealEditor(); expect(content.scrollTop).toBe(400);
     editor.getBoundingClientRect = () => ({ top: 200 }); content.scrollTop = 0; view._revealEditor(); expect(content.scrollTop).toBe(0);
     view.renderRoot = { querySelector: () => null }; view._revealEditor();

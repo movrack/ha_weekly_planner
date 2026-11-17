@@ -54,10 +54,10 @@ describe("bar keyboard access", () => {
       expect(el.dispatchEvent.mock.calls[0][0].type).toBe("edit-request");
     }
   });
-  it("opens the day when the bar is not editable", () => {
+  it("opens nothing when the bar is not editable", () => {
     const el = bar(false);
     el._zoneKey(key("Enter"));
-    expect(el.dispatchEvent.mock.calls[0][0].type).toBe("open-day");
+    expect(el.dispatchEvent.mock.calls).toHaveLength(0);
   });
   it("ignores keys that come from a handle inside", () => {
     const el = bar();

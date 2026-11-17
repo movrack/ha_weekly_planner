@@ -110,6 +110,7 @@ LABEL = vol.Schema({
     vol.Required("name"): vol.All(str, vol.Length(min=1, max=30)),
     vol.Optional("color", default="#9e9e9e"): vol.Match(r"^#[0-9a-fA-F]{6}$"),
     vol.Required("action"): ACTION,
+    vol.Optional("show_value"): bool,  # the card adds the preset's temperature to the name (display only)
 })
 
 CONDITION = vol.Schema({

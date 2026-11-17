@@ -67,10 +67,7 @@ export class WpTimesDay extends LitElement {
           ${r.now ? html`<span class="now"><ha-icon icon="mdi:clock-outline"></ha-icon>${t(this.lang, "times_now")}</span>` : nothing}</span>
         ${this._details(r)}
       </span>`;
-    const name = this.deviceName ? `${this.deviceName}, ${r.label}` : r.label;
-    return html`<li class=${r.now ? "current" : r.done ? "done" : ""} aria-current=${r.now ? "time" : nothing}>${this.editable && !this.locked
-      ? html`<button class="row" title=${t(this.lang, "times_row_open", { name })} @click=${() => this._open()}>${content}</button>`
-      : html`<div class="row">${content}</div>`}</li>`;
+    return html`<li class=${r.now ? "current" : r.done ? "done" : ""} aria-current=${r.now ? "time" : nothing}><div class="row">${content}</div></li>`;
   }
 
   /** Loading, failed or empty: a message and maybe a button. Null when the list is shown. */

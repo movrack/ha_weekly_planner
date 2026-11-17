@@ -107,11 +107,27 @@ export class WpDialog extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     this.addEventListener("keydown", this._onKey);
+    this._markPopover();
+  }
+
+  /** Top layer: a dialog opened from a pop-up (Bubble Card) or any transformed / clipped ancestor is no longer cut off or hidden under its header. */
+  private _markPopover(): void {
+    if (typeof this.showPopover === "function" && !this.hasAttribute("popover")) this.setAttribute("popover", "manual");
+  }
+
+  /** Puts the dialog in (or takes it out of) the browser's top layer. Older browsers keep the plain fixed layer. */
+  private _layer(on: boolean): void {
+    try {
+      const open = this.matches(":popover-open");
+      if (on && !open) this.showPopover();
+      else if (!on && open) this.hidePopover();
+    } catch { /* no popover support: the fixed layer is used */ }
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
     this.removeEventListener("keydown", this._onKey);
+    this._layer(false);
     this._release();
   }
 
@@ -250,13 +266,15 @@ export class WpDialog extends LitElement {
   updated(changed: Map<string, unknown>): void {
     if (!changed.has("open")) return;
     if (this.open) {
+      this._layer(true);
       this._track();
       requestAnimationFrame(() => { if (this.open) this._focusFirst(); });
-    } else this._release();
+    } else { this._layer(false); this._release(); }
   }
 
   close(): void {
     this.open = false;
+    this._layer(false);
     this._release();
     this.dispatchEvent(new CustomEvent("closed", { bubbles: true, composed: true }));
   }
@@ -288,17 +306,20 @@ export class WpDialog extends LitElement {
     ${tokenStyles}
     :host { position: fixed; inset: 0; z-index: 9; pointer-events: none; }
     :host([open]) { pointer-events: auto; }
+    /* in the top layer the browser's popover defaults must not shrink or frame the dialog */
+    :host([popover]) { margin: 0; padding: 0; border: 0; background: none; color: inherit; overflow: visible; width: 100%; height: 100%; max-width: none; max-height: none; }
     .backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); }
     .panel {
       position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-      width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 64px);
+      width: min(560px, calc(100% - 32px)); max-height: calc(100% - 64px);
+      container: wpdlg / inline-size; /* the editor inside answers to this box, not to the screen (a pop-up bubble is narrower) */
       display: flex; flex-direction: column; outline: none;
       background: var(--card-background-color, #fff); color: var(--primary-text-color);
       border-radius: var(--ha-card-border-radius, 16px); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
     }
-    .panel.wide { width: min(880px, calc(100vw - 32px)); }
-    @media (min-width: 768px) { .panel.columns { width: min(960px, calc(100vw - 32px)); } }
-    .panel.expanded { width: min(1400px, calc(100vw - 32px)); }
+    .panel.wide { width: min(880px, calc(100% - 32px)); }
+    .panel.columns { width: min(960px, calc(100% - 32px)); }
+    .panel.expanded { width: min(1400px, calc(100% - 32px)); }
     .expand {
       position: absolute; top: 16px; right: 68px; width: 48px; height: 48px; border: none; background: none; color: inherit;
       --mdc-icon-size: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: 24px; cursor: pointer;
@@ -324,11 +345,11 @@ export class WpDialog extends LitElement {
     @media (max-width: 600px) {
       h2 { font-size: 1.125rem; padding-right: 0; }
       .expand { display: none; }
-      .panel, .panel.wide, .panel.expanded {
-        left: 0; top: 0; transform: none; width: 100vw; height: 100vh; max-height: none; border-radius: 0;
+      .panel, .panel.wide, .panel.columns, .panel.expanded {
+        left: 0; top: 0; transform: none; width: 100%; height: 100%; max-height: none; border-radius: 0;
       }
       /* confirmation / choice: content-sized bottom sheet over the backdrop instead of a full screen */
-      :host([compact]) .panel, :host([compact]) .panel.wide, :host([compact]) .panel.expanded {
+      :host([compact]) .panel, :host([compact]) .panel.wide, :host([compact]) .panel.columns, :host([compact]) .panel.expanded {
         left: 0; right: 0; top: auto; bottom: 0; width: 100%; height: auto; max-height: 90vh; max-height: 90dvh;
         border-radius: var(--ha-card-border-radius, 16px) var(--ha-card-border-radius, 16px) 0 0;
       }

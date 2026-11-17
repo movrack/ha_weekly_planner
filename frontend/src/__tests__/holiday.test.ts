@@ -105,10 +105,9 @@ describe("card on a day off", () => {
     const el = new WpTimesDay() as any;
     el.lang = "en"; el.editable = true; el.state = "ready";
     el.rows = [{ startMin: 600, label: "Open", color: "#0f0", until: null, now: false, done: false }];
-    expect(flat(el.render())).toContain('<button class="row"');
+    expect(flat(el.render())).not.toContain('<button class="row"'); // a row never opens the editor (owner, 2026-11-15)
     el.locked = true;
     const t = flat(el.render());
-    expect(t).not.toContain('<button class="row"');
     expect(t).not.toContain('class="action"');
   });
   it("a locked empty day shows no Add a schedule button, an unlocked one does", () => {
@@ -485,7 +484,7 @@ describe("keyboard and screen reader", () => {
     expect(seen).toEqual(["locked-request"]);
     bar.lockedReason = "";
     bar._zoneKey({ key: "Enter", target: zone, currentTarget: zone, preventDefault() {} });
-    expect(seen).toEqual(["locked-request", "open-day"]);
+    expect(seen).toEqual(["locked-request"]); // nothing opens on a click or Enter any more
   });
   it("the card passes the reason to today's bar only", () => {
     const p = program();
@@ -627,10 +626,21 @@ describe("day-off row under Sunday in the week schematics", () => {
     expect(open.indexOf("wday-off")).toBeGreaterThan(open.lastIndexOf('class="wday"'));
   });
   it("card: absent with no setting, off, no entity; follows the source; cut at 24:00", () => {
-    for (const [h, data] of [[undefined, {}], [{ copy: 6, off: true }, {}], [{ copy: 6 }, { holiday_entity: null }]] as any[]) {
-      const x = cardWeek(profile(h), data);
-      expect(flat(x.c._holidayRow("cover.b", x.p))).toBe("");
+    // no day-off entity, no setting or switched off: no row (the Comparison view says "like a normal day" instead)
+    const none = cardWeek(profile({ copy: 6 }), { holiday_entity: null });
+    expect(flat(none.c._holidayRow("cover.b", none.p))).toBe("");
+    for (const h of [undefined, { copy: 6, off: true }] as any[]) {
+      const x = cardWeek(profile(h));
+      const out = flat(x.c._holidayRow("cover.b", x.p));
+      expect(out).toBe("");
     }
+    // a copy shows "like <day>"; an own day shows the bar alone
+    const cp = cardWeek(profile({ copy: 6 }));
+    expect(flat(cp.c._holidayRow("cover.b", cp.p))).toContain("like Sunday");
+    const ow = cardWeek(profile({ day: [slot("h", "10:00", "11:00")] }));
+    const owh = flat(ow.c._holidayRow("cover.b", ow.p));
+    expect(owh).not.toContain("like ");
+    expect(owh).not.toContain(t("en", "compare_not_set"));
     const src = { id: "pa", name: "A", days: days(), holiday: { day: [slot("h", "12:00", "13:00")] } };
     const p: any = { ...program("p"), profiles: [src, { id: "pb", name: "B", days: days(), follows: "A" }] };
     const f = cardWeek(null, { mode: { selector: "input_select.m", active: "B", options: ["A", "B"] } }, p);

@@ -241,7 +241,7 @@ describe("hold hint mutants", () => {
     expect(store.get("weekly_planner.hold_hint")).toBe("5");
     store.set("weekly_planner.hold_hint", "1");
     dismissHoldHint();
-    expect(store.get("weekly_planner.hold_hint")).toBe("3");
+    expect(store.get("weekly_planner.hold_hint")).toBe("5");
   });
 });
 
@@ -379,13 +379,11 @@ describe("wp-times-day mutants", () => {
     c.renderRoot = { querySelector: () => null };
     expect(() => c._retry()).not.toThrow();
   });
-  it("a row of an editable list opens the day, and says which device it is for", () => {
+  it("a row of an editable list is plain text: it opens nothing", () => {
     const c = comp({ rows: [row()], editable: true, deviceName: "Boiler" });
     const html = flat(c.render());
-    expect(html).toContain("Edit the day, Boiler, Heat");
-    expect(flat(comp({ rows: [row()], editable: true }).render())).toContain("Edit the day, Heat");
-    const [open] = ev(c, (x) => find(x.render(), "click", 'class="row"').fn());
-    expect(open.type).toBe("open-day");
+    expect(html).not.toContain("<button class=\"row\"");
+    expect(html).toContain("Heat");
   });
   it("says until when, 'until tomorrow' for the next day, nothing when the end is unknown", () => {
     expect(flat(comp({ rows: [row({ until: { day: "today", min: 540 } })] }).render())).toContain("until 9 am");
@@ -594,7 +592,8 @@ describe("slot form mutants: sun wording, fold, delay input, label change", () =
     expect(plain.el._advOpen).toBe(false);
     const delayed = mk({ id: "d", end: { time: "09:00", random_minutes: 5 } });
     delayed.el.willUpdate();
-    expect(delayed.el._advOpen).toBe(true);
+    expect(delayed.el._advOpen).toBe(false); // the delay is on the end: only the end fold opens
+    expect(delayed.el._advOpenEnd).toBe(true);
     const noGroup = new WpSlotForm() as any;
     expect(() => noGroup.willUpdate()).not.toThrow();
   });

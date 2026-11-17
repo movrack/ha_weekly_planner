@@ -132,3 +132,20 @@ describe("multi-type programs: one row, quick type helper", () => {
     expect(on.programs).toEqual(["t", "u", "v"]);
   });
 });
+
+describe("a room is chosen: only the listed programs change", () => {
+  const visible = [programs[0], programs[1]]; // a, b (both covers); c and d are in another room
+  it("master switch off deselects the listed programs only", () => {
+    const f = apply({}, toggleAllOff(programs, {}, visible));
+    expect(f.programs.sort()).toEqual(["c", "d"]);
+  });
+  it("master switch off without a room still selects nothing", () => {
+    expect(apply({}, toggleAllOff(programs, {})).programs).toEqual([]);
+  });
+  it("a type switch only touches the listed members of that type", () => {
+    const off = apply({}, toggleType(programs, {}, "cover", false, visible));
+    expect(off.programs.sort()).toEqual(["c", "d"]);
+    const on = apply(off, toggleType(programs, off, "cover", true, [programs[0]]));
+    expect(on.programs.sort()).toEqual(["a", "c", "d"]);
+  });
+});

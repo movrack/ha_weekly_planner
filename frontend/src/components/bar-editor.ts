@@ -22,7 +22,7 @@ import type { At, DayCtx, Handle, Target } from "../edits";
 import { editorStyles } from "../editors/shared";
 import { callout } from "../styles";
 import { devicesOf, isShared, isolateForDevice, remergeIdentical, undoSlots } from "../device-edits";
-import { dismissHoldHint, HOLD_HINT_MS, takeHoldHint } from "../hold-hint";
+import { dismissHoldHint, HOLD_HINT_MS } from "../hold-hint";
 import { slotDeviceError, strings, t } from "../i18n";
 import { appliedAction, labelName, labelOf, labelsFor } from "../labels";
 import { onServiceNames } from "../services";
@@ -246,7 +246,7 @@ export class WpBarEditor extends LitElement {
     if (this.editing || e.button !== 0) return;
     const mouse = e.pointerType === "mouse";
     this._press = { id: e.pointerId, x: e.clientX, y: e.clientY, fired: false, mouse };
-    if (this.editable && !mouse) {
+    if (this.editable) {
       this._press.timer = window.setTimeout(() => {
         if (!this._press) return;
         this._press.fired = true;
@@ -288,28 +288,18 @@ export class WpBarEditor extends LitElement {
       this._mvUp(e);
       return;
     }
-    if (p.mouse && this.editable) this._emit("edit-request");
-    else if (this.editable && !p.mouse) this._tapHint();
+    // a plain click or tap never edits (owner, 2026-11-15): it only says how, or why the day cannot be edited
+    if (this.editable) this._tapHint();
     else if (this.lockedReason) this._emit("locked-request");
-    else this._emit("open-day");
   }
 
-  /** A plain touch on an editable bar: tell how to edit for 2 s, then open the day screen as before (a second tap opens it at once). */
+  /** A plain click or tap on an editable bar: tell how to edit for 2 s (long press, or the icon at the top right). */
   private _tapHint(): void {
-    if (this._hint) {
-      this._clearHint();
-      this._emit("open-day");
-      return;
-    }
-    if (!takeHoldHint()) {
-      this._emit("open-day");
-      return;
-    }
+    window.clearTimeout(this._hintTimer);
     this._hint = true;
     this._hintTimer = window.setTimeout(() => {
       this._hint = false;
       this._hintTimer = undefined;
-      this._emit("open-day");
     }, HOLD_HINT_MS);
   }
 
@@ -330,7 +320,17 @@ export class WpBarEditor extends LitElement {
       dismissHoldHint();
       this._emit("edit-request");
     } else if (this.lockedReason) this._emit("locked-request");
-    else this._emit("open-day");
+  }
+
+  /** A click with no pointer behind it (screen reader, Switch Access, voice "click") opens the edit mode like Enter does. */
+  private _zoneClick(e: MouseEvent): void {
+    if (e.detail !== 0 || this.editing || e.target !== e.currentTarget) return;
+    if (this.editable) {
+      this._kbd = true;
+      this._clearHint();
+      dismissHoldHint();
+      this._emit("edit-request");
+    } else if (this.lockedReason) this._emit("locked-request");
   }
 
   private _zoneCancel(): void {
@@ -1153,8 +1153,9 @@ export class WpBarEditor extends LitElement {
     return html`
       <div class="zone ${this.editing ? "editing" : ""}" title=${this._tipText || (this.editing ? this._selectedTime : "")} tabindex=${ifDefined(this.editing ? undefined : 0)}
         role=${ifDefined(this.editing ? undefined : "button")} aria-label=${ifDefined(this.editing ? undefined : this._zoneLabel())}
+        aria-description=${ifDefined(this.editing || !this.editable ? undefined : t(this.lang, "hold_hint"))}
         aria-disabled=${ifDefined(this.lockedReason ? "true" : undefined)} aria-describedby=${ifDefined(this.lockedReason ? "locked-reason" : undefined)}
-        @keydown=${this._zoneKey}
+        @keydown=${this._zoneKey} @click=${this._zoneClick}
         @pointerdown=${(e: PointerEvent) => { this._tip = null; this._zoneDown(e); }}
         @pointermove=${(e: PointerEvent) => { this._zoneMove(e); this._tipMove(e); }} @pointerup=${this._zoneUp}
         @pointerleave=${() => { this._tip = null; }}

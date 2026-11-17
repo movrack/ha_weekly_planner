@@ -143,6 +143,6 @@ export class WpChartOptions extends LitElement {
     button:disabled { opacity:.4; } .states { display:flex; flex-wrap:wrap; gap:4px 12px; }
     label { display:flex; align-items:center; gap:6px; min-height:44px; font-size:0.875rem; }
     input[type="text"] { min-width:0; width:100%; box-sizing:border-box; min-height:44px; color:var(--primary-text-color); background:var(--card-background-color); border:1px solid var(--divider-color); border-radius:4px; padding:8px; }
-    small, p { color:var(--secondary-text-color); font-size:0.75rem; } p:empty { display:none; } .callout p { font-size:0.875rem; color:var(--primary-text-color); }
+    small, p { color:var(--secondary-text-color); font-size:0.875rem; } p:empty { display:none; } .callout p { font-size:0.875rem; color:var(--primary-text-color); }
   `;
 }

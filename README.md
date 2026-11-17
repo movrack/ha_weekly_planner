@@ -30,7 +30,8 @@ This project was developed with the assistance of AI agents.
 - **Modes**: one week of schedules per mode of the house (Home, Away, Vacation…), read from a selector
   entity that you choose.
 - **Day off**: another day of schedules on a holiday or day off, read from an entity that you choose.
-- **One card, five views**: bars, compact list, 24-hour dial, 12-hour dials, or today’s times, with a
+- **One card, six views**: bars, compact list (grouped by type, two lines per device), 24-hour dial, 12-hour dials,
+  today’s times, or a comparison of every device, one day at a time, with a
   chart of the day that compares the plan with the recorded history.
 - **Everyday controls**: skip the next change, pause a program for hours or days, suspend all programs,
   resynchronise the devices after an outage.
@@ -129,7 +130,7 @@ Every option can be set in the visual editor or in YAML. The main ones:
 |---|---|
 | `program` | Shows one program (its ID or its name). |
 | `filter` | Without `program`: keeps programs by `types`, `area` or `programs`. No filter shows every program. |
-| `schedule_view` | `bars` (default), `list`, `radial`, `radial_12h` or `times`. |
+| `schedule_view` | `bars` (default), `list`, `radial`, `radial_12h`, `times` or `compare` (every device, one day at a time, chosen with day chips). |
 | `sort`, `order` | Order of the list: by `type` (default), `area`, `name`, or your own order. |
 | `show_chart`, `chart_collapsed` | Chart button under each device, and whether the chart starts closed. |
 | `title` | Card title. |

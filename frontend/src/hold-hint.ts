@@ -1,8 +1,8 @@
-// "Hold to edit" hint on the bars (spec 14.12): shown for the first few plain taps on a device, then never again.
+// "Hold to edit" hint on the bars (spec 14.12): shown for the first five plain taps on a device, then never again.
 
 const KEY = "weekly_planner.hold_hint";
-export const HOLD_HINT_MAX = 3;
-export const HOLD_HINT_MS = 2000;
+export const HOLD_HINT_MAX = 5;
+export const HOLD_HINT_MS = 6000;
 
 function read(): number {
   try {

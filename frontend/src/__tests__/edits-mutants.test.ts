@@ -62,10 +62,13 @@ describe("busy days of a new slot", () => {
 });
 
 describe("a fresh group", () => {
-  it("is one hour from 8:00 by default, with no condition, flagged fresh, with no id yet per day", () => {
+  it("starts at 8:00 with no end by default, with no condition, flagged fresh, with no id yet per day", () => {
     const g = freshGroup("t15", [2, 3]);
     expect(g.slot.start).toEqual({ time: "08:00" });
-    expect(g.slot.end).toEqual({ time: "09:00" });
+    expect(g.slot.end).toBeUndefined();
+    expect("end" in g.slot).toBe(false);
+    expect(freshGroup("t", [0], { start: "10:00", end: "11:30" }).slot.end).toEqual({ time: "11:30" });
+    expect(freshGroup("t", [0], { start: "10:00" }).slot.end).toBeUndefined();
     expect(g.slot.conditions).toEqual([]);
     expect(g.fresh).toBe(true);
     expect(g.days).toEqual([2, 3]);

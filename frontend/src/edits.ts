@@ -110,9 +110,9 @@ export function nextTimes(daySlots: Slot[], minutes: Minutes, entityId?: string)
   return { start: minutesToClock(start), end: minutesToClock(Math.min(DAY, start + 60)) };
 }
 
-/** A new empty-handed slot (one hour) for the given days. */
-export function freshGroup(label: string, days: number[], times = { start: "08:00", end: "09:00" }): SlotGroup {
-  const slot: Slot = { id: newId(), start: { time: times.start }, end: { time: times.end }, conditions: [], label };
+/** A new empty-handed slot for the given days. Without `times.end` it has no end (owner, 2026-11-16: “One-time” is the default). */
+export function freshGroup(label: string, days: number[], times: { start: string; end?: string } = { start: "08:00" }): SlotGroup {
+  const slot: Slot = { id: newId(), start: { time: times.start }, ...(times.end ? { end: { time: times.end } } : {}), conditions: [], label };
   return { slot, days: [...days], ids: {}, fresh: true };
 }
 

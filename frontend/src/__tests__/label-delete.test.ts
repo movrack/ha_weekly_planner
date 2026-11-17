@@ -34,13 +34,14 @@ describe("delete a setting from the modal", () => {
     expect(html).toContain("disappears for every device");
     expect(html).toContain("Cancel");
   });
-  it("refuses when a program uses it, naming the programs, with no delete button", () => {
+  it("a setting in use is not deleted as is: it names the programs and offers to replace it everywhere", () => {
     const el = make([prog("Salon", "a"), prog("Bureau", "a")], vi.fn());
     el._confirmDel = true;
     const html = flat(el.render());
     expect(html).toContain("still in use: Salon, Bureau");
-    expect(html).not.toContain("danger-line\" ?disabled");
-    expect(html).toContain("Close");
+    expect(html).toContain("Replace it everywhere with:");
+    expect(html).toContain("Replace and delete");
+    expect(html).toContain("Cancel");
   });
   it("calls the server and tells the parent when it succeeds", async () => {
     const callWS = vi.fn().mockResolvedValue(undefined);

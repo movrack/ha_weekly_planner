@@ -99,13 +99,14 @@ describe("wp-tip", () => {
     find(el.render(), "focus", "hit").fn();
     find(el.render(), "keydown", "hit").fn({ key: "Escape" }); expect(view()).toBe(false);
   });
-  it("a touch tap shows the text for 2 s; a mouse press only stops propagation", () => {
+  it("a touch tap shows the text for 6 s; a mouse press only stops propagation", () => {
     vi.useFakeTimers();
     const el = tip();
     const stop = vi.fn();
     find(el.render(), "pointerdown", "hit").fn({ pointerType: "touch", stopPropagation: stop });
     expect(el._show).toBe(true); expect(stop).toHaveBeenCalled();
-    vi.advanceTimersByTime(2000); expect(el._show).toBe(false);
+    vi.advanceTimersByTime(5999); expect(el._show).toBe(true);
+    vi.advanceTimersByTime(1); expect(el._show).toBe(false);
     find(el.render(), "pointerdown", "hit").fn({ pointerType: "mouse", stopPropagation: stop });
     expect(el._show).toBe(false);
   });

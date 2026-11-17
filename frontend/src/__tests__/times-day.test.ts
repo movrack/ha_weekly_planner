@@ -17,11 +17,11 @@ function comp(props: Partial<WpTimesDay>): any {
 }
 
 describe("wp-times-day", () => {
-  it("is a real list, a row is a button only when editing is allowed", () => {
+  it("is a real list; a row is never a button (the icon at the top right edits)", () => {
     const view = flat(comp({ rows: [row()], editable: true }).render());
     expect(view).toContain("<ul");
     expect(view).toContain("<li");
-    expect(view).toContain("<button");
+    expect(view).not.toContain("<button");
     const ro = flat(comp({ rows: [row()], editable: false }).render());
     expect(ro).toContain("<ul");
     expect(ro).not.toContain("<button");
@@ -249,7 +249,7 @@ describe("times: approximate start, done rows, header icon, next line, week icon
   });
 
   it("the header icon is there in the times view too, as in every other view", () => {
-    const icon = (c: any) => flat(c._bySchedule(c._data.programs)).includes("mdi:calendar-edit\"></ha-icon></button>");
+    const icon = (c: any) => flat(c._bySchedule(c._data.programs)).includes("mdi:calendar-edit\"></ha-icon><span class=\"hl\">");
     const c = card([program("p", ["switch.a"])]);
     expect(flat(c._bySchedule(c._data.programs))).toContain("wp-times-day");
     expect(icon(c)).toBe(true);

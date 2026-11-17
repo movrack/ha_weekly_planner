@@ -110,6 +110,12 @@ describe("tooltips of the bar icons", () => {
     expect(sunTip("fr", { sun: "sunset", offset: 30 }, 17 * 60 + 55)).toBe("Coucher du soleil + 30 min · 17 h 55");
     expect(sunTip("fr", { sun: "sunrise", offset: -15 }, 7 * 60 + 43)).toBe("Lever du soleil - 15 min · 7 h 43");
     expect(sunTip("en", { sun: "sunset" }, 17 * 60 + 25)).toBe("Sunset · 5:25 pm");
+    expect(sunTip("fr", { sun: "sunset", random_minutes: 20 }, 17 * 60 + 14, 16 * 60 + 55)).toBe("Coucher du soleil · 16 h 55\n+ jusqu’à 20 min au hasard");
+    expect(sunTip("en", { sun: "sunset", offset: 10, random_minutes: 20 }, 17 * 60 + 21, 17 * 60 + 13)).toBe("Sunset + 10 min · 5:13 pm\n+ up to 20 min at random");
+    expect(sunTip("en", { sun: "sunset", random_minutes: 20 }, 17 * 60 + 40)).toBe("Sunset, at random · 5:40 pm");
+    expect(sunTip("fr", { sun: "sunset", latest: "22:00" }, 16 * 60 + 55)).toBe("Coucher du soleil · 16 h 55"); // a bound that does not decide is not named
+    expect(sunTip("fr", { sun: "sunset", earliest: "17:15" }, 17 * 60 + 15)).toBe("Coucher du soleil, pas avant 17 h 15 · 17 h 15");
+    expect(sunTip("en", { sun: "sunset", latest: "17:00" }, 17 * 60)).toBe("Sunset, not after 5 pm · 5 pm");
     expect(sunTip("fr", { time: "08:00" }, 480)).toBe("");
   });
   it("says now with the time", () => {

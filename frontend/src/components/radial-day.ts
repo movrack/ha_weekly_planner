@@ -110,9 +110,9 @@ export class WpRadialDay extends LitElement {
       ${segments.flatMap((s) => {
         const icons = [];
         if (s.start === s.source.start && s.source.startSun) icons.push(this._icon(s.offset, radius(s.ring),
-          s.source.startSun === "up" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down", sunTip(this.lang, s.source.startSpec, s.start)));
+          s.source.startSun === "up" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down", sunTip(this.lang, s.source.startSpec, s.start, s.source.startBase)));
         if (!s.source.marker && s.end === s.source.end && s.end < 1440 && s.source.endSun) icons.push(this._icon(s.offset + s.fraction, radius(s.ring),
-          s.source.endSun === "up" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down", sunTip(this.lang, s.source.endSpec, s.end)));
+          s.source.endSun === "up" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down", sunTip(this.lang, s.source.endSpec, s.end, s.source.endBase)));
         return icons;
       })}
       ${now === null ? nothing : this._icon(nowTurn, radius(nowRing) - width / 2 - 12, "mdi:clock-outline", nowTip(this.lang, now), true)}

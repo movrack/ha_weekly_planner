@@ -160,7 +160,7 @@ describe("card names and notices", () => {
     const p = program(1);
     const c = card(p);
     const html = flat(c._line("switch.d0", [p], { name: "Salon", button: { kind: "program", programId: "p" }, open: { kind: "program", programId: "p" } }));
-    expect(html).toContain("Schedules, Salon");
+    expect(html).toContain("Edit schedules, Salon");
     expect(html).toContain("aria-label=Salon");
     expect(html).not.toContain("Salon: ");
     expect(c._deviceLabel(p, "switch.d0")).toBe("Salon");

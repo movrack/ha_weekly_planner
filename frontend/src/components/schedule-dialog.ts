@@ -21,8 +21,8 @@ import { applyEdit, compareOrigin, dayView, findGroup, freshGroup, groupId, next
 import { devicesOf, dropDeviceSlots, editForDevice, isShared, remergeIdentical } from "../device-edits";
 import type { SlotPatch } from "../device-edits";
 import type { RowEdit } from "../edits";
-import { appliedAction, labelDomains, labelName, labelOf, labelsFor } from "../labels";
-import type { LabelDraft } from "./label-picker";
+import { appliedAction, labelDomains, labelName, labelOf, labelsFor, replaceLabel } from "../labels";
+import type { LabelDraft, LabelReplaced } from "./label-picker";
 import { addDaysIso } from "./chart";
 import { chooseAction, confirmAction, pauseChoice } from "./confirm";
 import { errorText, slotDeviceError, strings, t } from "../i18n";
@@ -366,8 +366,9 @@ export class WpSchedule extends LitElement {
   private _revealEditor(): void {
     const editor = this.renderRoot.querySelector<HTMLElement>(".editor");
     if (!editor) return;
-    const twoColumns = typeof matchMedia === "function" && matchMedia("(min-width: 768px)").matches;
-    const content = this.renderRoot.querySelector("wp-dialog")?.shadowRoot?.querySelector<HTMLElement>(".content");
+    const dialogRoot = this.renderRoot.querySelector("wp-dialog")?.shadowRoot;
+    const twoColumns = (dialogRoot?.querySelector<HTMLElement>(".panel")?.getBoundingClientRect().width ?? 0) >= 736;
+    const content = dialogRoot?.querySelector<HTMLElement>(".content");
     if (!twoColumns || !content) { editor.scrollIntoView({ block: "start" }); return; }
     const e = editor.getBoundingClientRect();
     const c = content.getBoundingClientRect();
@@ -450,7 +451,8 @@ export class WpSchedule extends LitElement {
     const first = labelsFor(this.hass, this.data, [eid], program)[0];
     const day = days.length === 1 ? days[0] : null;
     const times = day === null ? undefined : nextTimes(this._modeProfile(program)?.days[day] ?? [], this._minutes, eid);
-    const group = freshGroup(first?.id ?? "", days, times);
+    // the new slot starts after the last one of the day and has no end (“One-time” is the default)
+    const group = freshGroup(first?.id ?? "", days, times && { start: times.start });
     // a new slot belongs to the device it is created from ("Also for" adds others); absent for a single device (D5)
     const entities = normaliseEntities([eid], devicesOf(program));
     if (entities) group.slot.entities = entities;
@@ -689,6 +691,17 @@ export class WpSchedule extends LitElement {
    * The label form of the open row is part of the row: saved first (then its values for a device become part
    * of the row's draft). False: stop, the error is shown.
    */
+  /** A setting was replaced everywhere and deleted: what this window holds follows, and the revision of its program too. */
+  private _onLabelReplaced({ from, to, revisions }: LabelReplaced): void {
+    if (this._draft) {
+      const revision = revisions[this._draft.id];
+      this._draft = { ...replaceLabel(this._draft, from, to), ...(revision !== undefined ? { revision } : {}) };
+    }
+    if (this._restLabel === from) this._restLabel = to;
+    if (this._group?.slot.label === from) this._group = { ...this._group, slot: { ...this._group.slot, label: to } };
+    this._pickerKey += 1;
+  }
+
   private async _saveLabelDraft(): Promise<boolean> {
     const d = this._labelDraft;
     if (!d) return true;
@@ -700,7 +713,7 @@ export class WpSchedule extends LitElement {
     try {
       const res = await this.hass.callWS<{ label: { id: string } }>({
         type: "weekly_planner/label/save",
-        label: { ...(d.id ? { id: d.id } : {}), name: d.name, color: d.color, action: d.action },
+        label: { ...(d.id ? { id: d.id } : {}), name: d.name, color: d.color, action: d.action, show_value: d.showValue },
       });
       for (const o of d.overrides) this._onOverride({ entityId: o.entityId, labelId: res.label.id, action: o.action });
       if (!d.id) {
@@ -941,6 +954,8 @@ export class WpSchedule extends LitElement {
         .device=${this._eid} .also=${!this._shared}
         .dayOnly=${this._dayOnly} ?disabled=${!this._canEdit}
         @label-draft=${(e: CustomEvent<LabelDraft | null>) => { e.stopPropagation(); this._labelDraft = e.detail; this._error = ""; }}
+        @label-commit=${(e: Event) => { e.stopPropagation(); void this._saveLabelDraft(); }}
+        @label-replaced=${(e: CustomEvent<LabelReplaced>) => { e.stopPropagation(); this._onLabelReplaced(e.detail); }}
         @group-change=${(e: CustomEvent<SlotGroup>) => { e.stopPropagation(); this._group = e.detail; this._error = ""; }}></wp-slot-form>`)}
       ${this._shared && !isNew ? html`<div class="who" role="radiogroup" aria-label=${t(lang, "who_title")}>
         <span>${t(lang, "who_title")}</span>
@@ -975,6 +990,8 @@ export class WpSchedule extends LitElement {
           ${keyed(this._pickerKey, html`<wp-label-picker embedded allow-none .hass=${this.hass} .data=${this.data} .program=${this._draft ?? program} .entityIds=${[eid]}
             .value=${this._restLabel} ?disabled=${!this._canEdit}
             @label-draft=${(e: CustomEvent<LabelDraft | null>) => { e.stopPropagation(); this._labelDraft = e.detail; this._error = ""; }}
+            @label-commit=${(e: Event) => { e.stopPropagation(); void this._saveLabelDraft(); }}
+            @label-replaced=${(e: CustomEvent<LabelReplaced>) => { e.stopPropagation(); this._onLabelReplaced(e.detail); }}
             @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._restLabel = e.detail; }}></wp-label-picker>`)}
           ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
           <div class="btns">
@@ -992,7 +1009,7 @@ export class WpSchedule extends LitElement {
   /** One chip per device of the program (icon and name from Home Assistant): the screen shows that device's schedules. */
   private _renderDevices() {
     if (this._entities.length < 2) return nothing;
-    return html`<div class="devices" role="radiogroup" aria-label=${t(this._lang, "device_label")}>
+    return html`<div class="label" id="devices-label">${t(this._lang, "device_label")}</div><div class="devices" role="radiogroup" aria-labelledby="devices-label">
       ${this._entities.map((eid) => {
         const on = eid === this._eid;
         return html`<button class="devchip ${on ? "on" : ""}" role="radio" aria-checked=${on} ?disabled=${this._open !== null}
@@ -1414,7 +1431,7 @@ export class WpSchedule extends LitElement {
     /* One DOM order (the phone order of section 24.2 = keyboard order). From 768 px the same order is laid out in two
        columns by the grid alone: parameters (and Delete) on the left, the 7-day schematic then the day chart on the right. */
     .cols, .params { display: block; }
-    @media (min-width: 768px) {
+    @container wpdlg (min-width: 736px) {
       .cols {
         display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 24px; row-gap: 0; align-items: start;
         grid-template-rows: auto auto 1fr auto;
@@ -1429,7 +1446,7 @@ export class WpSchedule extends LitElement {
       /* Hidden while a slot editor is open (nothing rendered): no empty grid cell. */
       .area-chart:empty, .area-options:empty, .area-delete:empty { display: none; }
     }
-    .devices { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .devices { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
     .devchip {
       display: inline-flex; align-items: center; gap: 8px; min-height: 48px; max-width: 100%; padding: 0 16px; border-radius: 24px;
       border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem; cursor: pointer;

@@ -27,6 +27,7 @@ from .modes import apply_default_mode, profile_slots
 from .resolver import NO_HOLIDAY, Holiday, OccurrenceCache, active_profile, occurrences_around
 from .slots import normalise_slot_entities, remove_device_from_slots
 from .store import new_id
+from .timeline import resolve
 from .validation import (
     PROGRAM,
     admin_required,
@@ -366,12 +367,19 @@ async def ws_label_delete(hass, connection, msg) -> None:
     connection.send_result(msg["id"])
 
 
-def _preview_slot(occ, slot: dict) -> dict[str, Any]:
+def _preview_slot(occ, slot: dict, tz=None, sun=None) -> dict[str, Any]:
     item = {
         "slot_id": slot["id"], "start": occ.start.isoformat(),
         "end": occ.end.isoformat() if occ.end else None, "ignored": occ.ignored,
         "sun": "sun" in slot["start"] or "sun" in (slot.get("end") or {}),
     }
+    if tz is not None and sun is not None:
+        # the sun time before the random delay, so that the card names the same time as the other devices (never its own estimate)
+        for edge, spec, moment in (("start", slot["start"], occ.start), ("end", slot.get("end") or {}, occ.end)):
+            if moment is not None and "sun" in spec and spec.get("random_minutes"):
+                base, _ = resolve(spec, moment.astimezone(tz).date(), tz, sun)
+                if base is not None:
+                    item[f"{edge}_base"] = base.isoformat()
     if slot.get("entities") is not None:
         item["entities"] = list(slot["entities"])
     return item
@@ -383,12 +391,12 @@ def _per_device_preview(engine: PlannerEngine, program: dict, profile: dict, noo
     cache = OccurrenceCache()
     tz, sun, pid = engine.tz, engine.sun, program["id"]
     midnight = datetime(noon.year, noon.month, noon.day, tzinfo=tz)
-    slots = [_preview_slot(occ, slot) for occ, slot in cache.entry(profile, noon.date(), tz, sun, pid, holiday).placed]
+    slots = [_preview_slot(occ, slot, tz, sun) for occ, slot in cache.entry(profile, noon.date(), tz, sun, pid, holiday).placed]
     by_entity: dict[str, list] = {}
     for entity in program["entities"]:
         eid = entity["entity_id"]
         by_entity[eid] = [
-            _preview_slot(occ, slot)
+            _preview_slot(occ, slot, tz, sun)
             for occ, slot in occurrences_around(profile, noon, tz, sun, days=(-1, 0), program_id=pid, cache=cache,
                                                 entity_id=eid, holiday=holiday)
             if occ.start >= midnight or (occ.end is not None and occ.end > midnight)  # previous-day spill only
@@ -429,7 +437,7 @@ def ws_preview(hass, connection, msg) -> None:
     result = []
     for occ, slot in occurrences_around(profile, noon, engine.tz, engine.sun, days=(0,), program_id=program["id"],
                                         holiday=holiday):
-        result.append(_preview_slot(occ, slot))
+        result.append(_preview_slot(occ, slot, engine.tz, engine.sun))
     connection.send_result(msg["id"], {"date": day.isoformat(), "holiday": is_holiday, "slots": result})
 
 

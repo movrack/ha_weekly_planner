@@ -107,9 +107,12 @@ export class WpSlotForm extends LitElement {
   @property({ type: Boolean }) noDays = false;
   @property({ type: Number }) dayOnly: number | null = null;
   @state() private _more = false;
-  /** "Advanced options" fold (sun times, random delay, time limits): closed unless the slot already uses one. */
+  /** "Advanced options" folds (sun times, random delay, time limits), one under the start and one under the end: closed unless
+   *  that time already uses one. `_advOpen` / `_advTouched` belong to the start, the `End` ones to the end. */
   @state() private _advOpen = false;
+  @state() private _advOpenEnd = false;
   private _advTouched = false;
+  private _advTouchedEnd = false;
   private _advSlot = "";
   /** Last fixed time of each field, restored when a sun chip is switched off. */
   @state() private _last: Record<Which, string> = { start: "08:00", end: "09:00" };
@@ -117,17 +120,34 @@ export class WpSlotForm extends LitElement {
   private get _lang(): string { return langOf(this.hass); }
 
   /** The slot already uses a sun time, a random delay or a time limit: nothing may stay hidden. */
-  private get _usesAdvanced(): boolean {
-    return [this.group?.slot.start, this.group?.slot.end].some((spec) => Boolean(spec && ("sun" in spec || spec.random_minutes)));
+  private _usesAdvanced(which: Which): boolean {
+    const spec = this.group?.slot[which];
+    return Boolean(spec && ("sun" in spec || spec.random_minutes));
   }
 
   willUpdate(): void {
     const id = this.group?.slot.id ?? "";
-    if (id !== this._advSlot) { this._advSlot = id; this._advTouched = false; this._advOpen = false; }
-    if (!this._advTouched && this._usesAdvanced) this._advOpen = true;
+    if (id !== this._advSlot) {
+      this._advSlot = id; this._advTouched = false; this._advOpen = false; this._advTouchedEnd = false; this._advOpenEnd = false;
+    }
+    if (!this._advTouched && this._usesAdvanced("start")) this._advOpen = true;
+    if (!this._advTouchedEnd && this._usesAdvanced("end")) this._advOpenEnd = true;
   }
 
-  private _advIsOpen(): boolean { return this._advTouched ? this._advOpen : this._advOpen || this._usesAdvanced; }
+  private _advIsOpen(which: Which): boolean {
+    return which === "start"
+      ? (this._advTouched ? this._advOpen : this._advOpen || this._usesAdvanced("start"))
+      : (this._advTouchedEnd ? this._advOpenEnd : this._advOpenEnd || this._usesAdvanced("end"));
+  }
+
+  /** The fold of one time, right under its own time block. */
+  private _advFold(which: Which, title: string) {
+    const open = this._advIsOpen(which);
+    return foldSection(this._lang, open, () => {
+      if (which === "start") { this._advTouched = true; this._advOpen = !open; }
+      else { this._advTouchedEnd = true; this._advOpenEnd = !open; }
+    }, this._advancedBlock(which, title));
+  }
 
   private _set(patch: Partial<SlotGroup["slot"]>, days?: number[]): void {
     let slot = { ...this.group.slot, ...patch };
@@ -240,7 +260,6 @@ export class WpSlotForm extends LitElement {
     const s = strings(lang);
     const dis = this.disabled;
     return html`
-      <h5>${title}</h5>
       <div class="chips" role="group" aria-label=${`${title}: ${t(lang, "sun_chips")}`}>
         ${SUNS.map((sun) => {
           const on = "sun" in spec && spec.sun === sun;
@@ -351,19 +370,18 @@ export class WpSlotForm extends LitElement {
       <section>
         <h4>${t(lang, "start")}</h4>
         ${this._timeBlock("start", t(lang, "start"))}
+        ${this._advFold("start", t(lang, "start"))}
       </section>
       <section>
-        <h4>${t(lang, "end")}</h4>
+        <h4>${t(lang, "end_section")}</h4>
         <div class="chips">
           <button class="chip ${slot.end ? "" : "on"}" aria-pressed=${!slot.end} ?disabled=${this.disabled}
             @click=${() => this._toggleEnd(false)}>${t(lang, "no_end")}</button>
           <button class="chip ${slot.end ? "on" : ""}" aria-pressed=${Boolean(slot.end)} ?disabled=${this.disabled}
             @click=${() => this._toggleEnd(true)}>${t(lang, "with_end")}</button>
         </div>
-        ${slot.end ? this._timeBlock("end", t(lang, "end")) : nothing}
+        ${slot.end ? html`${this._timeBlock("end", t(lang, "end"))}${this._advFold("end", t(lang, "end"))}` : nothing}
       </section>
-      ${foldSection(lang, this._advIsOpen(), () => { const open = this._advIsOpen(); this._advTouched = true; this._advOpen = !open; },
-        html`${this._advancedBlock("start", t(lang, "start"))}${slot.end ? this._advancedBlock("end", t(lang, "end")) : nothing}`)}
       <section>
         <h4>${t(lang, "action")}</h4>
         <wp-label-picker embedded .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${this.entityIds}
@@ -376,7 +394,7 @@ export class WpSlotForm extends LitElement {
   static styles = [editorStyles, css`
     :host { display: block; }
     section { margin: 0 0 14px; }
-    h5 { margin: 8px 0 6px; font-size: 0.8125rem; font-weight: 600; color: var(--secondary-text-color); }
+    h5 { margin: 8px 0 6px; font-size: 0.875rem; font-weight: 600; color: var(--secondary-text-color); }
     h4 { margin: 0 0 6px; font-size: 0.875rem; font-weight: 600; color: var(--secondary-text-color); }
     /* One field: [ − | time | + ], the steps (15 min) are part of the field. */
     .time {
@@ -402,7 +420,7 @@ export class WpSlotForm extends LitElement {
     .ibtn.round { border: 1px solid var(--divider-color); min-width: 64px; font-weight: 600; }
     .limits { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 8px; margin: 8px 0; } /* one column on a phone: a time needs about 7 rem plus its clear button */
     .limit { display: flex; align-items: flex-end; gap: 4px; min-width: 0; }
-    .limit label { flex: 1; min-width: 0; display: grid; gap: 2px; font-size: 0.8125rem; color: var(--secondary-text-color); }
+    .limit label { flex: 1; min-width: 0; display: grid; gap: 2px; font-size: 0.875rem; color: var(--secondary-text-color); }
     .limit input[type="time"] {
       width: 100%; min-width: 0; box-sizing: border-box; min-height: 44px; font: inherit; font-size: 1rem;
       color: var(--primary-text-color); background: var(--card-background-color);

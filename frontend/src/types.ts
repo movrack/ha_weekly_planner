@@ -8,6 +8,7 @@ export interface HomeAssistant {
   user?: { is_admin: boolean; name: string };
   themes?: { darkMode?: boolean };
   services?: Record<string, Record<string, unknown>>;
+  areas?: Record<string, { area_id: string; name: string }>;
   localize?: (key: string, ...args: unknown[]) => string;
   loadBackendTranslation?: (category: string, integration?: string | string[], configFlow?: boolean) =>
     Promise<(key: string, ...args: unknown[]) => string>;
@@ -47,6 +48,8 @@ export interface Label {
   name: string;
   color: string;
   action: Action;
+  /** Display only: add the temperature of a preset-mode setting to its name ("Comfort (19 °C)"). */
+  show_value?: boolean;
 }
 
 export interface Condition {
@@ -179,6 +182,9 @@ export interface PreviewSlot {
   end: string | null;
   ignored: string | null;
   sun: boolean;
+  /** With a random delay on a sun time: that time before the delay (ISO), as the server resolved it. */
+  start_base?: string;
+  end_base?: string;
   /** Devices the slot targets, when the program uses per-device schedules (absent: every device). */
   entities?: string[];
 }
@@ -197,12 +203,12 @@ export interface CardConfig {
   type: string;
   title?: string;
   program?: string;
-  filter?: { types?: string[]; area?: string; programs?: string[] };
+  filter?: { types?: string[]; area?: string | string[]; programs?: string[] };
   /** Order of the list: by type (default), room, name, or the personal `order`. */
   sort?: "type" | "area" | "name" | "custom";
   /** Personal order (`sort: custom`): program ids; unknown ids are ignored, missing ones go last. */
   order?: string[];
-  schedule_view?: "bars" | "radial" | "radial_12h" | "list" | "times";
+  schedule_view?: "bars" | "radial" | "radial_12h" | "list" | "times" | "compare";
   /** Deprecated: accepted and ignored (the week list is always collapsible); kept so existing YAML never breaks. */
   show_week?: boolean;
   show_chart?: boolean;

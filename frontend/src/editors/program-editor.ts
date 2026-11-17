@@ -667,11 +667,11 @@ export class WpProgramEditor extends LitElement {
       .mode-associations summary { min-height: 44px; display: list-item; align-content: center; cursor: pointer; color: var(--wp-primary-text); }
       .actions .danger { margin-left: auto; }
       h3 { margin: 16px 0 4px; font-size: 0.9375rem; font-weight: 500; }
-      .small { font-size: 0.75rem; }
+      .small { font-size: 0.875rem; }
       .svc-choice { align-items: flex-start; padding: 8px 0; }
       .svc-choice input { margin-top: 2px; }
       .svc-copy { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
-      .svc-description { color: var(--secondary-text-color); font-size: 0.75rem; line-height: 1.45; margin-top: 3px; white-space: pre-line; }
+      .svc-description { color: var(--secondary-text-color); font-size: 0.875rem; line-height: 1.45; margin-top: 3px; white-space: pre-line; }
       .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--divider-color); margin-bottom: 8px; overflow-x: auto; }
       .tab {
         min-height: 48px; padding: 0 16px; border: none; background: none; color: var(--secondary-text-color);

@@ -36,16 +36,16 @@ describe("vocabulary", () => {
     const fr = strings("fr"), en = strings("en");
     expect(fr.ce_filtered).toBe("Plusieurs programmes");
     expect(fr.ce_one_program).toBe("Un seul programme");
-    expect(fr.ce_area).toBe("Pièce (facultatif)");
-    expect(fr.ce_schedule_view).toBe("Présentation de la journée");
-    expect(fr.ce_area_hint).toContain("dans ses réglages");
+    expect(fr.ce_area).toBe("Pièce");
+    expect(fr.ce_schedule_view).toBe("Affichage");
+    expect(fr.ce_area_hint).toBe("Montre seulement les programmes rangés dans les pièces choisies. Pour ranger un programme dans une pièce : Réglages des programmes → Général → Pièce du programme.");
     expect(fr.chart_day).toBe("Graphique du jour");
     expect(fr.planned).toBe("Prévu");
     expect(fr.measured).toBe("Valeur mesurée");
     expect(fr.ch_set).toBe("Demandé à l’appareil");
     expect(fr.ce_type_count).toBe("{on} sur {total}");
-    expect(fr.ce_left_all).toBe("Les nouveaux programmes ne s’afficheront plus automatiquement sur cette carte.");
-    expect(en.ce_show_chart).toBe("Chart button under each device");
+    expect(fr.ce_all_programs_hint_off).toBe("Seuls les programmes activés ci-dessous sont montrés. Ceux que vous créerez plus tard n’apparaîtront pas sur cette carte.");
+    expect(en.ce_show_chart).toBe("Chart button");
   });
 });
 

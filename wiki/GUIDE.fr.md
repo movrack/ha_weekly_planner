@@ -52,15 +52,22 @@ montrent le lever et le coucher.
 
 [Double cadran S44](SCREENS.fr.md#s44).
 
-Toucher une ligne compacte déplie sa barre. Toucher le calendrier ouvre les
-horaires. Un clic ou un appui long sur un cadran permet de modifier ses arcs avec les poignées.
+Deux autres affichages existent. **Horaires du jour** montre aujourd’hui sous forme de liste simple : une ligne par horaire, avec son
+réglage, jusqu’à quand il dure et un repère « Maintenant ». Le **Comparateur** montre un seul jour à la fois pour toute la carte :
+une rangée de pastilles (lun. à dim., et **Jour férié** quand il est activé pour un programme de la carte) permet de choisir le jour,
+aujourd’hui par défaut, un seul à la fois. Chaque appareil y a sa barre, tous les programmes mélangés. Il est en lecture seule : une
+icône en haut à droite ouvre le choix du programme à modifier, et la barre d’un programme en pause est grisée avec la mention
+« en pause ».
+
+Toucher une ligne compacte déplie sa barre ; chaque appareil y tient sur deux lignes, groupés par type. Toucher le calendrier ouvre les
+horaires. Un simple clic ne modifie jamais : un appui long (doigt ou souris) sur un cadran permet de modifier ses arcs avec les poignées.
 Au clavier, une poignée sélectionnée se déplace de 15 minutes avec les flèches gauche et droite ;
 le changement est enregistré après un court instant. La touche Échap ferme d’abord l’éditeur
 ouvert, puis la fenêtre ; dans une fenêtre, le focus reste à l’intérieur et revient à son point de départ à
 la fermeture. Sur téléphone, un balayage vers le bas sur l’en-tête d’une fenêtre la ferme ; sur ordinateur, le bouton
 **Agrandir / réduire** (flèches, à côté de la croix) l’élargit.
 
-Quand un réglage est sélectionné, ses heures restent visibles au-dessus de la barre, au centre du cadran simple ou sous le cercle pour le double cadran et les textes longs, même sur téléphone. Elles se mettent à jour pendant le déplacement ou le glissé d’une poignée. Pour un horaire solaire, l’heure calculée est précisée avec le lever ou le coucher du soleil. « Dès » indique une action sans fin ; « lendemain » indique une fin après minuit. Au survol ou au focus clavier, chaque réglage affiche son nom et ses heures, sélectionné ou non, dans les barres comme sur les cercles. Le trait « maintenant » affiche l’heure actuelle au survol ou au focus, actualisée chaque minute. Sa zone de survol dépasse le trait pour le rendre facile à viser, sans gêner les poignées. Les mêmes informations sont accessibles aux lecteurs d’écran.
+Quand un réglage est sélectionné, ses heures restent visibles au-dessus de la barre, au centre du cadran simple ou sous le cercle pour le double cadran et les textes longs, même sur téléphone. Elles se mettent à jour pendant le déplacement ou le glissé d’une poignée. Pour un horaire solaire, l’heure calculée est précisée avec le lever ou le coucher du soleil ; au survol de l’icône du soleil sur une barre, l’infobulle donne l’heure du lever ou du coucher calculée par le serveur (la même pour tous les appareils le même jour), suivie de « plus jusqu’à n min au hasard » quand l’horaire a un délai aléatoire. « Dès » indique une action sans fin ; « lendemain » indique une fin après minuit. Au survol ou au focus clavier, chaque réglage affiche son nom et ses heures, sélectionné ou non, dans les barres comme sur les cercles. Le trait « maintenant » affiche l’heure actuelle au survol ou au focus, actualisée chaque minute. Sa zone de survol dépasse le trait pour le rendre facile à viser, sans gêner les poignées. Les mêmes informations sont accessibles aux lecteurs d’écran.
 
 ## Je veux du confort le matin et le soir
 
@@ -189,8 +196,7 @@ modification en cours. Pour enlever un horaire, ouvrir sa ligne, toucher
 (un horaire déjà enregistré seulement). Le **Supprimer** tout en bas de l’écran est un autre bouton : voir
 [plusieurs appareils](#jai-plusieurs-appareils-dans-un-programme).
 
-Vous pouvez aussi modifier la barre directement : faire un **appui long au doigt**, ou
-un clic à la souris, puis sélectionner l’horaire. Déplacer ses poignées change
+Vous pouvez aussi modifier la barre directement : faire un **appui long** (au doigt ou à la souris), puis sélectionner l’horaire. Un simple clic ne modifie rien. Déplacer ses poignées change
 les heures. **C’est enregistré dès que vous relâchez**, pour ce jour seulement.
 Le bandeau **Enregistré · Annuler** permet de revenir en arrière pendant quelques
 secondes : [S21](SCREENS.fr.md#s21).
@@ -274,7 +280,7 @@ puis renseigner **Au plus tôt à**, **Au plus tard à**, ou les deux. Cette opt
 séparément pour le début et la fin solaires. Décocher la case retire les deux limites.
 Voir [l’écran solaire S09](SCREENS.fr.md#s09).
 
-**Sans fin** sert à lancer une action une seule fois à son début, sans action de
+**Ponctuelle** sert à lancer une action une seule fois à son début, sans action de
 fin : [S10](SCREENS.fr.md#s10). Une action ponctuelle passée n’est pas rejouée après
 un redémarrage.
 
@@ -381,10 +387,11 @@ Si les boutons manquent, demander à cette personne de les ouvrir.
 Les intitulés de Home Assistant peuvent varier légèrement selon sa version.
 
 **Affichage de la carte** permet de choisir **Un seul programme** ou **Plusieurs programmes**.
-Dans **Programmes à afficher**, un interrupteur par programme choisit ce que la carte montre ; sous chaque
-programme figurent ses appareils. Les boutons **Tout sélectionner par type** (Climatisation, Ouverture…) cochent
-d’un coup tous les programmes qui ont un appareil de ce type. Sous **Présentation de la journée**, choisir **Barres**, **Cadran 24 heures**, **Double
-cadran 12 heures** ou **Liste compacte**. Les cadrans sont aussi possibles en
+Dans **Programmes à afficher**, on réduit la liste puis on affine : une **Pièce** (une pastille, ou **Toutes les pièces**),
+un **Type** (les pastilles Climatisation, Ouverture… cochent d’un coup tous les programmes qui ont un appareil de ce type),
+puis la liste **Programmes** : **Tous les programmes** (activé, la carte montre aussi les programmes créés plus tard),
+puis un interrupteur par programme, avec ses appareils dessous. La pièce et le type limitent la liste. Sous **Affichage**, choisir **Barres**, **Cadran 24 heures**, **Double
+cadran 12 heures**, **Liste compacte**, **Horaires du jour** ou **Comparateur**. Les cadrans sont aussi possibles en
 liste filtrée. Enregistrer la carte et terminer l’édition du tableau de bord.
 
 
