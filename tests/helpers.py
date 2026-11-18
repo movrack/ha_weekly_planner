@@ -104,7 +104,7 @@ async def setup(hass: HomeAssistant, hass_storage, freezer, programs, start: dat
     await hass.config.async_update(time_zone="Europe/Brussels")
     if start is not None:
         freezer.move_to(start)
-    hass_storage[DOMAIN] = {"version": 3, "minor_version": 1, "key": DOMAIN,
+    hass_storage[DOMAIN] = {"version": 3, "minor_version": 3, "key": DOMAIN,
                             "data": {"vacation": False, "labels": extra_labels or labels(), "programs": programs,
                                      **(config or {})}}
     entry = MockConfigEntry(domain=DOMAIN, data={}, options=options)

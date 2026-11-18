@@ -17,7 +17,7 @@ function make(program: Program | null = prog(), opts: { embedded?: boolean; sele
   const events: any[] = [];
   e.dispatchEvent = (ev: any) => { events.push(ev); return true; };
   e.requestUpdate = vi.fn();
-  e.hass = { language: "en", locale: { language: "en" }, states: { "climate.a": { entity_id: "climate.a", state: "heat", attributes: { friendly_name: "Thermo", icon: "mdi:radiator" } }, "input_select.mode": { entity_id: "input_select.mode", state: "Eco", attributes: { options: ["Eco", "Comfort"] } } },
+  e.hass = { language: "en", connection: {}, locale: { language: "en" }, states: { "climate.a": { entity_id: "climate.a", state: "heat", attributes: { friendly_name: "Thermo", icon: "mdi:radiator" } }, "input_select.mode": { entity_id: "input_select.mode", state: "Eco", attributes: { options: ["Eco", "Comfort"] } } },
     services: { climate: { turn_off: { name: "Off", description: "Switch off", target: { entity: { domain: "climate" } } }, turn_on: { name: "On", target: { entity: { domain: "climate" } } } } },
     callWS: vi.fn(async (m: any) => (m.type === "weekly_planner/get" ? { programs: program ? [program] : [] } : m.type === "weekly_planner/program/save" ? { program: { ...m.program, id: m.program.id ?? "new", revision: 2 } } : {})) };
   e.data = { programs: [...(program ? [program] : []), ...(opts.others ?? [])], status: opts.status ?? {}, labels: [{ id: "l", name: "L", color: "#f00", action: { kind: "service", service: "climate.set_temperature", target_entity_id: "climate.a" } }], can_edit: true, read_only: false, defaults: { priority: 20, reapply: false } };
@@ -75,6 +75,43 @@ describe("program editor: creating", () => {
 });
 
 describe("program editor: general and entities tabs", () => {
+  it.each([
+    ["names the device type next to the device, so a room name is not mistaken for the device", (k: string) => (k === "component.climate.title" ? "Climate" : k), undefined, "Thermo</strong> <span class=\"muted\">(Climate)</span>"],
+    ["takes the type name from the loaded titles when Home Assistant has not loaded it yet", (k: string) => k, (k: string) => (k === "component.climate.title" ? "Thermostat" : k), "(Thermostat)"],
+  ])("%s", async (_name, localize, loaded, expected) => {
+    const { e } = make();
+    e.hass.localize = localize;
+    e.hass.loadBackendTranslation = vi.fn(async (category: string) => {
+      if (category !== "title") throw new Error("only the type names in this test");  // service names stay untouched
+      return loaded ?? ((k: string) => k);
+    });
+    flat(e._renderEntity(e._p.entities[0], 0));
+    await new Promise((r) => setTimeout(r));
+    expect(e.hass.loadBackendTranslation).toHaveBeenCalledWith("title", ["climate"]);
+    expect(flat(e._renderEntity(e._p.entities[0], 0))).toContain(expected);
+  });
+
+  it("names the Home Assistant device first and the entity below it, so a room name alone is never the title", () => {
+    const { e } = make();
+    e.hass.entities = { "climate.a": { entity_id: "climate.a", device_id: "d1" } };
+    e.hass.devices = { d1: { id: "d1", name: "Thermostat bureau", name_by_user: "Thermostat du bureau" } };
+    const out = flat(e._renderEntity(e._p.entities[0], 0));
+    expect(out).toContain("<strong>Thermostat du bureau</strong>");
+    expect(out).toContain('<div class="muted small">Thermo</div>');
+    e.hass.devices = { d1: { id: "d1", name: "Thermo", name_by_user: null } };
+    expect(flat(e._renderEntity(e._p.entities[0], 0))).not.toContain('<div class="muted small">Thermo</div>');  // same name: said once
+  });
+
+  it("shows no empty brackets when the type is unknown and the titles fail to load", async () => {
+    const { e } = make();
+    e.hass.localize = (k: string) => k;
+    e.hass.loadBackendTranslation = vi.fn(async () => { throw new Error("offline"); });
+    flat(e._renderEntity(e._p.entities[0], 0));
+    await new Promise((r) => setTimeout(r));
+    expect(e._typeNamesKey).toBe("");  // tried again on the next render
+    expect(flat(e._renderEntity(e._p.entities[0], 0))).not.toContain("()");
+  });
+
   it("edits every general field through the rendered handlers", () => {
     const { e } = make();
     const r = e.render();
@@ -86,10 +123,7 @@ describe("program editor: general and entities tabs", () => {
     by("change", "id=\"f-area\"").fn({ target: { value: "" } });
     by("input", "id=\"f-icon\"").fn({ target: { value: "mdi:fire" } });
     by("input", "id=\"f-icon\"").fn({ target: { value: "" } });
-    by("change", "id=\"f-prio\"").fn({ target: { value: "500" } });
-    expect(e._p.priority).toBe(100);
-    by("change", "id=\"f-prio\"").fn({ target: { value: "abc" } });
-    expect(e._p.priority).toBe(10);
+    expect(flat(e._renderGeneral())).not.toContain("f-prio");  // the order is set by drag and drop, never typed
     by("change", "checkbox").fn({ target: { checked: false } });
     expect(e._p.reapply).toBe(false);
     find(e._renderGeneral(), "wp-change", "wp-conditions-editor").fn({ stopPropagation() {}, detail: [{ entity_id: "", op: "eq", value: "on" }] });
@@ -145,19 +179,13 @@ describe("program editor: general and entities tabs", () => {
   });
 });
 
-describe("program editor: modes tab", () => {
-  it("no longer lets modes be added, renamed, copied, deleted or picked", () => {
-    const { e } = make(); e._tab = "seasons";
-    const html = flat(e._renderSeasons());
-    for (const gone of ["f-profile", "f-pname", "season-actions", "season-delete", "mdi:plus", "mdi:pencil", "mdi:content-copy", "mdi:delete"]) expect(html).not.toContain(gone);
-    for (const dead of ["_profileForm", "_submitProfileForm", "_changeProfileForm", "_deleteProfile", "_askDeleteProfile", "_profileId", "_activeId"]) expect(e[dead]).toBeUndefined();
-    expect(html).toContain("mdi:calendar-edit");
-  });
-  it("names the active mode, never changes it from here", () => {
-    const { e } = make(); e._tab = "seasons";
-    expect(flat(e._renderSeasons())).not.toContain("mdi:star");
-    e.data.mode = { selector: "input_select.mode", default: "Home", active: "Away", options: ["Home", "Away"], available: true };
-    expect(flat(e._renderSeasons())).toContain("Active now: Away");
+describe("program editor: modes", () => {
+  it("has no modes tab: the modes and their hours are edited from the card", () => {
+    const { e } = make();
+    const html = flat(e.render());
+    expect(html).not.toContain("pe-tab-seasons");
+    expect(html).not.toContain("wp-schedule");
+    for (const gone of ["_renderSeasons", "_adoptModeSchedule", "_closeModeSchedule", "_scheduleOpen"]) expect(e[gone]).toBeUndefined();
     expect(e.hass.callWS).not.toHaveBeenCalled();
   });
   it("starts a new program with the default mode when there is a selector", () => {
@@ -168,22 +196,6 @@ describe("program editor: modes tab", () => {
     withMode.e.data.mode = { selector: "input_select.mode", default: "Home", active: "Away", options: ["Home", "Away"], available: true };
     withMode.e.willUpdate();
     expect(withMode.e._p.profiles[0].name).toBe("Home");
-  });
-  it("opens the schedules screen on the active mode and adopts saved hours", () => {
-    const { e } = make({ ...prog() } as any, { embedded: true });
-    e._tab = "seasons";
-    handlers(e._renderSeasons()).filter((h) => h.event === "click")[0].fn();
-    expect(e._scheduleOpen).toBe(true);
-    const html = flat(e.render());
-    expect(html).toContain("wp-schedule");
-    expect(html).not.toContain("profileId");
-    const saved = structuredClone(e._p); saved.revision = 3; saved.profiles[0].days[0] = [{ id: "z", start: { time: "01:00" }, end: { time: "02:00" }, label: "l" }];
-    find(e.render(), "schedule-program-saved", "wp-schedule").fn({ stopPropagation() {}, detail: saved });
-    expect(e._p.profiles[0].days[0]).toHaveLength(1);
-    e._adoptModeSchedule({ ...saved, id: "other" }); e._adoptModeSchedule({ ...saved, revision: 1 });
-    e.data.programs = [saved];
-    find(e.render(), "closed", "wp-schedule").fn({ stopPropagation() {} });
-    expect(e._scheduleOpen).toBe(false);
   });
 });
 
@@ -253,12 +265,12 @@ describe("program editor: saving, deleting, undo", () => {
   });
   it("switches tabs from the keyboard", async () => {
     const { e } = make();
-    const tabs: any = [["general", "a"], ["entities", "b"], ["seasons", "c"]];
+    const tabs: any = [["general", "a"], ["entities", "b"]];
     const ev = (key: string) => ({ key, preventDefault: vi.fn() });
     e._tabKey(ev("ArrowRight"), tabs); expect(e._tab).toBe("entities");
-    e._tabKey(ev("End"), tabs); expect(e._tab).toBe("seasons");
+    e._tabKey(ev("End"), tabs); expect(e._tab).toBe("entities");
     e._tabKey(ev("ArrowRight"), tabs); expect(e._tab).toBe("general");
-    e._tabKey(ev("ArrowLeft"), tabs); expect(e._tab).toBe("seasons");
+    e._tabKey(ev("ArrowLeft"), tabs); expect(e._tab).toBe("entities");
     e._tabKey(ev("Home"), tabs); expect(e._tab).toBe("general");
     e._tabKey(ev("x"), tabs); expect(e._tab).toBe("general");
     find(e.render(), "click", "pe-tab-entities").fn(); expect(e._tab).toBe("entities");
@@ -271,5 +283,131 @@ describe("program editor: saving, deleting, undo", () => {
     e.disconnectedCallback();
     e._p = { ...e._p, icon: undefined };
     e._refreshIcon();
+  });
+});
+
+describe("program editor: priority order of competing programs", () => {
+  const rival = (extra: Partial<Program> = {}) => prog({ id: "o", name: "Rival", priority: 1, ...extra });
+  const hasBlock = (e: any) => flat(e._renderGeneral()).includes("pe-comp-head");
+
+  it("shows no competition block when no device is shared", () => {
+    const { e } = make(prog(), { others: [rival({ entities: [{ entity_id: "light.z" } as any] })] });
+    expect(hasBlock(e)).toBe(false);
+  });
+
+  it("names the number of rivals and the rank of this program, closed when nothing is new", () => {
+    const { e } = make(prog(), { others: [rival()] });
+    const out = flat(e._renderGeneral());
+    expect(out).toContain("Shares a device with 1 program · goes 2nd");
+    expect(out).not.toContain("wp-priority-list");
+    const two = make(prog({ priority: 1 }), { others: [rival({ priority: 2 }), rival({ id: "o2", name: "Third", priority: 3 })] });
+    expect(flat(two.e._renderGeneral())).toContain("Shares a device with 2 programs · goes 1st");
+  });
+
+  it("opens by itself as a warning for a new program that shares a device, placed last", () => {
+    const { e } = make(null, { others: [rival()] });
+    e._addEntity("climate.a");
+    const out = flat(e._renderGeneral() === undefined ? "" : e.render());
+    expect(out).toContain("Shares a device with 1 program · goes 2nd");
+    expect(out).toContain("This program goes last. Change the order if needed.");
+    expect(e._competition().group.map((x: Program) => x.id)).toEqual(["o", "new"]);
+  });
+
+  it("opens by itself when a device is added in this edit, and not for a device already there", () => {
+    const { e } = make(prog({ entities: [{ entity_id: "light.z" } as any] }), { others: [rival()] });
+    expect(hasBlock(e)).toBe(false);
+    e._addEntity("climate.a");
+    expect(flat(e._renderGeneral())).toContain("This program goes last. Change the order if needed.");
+  });
+
+  it("tags a row moved here as not saved, and says the saved-with-Save rule", () => {
+    const { e } = make(prog(), { others: [rival()] });
+    e._compOpen = true;
+    expect(e._competition().unsaved).toEqual([]);
+    e._order = ["p", "o"];
+    expect(e._competition().unsaved).toEqual(["p", "o"]);
+    const out = flat(e._renderGeneral());
+    expect(out).toContain("Saved when you press Save");
+  });
+
+  it("always renders the body so aria-controls resolves, hidden while closed", () => {
+    const { e } = make(prog(), { others: [rival()] });
+    const out = flat(e._renderGeneral());
+    expect(out).toContain("id=\"pe-comp-body\" ?hidden=");
+    expect(out).not.toContain("<wp-priority-list");
+  });
+
+  it("tells through its permanent live region that a device added creates a competition", () => {
+    const { e } = make(prog({ entities: [{ entity_id: "light.z" } as any] }), { others: [rival()] });
+    expect(e._compSaid).toBe("");
+    e._addEntity("climate.a");
+    expect(e._compSaid).toBe("This program goes last. Change the order if needed.");
+    expect(flat(e.render())).toContain("aria-live=\"polite\">This program goes last.");
+  });
+
+  it("toggles the block by hand", () => {
+    const { e } = make(prog(), { others: [rival()] });
+    find(e._renderGeneral(), "click", "id=\"pe-comp-head\"").fn();
+    expect(flat(e._renderGeneral())).toContain("wp-priority-list");
+    find(e._renderGeneral(), "click", "id=\"pe-comp-head\"").fn();
+    expect(flat(e._renderGeneral())).not.toContain("wp-priority-list");
+  });
+
+  it("sends the chosen order with Save and Cancel forgets it", async () => {
+    const { e } = make(prog(), { others: [rival()] });
+    e._compOpen = true;
+    const stop = vi.fn();
+    find(e._renderGeneral(), "priority-change", "wp-priority-list").fn({ stopPropagation: stop, detail: ["p", "o"] });
+    expect(e._competition().group.map((x: Program) => x.id)).toEqual(["p", "o"]);
+    expect(e._competition().rank).toBe(1);
+    e.embedded = true;
+    expect(flat(e.render())).toContain("Cancel");  // an order alone is an unsaved change
+    await e._save();
+    const sent = e.hass.callWS.mock.calls.map((c: any) => c[0]).find((m: any) => m.type === "weekly_planner/program/save");
+    expect(sent.group_order).toEqual(["p", "o"]);
+    expect(e._order).toBeUndefined();
+
+    const again = make(prog(), { others: [rival()] }).e;
+    find((again._compOpen = true, again._renderGeneral()), "priority-change", "wp-priority-list").fn({ stopPropagation: stop, detail: ["p", "o"] });
+    again._revert();
+    expect(again._order).toBeUndefined();
+    expect(again._competition().group.map((x: Program) => x.id)).toEqual(["o", "p"]);
+  });
+
+  it("sends no order when the person did not reorder", async () => {
+    const { e } = make(prog(), { others: [rival()] });
+    await e._save();
+    const sent = e.hass.callWS.mock.calls.map((c: any) => c[0]).find((m: any) => m.type === "weekly_planner/program/save");
+    expect("group_order" in sent).toBe(false);
+  });
+
+  it("sends the placeholder for a program not saved yet", async () => {
+    const { e } = make(null, { others: [rival()] });
+    e._p.name = "Fresh";
+    e._addEntity("climate.a");
+    find(e._renderCompetition(), "priority-change", "wp-priority-list").fn({ stopPropagation() {}, detail: ["new", "o"] });
+    await e._save();
+    const sent = e.hass.callWS.mock.calls.map((c: any) => c[0]).find((m: any) => m.type === "weekly_planner/program/save");
+    expect(sent.group_order).toEqual(["new", "o"]);
+  });
+
+  it("scrolls the whole block into view and focuses its heading when the Devices link is used", async () => {
+    const { e } = make(prog(), { others: [rival()] });
+    const calls: string[] = [];
+    const el = (name: string) => ({ scrollIntoView: (o: any) => calls.push(`${name}:${o.block}`), focus: (o: any) => calls.push(`${name}:focus:${o.preventScroll}`) });
+    e.renderRoot = { querySelector: (sel: string) => el(sel) };
+    e._showCompetition();
+    await Promise.resolve();
+    expect(calls).toEqual(["#pe-comp:nearest", "#pe-comp-head:focus:true"]);
+  });
+
+  it("keeps the also-driven-by line on a device and links it to the block", () => {
+    const { e } = make(prog(), { others: [rival()] });
+    e._tab = "entities";
+    const r = e._renderEntities();
+    expect(flat(r)).toContain("Also driven by: Rival.");
+    find(r, "click", "Also driven by: Rival.").fn();
+    expect(e._tab).toBe("general");
+    expect(e._compOpen).toBe(true);
   });
 });

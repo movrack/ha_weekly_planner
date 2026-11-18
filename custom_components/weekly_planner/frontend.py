@@ -18,6 +18,8 @@ URL_BASE = f"/{DOMAIN}_static"
 CARD_URL = f"{URL_BASE}/weekly-planner-card.js"
 _REGISTERED = f"{DOMAIN}_frontend_registered"
 CARD_VERSION_KEY = f"{DOMAIN}_card_version"
+PANEL_URL_PATH = "weekly-planner"
+PANEL_ELEMENT = "wp-programs-panel"
 
 
 async def async_register_card(hass: HomeAssistant) -> None:
@@ -76,3 +78,36 @@ async def async_unregister_card(hass: HomeAssistant) -> None:
     for item in list(resources.async_items()):
         if item["url"].split("?")[0] == CARD_URL:
             await resources.async_delete_item(item["id"])
+
+
+async def async_register_panel(hass: HomeAssistant, in_sidebar: bool = True) -> None:
+    """Add the administrators' "Weekly Planner" panel (programs are managed there, not in a card).
+
+    ``in_sidebar`` False keeps the panel at its address but hides its sidebar link.
+    """
+    if "panel_custom" not in hass.config.components:
+        return
+    from homeassistant.components import frontend, panel_custom
+
+    if PANEL_URL_PATH in hass.data.get(frontend.DATA_PANELS, {}):
+        frontend.async_remove_panel(hass, PANEL_URL_PATH)  # a reload registers it again
+    version = hass.data.get(CARD_VERSION_KEY, "")
+    await panel_custom.async_register_panel(
+        hass,
+        frontend_url_path=PANEL_URL_PATH,
+        webcomponent_name=PANEL_ELEMENT,
+        sidebar_title="Weekly Planner" if in_sidebar else None,
+        sidebar_icon="mdi:calendar-clock" if in_sidebar else None,
+        module_url=f"{CARD_URL}?v={version}",
+        require_admin=True,
+    )
+
+
+def async_unregister_panel(hass: HomeAssistant) -> None:
+    """Remove the sidebar panel (integration unloaded or removed)."""
+    if "frontend" not in hass.config.components:
+        return
+    from homeassistant.components import frontend
+
+    if PANEL_URL_PATH in hass.data.get(frontend.DATA_PANELS, {}):
+        frontend.async_remove_panel(hass, PANEL_URL_PATH)

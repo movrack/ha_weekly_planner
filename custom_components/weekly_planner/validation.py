@@ -204,7 +204,7 @@ PROGRAM = vol.Schema({
     vol.Required("name"): vol.All(str, vol.Length(min=1, max=60)),
     vol.Optional("icon"): vol.Any(None, str),
     vol.Optional("area"): vol.Any(None, str),
-    vol.Optional("priority", default=DEFAULT_PRIORITY): vol.All(int, vol.Range(min=1, max=100)),
+    vol.Optional("priority", default=DEFAULT_PRIORITY): vol.All(int, vol.Range(min=1)),
     vol.Optional("enabled", default=True): bool,
     vol.Optional("paused_until"): vol.Any(None, _utc_datetime),
     vol.Optional("reapply", default=True): bool,

@@ -788,7 +788,7 @@ async def test_storage_without_day_off_is_migrated_to_the_new_minor(hass, hass_s
     Recorder(hass)
     engine = await setup(hass, hass_storage, freezer, [program()], local(27, 9))
     await engine.store.async_flush_config()
-    assert hass_storage[DOMAIN]["version"] == 3 and hass_storage[DOMAIN]["minor_version"] == 2
+    assert hass_storage[DOMAIN]["version"] == 3 and hass_storage[DOMAIN]["minor_version"] == 3
     assert engine.store.programs[0]["profiles"][0]["days"][0][0]["id"] == "s1"
     assert engine.holiday_today is False
 

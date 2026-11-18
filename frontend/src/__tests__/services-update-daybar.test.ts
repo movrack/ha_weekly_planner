@@ -51,7 +51,9 @@ describe("service fields of a device", () => {
     expect(fields[1].default).toBe(true); expect(fields[1].label).toBe("Inner");
     expect(serviceFields(hass, "climate.set_hvac_mode", "climate.t")[0]).toMatchObject({ key: "hvac_mode", required: true });
     const opt = serviceFields(hass, "climate.optional", "climate.t");
-    expect(opt[0].required).toBe(true); expect(opt[1].required).toBe(false);
+    expect(opt.every((f) => !f.required)).toBe(true); // all optional: one of them is needed, see missingFields
+    expect(missingFields(hass, "climate.optional", {}, "climate.t").length).toBeGreaterThan(0);
+    expect(missingFields(hass, "climate.optional", { [opt[0].key]: 1 }, "climate.t")).toEqual([]);
     expect(serviceFields(hass, "cover.set_position", "cover.c").map((f) => f.key)).toEqual(["position"]);
     expect(serviceFields(hass, "nothing.here")).toEqual([]);
   });

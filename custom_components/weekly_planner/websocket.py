@@ -24,6 +24,7 @@ from .const import (
 from .engine import MAX_PAUSE_DAYS, PlannerEngine
 from .frontend import CARD_VERSION_KEY
 from .modes import apply_default_mode, profile_slots
+from .priorities import apply_order, devices, settle_saved, write_ranks
 from .resolver import NO_HOLIDAY, Holiday, OccurrenceCache, active_profile, occurrences_around
 from .slots import normalise_slot_entities, remove_device_from_slots
 from .store import new_id
@@ -72,7 +73,7 @@ def _editor_engine(hass: HomeAssistant, connection, msg) -> PlannerEngine | None
 
 @callback
 def async_register(hass: HomeAssistant) -> None:
-    for handler in (ws_get, ws_subscribe, ws_program_save, ws_program_delete, ws_label_save,
+    for handler in (ws_get, ws_subscribe, ws_program_save, ws_program_priorities, ws_program_delete, ws_label_save,
                     ws_label_delete, ws_preview, ws_journal, ws_set_enabled, ws_pause, ws_set_mode,
                     ws_resolve_mode, ws_undo_mode_rename, ws_mode_follow, ws_dismiss_mode_rename, ws_holiday):
         websocket_api.async_register_command(hass, handler)
@@ -240,6 +241,7 @@ def _chart_metadata_only(before: dict | None, after: dict, reapply_default: bool
 @websocket_api.websocket_command({
     vol.Required("type"): f"{DOMAIN}/program/save",
     vol.Required("program"): dict,
+    vol.Optional("group_order"): [str],  # ids of the competing group in the chosen order (editor, #60)
 })
 @websocket_api.async_response
 async def ws_program_save(hass, connection, msg) -> None:
@@ -281,6 +283,7 @@ async def ws_program_save(hass, connection, msg) -> None:
     inactive_mode_edit = bool(existing) and _is_inactive_mode_edit(engine, existing, program)
     program["revision"] = program.get("revision", 0) + 1
     program.setdefault("created_at", existing.get("created_at") if existing else dt_util.utcnow().isoformat())
+    program, reranked = _settle_ranks(engine, program, existing, msg.get("group_order"))
     if existing:
         engine.store.programs[engine.store.programs.index(existing)] = program
     else:
@@ -288,9 +291,62 @@ async def ws_program_save(hass, connection, msg) -> None:
         if config.get("mode_selector"):  # a new program starts under the default mode
             apply_default_mode([program], config.get("default_mode"), engine.mode_options())
         engine.store.programs.append(program)
+    for other in reranked:
+        engine.store.programs[next(i for i, p in enumerate(engine.store.programs) if p["id"] == other["id"])] = other
     engine.store.save_config()
-    await engine.async_config_changed(reapply=not inactive_mode_edit, metadata_only=chart_metadata_only)
+    await engine.async_config_changed(reapply=not inactive_mode_edit,
+                                      metadata_only=chart_metadata_only and not reranked)
     connection.send_result(msg["id"], {"program": program})
+
+
+def _settle_ranks(engine: PlannerEngine, program: dict, existing: dict | None,
+                  group_order: list[str] | None) -> tuple[dict, list[dict]]:
+    """Ranks after a save (#60): a program that newly competes goes last (merged groups interleaved), then the order
+    chosen in the editor applies; the group is renumbered 1..n. Returns the saved program and the other programs changed."""
+    candidate = [p for p in engine.store.programs if p["id"] != program["id"]] + [program]
+    group, renumber = settle_saved(candidate, program, devices(existing) if existing else set())
+    if group and group_order is not None:
+        group, renumber = apply_order(group, group_order, program["id"]), True
+    if not (group and renumber):
+        return program, []
+    changed = write_ranks(candidate, group, same_revision=program["id"])
+    saved = next(p for p in candidate if p["id"] == program["id"])
+    return saved, [p for p in changed if p["id"] != program["id"]]
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{DOMAIN}/program/priorities",
+    vol.Required("order"): vol.All([{vol.Required("id"): str, vol.Required("revision"): int}], vol.Length(min=1)),
+})
+@websocket_api.async_response
+async def ws_program_priorities(hass, connection, msg) -> None:
+    """Ranks 1..n for the programs of one competing group, in the order sent; all or nothing (#60)."""
+    engine = _editor_engine(hass, connection, msg)
+    if engine is None:
+        return
+    order = msg["order"]
+    if len({item["id"] for item in order}) != len(order):
+        connection.send_error(msg["id"], "invalid", "Duplicate program")
+        return
+    members = []
+    for item in order:
+        program = engine.store.program(item["id"])
+        if program is None:
+            connection.send_error(msg["id"], "not_found", "Unknown program")
+            return
+        if program.get("revision", 0) != item["revision"]:
+            connection.send_error(msg["id"], "conflict", "Modified elsewhere, reload")
+            return
+        if admin_required(program, engine.labels) and not connection.user.is_admin:
+            connection.send_error(msg["id"], "unauthorized", "Sensitive actions are reserved to administrators")
+            return
+        members.append(program)
+    changed = write_ranks(engine.store.programs, members)
+    if changed:
+        engine.store.save_config()
+        await engine.async_config_changed()
+    connection.send_result(msg["id"], {"programs": [
+        {"id": p["id"], "revision": p["revision"], "priority": p["priority"]} for p in changed]})
 
 
 @websocket_api.websocket_command({

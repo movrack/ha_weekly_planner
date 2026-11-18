@@ -14,7 +14,7 @@
     "step": {
       "init": {
         "title": "Weekly Planner",
-        "description": "What do you want to do?",
+        "description": "## [Open the Weekly Planner panel]({panel_url})\n\nCreate, edit and delete your programs there.\n\nOr choose:",
         "menu_options": {
           "settings": "Settings",
           "resync": "Resynchronise the devices"
@@ -25,6 +25,7 @@
         "data": {
           "admin_only": "Only administrators can edit programs",
           "reapply_default": "Send the current setting again after a restart or a change (default for new programs)",
+          "show_sidebar": "Show the Weekly Planner link in the sidebar",
           "notify_delay_min": "Alert when a device has been unavailable for",
           "debounce_min": "Wait before applying a change of condition"
         },

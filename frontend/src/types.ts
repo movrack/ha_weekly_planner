@@ -9,6 +9,8 @@ export interface HomeAssistant {
   themes?: { darkMode?: boolean };
   services?: Record<string, Record<string, unknown>>;
   areas?: Record<string, { area_id: string; name: string }>;
+  entities?: Record<string, { entity_id: string; device_id?: string | null }>;
+  devices?: Record<string, { id: string; name?: string | null; name_by_user?: string | null }>;
   localize?: (key: string, ...args: unknown[]) => string;
   loadBackendTranslation?: (category: string, integration?: string | string[], configFlow?: boolean) =>
     Promise<(key: string, ...args: unknown[]) => string>;

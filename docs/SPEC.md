@@ -58,7 +58,7 @@ Inclus : tout ce qui suit. **Hors v1 (v2)** : import des programmes `scheduler-c
 | D2 | Nom « Weekly Planner », interface fr + en (langue du compte HA). |
 | D3 | Programmes créés/modifiés uniquement depuis la carte, stockés par l'intégration ; un `switch` par programme. |
 | D6 | Action par défaut facultative par entité (« le reste du temps »), envoyée à la fin d'un horaire avec fin. |
-| D7 | Pas de chevauchement dans un programme ; entre programmes, **priorité numérotée**, l'autre reprend la main ; conflits signalés. |
+| D7 | Pas de chevauchement dans un programme ; entre programmes qui partagent un appareil, **rang de priorité** (1, 2, 3… ; 1 gagne ; l'ordre se règle par glisser-déposer, jamais saisi), l'autre reprend la main ; conflits signalés. Voir § 5.4 bis. |
 | D8 | 7 jours indépendants + copie (raccourcis Lun→Ven, Sam+Dim) ; toute minute ; plages passant minuit ; heures solaires (lever, coucher ± décalage ; aube et crépuscule acceptés par le serveur, non proposés) avec bornes « au plus tôt / au plus tard ». |
 | D9 | Conditions simples par programme **et par plage** ; interrupteur global « Vacances / Absence ». Condition devenue fausse = fin de plage. |
 | D10 | Réglage par programme « réappliquer en cours de plage » (oui par défaut) : redémarrage, activation, modification. |
@@ -114,6 +114,14 @@ traité par la passe suivante, dans l'ordre d'arrivée (verrou du moteur, § 21.
 ### 5.3 Changements manuels
 Le moteur ne détecte aucun changement fait à la main : pas de dérogation, pas de comparaison à une cible, pas de
 service `override` ni `resume`. Seul l'**affichage** du graphique montre les changements manuels (§ 10.4).
+
+### 5.4 bis Concurrence et rang de priorité (#60)
+- **Concurrents** = programmes qui partagent au moins un appareil, regroupés transitivement (A–B partagent un appareil, B–C un autre : un seul groupe). Horaires et modes sont ignorés : ils sont en concurrence avant même tout horaire.
+- La priorité est un **rang** 1, 2, 3… sans plafond (la validation 1–100 est levée, minimum 1) ; 1 gagne ; à égalité, le plus ancien (`created_at`). `priority` reste inchangé dans le YAML et l'API WebSocket ; l'interface n'a plus de champ de saisie.
+- Migration (stockage 3.3) : chaque groupe existant est renuméroté 1..n dans son ordre actuel (priorité, puis ancienneté) ; comportement inchangé.
+- Enregistrement d'un programme : un programme qui entre en concurrence passe **dernier** de son groupe ; s'il fusionne des groupes, ceux-ci sont entrelacés par rang (tous les 1, puis les 2… ; à égalité le plus ancien), le programme fusionnant en dernier ; puis le groupe est renuméroté 1..n. Supprimer un programme ou retirer un appareil laisse les trous (pas de renumérotation).
+- WebSocket `weekly_planner/program/priorities` : liste `{id, revision}` dans le nouvel ordre d'un groupe ; tout ou rien, révision contrôlée pour chacun, mêmes droits que `program/save` ; rangs 1..n, une seule écriture, recalcul du moteur. `program/save` accepte aussi `group_order` (ids du groupe, `"new"` pour le programme non encore enregistré), appliqué atomiquement avec l'enregistrement.
+- Panneau : écran « Ordre des priorités » (un bloc par groupe titré par ses appareils partagés, puis « Seuls sur leurs appareils » non réordonnable ; poignée mdi:drag + boutons ↑/↓ de 48 px ; enregistré au lâcher ; bandeau fixe en bas « Ordre enregistré · Remettre comme avant », bouton « Terminé » en fin d’écran, sans minuterie, jusqu'au déplacement suivant, la sortie de l'écran ou son bouton ; une seule zone annoncée aux lecteurs d'écran). Éditeur : bloc repliable dans Général, ouvert d'office comme avertissement quand la concurrence est nouvelle ; l'ordre part avec Enregistrer, Annuler l'abandonne ; l'onglet Appareils garde « Aussi piloté par… » avec un lien vers le bloc.
 
 ### 5.4 Action par défaut
 - Facultative, par entité d'un programme, choisie avec le même sélecteur que les actions d'un horaire (service ou scène).
@@ -322,7 +330,7 @@ racine
 ├─ mode_selector?, default_mode? : sélecteur de mode global et mode par défaut (§ 37.2)
 ├─ holiday_entity? : entité jour férié (§ 5.11) ; holiday_invert : bool
 ├─ labels[]        : id, name (1–30 car.), color, action
-└─ programs[]      : id, revision, created_at, name (1–60 car.), icon?, area?, priority (1–100, défaut 10), enabled, reapply,
+└─ programs[]      : id, revision, created_at, name (1–60 car.), icon?, area?, priority (rang ≥ 1, sans plafond ; défaut 10 pour un programme seul ; § 5.4 bis), enabled, reapply,
                      entities[] (1–100) : entity_id, default_label? (id de réglage), label_overrides{ label_id: action },
                                           allowed_services[], restrict_services
                      conditions[] : entity_id, attribute?, op (eq|ne|lt|gt), value
@@ -543,7 +551,7 @@ Vue de **lecture** de la journée d'aujourd'hui ; elle remplace la barre / le ca
 
 ### 10.3 Écran d'horaires et réglages
 - **Éditeur visuel Lovelace, onglet « Réglages des programmes »** (administrateurs) : choix du programme à modifier
-  (« Nouveau programme » en tête), onglets **Général** (nom, icône, zone, priorité, conditions, réappliquer),
+  (« Nouveau programme » en tête, bouton « Ordre des priorités » ; § 5.4 bis), onglets **Général** (nom, icône, zone, bloc repliable « Partage un appareil avec N programmes · passe en 2e », conditions, réappliquer),
   **Appareils** (défaut, actions proposées par appareil avec descriptions HA) et **Modes** (modes, mode actif, source de
   mode et associations repliables) ; création courte (nom + appareils) avec reprise du brouillon ; Annuler / Rétablir
   (Ctrl/Cmd+Z, Ctrl/Cmd+Maj+Z, Ctrl/Cmd+Y) ; dupliquer, supprimer (confirmé).

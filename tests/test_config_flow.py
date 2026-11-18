@@ -43,10 +43,12 @@ async def _open_settings(flow, entry):
     """The options flow opens on a menu: choose the settings."""
     result = await flow.async_init(entry.entry_id)
     assert result["type"] is FlowResultType.MENU and result["menu_options"] == ["settings", "resync"]
+    # the menu points to the programs panel (the programs are not managed from a card any more)
+    assert result["description_placeholders"] == {"panel_url": "/weekly-planner"}
     return await flow.async_configure(result["flow_id"], {"next_step_id": "settings"})
 
 
-BASE = {"admin_only": True, "reapply_default": True, "notify_delay_min": 30, "debounce_min": 2,
+BASE = {"admin_only": True, "reapply_default": True, "show_sidebar": True, "notify_delay_min": 30, "debounce_min": 2,
         "mode_and_day_off": {}}
 
 

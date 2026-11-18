@@ -34,15 +34,18 @@ from .const import (
     CONF_MODE_SELECTOR,
     CONF_NOTIFY_DELAY_MIN,
     CONF_REAPPLY_DEFAULT,
+    CONF_SHOW_SIDEBAR,
     DEFAULT_ADMIN_ONLY,
     DEFAULT_DEBOUNCE_MIN,
     DEFAULT_NOTIFY_DELAY_MIN,
     DEFAULT_REAPPLY,
+    DEFAULT_SHOW_SIDEBAR,
     DOMAIN,
     HOLIDAY_DOMAINS,
     MODE_NAME_MAX,
     MODE_SELECTOR_DOMAINS,
 )
+from .frontend import PANEL_URL_PATH
 from .messages import resync_lines
 from .validation import check_holiday_config, check_mode_config, driven_entities
 
@@ -84,7 +87,9 @@ class WeeklyPlannerOptionsFlow(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Menu: the settings, or the resynchronisation of the devices (administrators: the options flow is admin-only)."""
-        return self.async_show_menu(step_id="init", menu_options=["settings", "resync"])
+        return self.async_show_menu(
+            step_id="init", menu_options=["settings", "resync"],
+            description_placeholders={"panel_url": f"/{PANEL_URL_PATH}"})  # the programs are managed in the sidebar panel
 
     async def async_step_resync(
         self, user_input: dict[str, Any] | None = None
@@ -153,6 +158,10 @@ class WeeklyPlannerOptionsFlow(OptionsFlow):
                 vol.Required(
                     CONF_REAPPLY_DEFAULT,
                     default=options.get(CONF_REAPPLY_DEFAULT, DEFAULT_REAPPLY),
+                ): bool,
+                vol.Required(
+                    CONF_SHOW_SIDEBAR,
+                    default=options.get(CONF_SHOW_SIDEBAR, DEFAULT_SHOW_SIDEBAR),
                 ): bool,
                 vol.Required(
                     CONF_NOTIFY_DELAY_MIN,

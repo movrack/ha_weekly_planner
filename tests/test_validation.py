@@ -201,9 +201,9 @@ def test_entity_schema():
 def test_program_defaults_and_limits():
     prog = _check({k: x for k, x in program().items() if k not in ("priority", "enabled", "revision")})
     assert (prog["priority"], prog["enabled"], prog["revision"]) == (DEFAULT_PRIORITY, True, 0)
-    for priority in (1, 100):
+    for priority in (1, 100, 101, 5000):  # a rank has no upper limit
         assert _check(program(priority=priority))["priority"] == priority
-    for priority in (0, 101):
+    for priority in (0, -1):
         with pytest.raises(vol.Invalid):
             _check(program(priority=priority))
     with pytest.raises(vol.Invalid):

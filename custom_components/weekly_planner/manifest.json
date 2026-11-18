@@ -14,6 +14,7 @@
   "config_flow": true,
   "dependencies": [
     "http",
+    "panel_custom",
     "websocket_api"
   ],
   "documentation": "https://github.com/movrack/ha_weekly_planner",

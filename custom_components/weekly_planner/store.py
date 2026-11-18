@@ -23,6 +23,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, STORAGE_MINOR_VERSION, STORAGE_VERSION
 from .migration import migrate_config_v1, migrate_config_v2, migrate_runtime_v1
+from .priorities import renumber_all
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,6 +60,12 @@ class _VersionedStore(Store):
                 f"{self.key} was saved by a newer version ({old_major}.{old_minor} > "
                 f"{self.version}.{self.minor_version}); restore the backup or update Weekly Planner")
         _LOGGER.info("Migrating %s from %s.%s", self.key, old_major, old_minor)
+        data = await self._migrate_data(old_major, old_data)
+        if self.key == DOMAIN and isinstance(data.get("programs"), list):
+            renumber_all(data["programs"])  # minor 3: priorities become ranks, order kept (#60)
+        return data
+
+    async def _migrate_data(self, old_major: int, old_data: dict) -> dict:
         if old_major < self.version and self._migrate is not None:
             path = Path(self.path)
             stamp = dt_util.utcnow().strftime("%Y%m%d%H%M%S")

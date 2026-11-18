@@ -124,7 +124,7 @@ describe("solar time help", () => {
   it("uses clear labels and error text", () => {
     expect(t("fr", "sun_earliest")).toBe("Au plus tôt à");
     expect(t("fr", "sun_latest")).toBe("Au plus tard à");
-    expect(t("fr", "err_sun_bounds")).toBe("« Au plus tôt » doit précéder « Au plus tard ».");
+    expect(t("fr", "err_sun_bounds")).toBe("« Au plus tôt » doit précéder « Au plus tard ».");
     expect(t("en", "sun_earliest")).toBe("Not earlier than");
   });
 });

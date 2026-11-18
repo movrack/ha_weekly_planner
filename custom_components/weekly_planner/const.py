@@ -9,14 +9,17 @@ DOMAIN: Final = "weekly_planner"
 STORAGE_KEY: Final = DOMAIN
 STORAGE_VERSION: Final = 3
 # Minor 2 (issue #54): optional ``holiday`` per profile, ``holiday_entity`` / ``holiday_invert`` in the configuration.
-STORAGE_MINOR_VERSION: Final = 2
+# Minor 3 (issue #60): ``priority`` is a rank 1..n inside each group of programs sharing a device.
+STORAGE_MINOR_VERSION: Final = 3
 
 CONF_ADMIN_ONLY: Final = "admin_only"
 CONF_NOTIFY_DELAY_MIN: Final = "notify_delay_min"
 CONF_REAPPLY_DEFAULT: Final = "reapply_default"
 CONF_DEBOUNCE_MIN: Final = "debounce_min"
+CONF_SHOW_SIDEBAR: Final = "show_sidebar"  # sidebar link to the programs panel (the panel itself stays reachable)
 
 DEFAULT_ADMIN_ONLY: Final = False
+DEFAULT_SHOW_SIDEBAR: Final = True
 DEFAULT_NOTIFY_DELAY_MIN: Final = 30
 DEFAULT_REAPPLY: Final = True
 # Priority of a program saved without one (1 = strongest); the card offers the same value.
