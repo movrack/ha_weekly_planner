@@ -99,7 +99,7 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
 - User-facing docs (wiki, guide, READMEs) describe only the current product: no history, no "old/former/replaced" wording, no version-dated captions; history lives in CHANGELOG/DECISIONS.
 - **Quality scale (maintainer decision): the project must ALWAYS stay validated at least Bronze** on the Home Assistant Integration Quality Scale (self-declared, `custom_components/weekly_planner/quality_scale.yaml`), and the README (EN and FR) must ALWAYS claim it: the Bronze badge and the "Quality level" line. Before delivering or deploying Python code, check that no Bronze rule regressed (all 20 rules `done` or motivated `exempt`, `config_flow.py` at 100 % lines and branches, `tests/test_quality_scale.py` green, removal and actions docs up to date). A change that breaks a Bronze rule is not delivered until the rule holds again; never remove the badge to hide a regression.
 - **Review agents**: use the shared generic agents of the public repository https://github.com/movrack/AI (`john-117` orchestrator, `nemesis` devil's advocate, `mamy` novice screen tester, `ally` accessibility, `stryker` mutation testing, `heimdall` delivery gatekeeper, `parker` photographer, `iris` CSS and visual consistency, `c3po` translations) instead of project-specific copies or look-alikes; change their behaviour in that repository, never in a generated copy. They work on request only and write their reports to `reports/ai/<agent>/` (git-ignored). The findings of `mamy` and `ally` are tracked in one GitHub issue per report, as a checklist (`- [ ]` / `- [x]`, labels `accessibility` and `enhancement`) ticked as tasks are delivered. `stryker` only adds tests (never production code, never lowers a floor, never skips a test), `heimdall` only reports, `iris` reviews styles and, only when asked to harmonise, edits styles only (shared stylesheet `frontend/src/styles.ts`), and `c3po` checks that every string exists in every language and means the same thing (reports by default; fixes translation files only when asked).
-- Documentation: `wiki/` is the official source of the user docs (French only; `docs/` holds only internal project files: SPEC, DECISIONS, quick_todo, SCREEN_INVENTORY and the plan of work in progress; delete a plan when its work is done, the decision stays in DECISIONS; README.md English, README.fr.md French, kept in sync). The GitHub wiki (https://github.com/movrack/ha_weekly_planner/wiki) is a published copy. Pages: Home, _Sidebar, Guide-utilisateur (wiki/GUIDE.fr.md), Atlas-des-ecrans (wiki/SCREENS.fr.md + images/guide/), Actions-generiques (wiki/GENERIC_ACTIONS.md, translated), Modes (wiki/MODES.md, translated), Recettes-pour-les-modes (wiki/MODES_COOKBOOK.fr.md), Configuration-YAML-de-la-carte (wiki/REFERENCE.fr.md "Configuration de la carte"), Integrateurs (wiki/REFERENCE.fr.md from "Modèle et exécution" on, plus README.fr.md "Entités et actions"). Never publish anything from `docs/`. Resync by hand: clone `https://github.com/movrack/ha_weekly_planner.wiki.git` into a new directory (an existing clone may be reused after `git pull`), regenerate each page from its source (HTML thumbnails become `![alt](images/guide/x.png)`, links to `SCREENS.fr.md#sNN` become `Atlas-des-ecrans`, repo file links become absolute GitHub URLs), copy the images, check every link resolves, then commit (Conventional Commits, no trailers) and push to `master`. Update the wiki in the same session as any change to these sources.
+- Documentation: `wiki/` is the official source of the user docs (French only; `docs/` holds only internal project files: SPEC, DECISIONS, quick_todo, SCREEN_INVENTORY and the plan of work in progress; delete a plan when its work is done, the decision stays in DECISIONS; README.md English, README.fr.md French, kept in sync). The GitHub wiki (https://github.com/movrack/ha_weekly_planner/wiki) is a published copy. Pages: Home, _Sidebar, Guide-utilisateur (wiki/GUIDE.fr.md), Atlas-des-ecrans (wiki/SCREENS.fr.md + images/guide/), Actions-generiques (wiki/GENERIC_ACTIONS.md, translated), Modes (wiki/MODES.md, translated), Recettes (wiki/RECETTES.fr.md, the index), one page per recipe (wiki/RECETTE_*.fr.md, page name from the title) and Priorites (wiki/PRIORITES.fr.md); every recipe follows the same template: title, « À quoi ça sert », « Ce qu'il faut », « Étapes », « Résultat », « À savoir », back link to the index; the old page Recettes-pour-les-modes points to Recettes, Configuration-YAML-de-la-carte (wiki/REFERENCE.fr.md "Configuration de la carte"), Integrateurs (wiki/REFERENCE.fr.md from "Modèle et exécution" on, plus README.fr.md "Entités et actions"). Never publish anything from `docs/`. Resync by hand: clone `https://github.com/movrack/ha_weekly_planner.wiki.git` into a new directory (an existing clone may be reused after `git pull`), regenerate each page from its source (HTML thumbnails become `![alt](images/guide/x.png)`, links to `SCREENS.fr.md#sNN` become `Atlas-des-ecrans`, repo file links become absolute GitHub URLs), copy the images, check every link resolves, then commit (Conventional Commits, no trailers) and push to `master`. Update the wiki in the same session as any change to these sources.
 
 ## User interface
 - Reference screen: 360 × 780 px CSS (a common phone), then ≥ 1400 px; light and dark themes.
@@ -132,6 +132,36 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
 - Card mutation (StrykerJS, pure modules only): `cd frontend && npm run mutation`; report in `frontend/reports/`.
 - Raise the floors when coverage rises; never lower them to make a change pass. The weekly CI job
   `mutation.yml` is informational and never required for a pull request.
+
+### Writing tests (owner rule, 2026-11-18)
+- **One test file per module, named after the module** (`bar-editor.test.ts`, `tests/test_resolver.py`). A large
+  module may split by behaviour (`bar-editor-drag.test.ts`), never by tool, origin, date or number: no
+  `*-mutants-*`, `*-codex-*`, `coverage-floors-*`, `-3`, `polish-0211`, `test_mutation_*` files.
+- **Before adding a test, search the module's file**: extend or parametrize an existing test of the same behaviour
+  rather than writing a second one. Same behaviour = same rule of the spec, same inputs class, same expected kind.
+- **One behaviour per test**, named as a sentence about what the user or the engine sees ("a slot ending at
+  midnight keeps…"), not about the code ("covers branch 3", "kills mutant 28").
+- **Many cases of one rule = one table** (`it.each` / `pytest.mark.parametrize`), not one copy-pasted test per case.
+- **Shared helpers live in one place** (`src/__tests__/helpers/`, `tests/conftest.py` or a module-level helper);
+  never copy `editor()`, `slot()` or a fixture into another file.
+- **Test through the public surface**: rendered output, events, handlers of the template, WebSocket/service calls,
+  stored data. Read or set a private `_x` field only when no public way exists, and say why in a comment.
+- **Every test must be able to fail**: the expected value is written in the test, never derived from the output
+  under test; no test without an assertion; no assertion on a mock's own return value.
+- **No real clock**: fake timers / `freezer`; no exact CSS strings or long copied texts unless they are the contract
+  (touch target size, contrast token, translation key); compare translated texts through `t()`.
+- **Regression test for a reported bug**: in the module's file, named after the visible symptom; keep it even if it
+  adds no coverage.
+- **Remove a test only with proof**: per-file coverage unchanged and mutation score of the module unchanged.
+
+### Killing mutants (owner rule, 2026-11-18)
+- A surviving mutant means a behaviour is not checked. **First find the existing test of that behaviour in the
+  module's file and strengthen its assertion** (exact value, both sides of a boundary, the other branch).
+- Add a new test only when the behaviour has none; put it in the module's file, named after the behaviour.
+- A mutant that changes nothing observable (equivalent mutant, log text, defensive guard that cannot be reached) is
+  **not killed by a test**: mark it ignored in the tool with a one-line reason, or simplify the code.
+- Never write a test whose only purpose is to execute a line; if the line has no observable effect, question the code.
+- After a mutation round: per-file floors kept, the module's mutation score not lower, no new file created.
 
 ### Performance tests
 - Tests must not depend on the real clock or on thread order: take operation counts at frozen, simulated
