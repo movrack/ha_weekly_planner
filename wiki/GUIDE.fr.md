@@ -312,7 +312,7 @@ automatisation… Pour le faire connaître à Weekly Planner :
 Les options du sélecteur sont les modes. Weekly Planner le lit et ne le modifie
 jamais : pour changer de mode, changer le sélecteur. Si le sélecteur est
 indisponible, le dernier mode valide reste actif. Des
-[recettes d’automatisation](MODES_COOKBOOK.fr.md) changent le mode selon un capteur.
+[recettes d’automatisation](RECETTES.fr.md) changent le mode selon un capteur.
 
 ### Modifier les horaires d’un mode
 
@@ -372,8 +372,8 @@ modifie pas directement ce jour-là.
 
 La section **Jour férié** n’apparaît que si une entité « jour férié » est choisie dans **Paramètres →
 Appareils et services → Weekly Planner → Configurer → Réglages → Mode et jour férié** (réservé aux
-administrateurs). Pour créer cette entité, voir la
-[recette 6](MODES_COOKBOOK.fr.md#recette-6--un-interrupteur--jour-férié-).
+administrateurs). Pour créer cette entité, voir la recette
+[Un interrupteur « Jour férié »](RECETTE_INTERRUPTEUR_JOUR_FERIE.fr.md).
 
 ## Je veux changer la présentation ou créer un programme
 
@@ -411,7 +411,7 @@ les horaires** pour continuer directement. Si aucune commande n’a encore été
 choisie, les régler plus tard dans **Réglages des programmes → Appareils →
 Actions proposées**. Enregistrer aussi la carte pour garder sa présentation.
 
-Dans **Général**, on règle aussi le nom, l’icône, la **Priorité (1–100)** et **Réappliquer**. **Dupliquer**
+Dans **Général**, on règle aussi le nom, l’icône, l’ordre de priorité (bloc **Partage un appareil avec N programmes**, voir [Priorités](PRIORITES.fr.md)) et **Réappliquer**. **Dupliquer**
 crée une copie du programme et **Supprimer** le supprime, avec ses horaires. L’onglet **Modes** explique
 que chaque mode a sa propre semaine, indique **Actif actuellement : X** et propose **Modifier les
 horaires de ce mode**. Les onglets se parcourent aux flèches, avec Début et Fin.
@@ -500,9 +500,10 @@ droits de modification avec la personne qui a installé la carte.
 
 ## Pour la personne qui installe
 
-- Plusieurs programmes peuvent utiliser le même appareil. **Le plus petit numéro
-  de priorité l’emporte** ; à égalité, le plus ancien. Un autre programme peut
-  reprendre la main à la fin d’un horaire.
+- Plusieurs programmes peuvent utiliser le même appareil : ils sont **en concurrence** et classés par rang
+  (1, 2, 3…). **Le rang 1 l’emporte** ; à égalité, le plus ancien. L’ordre se règle par glisser-déposer
+  (bouton **Ordre des priorités** du panneau, ou bloc de l’onglet Général) : [Priorités](PRIORITES.fr.md).
+  Un autre programme peut reprendre la main à la fin d’un horaire.
 - Général contient les conditions du programme ; elles doivent toutes être
   satisfaites pour ses horaires. Une condition fausse peut laisser agir le défaut.
   Le formulaire n’édite pas les conditions par horaire.
@@ -519,7 +520,7 @@ droits de modification avec la personne qui a installé la carte.
   appareil est indisponible (1 à 1440 minutes) et le délai d’attente avant d’appliquer un changement de condition
   (0 à 60 minutes).
 - Limites : nom de programme 60 caractères, de réglage 30, de mode 40 ; 20 modes par programme,
-  50 horaires par jour, 100 appareils par programme, 10 conditions par horaire ; priorité de 1 à 100 ;
+  50 horaires par jour, 100 appareils par programme, 10 conditions par horaire ;
   décalage solaire de −240 à +240 minutes ; délai aléatoire de 1 à 240 minutes ; nom affiché d’une source de
   graphique 60 caractères, 100 états mis en évidence.
 - Notifications persistantes : « X est indisponible : son action planifiée est toujours en attente »,

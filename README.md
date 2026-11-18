@@ -137,6 +137,16 @@ Every option can be set in the visual editor or in YAML. The main ones:
 
 Full table and YAML types: [card options](https://github.com/movrack/ha_weekly_planner/blob/main/wiki/REFERENCE.md#dashboard-configuration).
 
+### Card views
+
+Choose the look with `schedule_view`:
+
+| | |
+|---|---|
+| **Bars**<br>`bars`<br>![Bars](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s01-overview.png) | **24-hour dial**<br>`radial`<br>![24-hour dial](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s03-radial.png) |
+| **12-hour dial**<br>`radial_12h`<br>![12-hour dial](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s03-radial-12h.png) | **Compact list**<br>`list`<br>![Compact list](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s04-compact-list.png) |
+| **Times of the day**<br>`times`<br>![Times of the day](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s52-times.png) | **Comparison**<br>`compare`<br>![Comparison](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s54-compare.png) |
+
 ## Entities and actions
 
 The integration creates one global suspension switch, and one program switch per
@@ -237,7 +247,7 @@ data:
   option: Away
 ```
 
-More, in French: [mode recipes](https://github.com/movrack/ha_weekly_planner/wiki/Recettes-pour-les-modes)
+More, in French: [recipes](https://github.com/movrack/ha_weekly_planner/wiki/Recettes)
 and [setting actions](https://github.com/movrack/ha_weekly_planner/wiki/Actions-generiques).
 
 ## How it runs

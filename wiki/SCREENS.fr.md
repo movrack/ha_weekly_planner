@@ -30,7 +30,7 @@ Le mode se choisit en dehors de Weekly Planner. Les horaires de chaque mode se p
 
 ### S39 — Choisir l’entité qui donne le mode
 
-Le sélecteur de mode se règle une fois dans les options de l’intégration ([S35](#s35)) et ses options sont les modes. Une entité qui change d’état, comme un capteur, ne donne pas le mode directement : une automatisation change le sélecteur ([recettes](MODES_COOKBOOK.fr.md)).
+Le sélecteur de mode se règle une fois dans les options de l’intégration ([S35](#s35)) et ses options sont les modes. Une entité qui change d’état, comme un capteur, ne donne pas le mode directement : une automatisation change le sélecteur ([recettes](RECETTES.fr.md)).
 
 <a href="images/guide/s39-modes-external.png"><img src="images/guide/s39-modes-external.png" width="320" alt="Choisir l’entité qui donne le mode" /></a>
 

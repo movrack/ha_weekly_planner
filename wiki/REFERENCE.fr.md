@@ -125,7 +125,7 @@ Leur affichage dans le graphique ne modifie pas cette règle.
 
 - **Avec fin** : action au début, puis défaut éligible ou action du programme qui reprend la main à la fin.
 - **Ponctuelle** : action lancée une seule fois, aucun événement de fin, jamais rejouée après son heure. Un horaire borné prioritaire peut la supprimer.
-- **Priorité** : le plus petit numéro gagne entre les horaires éligibles actifs ; le programme le plus ancien départage les égalités. Sans horaire actif, le programme activé le plus prioritaire contenant l’entité fournit son défaut facultatif.
+- **Priorité** : c’est un rang (1, 2, 3…, sans plafond) dans un groupe de programmes qui partagent un appareil ; le rang 1 gagne entre les horaires éligibles actifs, le programme le plus ancien départage les égalités. L’interface ne la saisit pas (glisser-déposer) ; `priority` reste dans le YAML et l’API. Commande `weekly_planner/program/priorities` : liste `{id, revision}` dans le nouvel ordre d’un groupe, tout ou rien ; `weekly_planner/program/save` accepte aussi `group_order`. Sans horaire actif, le programme activé le plus prioritaire contenant l’entité fournit son défaut facultatif.
 - **Conditions** : toutes les conditions du programme doivent être satisfaites pour ses horaires. Une condition fausse n’est pas une commande d’arrêt générique ; les règles des défauts comptent encore.
 - **Redémarrage** : stabilisation de 30 s, puis réapplication facultative de l’action bornée ou du défaut en cours après un redémarrage, une activation ou une modification. Les fins manquées sont rattrapées, pas les actions ponctuelles passées.
 - **Temps** : construction en heure locale HA, comparaisons en UTC. Un horaire passe au lendemain si sa fin est antérieure au début **et avant midi**. `24:00` est accepté en fin.
@@ -207,7 +207,7 @@ data:
   option: Absent
 ```
 
-Voir les [modes](MODES.md), les [exemples de modes](MODES_COOKBOOK.fr.md) et les
+Voir les [modes](MODES.md), les [exemples de modes](RECETTES.fr.md) et les
 [exemples d’actions natives](GENERIC_ACTIONS.md).
 
 ### Jour férié
@@ -335,7 +335,7 @@ programs:
 
 - Le filtre Pièce vise les métadonnées du programme, pas les pièces HA.
 - Le modèle accepte des conditions par horaire, mais le formulaire n’a pas de constructeur de conditions par horaire (les conditions du programme se règlent dans **Général**).
-- Limites de validation : nom de programme 60 caractères, de réglage 30, de mode 40 ; 20 modes par programme, 50 horaires par jour, 100 appareils par programme, 10 conditions par horaire ; priorité de 1 à 100 ; décalage solaire de −240 à +240 minutes ; délai aléatoire de 0 à 240 minutes ; 100 états mis en évidence et un nom affiché de 60 caractères au plus par source de graphique.
+- Limites de validation : nom de programme 60 caractères, de réglage 30, de mode 40 ; 20 modes par programme, 50 horaires par jour, 100 appareils par programme, 10 conditions par horaire ; décalage solaire de −240 à +240 minutes ; délai aléatoire de 0 à 240 minutes ; 100 états mis en évidence et un nom affiché de 60 caractères au plus par source de graphique.
 - L’historique et les changements manuels dépendent de Recorder/logbook ; l’attribution des modifications d’attributs seuls a des limites.
 
 Le graphique distingue historique absent, futur ou indisponible et absence

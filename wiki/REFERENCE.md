@@ -339,7 +339,7 @@ programs:
 - The slot model supports conditions, but the slot form does not expose a slot-condition
   builder (program conditions are edited in **General**).
 - Validation limits: program name 60 characters, setting name 30, mode name 40; 20 modes per
-  program, 50 schedules per day, 100 devices per program, 10 conditions per schedule; priority 1–100;
+  program, 50 schedules per day, 100 devices per program, 10 conditions per schedule;
   sun offset −240 to +240 minutes; random delay 0–240 minutes; 100 highlighted states and a 60-character
   alias per chart source.
 - History/manual-change display depends on Recorder/logbook data and attribution;

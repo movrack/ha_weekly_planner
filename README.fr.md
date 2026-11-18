@@ -140,6 +140,16 @@ Chaque option se règle dans l’éditeur visuel ou en YAML. Les principales :
 
 Tableau complet et types YAML : [options de la carte](https://github.com/movrack/ha_weekly_planner/blob/main/wiki/REFERENCE.fr.md#configuration-de-la-carte).
 
+### Vues de la carte
+
+Choisissez l’apparence avec `schedule_view` :
+
+| | |
+|---|---|
+| **Barres**<br>`bars`<br>![Barres](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s01-overview.png) | **Cadran 24 h**<br>`radial`<br>![Cadran 24 h](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s03-radial.png) |
+| **Cadran 12 h**<br>`radial_12h`<br>![Cadran 12 h](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s03-radial-12h.png) | **Liste compacte**<br>`list`<br>![Liste compacte](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s04-compact-list.png) |
+| **Horaires du jour**<br>`times`<br>![Horaires du jour](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s52-times.png) | **Comparateur**<br>`compare`<br>![Comparateur](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s54-compare.png) |
+
 ## Entités et actions
 
 L’intégration crée un interrupteur global de suspension, et un interrupteur
@@ -240,7 +250,7 @@ data:
   option: Absent
 ```
 
-D’autres exemples : [recettes pour les modes](https://github.com/movrack/ha_weekly_planner/wiki/Recettes-pour-les-modes)
+D’autres exemples : [recettes](https://github.com/movrack/ha_weekly_planner/wiki/Recettes)
 et [actions des réglages](https://github.com/movrack/ha_weekly_planner/wiki/Actions-generiques).
 
 ## Fonctionnement
