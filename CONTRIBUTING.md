@@ -74,8 +74,8 @@ repository: change them in `movrack/AI`.
 
 ## Dead code
 
-Run `python3 scripts/deadcode.py` from the repository root, or `npm run deadcode` from `frontend/`.
-Use `python3 scripts/deadcode.py --check` to compare candidates with the issue #64 reference.
+Run `uv run --group deadcode --group lint python3 scripts/deadcode.py` from the repository root, or `npm run deadcode` from `frontend/` (both install the tools they need).
+Add `--check` to compare the findings with the reference data (`scripts/deadcode_reference.json`).
 Detection is read-only: it prints candidates and never changes source files.
 Every false positive must update the whitelist or detection rule, with a reason, in the same change.
 A finding requires human verification; new findings remain unclassified until reviewed.
