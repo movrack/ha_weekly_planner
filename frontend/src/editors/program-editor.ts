@@ -7,6 +7,8 @@ import { syncSelectValues } from "../select-value";
 import { DraftHistory } from "../draft-history";
 import { defaultEntityIcon } from "../icons";
 import { mergeProgramSettings } from "../program-settings";
+import { roomChoices, roomKey } from "../program-areas";
+import { domainOf, typeName } from "../type-names";
 import { commonSlotCount, devicesOf, editForDevice, ownSlotCount, removeDeviceFromSlots } from "../device-edits";
 import { appliedAction, labelOf } from "../labels";
 import { applies } from "../slots";
@@ -22,8 +24,10 @@ import { loadServiceNames, serviceDomains, serviceDescription, serviceLabel, ser
 import type { Condition, HomeAssistant, PlannerData, Program, ProgramEntity, Slot } from "../types";
 import "./shared";
 import { editorStyles, langOf } from "./shared";
-import { callout } from "../styles";
+import { callout, collapse } from "../styles";
 import type { K } from "./shared";
+
+const NEW_AREA = "__new_area__"; // the value of the "Another room…" choice: never stored
 
 type Tab = "general" | "entities";
 interface EditorSnapshot {
@@ -35,10 +39,6 @@ interface EditorSnapshot {
 type Closable = HTMLElement & { close(): void };
 
 const EMPTY_DAYS = (): Slot[][] => [[], [], [], [], [], [], []];
-
-function cloneSlots(slots: Slot[]): Slot[] {
-  return slots.map((s) => ({ ...structuredClone(s), id: newId() }));
-}
 
 @customElement("wp-program-editor")
 export class WpProgramEditor extends LitElement {
@@ -66,6 +66,7 @@ export class WpProgramEditor extends LitElement {
   @state() private _order?: string[];
   /** The competition block, open or closed by the person; undefined = open only as a warning for a new competition. */
   @state() private _compOpen?: boolean;
+  @state() private _areaNew = false;
   /** Text of the permanent live region: the warning that a device just added creates a competition. */
   @state() private _compSaid = "";
   @state() private _picker = Boolean(customElements.get("ha-selector"));
@@ -228,22 +229,49 @@ export class WpProgramEditor extends LitElement {
     });
   }
 
+  /** The room of the program: a choice among the Home Assistant rooms and the rooms already used, or a new name. */
+  private _areaField() {
+    const p = this._p;
+    const choices = roomChoices(this.hass, this.data.programs, p.area ?? undefined);
+    const current = roomKey(this.hass, p.area);
+    const adding = this._areaNew;
+    return html`<div class="field"><label for="f-area">${this._tr("pe_area")}</label>
+      <select id="f-area" aria-describedby="program-area-help" @change=${(e: Event) => this._pickArea((e.target as HTMLSelectElement).value)}>
+        <option value="" ?selected=${!adding && !current}>${this._tr("pe_area_none")}</option>
+        ${choices.map((o) => html`<option value=${o.value} ?selected=${!adding && o.key === current}>${o.label}</option>`)}
+        <option value=${NEW_AREA} ?selected=${adding}>${this._tr("pe_area_new")}</option>
+      </select>
+      ${adding ? html`<input id="f-area-new" type="text" aria-label=${this._tr("pe_area_new_name")} .value=${p.area ?? ""}
+        @change=${(e: Event) => this._patch({ area: (e.target as HTMLInputElement).value.trim() || null })} />` : nothing}
+      <p id="program-area-help" class="hint">${this._tr("pe_area_hint")}</p></div>`;
+  }
+
+  private _pickArea(value: string): void {
+    this._areaNew = value === NEW_AREA;
+    if (this._areaNew) {
+      void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLInputElement>("#f-area-new")?.focus());
+      return;
+    }
+    this._patch({ area: value || null });
+  }
+
   private _renderCompetition() {
     const c = this._competition();
     if (!c) return nothing;
     const open = this._compOpen ?? c.isNew;
     const n = c.group.length - 1;
     const title = this._tr(n === 1 ? "pe_competes_one" : "pe_competes", { n: String(n), rank: ordinal(this._lang, c.rank) });
-    return html`<div id="pe-comp" class="comp ${c.isNew ? "warn" : ""}">
+    return html`<div class="label sec" id="pe-prio-label">${this._tr("pe_priority")}</div>
+    <div id="pe-comp" class="comp ${c.isNew ? "warn" : ""}" role="group" aria-labelledby="pe-prio-label">
       <button id="pe-comp-head" class="link" aria-expanded=${open} aria-controls="pe-comp-body" @click=${() => (this._compOpen = !open)}>
         <ha-icon icon=${c.isNew ? "mdi:information-outline" : "mdi:swap-vertical"}></ha-icon><span class="ctitle">${title}</span>
         <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>
-      <div id="pe-comp-body" ?hidden=${!open}>
+      ${collapse(open, html`
         ${c.isNew ? html`<p class="hint">${this._tr("pe_competes_new")}</p>` : nothing}
         <p class="hint">${this._tr("pe_competes_hint")}</p>
-        ${open ? html`<wp-priority-list .hass=${this.hass} .programs=${c.group} .unsaved=${c.unsaved} .currentId=${this._p.id || NEW_ID} ?disabled=${!this._canEdit() || this._saving}
-          @priority-change=${(e: CustomEvent<string[]>) => { e.stopPropagation(); this._order = e.detail; this._applied = false; }}></wp-priority-list>` : nothing}
-      </div>
+        <wp-priority-list .hass=${this.hass} .programs=${c.group} .unsaved=${c.unsaved} .currentId=${this._p.id || NEW_ID} ?disabled=${!this._canEdit() || this._saving}
+          @priority-change=${(e: CustomEvent<string[]>) => { e.stopPropagation(); this._order = e.detail; this._applied = false; }}></wp-priority-list>
+      `, "pe-comp-body")}
     </div>`;
   }
 
@@ -439,25 +467,6 @@ export class WpProgramEditor extends LitElement {
     }
   }
 
-  private _duplicate(): void {
-    this._edit(() => {
-      const source = this._p;
-      const profiles = source.profiles.map((profile) => {
-        return { ...structuredClone(profile), id: newId(), days: profile.days.map(cloneSlots) };
-      });
-      this._p = {
-        ...structuredClone(source), id: "", revision: 0, created_at: undefined,
-        name: `${source.name} ${this._tr("copy_suffix")}`.slice(0, 60),
-        profiles,
-      };
-      delete this._p.created_at;
-      this._isNew = true;
-      this._origin = undefined;
-      this._applied = false;
-      this._error = "";
-    });
-  }
-
   /** Embedded editor: drop the changes not saved yet and show the saved program again. */
   private _revert(): void {
     if (!this._origin) return;
@@ -478,11 +487,7 @@ export class WpProgramEditor extends LitElement {
     const p = this._p;
     return html`
       ${this._nameField()}
-      <div class="field"><label for="f-area">${this._tr("pe_area")}</label>
-        <input id="f-area" type="text" list="program-areas" .value=${p.area ?? ""} aria-describedby="program-area-help"
-          @change=${(e: Event) => this._patch({ area: (e.target as HTMLInputElement).value.trim() || null })} />
-        <datalist id="program-areas">${[...new Set(this.data.programs.flatMap((program) => program.area ? [program.area] : []))].sort().map((area) => html`<option value=${area}></option>`)}</datalist>
-        <p id="program-area-help" class="hint">${this._tr("pe_area_hint")}</p></div>
+      ${this._areaField()}
       <div class="row">
         <div class="field"><label for="f-icon">${this._tr("pe_icon")}</label>
           ${this._picker
@@ -497,6 +502,7 @@ export class WpProgramEditor extends LitElement {
       <p class="hint">${this._tr("pe_icon_hint")}</p>
       ${this._picker ? nothing : html`<p id="icon-name-hint" class="hint">${this._tr("pe_icon_name_hint")}</p>`}
       ${this._renderCompetition()}
+      <div class="label sec" id="pe-other-settings">${this._tr("pe_other_settings")}</div>
       <label class="check"><input type="checkbox" .checked=${p.reapply}
         @change=${(e: Event) => this._patch({ reapply: (e.target as HTMLInputElement).checked })} /> ${this._tr("pe_reapply")}</label>
       <p class="hint">${this._tr("pe_reapply_hint")}</p>
@@ -559,7 +565,7 @@ export class WpProgramEditor extends LitElement {
         <button class="link" aria-expanded=${open} @click=${() => (this._servicesOpen = open ? "" : e.entity_id)}>
           <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>${this._tr("pe_services")} · ${count === all.length ? this._tr("pe_services_all") : `${count}/${all.length}`}</button>`}
       ${count === 0 && e.restrict_services ? html`<p class="hint" role="status">${this._tr("pe_zero_services")}</p>` : nothing}
-      ${open ? html`<p class="hint">${this._tr("pe_choose_services")}</p><div class="svc">${all.map((s) => {
+      ${collapse(open, html`<p class="hint">${this._tr("pe_choose_services")}</p><div class="svc">${all.map((s) => {
         const description = serviceDescription(this.hass, s.id);
         const nameId = `svc-name-${index}-${s.id}`;
         const descId = `svc-description-${index}-${s.id}`;
@@ -569,15 +575,12 @@ export class WpProgramEditor extends LitElement {
           <span class="svc-copy"><span id=${nameId}>${s.label}</span>
             ${description ? html`<span id=${descId} class="svc-description">${description}</span>` : nothing}
           </span></label>`;
-      })}</div>` : nothing}`;
+      })}</div>`)}`;
   }
 
   /** The device type in the user's language ("Volet" for cover), or "" when Home Assistant does not know it. */
   private _typeName(entityId: string): string {
-    const domain = entityId.split(".")[0];
-    const key = `component.${domain}.title`;
-    const known = (name: string | undefined) => (name && name !== key ? name : "");
-    return known(this.hass.localize?.(key)) || known(this._typeNames?.(key));
+    return typeName(this.hass, this._typeNames, domainOf(entityId));
   }
 
   /** The Home Assistant device the entity belongs to ("Volet salle de bain"), "" when it has none. */
@@ -588,7 +591,7 @@ export class WpProgramEditor extends LitElement {
   }
 
   private _loadTypeNames(): void {
-    const domains = [...new Set(this._p.entities.map((e) => e.entity_id.split(".")[0]))].sort();
+    const domains = [...new Set(this._p.entities.map((e) => domainOf(e.entity_id)))].sort();
     const key = domains.join(",");
     if (!this.hass.loadBackendTranslation || !domains.length || key === this._typeNamesKey) return;
     this._typeNamesKey = key;
@@ -662,7 +665,6 @@ export class WpProgramEditor extends LitElement {
     const content = html`
       <span class="sr" role="status" aria-live="polite">${this._compSaid}</span>
       ${!editable ? html`${callout("error", "", this._tr("read_only"), { role: "alert" })}` : nothing}
-      <p class="hint">${this._tr("admin_zone_hint")}</p>
       <fieldset ?disabled=${!editable || this._saving}>
         <div class="history" role="group" aria-label=${this._tr("pe_history")}>
           <button class="btn" aria-label=${this._tr("pe_undo")} title=${this._tr("pe_undo")} ?disabled=${!this._history.canUndo} @click=${() => this._undoDraft()}>
@@ -689,7 +691,6 @@ export class WpProgramEditor extends LitElement {
         : !this._isNew && this._origin && (JSON.stringify(this._p) !== JSON.stringify(this._origin) || this._order !== undefined)
           ? html`<button class="btn" ?disabled=${this._saving} @click=${() => this._revert()}>${this._tr("cancel")}</button>` : nothing}`;
     const secondaryActions = html`
-      ${!this._isNew ? html`<button class="btn" ?disabled=${!editable || this._saving} @click=${() => this._duplicate()}>${this._tr("duplicate")}</button>` : nothing}
       ${!this._isNew ? html`<button class="btn danger" ?disabled=${!editable || this._saving}
         @click=${() => void this._askDelete()}><ha-icon icon="mdi:delete"></ha-icon>${this._tr("delete")}</button>` : nothing}`;
     const unapplied = (this._origin
@@ -722,6 +723,7 @@ export class WpProgramEditor extends LitElement {
       .mode-associations summary { min-height: 44px; display: list-item; align-content: center; cursor: pointer; color: var(--wp-primary-text); }
       .actions .danger { margin-left: auto; }
       h3 { margin: 16px 0 4px; font-size: 0.9375rem; font-weight: 500; }
+      .sec { margin: 16px 0 4px; } /* a bold white label above a block that is not a form field */
       .small { font-size: 0.875rem; }
       .svc-choice { align-items: flex-start; padding: 8px 0; }
       .svc-choice input { margin-top: 2px; }

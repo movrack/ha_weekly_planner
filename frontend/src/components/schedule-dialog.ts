@@ -33,7 +33,7 @@ import { DAY, formatPauseEnd, localDateIso, localWeekday, minutesToClock, pauseE
 import { dayInText, holidayApplies, holidayChoice, holidayDayToday, holidayOwnSlots, holidayReplaces } from "../holiday";
 import { applicable, applies, normaliseEntities, shiftTimeSpec, specMinutes, sunBoundsInvalid } from "../slots";
 import { editorStyles, langOf } from "../editors/shared";
-import { callout } from "../styles";
+import { callout, collapse } from "../styles";
 import type { Action, HomeAssistant, PlannerData, PreviewResponse, PreviewSlot, Profile, Program, Slot, TimeSpec } from "../types";
 
 /** The profiles with `next` in place of the one with its id, added at the end when it is new. */
@@ -966,8 +966,8 @@ export class WpSchedule extends LitElement {
         </div></div>` : nothing}
       ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
       <div class="btns">
-        <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRow()}>${t(lang, "save")}</button>
-        <button class="btn" @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
+        <button class="btn primary" ?disabled=${this._saving || !this._canEdit || this._labelDraft !== null} @click=${() => void this._saveRow()}>${t(lang, "save")}</button>
+        <button class="btn" ?disabled=${this._labelDraft !== null} @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
       </div>
       ${isNew || this._labelDraft ? nothing : html`<button class="btn dup" ?disabled=${!this._canEdit} @click=${() => this._duplicate()}>
         <ha-icon icon="mdi:content-copy"></ha-icon>${t(lang, "duplicate")}</button>`}
@@ -993,8 +993,8 @@ export class WpSchedule extends LitElement {
             @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._restLabel = e.detail; }}></wp-label-picker>`)}
           ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
           <div class="btns">
-            <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRest(eid)}>${t(lang, "save")}</button>
-            <button class="btn" @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
+            <button class="btn primary" ?disabled=${this._saving || !this._canEdit || this._labelDraft !== null} @click=${() => void this._saveRest(eid)}>${t(lang, "save")}</button>
+            <button class="btn" ?disabled=${this._labelDraft !== null} @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
           </div></div>`;
       }
       const label = labelOf(this.data, entity.default_label);
@@ -1131,7 +1131,7 @@ export class WpSchedule extends LitElement {
         <ha-icon icon=${this._optsOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
         <span class="txt">${t(lang, "advanced_options")}</span>
         ${follow ? html`<small>${t(lang, "mode_follows_short", { source: follow })}</small>` : nothing}</button>
-      ${this._optsOpen ? html`<div class="opts-body">${this._renderFollow()}${this._renderCopy()}</div>` : nothing}`;
+      ${collapse(this._optsOpen, html`<div class="opts-body">${this._renderFollow()}${this._renderCopy()}</div>`)}`;
   }
 
   /** Warning shown when the opened mode is not the active one: what it means and when it will apply. */
@@ -1183,9 +1183,7 @@ export class WpSchedule extends LitElement {
           const text = notes.length ? `${m.name} (${notes.join(", ")})` : m.name;
           return html`<option value=${m.name} ?selected=${m.name === open}>${text}</option>`;
         })}
-      </select>
-      ${open !== null && open === this.data.mode?.active
-        ? callout("success", t(lang, "mode_active_now"), undefined, { role: "status", icon: "mdi:play-circle-outline" }) : nothing}`;
+      </select>`;
   }
 
   /** Other modes of the screen's programs that have schedules (sources of a copy). */
@@ -1203,10 +1201,10 @@ export class WpSchedule extends LitElement {
     return html`<button class="row copy" aria-expanded=${this._copyOpen} ?disabled=${this._saving}
         @click=${() => { this._copyOpen = !this._copyOpen; }}>
         <ha-icon icon="mdi:content-copy"></ha-icon><span class="txt">${t(lang, "mode_copy_from")}</span></button>
-      ${this._copyOpen ? html`<div class="copy-from" role="group" aria-label=${t(lang, "mode_copy_pick")}>
+      ${collapse(this._copyOpen, html`<div class="copy-from" role="group" aria-label=${t(lang, "mode_copy_pick")}>
         <span>${t(lang, "mode_copy_pick")}</span>
         ${sources.map((name) => html`<button class="modechip" ?disabled=${this._saving} @click=${() => void this._copyFrom(name)}>${name}</button>`)}
-      </div>` : nothing}`;
+      </div>`)}`;
   }
 
   /** Puts a copy of the seven days of another mode in the opened one (new slots), after confirming a replacement. */

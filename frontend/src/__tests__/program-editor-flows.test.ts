@@ -119,7 +119,8 @@ describe("program editor: general and entities tabs", () => {
     const hs = handlers(e._renderGeneral());
     const by = (ev: string, mark: string) => hs.filter((h) => h.event === ev).find((h) => h.before.slice(-300).includes(mark))!;
     by("input", "id=\"f-name\"").fn({ target: { value: "New name" } });
-    by("change", "id=\"f-area\"").fn({ target: { value: " Kitchen " } });
+    by("change", "id=\"f-area\"").fn({ target: { value: "Kitchen" } });
+    expect(e._p.area).toBe("Kitchen");
     by("change", "id=\"f-area\"").fn({ target: { value: "" } });
     by("input", "id=\"f-icon\"").fn({ target: { value: "mdi:fire" } });
     by("input", "id=\"f-icon\"").fn({ target: { value: "" } });
@@ -131,6 +132,35 @@ describe("program editor: general and entities tabs", () => {
     expect(e._p.name).toBe("New name"); expect(e._p.area).toBeNull();
     expect(e._problem()).toMatchObject({ field: "form" }); // the incomplete condition
     e._p.conditions = [];
+  });
+  it("picks the program room among the Home Assistant rooms and the rooms in use, or adds a new one", () => {
+    const { e } = make(prog({ area: "bureau" }), { others: [prog({ id: "o", name: "Rival", area: "Cuisine", entities: [{ entity_id: "light.z" } as any] })] });
+    e.hass.areas = { salon: { area_id: "salon", name: "Salon" } };
+    const field = () => e._areaField();
+    const out = flat(field());
+    expect(out).toContain('<select id="f-area"');
+    expect(out).not.toContain("<datalist");
+    for (const label of ["No room", "bureau", "Cuisine", "Salon", "Another room…"]) expect(out).toContain(`>${label}<`);
+    const pick = (value: string) => handlers(field()).find((h) => h.event === "change" && h.before.includes('id="f-area"'))!.fn({ target: { value } });
+    pick("salon"); expect(e._p.area).toBe("salon");
+    pick(""); expect(e._p.area).toBeNull();
+    pick("__new_area__");
+    expect(flat(field())).toContain('id="f-area-new"');
+    expect(e._p.area).toBeNull();
+    handlers(field()).find((h) => h.event === "change" && h.before.includes('id="f-area-new"'))!.fn({ target: { value: "  Garage " } });
+    expect(e._p.area).toBe("Garage");
+    pick("salon");
+    expect(flat(field())).not.toContain("f-area-new");
+  });
+
+  it("puts a bold label above the options block after the icon, and above the priority block", () => {
+    const { e } = make(prog(), { others: [prog({ id: "o", name: "Rival", priority: 1 })] });
+    const out = flat(e._renderGeneral());
+    expect(out).toContain('class="label sec" id="pe-other-settings">Other settings<');
+    expect(out.indexOf("pe-other-settings")).toBeLessThan(out.indexOf('type="checkbox"'));
+    expect(out).toContain('class="label sec" id="pe-prio-label">Priority<');
+    expect(out).toContain('role="group" aria-labelledby="pe-prio-label"');
+    expect(out.indexOf("pe-prio-label")).toBeLessThan(out.indexOf('id="pe-comp-head"'));
   });
   it("uses the icon selector when HA provides one", () => {
     const { e } = make(prog(), { selector: true });
@@ -244,7 +274,7 @@ describe("program editor: saving, deleting, undo", () => {
     vi.mocked(confirmAction).mockResolvedValue(false);
     const n = e.hass.callWS.mock.calls.length; await e._askDelete(); expect(e.hass.callWS.mock.calls.length).toBe(n);
   });
-  it("duplicates as a new program and undoes / redoes draft edits from buttons and keys", () => {
+  it("undoes and redoes draft edits from buttons and keys", () => {
     const { e } = make();
     e._patch({ priority: 40 }, "prio");
     const r = e.render();
@@ -258,9 +288,6 @@ describe("program editor: saving, deleting, undo", () => {
     const k = key({ key: "q" }); e._historyKey(k); expect(k.preventDefault).not.toHaveBeenCalled();
     e._historyKey(key({ ctrlKey: false })); e._historyKey(key({ altKey: true })); e._historyKey(key({ defaultPrevented: true }));
     e._saving = true; e._undoDraft(); e._redoDraft(); e._saving = false;
-    e._duplicate();
-    expect(e._isNew).toBe(true); expect(e._p.id).toBe(""); expect(e._p.name).toContain("Office");
-    expect(flat(e.render())).not.toContain("role=\"tablist\"");
     e.connectedCallback?.call;
   });
   it("switches tabs from the keyboard", async () => {
@@ -299,7 +326,7 @@ describe("program editor: priority order of competing programs", () => {
     const { e } = make(prog(), { others: [rival()] });
     const out = flat(e._renderGeneral());
     expect(out).toContain("Shares a device with 1 program · goes 2nd");
-    expect(out).not.toContain("wp-priority-list");
+    expect(out).not.toContain("wp-collapse open");
     const two = make(prog({ priority: 1 }), { others: [rival({ priority: 2 }), rival({ id: "o2", name: "Third", priority: 3 })] });
     expect(flat(two.e._renderGeneral())).toContain("Shares a device with 2 programs · goes 1st");
   });
@@ -330,11 +357,12 @@ describe("program editor: priority order of competing programs", () => {
     expect(out).toContain("Saved when you press Save");
   });
 
-  it("always renders the body so aria-controls resolves, hidden while closed", () => {
+  it("always draws the body in an animated fold so aria-controls resolves, closed while not open", () => {
     const { e } = make(prog(), { others: [rival()] });
     const out = flat(e._renderGeneral());
-    expect(out).toContain("id=\"pe-comp-body\" ?hidden=");
-    expect(out).not.toContain("<wp-priority-list");
+    expect(out).toContain("id=pe-comp-body");
+    expect(out).toContain('class="wp-collapse "');
+    expect(out).toContain("<wp-priority-list");
   });
 
   it("tells through its permanent live region that a device added creates a competition", () => {
@@ -348,9 +376,9 @@ describe("program editor: priority order of competing programs", () => {
   it("toggles the block by hand", () => {
     const { e } = make(prog(), { others: [rival()] });
     find(e._renderGeneral(), "click", "id=\"pe-comp-head\"").fn();
-    expect(flat(e._renderGeneral())).toContain("wp-priority-list");
+    expect(flat(e._renderGeneral())).toContain("wp-collapse open");
     find(e._renderGeneral(), "click", "id=\"pe-comp-head\"").fn();
-    expect(flat(e._renderGeneral())).not.toContain("wp-priority-list");
+    expect(flat(e._renderGeneral())).not.toContain("wp-collapse open");
   });
 
   it("sends the chosen order with Save and Cancel forgets it", async () => {

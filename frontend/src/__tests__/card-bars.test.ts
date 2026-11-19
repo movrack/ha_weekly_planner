@@ -221,7 +221,7 @@ describe("the week and chart toggles under a bar", () => {
     expect([...c._week]).toEqual(["p:p1|cover.a"]);
     const open = c._extras(scope, "cover.a", [p]);
     const oh = flat(open);
-    expect(oh).toContain('class="week"');
+    expect(oh).toContain('class="week wp-appear"');
     expect(oh).toContain("mdi:chevron-up");
     expect(oh).toContain("HOLIDAY");
     expect(oh.match(/class="wday"/g)).toHaveLength(7);

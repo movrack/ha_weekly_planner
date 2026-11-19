@@ -17,15 +17,6 @@ const editor = () => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("program mode drafts", () => {
-  it("gives a duplicated program its own schedule ids", () => {
-    const e = editor();
-    e._duplicate();
-    const ids = e._p.profiles.map((p: { id: string }) => p.id);
-    expect(ids).not.toContain("home");
-    expect(ids).not.toContain("vacation");
-    expect(e._p.mode_source).toBeUndefined();
-    expect(e._p.active_profile).toBeUndefined();
-  });
   it("never calls the removed set_profile command", () => {
     const e = editor();
     expect(e._changeActiveMode).toBeUndefined();

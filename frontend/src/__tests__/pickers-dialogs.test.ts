@@ -40,8 +40,7 @@ describe("wp-action-picker advanced options", () => {
     const html = flat(svc().el.render());
     expect(html).toContain('id="action"');
     expect(html).toContain("temperature");
-    expect(html).not.toContain("action-target-mode");
-    expect(html).not.toContain("target_temp_high");
+    expect(html).toContain('class="wp-collapse "'); expect(html).not.toContain("wp-collapse open");   // the rest is drawn but folded
     expect(html).toContain("aria-expanded=");
   });
   it("shows the target choice and the upper / lower temperatures once opened", () => {
@@ -60,7 +59,7 @@ describe("wp-action-picker advanced options", () => {
   it("opens by itself when another entity is targeted, or when a parent asks for it", () => {
     expect(flat(svc({}, { action: { kind: "service", service: "climate.set_temperature", target_entity_id: "climate.t", data: { temperature: 20 } } }).el.render())).toContain("action-target-mode");
     expect(flat(svc({}, { advancedOpen: true }).el.render())).toContain('<slot name="advanced">');
-    expect(flat(svc().el.render())).not.toContain('<slot name="advanced">');
+    expect(flat(svc().el.render())).not.toContain("wp-collapse open");
   });
 });
 
@@ -89,7 +88,7 @@ describe("wp-action-picker", () => {
   });
   it("switches the target between the device and another entity", () => {
     const { el, seen } = picker({ action: { kind: "service", service: "climate.turn_off" } });
-    expect(flat(el.render())).not.toContain("action-target-mode");
+    expect(flat(el.render())).not.toContain("wp-collapse open");
     find(el.render(), "click", "opts").fn();
     find(el.render(), "change", "action-target-mode").fn({ target: { value: "other" } });
     expect(seen[0]).toEqual({ kind: "service", service: "", target_entity_id: "" });

@@ -174,10 +174,12 @@ describe("day-off section", () => {
     expect(el._open).toBe(false);
     expect(t).toContain("aria-expanded=");
     expect(t).toContain("aria-controls=");
-    // the only booleans bound are aria-expanded (closed) and the hidden body
-    expect(tpl.values.filter((v: unknown) => v === false || v === true)).toEqual([false, true]);
+    // the only boolean bound here is aria-expanded; the body is an animated fold that is closed (not inert-free) until opened
+    expect(tpl.values.filter((v: unknown) => v === false || v === true)).toEqual([false]);
+    expect(flat(tpl)).toContain('class="wp-collapse "');
     el._open = true;
-    expect(el.render().values.filter((v: unknown) => v === false || v === true)).toEqual([true, false]);
+    expect(el.render().values.filter((v: unknown) => v === false || v === true)).toEqual([true]);
+    expect(flat(el.render())).toContain('class="wp-collapse open"');
     expect(t).toContain('role="switch"');
     expect(t).toContain("Different schedule on days off");
     expect(t).toContain("mdi:chevron-down");

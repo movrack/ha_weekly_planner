@@ -17,8 +17,7 @@ describe("slot form: advanced options fold", () => {
     const html = flat(form({}).el.render());
     expect(html).toContain("aria-expanded=");
     expect(html).toContain('class="row opts"');
-    expect(html).not.toContain(SUN);
-    expect(html).not.toContain('type="checkbox"');
+    expect(html).toContain('class="wp-collapse "'); expect(html).not.toContain("wp-collapse open");   // the sun choice, random delay and limits are drawn but folded
     expect(html).toContain('type="time"');
     expect(html).toContain("chip small");
   });
@@ -53,13 +52,13 @@ describe("slot form: advanced options fold", () => {
     let html = flat(el.render());
     expect(html).toContain('class="opts-body"');
     expect(html).toContain(SUN);
-    expect((html.match(/type="checkbox"/g) ?? []).length).toBe(1); // the start only
+    expect((html.match(/wp-collapse open/g) ?? []).length).toBe(1); // the start fold only
     openFold(el, 1);
     html = flat(el.render());
-    expect((html.match(/type="checkbox"/g) ?? []).length).toBe(2); // and the end
+    expect((html.match(/wp-collapse open/g) ?? []).length).toBe(2); // and the end
     openFold(el);
     openFold(el, 1);
-    expect(flat(el.render())).not.toContain(SUN);
+    expect(flat(el.render())).not.toContain("wp-collapse open");   // both folded again
   });
   it.each([
     ["a sun time", { start: { sun: "sunset", offset: 0 } }],
@@ -135,7 +134,7 @@ describe("slot form", () => {
     el._random("start", 30); expect(seen[1].slot.start.random_minutes).toBe(30);
     el._random("start", 999); el._random("start", 1.5); expect(seen).toHaveLength(2);
     const plain = form({});
-    expect(flat(plain.el.render())).not.toContain("checkbox");
+    expect(flat(plain.el.render())).not.toContain("wp-collapse open");
     openFold(plain.el);
     sel(plain.el.render(), "change", 0, "checkbox").fn({ target: { checked: true } });
     expect(plain.seen[0].slot.start.random_minutes).toBe(15);
@@ -145,7 +144,9 @@ describe("slot form", () => {
     const r = el.render();
     const clicks = handlers(r).filter((h) => h.event === "click");
     // days (7) + shortcuts (3) come first, then the start steps (2) and the start fold (1), then the two end chips
-    const chips = clicks.slice(13, 15);
+    // days (7) + shortcuts (3), the start steps (2) and the start fold (1), the folded sun chips of the start (2, drawn but closed), then the two end chips
+    const fold = clicks.findIndex((h) => h.before.includes('class="row opts"'));
+    const chips = clicks.slice(fold + 3, fold + 5);
     chips[0].fn(); expect(seen[0].slot.end).toBeNull();
     chips[1].fn(); expect(seen[1].slot.end).toEqual({ time: "09:00" });
     form({ start: { sun: "sunrise" }, end: null }).el._toggleEnd(true);

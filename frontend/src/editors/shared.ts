@@ -3,7 +3,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { t } from "../i18n";
-import { calloutStyles } from "../styles";
+import { calloutStyles, collapse } from "../styles";
 import { entityDomain, friendlyName } from "../planner";
 import type { Condition, HassEntity, HomeAssistant } from "../types";
 
@@ -16,7 +16,7 @@ export function foldSection(lang: string, open: boolean, toggle: () => void, bod
   return html`<button class="row opts" aria-expanded=${open} @click=${toggle}>
       <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
       <span class="txt">${t(lang, "advanced_options")}</span></button>
-    ${open ? html`<div class="opts-body">${body}</div>` : nothing}`;
+    ${collapse(open, html`<div class="opts-body">${body}</div>`)}`;
 }
 
 export const editorStyles = css`

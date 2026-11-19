@@ -59,3 +59,5 @@ _.SKIP_REASONS  # The list of resync skip reasons, checked against messages.py b
 # keep: frontend/src/update.ts runningVersion unused-export Exported for its unit test (update.test.ts).
 # keep: frontend/src/update.ts shouldReload unused-export Exported for its unit test (update.test.ts).
 # keep: frontend/src/weekly-planner-card.ts commonWordPrefix unused-export Exported for its unit test (compare.test.ts).
+# keep: frontend/src/styles.ts collapseStyles unused-export exported for its unit test (the fold animation styles)
+# keep: frontend/src/components/overview.ts overviewConfig unused-export exported for its unit test (overview.test.ts).

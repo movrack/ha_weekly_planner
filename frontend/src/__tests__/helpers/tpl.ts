@@ -47,3 +47,11 @@ export const bindings = (tpl: any, name: string): any[] => {
   return tpl.values.flatMap((value: any, i: number) =>
     tpl.strings[i].trimEnd().endsWith(` ${name}=`) ? [value] : bindings(value, name));
 };
+
+/** Every value bound right after a static fragment of the template (for example `class="btn primary" ?disabled=`). */
+export const valuesAfter = (tpl: any, fragment: string): unknown[] => {
+  if (Array.isArray(tpl)) return tpl.flatMap((v) => valuesAfter(v, fragment));
+  if (tpl?._$litDirective$ && Array.isArray(tpl.values)) return valuesAfter(tpl.values, fragment);
+  if (!tpl?.strings) return [];
+  return tpl.values.flatMap((value: unknown, i: number) => (tpl.strings[i].trimEnd().endsWith(fragment) ? [value] : valuesAfter(value, fragment)));
+};

@@ -38,7 +38,7 @@ Le sélecteur de mode se règle une fois dans les options de l’intégration ([
 
 ### S40 — Pièce du programme
 
-Définir la pièce dans Général (« Pièce du programme ») puis Appliquer au programme. Elle ne vient pas automatiquement des pièces des appareils.
+Choisir la pièce dans la liste de Général (« Pièce du programme » : pièces de Home Assistant, pièces déjà utilisées ou « Autre pièce… ») puis enregistrer. Elle ne vient pas automatiquement des pièces des appareils.
 
 <a href="images/guide/s40-program-area.png"><img src="images/guide/s40-program-area.png" width="320" alt="Zone du programme" /></a>
 
@@ -408,7 +408,7 @@ L’éditeur d’un réglage (nom, couleur, réglage à appliquer) avec ses **Op
 
 ### S51 — Les trois sortes de notice côte à côte
 
-Les trois sortes de notice côte à côte (montage de trois fragments, pas un seul écran). Toutes partagent le même aspect : succès (**Mode actif : ces horaires s’appliquent maintenant**), information (**Ce mode n’est pas actif**) et erreur.
+Les trois sortes de notice côte à côte (montage de trois fragments, pas un seul écran). Toutes partagent le même aspect : succès (une confirmation, par exemple après une modification), information (**Ce mode n’est pas actif**) et erreur.
 
 <a href="images/guide/s51-notifications.png"><img src="images/guide/s51-notifications.png" width="320" alt="S51 — Les trois sortes de notice côte à côte" /></a>
 

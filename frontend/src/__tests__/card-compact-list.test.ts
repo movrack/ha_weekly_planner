@@ -73,7 +73,7 @@ describe("compact list", () => {
     const html = flat(c._compactList([c._data.programs[0]]));
     expect(attrOf(c._compactList([c._data.programs[0]]), /aria-expanded=$/)).toEqual([true]);
     expect(html).toContain("icon=mdi:chevron-up");
-    expect(html).toContain('id=compact-p1 class="compact-details" role="region" aria-label=Volet bureau');
+    expect(html).toContain('id=compact-p1 class="compact-details wp-appear" role="region" aria-label=Volet bureau');
     handlers(c._compactList([c._data.programs[0]])).find((h: any) => h.event === "click")!.fn();
     expect(c._expandedProgram).toBeNull();
   });

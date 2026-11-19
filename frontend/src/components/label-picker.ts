@@ -301,7 +301,7 @@ export class WpLabelPicker extends LitElement {
     return html`<div class="dev">
       <button class="link ${own ? "own" : ""}" ?disabled=${this.disabled} aria-expanded=${shown}
         @click=${() => (this._valueFor = shown ? null : entityId)}>${t(lang, "lb_value_here")}${this.entityIds.length > 1 ? ` · ${friendlyName(this.hass, entityId)}` : ""}</button>
-      ${shown ? html`<div class="valbox">
+      ${shown ? html`<div class="valbox wp-appear">
         <wp-action-picker no-fold .hass=${this.hass} entity-id=${entityId} .allowed=${allowedOf(this.program, entityId)}
           .action=${own ?? this._action} ?disabled=${this.disabled}
           @action-change=${(e: CustomEvent<Action>) => { e.stopPropagation(); this._ov = { ...this._ov, [entityId]: e.detail }; this._error = ""; this._changed(); }}></wp-action-picker>

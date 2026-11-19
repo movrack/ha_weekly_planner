@@ -397,6 +397,8 @@ liste filtrée. Enregistrer la carte et terminer l’édition du tableau de bord
 
 Voir [la création S37](SCREENS.fr.md#s37), [la pièce S40](SCREENS.fr.md#s40) et [les filtres S41](SCREENS.fr.md#s41).
 
+Le panneau **Programmes** a deux rubriques. **Actions** : **Nouveau programme**, **Dupliquer un programme** (choisir le programme à copier, puis **Dupliquer** : la copie s’appelle **Copie** suivi du nom, avec un numéro si ce nom existe déjà, garde les appareils, les réglages et les horaires, et apparaît tout en bas de la liste) **Ordre des priorités** (voir [Priorités](PRIORITES.fr.md)). **Liste des programmes** : sur téléphone, une bascule **Liste | Aperçu** remplace les lignes par la carte Weekly Planner en liste compacte, sans quitter l’écran (les Actions, **Trier** et **Filtrer** restent là) ; l’aperçu montre les mêmes programmes dans le même ordre que la liste, filtres et tri compris, et on peut y modifier les horaires. Sur grand écran, l’aperçu occupe la partie de droite tant qu’aucun programme n’est ouvert. La **Liste des programmes** : le bouton **Trier** ouvre une fenêtre pour trier par **Ordre de création** (par défaut), **Nom** ou **Priorité**. Le bouton **Filtrer** ouvre une fenêtre pour filtrer par **Type**, **Pièce** (avec **Sans pièce**) et **Appareil** ; chacun est une section d’un accordéon, ouvrir l’une referme les autres, et le titre indique combien de filtres y sont actifs : un programme est affiché s’il correspond à l’une des valeurs choisies dans chaque filtre. **Réinitialiser** efface les filtres et garde le tri choisi.
+
 Pour commencer, toucher **Nouveau programme**, donner un nom et ajouter un
 appareil. **Aucune commande n’est cochée au départ** : choisir celles que l’on veut
 retrouver dans les réglages. Lire leur description si le nom n’est pas clair.
@@ -411,13 +413,13 @@ les horaires** pour continuer directement. Si aucune commande n’a encore été
 choisie, les régler plus tard dans **Réglages des programmes → Appareils →
 Actions proposées**. Enregistrer aussi la carte pour garder sa présentation.
 
-Dans **Général**, on règle aussi le nom, l’icône, l’ordre de priorité (bloc **Partage un appareil avec N programmes**, voir [Priorités](PRIORITES.fr.md)) et **Réappliquer**. **Dupliquer**
-crée une copie du programme et **Supprimer** le supprime, avec ses horaires. L’onglet **Modes** explique
+Dans **Général**, on règle aussi le nom, l’icône, la **Priorité** (bloc **Partage un appareil avec N programmes**, voir [Priorités](PRIORITES.fr.md)) et, sous **Autres paramètres**, **Réappliquer**. **Supprimer**
+supprime le programme, avec ses horaires. L’onglet **Modes** explique
 que chaque mode a sa propre semaine, indique **Actif actuellement : X** et propose **Modifier les
 horaires de ce mode**. Les onglets se parcourent aux flèches, avec Début et Fin.
 
 Dans **Général**, **Pièce du programme** permet de le ranger, par exemple dans
-Salon. Choisir un nom existant ou en écrire un nouveau. Cette pièce est propre
+Salon. Choisir une pièce de Home Assistant ou une pièce déjà utilisée par un programme dans la liste, ou **Autre pièce…** pour en écrire une nouvelle. Cette pièce est propre
 au programme : elle n’est pas reprise automatiquement de la pièce d’un appareil.
 Dans **Affichage de la carte → Plusieurs programmes**, choisir ensuite cette pièce ou
 **Toutes les pièces**. Si la carte est vide, vérifier ses filtres.

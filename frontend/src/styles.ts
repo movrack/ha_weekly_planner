@@ -4,6 +4,7 @@
 // text colour (never coloured text on a coloured background, so it stays readable in light and dark).
 
 import { css, html, nothing, unsafeCSS } from "lit";
+import { ifDefined } from "lit/directives/if-defined.js";
 
 export type Tone = "success" | "warning" | "error" | "info";
 
@@ -32,7 +33,34 @@ const tf = tokenFormulas;
  *  - --wp-field-border: border of fields, selects and chips, at least 3:1 on the surface (divider colour is about 1.3:1).
  * The `:focus-visible` rule gives every interactive element the same 2 px ring.
  */
+/**
+ * Opening and closing of the folds. `.wp-collapse` animates its height both ways (grid rows 0fr to 1fr) while the
+ * content stays drawn; `.wp-appear` is a short entrance for content that is only drawn when open (heavy content such
+ * as a chart); the native `<details>` use `::details-content` where the browser has it. No motion when the user asks
+ * for reduced motion.
+ */
+export const collapseStyles = css`
+  .wp-collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.22s ease; }
+  .wp-collapse.open { grid-template-rows: 1fr; }
+  .wp-collapse > .wp-collapse-in { min-height: 0; overflow: hidden; overflow: clip; overflow-clip-margin: 6px; visibility: hidden; transition: visibility 0s linear 0.22s; }
+  .wp-collapse.open > .wp-collapse-in { visibility: visible; transition-delay: 0s; }
+  @keyframes wp-appear { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .wp-appear { animation: wp-appear 0.2s ease-out; }
+  details { interpolate-size: allow-keywords; }
+  details::details-content { block-size: 0; overflow: clip; transition: block-size 0.22s ease, content-visibility 0.22s allow-discrete; }
+  details[open]::details-content { block-size: auto; }
+  @media (prefers-reduced-motion: reduce) {
+    .wp-collapse, .wp-collapse > .wp-collapse-in, .wp-appear, details::details-content { transition: none !important; animation: none !important; }
+  }
+`;
+
+/** A fold body that animates open and closed: always drawn, hidden from keyboard and screen readers while closed (`inert`, `visibility`). */
+export function collapse(open: boolean, content: unknown, id?: string) {
+  return html`<div class="wp-collapse ${open ? "open" : ""}" id=${ifDefined(id)} ?inert=${!open}><div class="wp-collapse-in">${content}</div></div>`;
+}
+
 export const tokenStyles = css`
+  ${collapseStyles}
   :host {
     --wp-primary-text: color-mix(in srgb, var(--primary-color, #03a9f4) ${unsafeCSS(String(tf.textPct))}%, var(--primary-text-color, #212121));
     --wp-primary-fill: color-mix(in srgb, var(--primary-color, #03a9f4) ${unsafeCSS(String(tf.fillPct))}%, #000);

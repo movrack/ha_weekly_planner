@@ -43,6 +43,13 @@ export const areaValue = (values: string[]): string | string[] | undefined => (v
 
 export interface RoomOption { key: string; value: string; label: string }
 
+/** Every room a program can take: the Home Assistant areas, the rooms already used by programs, and the current one. */
+export function roomChoices(hass: AreaSource, programs: Pick<Program, "area">[], selected?: string | string[]): RoomOption[] {
+  const byKey = new Map(roomOptions(hass, programs, selected).map((o) => [o.key, o]));
+  for (const a of Object.values(hass?.areas ?? {})) if (!byKey.has(a.area_id)) byKey.set(a.area_id, { key: a.area_id, value: a.area_id, label: a.name });
+  return [...byKey.values()].sort((a, b) => a.label.localeCompare(b.label));
+}
+
 /** Program metadata only (device rooms never assign a room): one option per room, merged spellings, plus the current selection. */
 export function roomOptions(hass: AreaSource, programs: Pick<Program, "area">[], selected?: string | string[]): RoomOption[] {
   const byKey = new Map<string, string[]>();

@@ -800,7 +800,7 @@ export class WeeklyPlannerCard extends LitElement {
         ${showChart ? html`<button class="weekbtn chartbtn" aria-label=${t(lang, "chart_day_of", { name: who })} aria-expanded=${chartOpen} @click=${toggleChart}>
           <ha-icon icon="mdi:chart-line"></ha-icon>${t(lang, "chart_day")}<ha-icon class="after" icon=${chartOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>` : nothing}
       </div>
-      ${weekOpen ? html`<div class="week">
+      ${weekOpen ? html`<div class="week wp-appear">
         ${[0, 1, 2, 3, 4, 5, 6].map((weekday) => {
           // the whole week, Monday to Sunday, each day at its next occurrence (today included)
           const o = (weekday - localWeekday(this._now, this._tz) + 7) % 7;
@@ -812,7 +812,7 @@ export class WeeklyPlannerCard extends LitElement {
         })}
         ${this._holidayRow(entityId, program)}
       </div>` : nothing}
-      ${chartOpen ? html`<div class="chartbox"><wp-chart .hass=${this.hass} .data=${this._data} .program=${program}
+      ${chartOpen ? html`<div class="chartbox wp-appear"><wp-chart .hass=${this.hass} .data=${this._data} .program=${program}
         entity-id=${entityId} date=${date} .slots=${slots ? [...(previous ?? []), ...slots] : null}
         @open-history=${(e: CustomEvent<string>) => openHistory(e.detail)}></wp-chart></div>` : nothing}`;
   }
@@ -863,7 +863,7 @@ export class WeeklyPlannerCard extends LitElement {
         </button><div class="header-actions"><div class="header-icons">${this._programToggle(p)}
         <button class="hours" aria-label=${t(this._lang, "hours_of", { name: p.name })} title=${t(this._lang, "hours")}
           @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon><span class="hl">${t(this._lang, "edit_word")}</span></button></div></div></div>
-        ${expanded ? html`<div id=${`compact-${p.id}`} class="compact-details" role="region" aria-label=${p.name}>
+        ${expanded ? html`<div id=${`compact-${p.id}`} class="compact-details wp-appear" role="region" aria-label=${p.name}>
           ${this._deviceTabs(p)}
           ${p.entities.filter((e) => p.entities.length < 2 || e.entity_id === this._shownDevice(p)).map((e) => {
             const own: Scope = p.entities.length > 1 ? { ...scope, entityId: e.entity_id } : scope;

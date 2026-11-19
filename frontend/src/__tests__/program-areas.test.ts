@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { areaList, areaValue, normalizeRoom, roomKey, roomKeys, roomLabel, roomOptions } from "../program-areas";
+import { areaList, areaValue, normalizeRoom, roomChoices, roomKey, roomKeys, roomLabel, roomOptions } from "../program-areas";
 import { filterPrograms } from "../planner";
 import { groupItems } from "../list-order";
 
@@ -128,5 +128,18 @@ describe("rooms: edge cases of keys, labels and options", () => {
     expect(opts.map((o) => [o.key, o.value, o.label])).toEqual([["alpha", "ALPHA", "ALPHA"], ["zed", "Zed", "Zed"]]);
     const withArea = roomOptions(hass, [{ area: "Games" }, { area: "beta" }] as any);
     expect(withArea.map((o) => [o.key, o.value, o.label])).toEqual([["beta", "beta", "beta"], ["salon_de_jeux", "salon_de_jeux", "Games"]]);
+  });
+});
+
+describe("roomChoices", () => {
+  it("lists every Home Assistant room, the rooms programs already use (spellings merged) and the current one, sorted", () => {
+    const programs = [{ area: "bureau" }, { area: "Salle à manger" }, { area: null }];
+    expect(roomChoices(hass, programs).map((o) => [o.value, o.label])).toEqual([
+      ["bureau", "bureau"],
+      ["chambre_celine_manu", "Chambre Céline Manu"],
+      ["salle_a_manger", "Salle à manger"],
+    ]);
+    expect(roomChoices(hass, programs, "Old room").map((o) => o.label)).toEqual(["bureau", "Chambre Céline Manu", "Old room", "Salle à manger"]);
+    expect(roomChoices(undefined, [{ area: "Bureau" }]).map((o) => o.label)).toEqual(["Bureau"]);
   });
 });

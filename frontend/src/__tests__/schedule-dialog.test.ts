@@ -3,7 +3,7 @@ import { WpSchedule, scopeKey } from "../components/schedule-dialog";
 import { chooseAction, confirmAction, pauseChoice } from "../components/confirm";
 import { fetchPreviewResponse } from "../preview-cache";
 import { t } from "../i18n";
-import { flat, handlers, find } from "./helpers/tpl";
+import { flat, handlers, find, valuesAfter } from "./helpers/tpl";
 import type { Program } from "../types";
 
 vi.mock("../components/confirm", () => ({ confirmAction: vi.fn(async () => true), pauseChoice: vi.fn(async () => "none"), chooseAction: vi.fn(async () => "source") }));
@@ -231,7 +231,7 @@ describe("schedule screen editing", () => {
     view._saveRow = vi.fn();
     find(view.render(), "click", "class=" + '"btn primary"').fn();
     expect(view._saveRow).toHaveBeenCalledOnce();
-    find(view.render(), "click", "cancel".length ? "btn\" @" : "").fn();
+    find(view.render(), "click", 'class="btn" ?disabled=').fn();
     expect(view._open).toBeNull();
     view._overrides = [{ entityId: "switch.demo", labelId: "comfort", action: null }];
     view._dropBusy = true; view._shared = true; view._error = "draft error"; view._note = "draft note";
@@ -603,6 +603,31 @@ describe("schedule screen editing", () => {
       { ...slot("b", "08:00", "09:00"), label: "missing-b" },
     ];
     expect(view._overlapText(oneTimeProfile)).toBe(t("en", "w_err_overlap"));
+  });
+  describe("while a setting is being edited", () => {
+    const draft = { name: "N", color: "#000", action: { kind: "scene", scene: "scene.x" }, overrides: [] };
+    const flags = (view: any) => ({
+      save: valuesAfter(view.render(), 'class="btn primary" ?disabled=')[0],
+      cancel: valuesAfter(view.render(), 'class="btn" ?disabled='),
+    });
+
+    it("disables the Save and Cancel of the schedule, and enables them again once the setting form is closed", () => {
+      const { view } = make();
+      view._add([0]);
+      expect(flags(view)).toEqual({ save: false, cancel: [false] });
+      view._labelDraft = draft;
+      expect(flags(view)).toEqual({ save: true, cancel: [true] });
+      view._labelDraft = null;
+      expect(flags(view)).toEqual({ save: false, cancel: [false] });
+    });
+
+    it("does the same for the rest of the time", () => {
+      const { view } = make();
+      find(view.render(), "click", "row rest").fn();
+      expect(flags(view)).toEqual({ save: false, cancel: [false] });
+      view._labelDraft = draft;
+      expect(flags(view)).toEqual({ save: true, cancel: [true] });
+    });
   });
   it("saves the rest of the time and a new label draft with the row", async () => {
     const { view } = make();
