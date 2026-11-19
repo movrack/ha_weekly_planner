@@ -1,11 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WpBarEditor } from "../components/bar-editor";
-import { dismissHoldHint, HOLD_HINT_MS } from "../hold-hint";
+import { HOLD_HINT_MS } from "../hold-hint";
 import { t } from "../i18n";
 
-const store = new Map<string, string>();
-const KEY = "weekly_planner.hold_hint";
-const writes: string[] = [];
 const bar = (editable = true) => {
   const el = new WpBarEditor() as any;
   el.editable = editable; el.lang = "en";
@@ -20,10 +17,8 @@ const tap = (el: any, pointerType = "touch") => {
 
 beforeEach(() => {
   vi.useFakeTimers();
-  store.clear(); writes.length = 0;
   vi.stubGlobal("window", {
-    setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
-    localStorage: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { writes.push(k); store.set(k, v); } },
+    setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout
   });
   vi.stubGlobal("navigator", {});
 });
@@ -65,13 +60,13 @@ describe("hold hint", () => {
     expect(events(ro)).toEqual([]);
   });
 
-  it("a long press clears the hint for good", () => {
+  it("a long press enters the edit mode and clears the hint", () => {
     const el = bar();
     const ev = { pointerId: 1, clientX: 0, clientY: 0, button: 0, pointerType: "touch" } as PointerEvent;
     el._zoneDown(ev);
     vi.advanceTimersByTime(500);
     expect(events(el)).toEqual(["edit-request"]);
-    expect(store.get(KEY)).toBe("5");
+    expect(el._hint).toBe(false);
   });
 
   it("a touch long press enters the quick edit on a bar and on both dials, and a short tap does not", () => {
@@ -86,12 +81,6 @@ describe("hold hint", () => {
       el._zoneUp(ev);
       expect(events(el)).toEqual(["edit-request"]);
     }
-  });
-
-  it("works without storage", () => {
-    vi.stubGlobal("window", { setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
-      get localStorage(): never { throw new Error("denied"); } });
-    expect(() => dismissHoldHint()).not.toThrow();
   });
 
   it("has a live status region and EN + FR texts", () => {
@@ -113,18 +102,11 @@ describe("hold hint", () => {
   });
 });
 
-describe("hold hint counter", () => {
+describe("hold hint duration", () => {
   it("the hint stays 6 s on screen", () => {
     expect(HOLD_HINT_MS).toBe(6000);
   });
 
-  it.each([["2", "5", 1], ["1", "5", 1], ["5", "5", 0], ["7", "7", 0]])(
-    "dismissing a count of %s leaves %s and writes %i time(s): it never lowers a count at or above the maximum", (before, after, written) => {
-      store.set(KEY, before);
-      dismissHoldHint();
-      expect(store.get(KEY)).toBe(after);
-      expect(writes).toHaveLength(written);
-    });
 });
 
 describe("hold hint stacking", () => {

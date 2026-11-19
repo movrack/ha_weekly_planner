@@ -5,9 +5,6 @@ import { t } from "../i18n";
 import { find, flat } from "./helpers/tpl";
 
 // The zone of the bar editor: press, tap hint, keyboard, click without a pointer, markup of the zone.
-const store = new Map<string, string>();
-const setItem = vi.fn((k: string, v: string) => { store.set(k, v); });
-const KEY = "weekly_planner.hold_hint";
 const bar = (editable = true) => {
   const el = new WpBarEditor() as any;
   el.editable = editable; el.lang = "en"; el.tz = "UTC";
@@ -22,8 +19,7 @@ const ptr = (x = 0, y = 0, id = 1, extra: any = {}) => ({ pointerId: id, clientX
 
 beforeEach(() => {
   vi.useFakeTimers();
-  store.clear(); setItem.mockClear();
-  vi.stubGlobal("window", { setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout, localStorage: { getItem: (k: string) => store.get(k) ?? null, setItem } });
+  vi.stubGlobal("window", { setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout });
   vi.stubGlobal("navigator", {});
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
@@ -91,7 +87,6 @@ describe("zone: press and tap", () => {
     expect(events(el)).toEqual([]);
     vi.advanceTimersByTime(1);
     expect(events(el)).toEqual(["edit-request"]);
-    expect(store.get(KEY)).toBe("5");
     el._zoneUp(ptr());
     expect(el._mvUp).toHaveBeenCalledTimes(1);
     expect(el._hint).toBe(false);
@@ -177,8 +172,6 @@ describe("zone: keyboard and click without a pointer", () => {
       expect(el._kbd).toBe(true);
       expect(el._hint).toBe(false);
       expect(vi.getTimerCount()).toBe(0);
-      expect(store.get(KEY)).toBe("5");
-      store.clear();
     }
   });
   it("other keys, an edit in progress or a key from a child do nothing; Escape closes the tip", () => {
@@ -224,7 +217,6 @@ describe("zone: keyboard and click without a pointer", () => {
     expect(el._kbd).toBe(true);
     expect(el._hint).toBe(false);
     expect(vi.getTimerCount()).toBe(0);
-    expect(store.get(KEY)).toBe("5");
   });
   it("a click with a pointer, while editing, or on a child does nothing; locked asks for the explanation", () => {
     const el = bar();

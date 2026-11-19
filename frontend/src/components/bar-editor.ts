@@ -22,7 +22,7 @@ import type { At, DayCtx, Handle, Target } from "../edits";
 import { editorStyles } from "../editors/shared";
 import { callout } from "../styles";
 import { devicesOf, isShared, isolateForDevice, remergeIdentical, undoSlots } from "../device-edits";
-import { dismissHoldHint, HOLD_HINT_MS } from "../hold-hint";
+import { HOLD_HINT_MS } from "../hold-hint";
 import { slotDeviceError, strings, t } from "../i18n";
 import { appliedAction, labelName, labelOf, labelsFor } from "../labels";
 import { onServiceNames } from "../services";
@@ -252,7 +252,6 @@ export class WpBarEditor extends LitElement {
         this._press.fired = true;
         navigator.vibrate?.(12);
         this._clearHint();
-        dismissHoldHint();
         this._emit("edit-request");
       }, LONG_PRESS_MS);
     }
@@ -317,7 +316,6 @@ export class WpBarEditor extends LitElement {
     if (this.editable) {
       this._kbd = true;
       this._clearHint();
-      dismissHoldHint();
       this._emit("edit-request");
     } else if (this.lockedReason) this._emit("locked-request");
   }
@@ -328,7 +326,6 @@ export class WpBarEditor extends LitElement {
     if (this.editable) {
       this._kbd = true;
       this._clearHint();
-      dismissHoldHint();
       this._emit("edit-request");
     } else if (this.lockedReason) this._emit("locked-request");
   }
@@ -1084,7 +1081,7 @@ export class WpBarEditor extends LitElement {
             @click=${() => { this._copyOpen = !this._copyOpen; this._copyDays = []; }}><ha-icon icon="mdi:content-copy"></ha-icon>${t(lang, "copy_to")}</button>
         </div>` : nothing}
       </div>
-      ${this._copyOpen && sel.slot ? html`<div class="copy">
+      ${this._copyOpen && sel.slot ? html`<div class="copy wp-appear">
         ${days.map((name, d) => d === this.weekday ? nothing : html`<button class="dchip ${this._copyDays.includes(d) ? "on" : ""}"
           role="checkbox" aria-checked=${this._copyDays.includes(d)} @click=${() => this._toggleDay(d)}>${name}</button>`)}
         <button class="act go" ?disabled=${!this._copyDays.length} aria-label=${t(lang, "copy_go")} title=${t(lang, "copy_go")}
