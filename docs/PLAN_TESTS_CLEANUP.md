@@ -88,3 +88,6 @@ fusionner. Données : `reports/ai/tests-analyse-2026-11-18.md` (local). Règles 
 - Tests de performance hors de la suite par défaut : oui.
 - Contrôle des noms de fichiers en CI : non (on ne teste pas les tests) ; les règles d'`AGENTS.md` suffisent.
 - `legacy_engine.py` : supprimé s'il est inutile (étape 3).
+- `legacy_engine.py` + `test_latency_equivalence.py` (≈ 1 200 lignes pour 5 lignes couvertes en propre) : remplacés
+  par des tests ciblés sur ces lignes, puis supprimés. Règle générale ajoutée à `AGENTS.md` (« Targeted tests,
+  proportionate size »).

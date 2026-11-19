@@ -153,6 +153,17 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
 - **Regression test for a reported bug**: in the module's file, named after the visible symptom; keep it even if it
   adds no coverage.
 - **Remove a test only with proof**: per-file coverage unchanged and mutation score of the module unchanged.
+- **Targeted tests, proportionate size** (owner rule, 2026-11-18): a test is as small as the behaviour it proves.
+  A large test, oracle or fixture that adds only a few lines of coverage or a few killed mutants of its own is replaced
+  by small tests aimed at exactly those lines or mutants, then removed (example: `legacy_engine.py` +
+  `test_latency_equivalence.py`, ~1 200 lines for 5 covered lines, replaced by targeted tests). No differential
+  oracle against an old version of the code once that version is gone.
+
+### Dead code (owner rule, 2026-11-18, #64)
+- Detection is done by the project's dead-code script, never by memory. Every false positive found updates the
+  script (whitelist or rule, with a one-line reason) in the same change.
+- Deciding that a hit is dead and removing it is done by an **Opus (or stronger) model**: nothing useful may be
+  removed. Dead code goes with its tests (see "Targeted tests, proportionate size").
 
 ### Killing mutants (owner rule, 2026-11-18)
 - A surviving mutant means a behaviour is not checked. **First find the existing test of that behaviour in the
@@ -162,6 +173,44 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
   **not killed by a test**: mark it ignored in the tool with a one-line reason, or simplify the code.
 - Never write a test whose only purpose is to execute a line; if the line has no observable effect, question the code.
 - After a mutation round: per-file floors kept, the module's mutation score not lower, no new file created.
+- **Method for a mutant-killing round** (owner rule, 2026-11-18; measured on `confirm.ts`: blind round 62.55 → 65.54 %,
+  round with the survivor list and a check tool 65.54 → 97.38 %):
+  1. The coordinator runs Stryker/mutmut (agents in a restricted sandbox, e.g. Codex, cannot: `listen EPERM`) and
+     keeps the `mutation.json` of the module.
+  2. The agent gets the **exact list of surviving mutants** (id, line, mutator, replacement) and a tool that applies
+     one mutant, runs the module's test file and restores the production file
+     (`mutant_tool.py` in the coordinator's memory folder, outside the repository). Never ask an agent to kill
+     mutants blind.
+  3. The agent works group by group, checks only that group's ids, runs the full list at the end, and lists every
+     remaining survivor as "equivalent" or "not worth it" with a reason.
+  4. The coordinator **remeasures with the real tool** and reads the diff before accepting. An agent's own
+     "all killed" is never accepted on its word: on `schedule-dialog.ts` an agent reported 138/138 killed while Stryker
+     showed 34, because its checks ran while one test was red (a red test makes every mutant look killed). The
+     check tool therefore runs the unmutated tests first and refuses to answer when they fail.
+- **Which mutants are not killed by a test**: a mutant on a CSS template (`css\`…\``) is ignored, not pinned with a
+  selector assertion (keep only contract tests: 44/48 px targets, contrast tokens). A mutant that survives because a
+  condition is redundant (the code gives the same result either way) is a **simplification of the code** in a
+  separate `refactor:` change, not a test.
+- **Review of a test written to kill mutants** (the coordinator checks, in the diff): no assertion on rendered markup
+  with exact whitespace (`aria-pressed=true class=on\n  @click=…`): assert the attribute, the text or the event;
+  no more private `_x` accesses than before without a reason; no "does not throw" test; no helper function written
+  inside a test file when another file could use it (`helpers/`); `const`, not `let`; the agent keeps the existing
+  test names and strengthens them.
+
+### Choosing the Codex model for a mutant-killing round (owner rule, 2026-11-19; provisional)
+- **Default: `gpt-6.1-sol` with `model_reasoning_effort="low"`.** Measured on `holiday-section.ts` (same baseline, same
+  prompt): same result as `gpt-6-luna` high (93 mutants killed each, no regression), in 5 min instead of 18, 2 M input
+  tokens instead of 10 M, and cleaner tests (1 new private read instead of 17, no private write, helper 8 lines instead
+  of 25).
+- **`gpt-6-luna` with effort `high` when the 5 h quota is tight**, or to keep a second run in parallel: sol used
+  about +15 points of the 5 h window for that run against about +10 for luna.
+- **Never `gpt-6.1-sol` with effort `high`** (no gain justifies its cost).
+- **Provisional**: one file only (99 mutants). Confirm on a harder file (the lines after 1000 of `schedule-dialog.ts`,
+  `chart.ts`) before treating it as settled, and change this rule if the result differs.
+- **Every run reports**: duration, commands, input/output tokens (fresh and cached) and the 5 h and weekly quota
+  use from start to end (`codex_round_report.py`); the coordinator remeasures with Stryker and compares by mutant id.
+- **Parallel runs**: at most two, on two **different files**, each in its own worktree copy (the check tool rewrites
+  the production file in place, so two runs in one tree contaminate each other).
 
 ### Performance tests
 - Tests must not depend on the real clock or on thread order: take operation counts at frozen, simulated
