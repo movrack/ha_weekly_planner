@@ -71,3 +71,22 @@ file into `~/.claude/agents/` (all your projects) or `.claude/agents/` (this pro
 a sync script that does the translation. The `AI` repository explains both ways in its README ("Install").
 `mamy`, `ally` and `parker` need the Chrome DevTools MCP server. Do not add copies of these agents to this
 repository: change them in `movrack/AI`.
+
+## Dead code
+
+Run `python3 scripts/deadcode.py` from the repository root, or `npm run deadcode` from `frontend/`.
+Use `python3 scripts/deadcode.py --check` to compare candidates with the issue #64 reference.
+Detection is read-only: it prints candidates and never changes source files.
+Every false positive must update the whitelist or detection rule, with a reason, in the same change.
+A finding requires human verification; new findings remain unclassified until reviewed.
+An Opus-level or stronger model must decide whether code is dead and may be deleted.
+Remove confirmed dead code together with its tests.
+
+Finding categories:
+
+- `unused`: no production references beyond the definition, and no test references.
+- `test-only`: no production references beyond the definition; referenced by tests.
+- `unused-export`: used inside its own file, but exported without an importer in another production file; only the export is superfluous.
+- `param-or-import`: unused parameter, local variable or import.
+- `translation`: dictionary key with no literal, property or dynamic-prefix usage, including helpers in `i18n.ts`.
+- `commented-code`: commented-out Python code.

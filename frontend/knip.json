@@ -1,0 +1,10 @@
+{
+  // Vite library production entry; imports reach registered Lit components.
+  "entry": ["src/index.ts!"],
+  // Production sources only: test-only callers must not hide unused exports.
+  "project": ["src/**/*.ts!", "!src/__tests__/**"],
+  // Test helpers and browser QA scripts are tooling, not shipped card files.
+  "ignore": ["src/__tests__/**", "qa/**"],
+  // Decorator registration uses component exports inside their own module by tag.
+  "ignoreExportsUsedInFile": {"class": true}
+}
