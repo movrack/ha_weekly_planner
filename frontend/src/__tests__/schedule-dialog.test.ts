@@ -41,7 +41,7 @@ beforeEach(() => {
   vi.mocked(pauseChoice).mockReset(); vi.mocked(pauseChoice).mockResolvedValue("none");
   vi.mocked(chooseAction).mockReset(); vi.mocked(chooseAction).mockResolvedValue("source" as any);
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("schedule screen rendering", () => {
   it("scopeKey tells device from program", () => {
@@ -1158,6 +1158,7 @@ describe("schedule screen editing", () => {
     expect(html).not.toContain("Stryker");
   });
   it("creates and previews a mode before that mode has a saved profile", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-11-18T12:00:00Z")); // the previewed days follow the clock
     const program = sharedProgram();
     program.profiles = [];
     const view = makeView([program]);
