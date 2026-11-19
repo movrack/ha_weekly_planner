@@ -94,3 +94,39 @@ describe("room filter and sort", () => {
     expect(roomOptions(hass, data.programs, ["Bureau", "Ancienne pièce"]).map((o: any) => o.label)).toContain("Ancienne pièce");
   });
 });
+
+describe("rooms: edge cases of keys, labels and options", () => {
+  const hass: any = { areas: { salon_de_jeux: { area_id: "salon_de_jeux", name: "Games" }, k: { area_id: "other", name: "N" }, dash: { area_id: "dash", name: "-" } } };
+  it("a punctuation-only text has no room, even when an area is named like it", () => {
+    expect(roomKey(hass, "-")).toBe("");
+    expect(roomKey(hass, " _ ")).toBe("");
+    expect(roomKey(hass, "")).toBe("");
+    expect(roomKey(hass, null)).toBe("");
+  });
+  it("a text finds its area by id, by name, then by the id in its normalized form", () => {
+    expect(roomKey(hass, "salon_de_jeux")).toBe("salon_de_jeux");
+    expect(roomKey(hass, "Games")).toBe("salon_de_jeux");
+    expect(roomKey(hass, "Salon de jeux")).toBe("salon_de_jeux");
+    expect(roomKey(hass, "Unknown  Room")).toBe("unknown room");
+    expect(roomKey(undefined, "Été_Chaud")).toBe("ete chaud");
+    expect(normalizeRoom("  A--B__C  ")).toBe("a b c");
+  });
+  it("the label is the area name only when the key is the id of that area; else the first text, upper case first", () => {
+    expect(roomLabel(hass, "salon_de_jeux", ["x"])).toBe("Games");
+    expect(roomLabel(hass, "k", ["x"])).toBe("x");
+    expect(roomLabel(hass, "zz", ["b", "B"])).toBe("B");
+    expect(roomLabel(hass, "zz", [null, undefined, "", "a"] as any)).toBe("a");
+    expect(roomLabel(hass, "zz", [])).toBe("zz");
+    expect(roomLabel(undefined, "zz", [""])).toBe("zz");
+  });
+  it("room lists drop blanks; room keys drop the ones with no key; options are merged and sorted by label", () => {
+    expect(areaList(["a", " ", 3, "b"])).toEqual(["a", "b"]);
+    expect(areaList("x")).toEqual(["x"]);
+    expect(areaList(5)).toEqual([]);
+    expect([...roomKeys(hass, ["-", "Kitchen"])]).toEqual(["kitchen"]);
+    const opts = roomOptions(undefined, [{ area: "Zed" }, { area: "alpha" }, { area: "ALPHA" }, { area: null }, {}] as any, ["Zed"]);
+    expect(opts.map((o) => [o.key, o.value, o.label])).toEqual([["alpha", "ALPHA", "ALPHA"], ["zed", "Zed", "Zed"]]);
+    const withArea = roomOptions(hass, [{ area: "Games" }, { area: "beta" }] as any);
+    expect(withArea.map((o) => [o.key, o.value, o.label])).toEqual([["beta", "beta", "beta"], ["salon_de_jeux", "salon_de_jeux", "Games"]]);
+  });
+});

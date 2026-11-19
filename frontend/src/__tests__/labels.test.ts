@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  PALETTE, actionText, allowedOf, actionValue, compatible, entityAction, hasOverride, labelUsers, labelsFor, nextColor,
+  PALETTE, actionText, allowedOf, actionValue, compatible, entityAction, hasOverride, labelDomains, labelName, labelUsers, labelsFor, nextColor,
 } from "../labels";
 import type { Action, HomeAssistant, Label, PlannerData, Program } from "../types";
 
@@ -179,4 +179,25 @@ it("distinguishes new explicit empty action selection from legacy unrestricted d
   p.entities[0].allowed_services = ["climate.set_temperature"];
   expect(compatible(hass, "climate.a", temp(20), allowedOf(p, "climate.a"))).toBe(true);
   expect(compatible(hass, "climate.a", { kind: "service", service: "climate.set_hvac_mode" }, allowedOf(p, "climate.a"))).toBe(false);
+});
+
+describe("integrations to load for the setting names", () => {
+  it("loads the integration of an action AND of a name that is a raw service id", () => {
+    const l = (name: string, service?: string): any => ({ id: name, name, color: "#fff", action: service ? { kind: "service", service } : { kind: "scene", entity_id: "scene.x" } });
+    expect(labelDomains([l("vacuum.start", "vacuum.start"), l("Eco", "climate.set_temperature"), l("climate.eco"), l("scene.x")]).sort())
+      .toEqual(["climate", "scene", "vacuum"]);
+  });
+});
+
+describe("setting names shown to people", () => {
+  const localized = (translations: Record<string, string> = {}, services: any = {}) =>
+    ({ localize: (k: string) => translations[k] ?? "", services }) as any;
+  it("keeps a real name", () => expect(labelName(localized(), { name: "Comfort" })).toBe("Comfort"));
+  it("translates a raw service id with Home Assistant's service name", () => {
+    expect(labelName(localized({ "component.vacuum.services.start.name": "Démarrer" }), { name: "vacuum.start" })).toBe("Démarrer");
+    expect(labelName(localized({}, { vacuum: { start: { name: "Start cleaning" } } }), { name: "vacuum.start" })).toBe("Start cleaning");
+  });
+  it("falls back to a readable service part", () => {
+    expect(labelName(localized(), { name: "vacuum.return_to_base" })).toBe("Return to base");
+  });
 });

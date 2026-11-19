@@ -1,19 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { WpSlotForm } from "../components/slot-form";
 import { flat, handlers, find } from "./helpers/tpl";
+import { form } from "./helpers/slot-form";
 
 beforeEach(() => {
   (globalThis as any).CustomEvent ??= class { type: string; detail: unknown; constructor(t: string, i: any) { this.type = t; this.detail = i?.detail; } };
 });
 
-const form = (slot: any, days = [0, 1, 2, 3, 4, 5, 6], props: Record<string, unknown> = {}) => {
-  const el = new WpSlotForm() as any;
-  const seen: any[] = [];
-  el.dispatchEvent = (e: any) => { seen.push(e.detail); return true; };
-  Object.assign(el, { hass: { language: "en", config: {}, states: {} }, data: { labels: [], programs: [] }, program: { id: "p", entities: [], profiles: [] },
-    entityIds: [], dayOnly: null, group: { slot: { id: "s", label: "l", start: { time: "08:00" }, end: { time: "09:00" }, ...slot }, days, ids: {} } }, props);
-  return { el, seen };
-};
 /** Clicks the "Advanced options" button of a rendered form. */
 const openFold = (el: any, i = 0) => handlers(el.render()).filter((h) => h.event === "click" && h.before.slice(-200).includes('class="row opts"'))[i].fn();
 const sel = (r: any, ev: string, i: number, mark = "") => handlers(r).filter((h) => h.event === ev && h.before.includes(mark))[i];
@@ -190,5 +183,13 @@ describe("slot form: noDays", () => {
     expect(html).not.toContain("chip small");
     expect(html).toContain('type="time"');
     expect(flat(form({}).el.render())).toContain('class="days"');
+  });
+});
+
+describe("slot form touch targets", () => {
+  it("the day buttons share the row and stay 48 px tall and at least 44 px wide", () => {
+    const css = [WpSlotForm.styles].flat(Infinity).map((x: any) => x?.cssText ?? "").join("\n");
+    expect(css).toMatch(/\.day \{[^}]*min-height: 48px; min-width: 44px/);
+    expect(css).toMatch(/\.days \{[^}]*minmax\(44px, 1fr\)/);
   });
 });

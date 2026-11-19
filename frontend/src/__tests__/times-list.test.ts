@@ -20,6 +20,7 @@ describe("daily times rows", () => {
     const rows = timesRows([b, a], ctx);
     expect(ids(rows)).toEqual(["a", "b"]);
     expect(new Set(rows.map((r) => r.key)).size).toBe(2);
+    expect(ids(timesRows([a, b], ctx))).toEqual(["a", "b"]);
   });
 
   it("on a 23-hour day lists only what is resolved: the skipped time is absent", () => {
@@ -193,3 +194,168 @@ describe("daily times: done rows", () => {
   });
 });
 
+describe("daily times: which spans are hidden by a winner", () => {
+  it("a one-shot marker never hides a span, whatever its minutes", () => {
+    const rows = timesRows([span(100, 200, { slotId: "a" }), span(0, 1440, { slotId: "m", marker: true })], ctx);
+    expect(ids(rows)).toEqual(["m", "a"]);
+  });
+  it("the same interval twice: the later one wins, by minutes and by instants", () => {
+    expect(ids(timesRows([span(100, 200, { slotId: "a" }), span(100, 200, { slotId: "b" })], ctx))).toEqual(["b"]);
+    const a = span(100, 200, { slotId: "a", startMs: iso(1, 40), endMs: iso(3, 20) });
+    const b = span(100, 200, { slotId: "b", startMs: iso(1, 40), endMs: iso(3, 20) });
+    expect(ids(timesRows([a, b], ctx))).toEqual(["b"]);
+  });
+  it("uses the instants only when both spans have both a start and an end instant", () => {
+    const bothMs = { startMs: iso(5), endMs: iso(6) };
+    // the minutes say the winner covers; the instants of the one that has them say it does not
+    expect(ids(timesRows([span(100, 200, { slotId: "a", ...bothMs }), span(0, 1440, { slotId: "w", endMs: iso(2) })], ctx))).toEqual(["w"]);
+    expect(ids(timesRows([span(100, 200, { slotId: "a", endMs: iso(1) }), span(0, 1440, { slotId: "w", startMs: iso(7), endMs: iso(8) })], ctx))).toEqual(["w"]);
+    expect(ids(timesRows([span(100, 200, { slotId: "a", ...bothMs }), span(0, 1440, { slotId: "w", startMs: iso(7) })], ctx))).toEqual(["w"]);
+  });
+  it("by instants: a winner that starts one millisecond later hides nothing", () => {
+    const a = span(100, 200, { slotId: "a", startMs: iso(1, 40), endMs: iso(3, 20) });
+    const b = span(100, 200, { slotId: "b", startMs: iso(1, 40) + 1, endMs: iso(3, 20) });
+    expect(ids(timesRows([a, b], ctx))).toEqual(["a", "b"]);
+    const c = span(100, 200, { slotId: "c", startMs: iso(1, 40), endMs: iso(3, 20) - 1 });
+    expect(ids(timesRows([a, c], ctx))).toEqual(["a", "c"]);
+  });
+  it("by instants: a winner ending exactly at a one-shot hides it", () => {
+    const m = span(100, 100, { slotId: "m", marker: true, startMs: iso(3, 20) });
+    const w = span(60, 200, { slotId: "w", startMs: iso(1), endMs: iso(3, 20) });
+    expect(ids(timesRows([m, w], ctx))).toEqual(["w"]);
+  });
+  it("falls back to the minutes when the winner has no end instant, or the loser has no start or end instant", () => {
+    const wide = { start: 0, end: 1440 };
+    const noEnd = span(0, 1440, { slotId: "w", startMs: iso(5), endMs: null });
+    expect(ids(timesRows([span(100, 200, { slotId: "a", startMs: iso(1), endMs: iso(2) }), noEnd], ctx))).toEqual(["w"]);
+    const later = span(wide.start, wide.end, { slotId: "w", startMs: iso(5), endMs: iso(6) });
+    expect(ids(timesRows([span(100, 200, { slotId: "a", startMs: iso(1), endMs: null }), later], ctx))).toEqual(["w"]);
+    expect(ids(timesRows([span(100, 200, { slotId: "a" }), span(0, 1440, { slotId: "w", startMs: iso(0), endMs: iso(23) })], ctx))).toEqual(["w"]);
+  });
+});
+
+describe("daily times: keys", () => {
+  it("is `slot|start`, with an empty slot id when there is ctx", () => {
+    expect(timesRows([span(60, 120, { slotId: undefined })], ctx)[0].key).toBe("|60");
+    expect(timesRows([span(60, 120, { slotId: "x", startMs: iso(1) })], ctx)[0].key).toBe(`x|${iso(1)}`);
+  });
+  it("two slots starting at the same minute are two rows; the same slot at two instants too", () => {
+    expect(ids(timesRows([span(60, 200, { slotId: "a" }), span(60, 100, { slotId: "b" })], ctx)).sort()).toEqual(["a", "b"]);
+    const x = span(150, 160, { slotId: "x", startMs: iso(1, 30), endMs: iso(1, 40) });
+    const y = span(150, 160, { slotId: "x", startMs: iso(2, 30), endMs: iso(2, 40) });
+    expect(timesRows([x, y], ctx)).toHaveLength(2);
+  });
+});
+
+describe("daily times: the end of a span running past midnight", () => {
+  it("reads the nominal end when there is no end instant", () => {
+    const [r] = timesRows([span(1300, 1440, { endSpec: { time: "02:00" } })], ctx);
+    expect(r.until).toEqual({ day: "tomorrow", min: 120 });
+  });
+});
+
+describe("daily times: sun rule", () => {
+  const sun = { sun: "sunset" as const, offset: -30 };
+  it("is given for a sun start of today only", () => {
+    expect(timesRows([span(60, 120, { startSun: "down", startSpec: sun })], ctx)[0].rule).toEqual(sun);
+  });
+  it("is null for a fixed start, a start without sun icon, no spec, or a carried-over row", () => {
+    expect(timesRows([span(60, 120, { startSun: "down", startSpec: { time: "01:00" } })], ctx)[0].rule).toBeNull();
+    expect(timesRows([span(60, 120, { startSun: null, startSpec: sun })], ctx)[0].rule).toBeNull();
+    expect(timesRows([span(60, 120, { startSun: "down", startSpec: null })], ctx)[0].rule).toBeNull();
+    expect(timesRows([span(0, 120, { spill: true, startSun: "down", startSpec: sun, startMs: iso(22, 0, 9) })], ctx)[0].rule).toBeNull();
+  });
+  it("an unknown sun event reads as sunset", () => {
+    expect(sunRuleText("en", { sun: "bogus" } as any)).toBe(sunRuleText("en", { sun: "sunset" }));
+  });
+});
+
+describe("daily times: order", () => {
+  it("by minutes when an instant is missing on either side", () => {
+    const a = span(60, 70, { slotId: "a", startMs: iso(23) });
+    const b = span(300, 310, { slotId: "b" });
+    expect(ids(timesRows([b, a], ctx))).toEqual(["a", "b"]);
+    expect(ids(timesRows([a, b], ctx))).toEqual(["a", "b"]);
+    const c = span(60, 70, { slotId: "c" });
+    const d = span(300, 310, { slotId: "d", startMs: iso(1) });
+    expect(ids(timesRows([d, c], ctx))).toEqual(["c", "d"]);
+  });
+  it("by minutes when two instants are equal", () => {
+    const a = span(100, 110, { slotId: "a", startMs: iso(5) });
+    const b = span(50, 60, { slotId: "b", startMs: iso(5) });
+    expect(ids(timesRows([a, b], ctx))).toEqual(["b", "a"]);
+  });
+});
+
+describe("daily times: the current row, exact edges", () => {
+  const at = (nowMin: number | null, nowMs?: number | null) => ({ tz: "UTC", nowMin, nowMs });
+  it("ctx without a minute now, even for a span starting at midnight", () => {
+    expect(timesRows([span(0, 100)], ctx)[0].now).toBe(false);
+  });
+  it("by instants: from the start (included) to the end (excluded), whatever the minutes say", () => {
+    const s = span(150, 160, { startMs: iso(2, 30), endMs: iso(2, 40) });
+    expect(timesRows([s], at(0, iso(2, 30)))[0].now).toBe(true);
+    expect(timesRows([s], at(155, iso(2, 40)))[0].now).toBe(false);
+    expect(timesRows([s], at(155, iso(1, 30)))[0].now).toBe(false);
+    expect(timesRows([s], at(155, iso(3, 30)))[0].now).toBe(false);
+  });
+  it("by minutes when the instant now, or the span's start or end instant, is missing", () => {
+    expect(timesRows([span(150, 160, { startMs: iso(5), endMs: iso(6) })], at(155))[0].now).toBe(true);
+    expect(timesRows([span(150, 160, { startMs: iso(5), endMs: null })], at(155, iso(9)))[0].now).toBe(true);
+    expect(timesRows([span(150, 160, { endMs: iso(6) })], at(155, iso(9)))[0].now).toBe(true);
+  });
+  it("by minutes: the start is included, the end excluded", () => {
+    expect(timesRows([span(150, 160)], at(150))[0].now).toBe(true);
+    expect(timesRows([span(150, 160)], at(160))[0].now).toBe(false);
+  });
+});
+
+describe("daily times: done, exact edges", () => {
+  const at = (nowMin: number | null, nowMs?: number | null) => ({ tz: "UTC", nowMin, nowMs });
+  it("never without a minute now, even with an instant", () => {
+    expect(timesRows([span(60, 120, { startMs: iso(1), endMs: iso(2) })], at(null, iso(5)))[0].done).toBe(false);
+  });
+  it("never for a one-shot, a span ending tomorrow, or an end not known", () => {
+    expect(timesRows([span(60, 60, { marker: true })], at(1000))[0].done).toBe(false);
+    expect(timesRows([span(1300, 1440, { endSpec: { time: "02:00" } })], at(1400))[0].done).toBe(false);
+    expect(timesRows([span(1300, 1440, { endSpec: { sun: "sunrise" } })], at(1400))[0].done).toBe(false);
+  });
+  it("by instants: done when the end is not after now, whatever the minutes say", () => {
+    const s = span(150, 160, { startMs: iso(2, 30), endMs: iso(2, 40) });
+    expect(timesRows([s], at(100, iso(2, 40)))[0].done).toBe(true);
+    expect(timesRows([s], at(500, iso(2, 35)))[0].done).toBe(false);
+  });
+  it("by minutes when there is no instant now, or no end instant", () => {
+    expect(timesRows([span(60, 120, { startMs: iso(1), endMs: iso(2) })], at(500))[0].done).toBe(true);
+    expect(timesRows([span(60, 120, { startMs: iso(1), endMs: null })], at(500, iso(9)))[0].done).toBe(true);
+    expect(timesRows([span(60, 120)], at(100))[0].done).toBe(false);
+    expect(timesRows([span(60, 120)], at(50))[0].done).toBe(false);
+    expect(timesRows([span(60, 120, { startMs: iso(1), endMs: null })], at(50, iso(9)))[0].done).toBe(false);
+  });
+});
+
+describe("daily times: neighbours, exact edges", () => {
+  const lab = (start: number, end: number, extra: Partial<BarSpan> = {}) => span(start, end, { labelId: "x", ...extra });
+  it("merge when the minutes touch, and 'now' is only kept when one part is now", () => {
+    const rows = timesRows([lab(100, 200), lab(200, 300)], { tz: "UTC", nowMin: 50 });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].now).toBe(false);
+    expect(timesRows([lab(100, 200), lab(200, 300)], ctx)[0].now).toBe(false);
+  });
+  it("do not merge a one-shot, or a span ending tomorrow", () => {
+    expect(timesRows([lab(100, 200), lab(200, 200, { marker: true })], ctx)).toHaveLength(2);
+    expect(timesRows([lab(1300, 1440, { endSpec: { time: "02:00" } }), lab(120, 300)], ctx)).toHaveLength(2);
+  });
+  it("do not merge a span carried over from yesterday", () => {
+    const a = lab(0, 1380, { spill: true, startSpec: { time: "01:00" } });
+    const b = lab(1380, 1400, { spill: true, startSpec: { time: "23:00" } });
+    expect(timesRows([a, b], ctx)).toHaveLength(2);
+  });
+  it("compare the instants when both are known, the minutes otherwise", () => {
+    expect(timesRows([lab(100, 200, { endMs: iso(3, 20) }), lab(200, 300, { startMs: iso(3, 21) })], ctx)).toHaveLength(2);
+    expect(timesRows([lab(100, 200, { endMs: iso(3, 20) }), lab(160, 300, { startMs: iso(3, 20) })], ctx)).toHaveLength(1);
+    expect(timesRows([lab(100, 200, { endMs: iso(3, 20) }), lab(200, 300)], ctx)).toHaveLength(1);
+    expect(timesRows([lab(100, 200), lab(200, 300, { startMs: iso(9) })], ctx)).toHaveLength(1);
+    expect(timesRows([lab(100, 200, { endMs: null }), lab(200, 300, { startMs: iso(9) })], ctx)).toHaveLength(1);
+  });
+});

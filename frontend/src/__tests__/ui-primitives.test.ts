@@ -3,7 +3,6 @@ import { SwipeTracker, LongPress, displayName, trackScrollHints } from "../compo
 import { WpTip } from "../components/tip";
 import { WpRadialDay } from "../components/radial-day";
 import { WpEntityPicker, WpConditionsEditor, langOf } from "../editors/shared";
-import { syncSelectValues } from "../select-value";
 import { flat, handlers, find, target } from "./helpers/tpl";
 
 class FakeEl { tagName: string; constructor(t = "DIV") { this.tagName = t; } }
@@ -77,14 +76,6 @@ describe("trackScrollHints", () => {
   });
 });
 
-describe("syncSelectValues", () => {
-  it("sets a select to its data-value without emitting", () => {
-    const a: any = { value: "x", dataset: { value: "y" } }, b: any = { value: "z", dataset: {} };
-    syncSelectValues({ querySelectorAll: () => [a, b] } as any);
-    expect(a.value).toBe("y"); expect(b.value).toBe("");
-  });
-});
-
 describe("wp-tip", () => {
   const tip = (props: Record<string, unknown> = {}) => { const el = new WpTip() as any; Object.assign(el, { text: "Hi" }, props); return el; };
   it("shows on hover and focus, hides on leave, blur and Escape", () => {
@@ -123,6 +114,14 @@ describe("wp-tip", () => {
     find(plain.render(), "pointerup", "hit").fn({ stopPropagation: stop });
     find(plain.render(), "contextmenu", "hit").fn({ preventDefault: stop });
     expect(stop).toHaveBeenCalledTimes(3);
+  });
+  it("a tip is a tab stop named by its text, unless no-tab is set: then it leaves the tab order and says its label", () => {
+    const el = tip({ text: "Now · 2:45 pm" });
+    expect(flat(el.render())).toContain("tabindex=0");
+    el.noTab = true; el.label = "Now · 2:45 pm, Office";
+    const html = flat(el.render());
+    expect(html).toContain("tabindex=-1");
+    expect(html).toContain("aria-label=Now · 2:45 pm, Office");
   });
   it("keeps the bubble inside the window", () => {
     vi.stubGlobal("window", { innerWidth: 400 });

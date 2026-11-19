@@ -59,7 +59,7 @@ pytest_add_cli_args_test_selection = [
   "tests/test_timeline.py",
   "tests/test_resolver.py",
   "tests/test_random_times.py",
-  "tests/test_mutation_survivors.py",
+  "tests/test_holiday.py",
   "tests/test_action_sources.py",
   "tests/test_action_targets.py",
   "tests/test_actions.py",

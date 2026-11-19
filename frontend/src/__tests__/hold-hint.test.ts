@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WpBarEditor } from "../components/bar-editor";
-import { dismissHoldHint, HOLD_HINT_MS, takeHoldHint } from "../hold-hint";
+import { dismissHoldHint, HOLD_HINT_MAX, HOLD_HINT_MS, takeHoldHint } from "../hold-hint";
 import { t } from "../i18n";
 
 const store = new Map<string, string>();
+const KEY = "weekly_planner.hold_hint";
+const writes: string[] = [];
 const bar = (editable = true) => {
   const el = new WpBarEditor() as any;
   el.editable = editable; el.lang = "en";
@@ -18,10 +20,10 @@ const tap = (el: any, pointerType = "touch") => {
 
 beforeEach(() => {
   vi.useFakeTimers();
-  store.clear();
+  store.clear(); writes.length = 0;
   vi.stubGlobal("window", {
     setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
-    localStorage: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { store.set(k, v); } },
+    localStorage: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { writes.push(k); store.set(k, v); } },
   });
   vi.stubGlobal("navigator", {});
 });
@@ -110,8 +112,49 @@ describe("hold hint", () => {
     locked._zoneClick({ detail: 0, target, currentTarget: target });
     expect(events(locked)).toEqual(["locked-request"]);
   });
+});
 
-  it("the hint stays on screen long enough to read (5 s)", () => {
-    expect(HOLD_HINT_MS).toBeGreaterThanOrEqual(5000);
+describe("hold hint counter", () => {
+  it("is shown five times, then never again, and the hint stays 6 s on screen", () => {
+    expect(HOLD_HINT_MAX).toBe(5);
+    expect(HOLD_HINT_MS).toBe(6000);
+    expect(Array.from({ length: 7 }, () => takeHoldHint())).toEqual([true, true, true, true, true, false, false]);
+  });
+
+  it("is never shown again once dismissed", () => {
+    expect(takeHoldHint()).toBe(true);
+    dismissHoldHint();
+    expect(takeHoldHint()).toBe(false);
+  });
+
+  it.each([["2", "5", 1], ["1", "5", 1], ["5", "5", 0], ["7", "7", 0]])(
+    "dismissing a count of %s leaves %s and writes %i time(s): it never lowers a count at or above the maximum", (before, after, written) => {
+      store.set(KEY, before);
+      dismissHoldHint();
+      expect(store.get(KEY)).toBe(after);
+      expect(writes).toHaveLength(written);
+    });
+
+  it.each(["-2", "-3"])("a negative count (%s) counts as none", (count) => {
+    store.set(KEY, count);
+    expect(takeHoldHint()).toBe(true);
+    expect(store.get(KEY)).toBe("1");
+  });
+
+  it("counts the first showing even when the storage cannot be read", () => {
+    vi.stubGlobal("window", { localStorage: {
+      getItem: () => { throw new Error("denied"); },
+      setItem: (k: string, v: string) => { store.set(k, v); },
+    } });
+    expect(takeHoldHint()).toBe(true);
+    expect([...store.values()]).toEqual(["1"]);
+  });
+});
+
+describe("hold hint stacking", () => {
+  it("the hint bubble is stacked above the now line (z-index above 5)", () => {
+    const css = [WpBarEditor.styles].flat(Infinity).map((s: any) => s?.cssText ?? "").join("\n");
+    const hint = css.match(/\.hold-hint \{[^}]*z-index: (\d+)/);
+    expect(Number(hint?.[1])).toBeGreaterThan(5);
   });
 });

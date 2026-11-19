@@ -48,3 +48,12 @@ describe("card program selection", () => {
     expect(data.programs.every((p) => p.enabled)).toBe(true);
   });
 });
+
+describe("card program selection by type", () => {
+  it("lists the programs of the chosen type by priority, or all of them without a filter", () => {
+    const withPriority = (id: string, entity: string, priority: number): Program => ({ ...program(id, entity.split(".")[0], "office", priority), entities: [{ entity_id: entity, default_label: null, label_overrides: {} }] });
+    const mixed = { programs: [withPriority("b", "cover.x", 2), withPriority("a", "climate.y", 1)] } as unknown as PlannerData;
+    expect(filterPrograms(mixed, { filter: { types: ["climate"] } }).map((x) => x.id)).toEqual(["a"]);
+    expect(filterPrograms(mixed, {}).map((x) => x.id)).toEqual(["a", "b"]);
+  });
+});

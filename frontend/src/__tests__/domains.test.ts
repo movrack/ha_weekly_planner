@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { domainChoices, programDomains } from "../domains";
+import { domainChoices, domainIcon, programDomains } from "../domains";
 import type { ProgramEntity } from "../types";
 
 const program = (...ids: string[]) => ({ entities: ids.map((entity_id): ProgramEntity => ({ entity_id, default_label: null, label_overrides: {} })) });
@@ -29,5 +29,16 @@ describe("generic card type filters", () => {
   it("keeps an unfamiliar domain selectable when HA has no translation", () => {
     expect(domainChoices(["future_domain"], "fr", () => "")).toEqual([{ id: "future_domain", label: "future_domain" }]);
     expect(domainChoices(["vacuum"], "en")).toEqual([{ id: "vacuum", label: "vacuum" }]);
+  });
+});
+
+describe("domain icons", () => {
+  it("come from Home Assistant, with a fallback, and are fetched once", async () => {
+    let calls = 0;
+    const hass = { callWS: async (m: any) => { calls++; if (m.integration === "none") throw new Error("x"); return { resources: { [m.integration]: { _: { default: "mdi:foo" } } } }; } } as any;
+    expect(await domainIcon(hass, "icontest")).toBe("mdi:foo");
+    expect(await domainIcon(hass, "icontest")).toBe("mdi:foo");
+    expect(calls).toBe(1);
+    expect(await domainIcon(hass, "none", "mdi:bar")).toBe("mdi:bar");
   });
 });

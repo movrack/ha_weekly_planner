@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  MIN_WINDOW, clampWindow, isFullDay, minuteAt, normalise, panWindow, pinchWindow, rangeToWindow, tickStep, ticksIn, zoomAround,
+  MIN_WINDOW, clampWindow, isFullDay, minuteAt, normalise, panWindow, pinchWindow, rangeToWindow, tickStep, ticksIn, zoomAround, zoomTimeline,
 } from "../chart-zoom";
 
 const SPAN = 1440;
@@ -25,6 +25,13 @@ describe("normalise / isFullDay", () => {
     expect(normalise({ from: -5, to: 2000 }, SPAN)).toBeNull();
     expect(normalise({ from: 60, to: 120 }, SPAN)).toEqual({ from: 60, to: 120 });
   });
+  it("counts both ends of the day, with the tolerance included", () => {
+    expect(isFullDay({ from: 0, to: 1440 }, 1440)).toBe(true);
+    expect(isFullDay({ from: 1e-6, to: 1440 - 1e-6 }, 1440)).toBe(true);
+    expect(isFullDay({ from: 100, to: 1440 }, 1440)).toBe(false);
+    expect(isFullDay({ from: 0, to: 1000 }, 1440)).toBe(false);
+    expect(normalise({ from: 0, to: 1440 }, 1440)).toBeNull();
+  });
 });
 
 describe("zoomAround / pinchWindow", () => {
@@ -39,6 +46,12 @@ describe("zoomAround / pinchWindow", () => {
     expect(zoomAround({ from: 100, to: 200 }, 0.01, 150, 0.5, SPAN)).toEqual({ from: 0, to: SPAN });
     const w = zoomAround({ from: 600, to: 700 }, 100, 650, 0.5, SPAN);
     expect(w.to - w.from).toBe(MIN_WINDOW);
+  });
+  it("a scale of zero or less leaves the length alone, for the day and for the timeline", () => {
+    for (const scale of [0, -2]) {
+      expect(zoomAround({ from: 100, to: 400 }, scale, 250, 0.5, 1440)).toEqual({ from: 100, to: 400 });
+      expect(zoomTimeline({ from: 100, to: 400 }, scale, 250, 0.5, 5000)).toEqual({ from: 100, to: 400 });
+    }
   });
   it("pinch follows the ratio of finger distances and a moving centre pans", () => {
     const start = { from: 0, to: SPAN };
@@ -63,6 +76,7 @@ describe("panWindow / rangeToWindow / minuteAt", () => {
     expect(rangeToWindow(600, 300, SPAN)).toEqual({ from: 300, to: 600 });
     expect(rangeToWindow(600, 605, SPAN)).toEqual({ from: 587.5, to: 617.5 });
     expect(rangeToWindow(2, 3, SPAN)).toEqual({ from: 0, to: 30 });
+    expect(rangeToWindow(100, 110, 1440)).toEqual({ from: 90, to: 120 });
     expect(rangeToWindow(-100, 5000, SPAN)).toEqual({ from: 0, to: SPAN });
   });
   it("maps a fraction to a minute, clamped", () => {
@@ -81,6 +95,7 @@ describe("ticks", () => {
     expect(tickStep(120)).toBe(15);
     expect(tickStep(30)).toBe(5);
     expect(tickStep(99999)).toBe(360);
+    expect(tickStep(40, 8)).toBe(5); // a count of labels equal to the maximum is accepted
   });
   it("lists the multiples of the step inside the window", () => {
     expect(ticksIn({ from: 0, to: SPAN }, 180)).toEqual([0, 180, 360, 540, 720, 900, 1080, 1260, 1440]);

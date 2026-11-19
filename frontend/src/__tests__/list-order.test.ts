@@ -24,6 +24,16 @@ describe("list order", () => {
   it("area: rooms A-Z, names inside, no room last", () => {
     expect(ids(sortItems(items, "area", o))).toEqual(["2", "4", "1", "5", "6", "3"]);
   });
+  it("an empty room is last, whichever side of the comparison it is on", () => {
+    const a = (id: string, area: string) => ({ id, name: id, type: "t", area });
+    expect(ids(sortItems([a("1", ""), a("2", "Bureau")], "area"))).toEqual(["2", "1"]);
+    expect(ids(sortItems([a("2", "Bureau"), a("1", "")], "area"))).toEqual(["2", "1"]);
+    expect(ids(sortItems([a("2", "Bureau"), a("1", ""), a("3", "Cave")], "area"))).toEqual(["2", "3", "1"]);
+  });
+  it("types without a label function sort by their domain", () => {
+    const a = (id: string, type: string) => ({ id, name: id, type });
+    expect(ids(sortItems([a("1", "zz"), a("2", "aa")], "type"))).toEqual(["2", "1"]);
+  });
   it("name: A-Z whatever the type", () => {
     expect(ids(sortItems(items, "name", o))).toEqual(["4", "2", "5", "6", "1", "3"]);
   });
@@ -41,6 +51,9 @@ describe("list order", () => {
     expect(groupItems(items, "area", o).map((g) => g.key)).toEqual(["Bureau", "Salon", ""]);
     for (const m of ["name", "custom"] as const) expect(groupItems(items, m, o)).toHaveLength(1);
     expect(groupItems(items, "name", o)[0].header).toBe(false);
+    const one = { id: "1", name: "1", type: "t" };
+    expect(groupItems([one], "name")).toEqual([{ key: "", header: false, items: [one] }]);
+    expect(groupItems([one], "custom")[0].key).toBe("");
   });
   it("sorts exactly like localeCompare (accents, case, digits, languages) and translates each type once", () => {
     const words = ["éclair", "Eclair", "eclair", "Zèbre", "zebre", "Ölf", "oelf", "Programme 10", "Programme 2", "ß", "ss", "_x", "", "Åsa", "Ana"];
@@ -57,6 +70,9 @@ describe("list order", () => {
     expect(moveId(["a", "b", "c"], 0, 2)).toEqual(["b", "c", "a"]);
     expect(moveId(["a", "b", "c"], 2, 0)).toEqual(["c", "a", "b"]);
     expect(moveId(["a", "b"], 5, 0)).toEqual(["a", "b"]);
+    expect(moveId(["a", "b"], 2, 0)).toEqual(["a", "b"]);
+    expect(moveId(["a", "b"], -1, 0)).toEqual(["a", "b"]);
+    expect(moveId(["a", "b"], 1, 0)).toEqual(["b", "a"]);
     expect(moveId(["a", "b"], 0, 9)).toEqual(["b", "a"]);
   });
   it("sortMode defaults to type", () => {

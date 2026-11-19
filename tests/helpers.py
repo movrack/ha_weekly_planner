@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -13,6 +13,14 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry, async_
 from custom_components.weekly_planner.const import DOMAIN
 
 TZ = ZoneInfo("Europe/Brussels")
+AKL = ZoneInfo("Pacific/Auckland")  # UTC+13 in October: wall-clock bugs show whatever the machine zone is
+WEDNESDAY = date(2026, 10, 28)
+
+
+def no_sun(_event, _day):
+    """A sun provider for a place where the sun never rises or sets (it answers None)."""
+
+
 CLIMATE = "climate.office"
 COVER = "cover.office"
 

@@ -11,7 +11,7 @@ const prog = (extra: Partial<Program> = {}): Program => ({ id: "p", revision: 1,
   conditions: [], area: "Home", entities: [{ entity_id: "climate.a", default_label: null, label_overrides: {}, allowed_services: ["climate.turn_off"], restrict_services: true }],
   profiles: [{ id: "home", name: "Home", days: days() }, { id: "away", name: "Away", days: days() }], ...extra } as any);
 
-function make(program: Program | null = prog(), opts: { embedded?: boolean; selector?: boolean; status?: any; others?: Program[] } = {}) {
+function make(program: Program | null = prog(), opts: { embedded?: boolean; selector?: boolean; status?: any; others?: Program[]; defaults?: { reapply: boolean; priority: number } | null } = {}) {
   vi.stubGlobal("customElements", { get: (n: string) => (opts.selector && n === "ha-selector" ? class {} : undefined) });
   const e = new WpProgramEditor() as any;
   const events: any[] = [];
@@ -20,7 +20,7 @@ function make(program: Program | null = prog(), opts: { embedded?: boolean; sele
   e.hass = { language: "en", connection: {}, locale: { language: "en" }, states: { "climate.a": { entity_id: "climate.a", state: "heat", attributes: { friendly_name: "Thermo", icon: "mdi:radiator" } }, "input_select.mode": { entity_id: "input_select.mode", state: "Eco", attributes: { options: ["Eco", "Comfort"] } } },
     services: { climate: { turn_off: { name: "Off", description: "Switch off", target: { entity: { domain: "climate" } } }, turn_on: { name: "On", target: { entity: { domain: "climate" } } } } },
     callWS: vi.fn(async (m: any) => (m.type === "weekly_planner/get" ? { programs: program ? [program] : [] } : m.type === "weekly_planner/program/save" ? { program: { ...m.program, id: m.program.id ?? "new", revision: 2 } } : {})) };
-  e.data = { programs: [...(program ? [program] : []), ...(opts.others ?? [])], status: opts.status ?? {}, labels: [{ id: "l", name: "L", color: "#f00", action: { kind: "service", service: "climate.set_temperature", target_entity_id: "climate.a" } }], can_edit: true, read_only: false, defaults: { priority: 20, reapply: false } };
+  e.data = { programs: [...(program ? [program] : []), ...(opts.others ?? [])], status: opts.status ?? {}, labels: [{ id: "l", name: "L", color: "#f00", action: { kind: "service", service: "climate.set_temperature", target_entity_id: "climate.a" } }], can_edit: true, read_only: false, ...(opts.defaults === null ? {} : { defaults: opts.defaults ?? { priority: 20, reapply: false } }) };
   e.program = program ?? undefined; e.embedded = Boolean(opts.embedded);
   e.renderRoot = { querySelector: vi.fn(() => null), querySelectorAll: () => [] };
   Object.defineProperty(e, "updateComplete", { value: Promise.resolve(true) });
@@ -409,5 +409,15 @@ describe("program editor: priority order of competing programs", () => {
     find(r, "click", "Also driven by: Rival.").fn();
     expect(e._tab).toBe("general");
     expect(e._compOpen).toBe(true);
+  });
+});
+
+describe("program editor: defaults of a new program", () => {
+  it.each([
+    ["the integration defaults when provided", { reapply: false, priority: 25 }, { reapply: false, priority: 25 }],
+    ["reapply on and priority 10 without defaults", null, { reapply: true, priority: 10 }],
+  ] as const)("starts from %s", (_name, defaults, expected) => {
+    const { e } = make(null, { defaults: defaults as any });
+    expect(e._p).toMatchObject(expected);
   });
 });

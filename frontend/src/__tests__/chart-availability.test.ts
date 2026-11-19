@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { WpChart } from "../components/chart";
+import { t } from "../i18n";
 
 const setup = () => {
   const chart = new WpChart() as any;
@@ -33,6 +34,19 @@ describe("chart availability guidance", () => {
     chart._model = chart._build({ hist: [], log: [], sent: [] });
     expect(text(chart.render())).toContain("History will appear");
     expect(text(chart.render())).not.toContain("No history recorded");
+  });
+
+  it("says when the resolved planned times are unavailable, and then no longer says no action is planned", () => {
+    const chart = setup();
+    chart._model = chart._build({ hist: [], log: [], sent: [] });
+    chart._previewFailed = true;
+    const failed = text(chart.render());
+    expect(failed).toContain(t("en", "chart_preview_failed"));
+    expect(failed).not.toContain(t("en", "chart_no_planned"));
+    chart._previewFailed = false;
+    const ok = text(chart.render());
+    expect(ok).not.toContain(t("en", "chart_preview_failed"));
+    expect(ok).toContain(t("en", "chart_no_planned"));
   });
 
   it("retains a renderable planned model when loading history fails", async () => {

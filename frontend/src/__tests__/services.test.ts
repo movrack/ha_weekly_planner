@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { servicesFor } from "../services";
+import { describe, expect, it, vi } from "vitest";
+import { loadServiceNames, missingFields, onServiceNames, serviceDescription, serviceFields, serviceLabel, servicesFor, startData } from "../services";
 import type { HomeAssistant } from "../types";
 
 const hass = {
@@ -43,7 +43,6 @@ describe("options of a device's modes", () => {
   });
 });
 
-import { missingFields } from "../services";
 
 describe("required mode", () => {
   it("asks for the mode of climate.set_hvac_mode even when the description does not", () => {
@@ -53,7 +52,6 @@ describe("required mode", () => {
   });
 });
 
-import { serviceFields } from "../services";
 
 describe("fields shown for a device", () => {
   const h = {
@@ -103,4 +101,87 @@ it("accepts an entity source for a required field and refuses an empty source ev
   const h = { services: { climate: { set_temperature: { fields: { temperature: { required: true, selector: { number: { min: 5, max: 30 } } } } } } }, states: {} } as unknown as HomeAssistant;
   expect(missingFields(h, "climate.set_temperature", {}, undefined, { temperature: { entity_id: "input_number.target" } })).toEqual([]);
   expect(missingFields(h, "climate.set_temperature", { temperature: 19 }, undefined, { temperature: { entity_id: "" } })).toHaveLength(1);
+});
+
+describe("loading the service names", () => {
+  it("loads each domain once, keeps the last translator, and retries after a failure", async () => {
+    const load = vi.fn(async (_k: string, _d: string) => (() => "") as any);
+    const hass: any = { loadBackendTranslation: load };
+    expect(await loadServiceNames(hass, ["svcdom1", "svcdom1", "svcdom2"])).toBe(true);
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(await loadServiceNames(hass, ["svcdom1"])).toBe(false);
+    expect(await loadServiceNames({} as any, ["svcdom3"])).toBe(false);
+    const failing: any = { loadBackendTranslation: vi.fn().mockRejectedValueOnce(new Error("x")).mockResolvedValue(undefined) };
+    expect(await loadServiceNames(failing, ["svcdom4"])).toBe(false);
+    expect(await loadServiceNames(failing, ["svcdom4"])).toBe(true);
+  });
+  it("tells every listener when translations arrive, not only the component that asked", async () => {
+    const heard = vi.fn();
+    const off = onServiceNames(heard);
+    const hass: any = { loadBackendTranslation: vi.fn(async () => () => "") };
+    await loadServiceNames(hass, ["vacuum_recheck"]);
+    expect(heard).toHaveBeenCalledTimes(1);
+    off();
+    await loadServiceNames(hass, ["other_recheck"]);
+    expect(heard).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("fields, start values and labels of a device's services", () => {
+  const hass: any = {
+    states: { "climate.t": { entity_id: "climate.t", state: "heat", attributes: { supported_features: 1, temperature: 21.5, hvac_modes: ["off", "heat"] } },
+      "cover.c": { entity_id: "cover.c", state: "open", attributes: { supported_features: 4, modes: ["a"] } } },
+    services: {
+      climate: {
+        set_temperature: { name: "Set temperature", description: "d", target: { entity: { domain: "climate" } }, fields: {
+          temperature: { required: true, selector: { number: { min: 5 } } },
+          hvac_mode: { selector: { state: {} } },
+          advanced_thing: { advanced: true, selector: { text: {} } },
+          entity_id: { selector: { entity: {} } },
+          target_temp_high: { selector: { number: {} }, filter: { supported_features: [2] } },
+          grouped: { fields: { inner: { selector: { boolean: {} }, default: true, name: "Inner" } } },
+        } },
+        set_hvac_mode: { target: { entity: { domain: "climate" } }, fields: { hvac_mode: { selector: { state: {} } } } },
+        raw: { target: { entity: { domain: "climate" } }, fields: { cmd: { required: true, selector: { text: {} } } } },
+        optional: { target: { entity: { domain: "climate" } }, fields: { a: { selector: { number: {} } }, b: { selector: { number: {} } } } },
+      },
+      cover: { set_position: { target: { entity: [{ domain: "cover", supported_features: [4] }] }, fields: { position: { required: true, selector: { number: { min: 0, max: 100 } } },
+        tilt: { selector: { number: {} }, filter: { attribute: { modes: ["zz"] } } } } },
+        stop: { target: {} } },
+      homeassistant: { turn_on: { target: {} } },
+      light: { notarget: {} },
+    },
+  };
+  it("hides advanced, target, unsupported and set-elsewhere fields; required first", () => {
+    const fields = serviceFields(hass, "climate.set_temperature", "climate.t");
+    expect(fields.map((f) => f.key)).toEqual(["temperature", "inner"]);
+    expect(fields[1].default).toBe(true); expect(fields[1].label).toBe("Inner");
+    expect(serviceFields(hass, "climate.set_hvac_mode", "climate.t")[0]).toMatchObject({ key: "hvac_mode", required: true });
+    const opt = serviceFields(hass, "climate.optional", "climate.t");
+    expect(opt.every((f) => !f.required)).toBe(true); // all optional: one of them is needed, see missingFields
+    expect(missingFields(hass, "climate.optional", {}, "climate.t").length).toBeGreaterThan(0);
+    expect(missingFields(hass, "climate.optional", { [opt[0].key]: 1 }, "climate.t")).toEqual([]);
+    expect(serviceFields(hass, "cover.set_position", "cover.c").map((f) => f.key)).toEqual(["position"]);
+    expect(serviceFields(hass, "nothing.here")).toEqual([]);
+  });
+  it("starts from usable values and lists what is missing", () => {
+    expect(startData(hass, "climate.set_temperature", "climate.t")).toEqual({ temperature: 21.5 });
+    expect(startData(hass, "cover.set_position", "cover.c")).toEqual({ position: 50 });
+    hass.states["climate.t"].attributes.temperature = "x";
+    expect(startData(hass, "climate.set_temperature", "climate.t")).toEqual({ temperature: 19 });
+    expect(missingFields(hass, "climate.set_temperature", { temperature: "" }, "climate.t")).toHaveLength(1);
+  });
+  it("offers services by target filters, skipping technical, homeassistant and target-less ones", () => {
+    const ids = servicesFor(hass, "climate.t").map((s) => s.id);
+    expect(ids).toContain("climate.set_temperature"); expect(ids).not.toContain("climate.raw"); expect(ids).not.toContain("homeassistant.turn_on");
+    expect(servicesFor(hass, "cover.c").map((s) => s.id)).toEqual(expect.arrayContaining(["cover.set_position", "cover.stop"]));
+    hass.states["cover.c"].attributes.supported_features = 1;
+    expect(servicesFor(hass, "cover.c").map((s) => s.id)).not.toContain("cover.set_position");
+  });
+  it("labels and describes services, falling back to readable names", () => {
+    expect(serviceLabel(hass, "climate.set_temperature")).toBeTruthy();
+    expect(serviceLabel(hass, "foo.bar_baz")).toBeTruthy();
+    expect(serviceDescription(hass, "climate.set_temperature")).toBe("d");
+    expect(serviceDescription(hass, "foo.bar")).toBe("");
+  });
 });

@@ -39,3 +39,11 @@ export const find = (v: any, event: string, mark: string): Handler => {
 };
 
 export const target = (props: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({ target: props, currentTarget: props, stopPropagation() {}, preventDefault() {}, ...extra });
+
+/** Values bound to a Lit attribute/property, in template order, without depending on whitespace. */
+export const bindings = (tpl: any, name: string): any[] => {
+  if (Array.isArray(tpl)) return tpl.flatMap((v) => bindings(v, name));
+  if (!tpl?.strings) return [];
+  return tpl.values.flatMap((value: any, i: number) =>
+    tpl.strings[i].trimEnd().endsWith(` ${name}=`) ? [value] : bindings(value, name));
+};
