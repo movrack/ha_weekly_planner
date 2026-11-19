@@ -89,17 +89,17 @@ async def test_owner_case_each_device_gets_only_its_own_action(hass, hass_storag
 async def test_owner_case_next_action_differs_per_device(hass, hass_storage, freezer):
     TargetRecorder(hass)
     engine = await setup(hass, hass_storage, freezer, [owner_program()], local(26, 6, 0))
-    at = local(26, 6, 30).astimezone(dt_util.UTC)
-    climate, cover = engine.next_action(CLIMATE, at), engine.next_action(COVER, at)
+    nxt = engine.program_status("office")["next_actions"]
+    climate, cover = nxt[CLIMATE], nxt[COVER]
     seven = local(26, 7, 0).astimezone(dt_util.UTC).isoformat()
     assert climate["at"] == cover["at"] == seven
     assert climate["label"] == "t15" and climate["action"]["service"] == "climate.set_temperature"
     assert cover["label"] == "close" and cover["action"]["service"] == "cover.close_cover"
-    at = local(26, 8, 0).astimezone(dt_util.UTC)
-    assert engine.next_action(CLIMATE, at)["at"] == local(26, 22, 0).astimezone(dt_util.UTC).isoformat()
-    assert engine.next_action(COVER, at)["at"] == local(27, 7, 0).astimezone(dt_util.UTC).isoformat()
-    status = engine.program_status("office")
-    assert set(status["next_actions"]) == {CLIMATE, COVER}
+    await go_to(hass, freezer, local(26, 8, 0))
+    nxt = engine.program_status("office")["next_actions"]
+    assert set(nxt) == {CLIMATE, COVER}
+    assert nxt[CLIMATE]["at"] == local(26, 22, 0).astimezone(dt_util.UTC).isoformat()
+    assert nxt[COVER]["at"] == local(27, 7, 0).astimezone(dt_util.UTC).isoformat()
 
 
 async def test_cover_one_shot_is_caught_up_after_a_restart(hass, hass_storage, freezer):

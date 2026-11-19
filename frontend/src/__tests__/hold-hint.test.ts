@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WpBarEditor } from "../components/bar-editor";
-import { dismissHoldHint, HOLD_HINT_MAX, HOLD_HINT_MS, takeHoldHint } from "../hold-hint";
+import { dismissHoldHint, HOLD_HINT_MS } from "../hold-hint";
 import { t } from "../i18n";
 
 const store = new Map<string, string>();
@@ -71,7 +71,7 @@ describe("hold hint", () => {
     el._zoneDown(ev);
     vi.advanceTimersByTime(500);
     expect(events(el)).toEqual(["edit-request"]);
-    expect(takeHoldHint()).toBe(false);
+    expect(store.get(KEY)).toBe("5");
   });
 
   it("a touch long press enters the quick edit on a bar and on both dials, and a short tap does not", () => {
@@ -91,7 +91,6 @@ describe("hold hint", () => {
   it("works without storage", () => {
     vi.stubGlobal("window", { setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
       get localStorage(): never { throw new Error("denied"); } });
-    expect(takeHoldHint()).toBe(true);
     expect(() => dismissHoldHint()).not.toThrow();
   });
 
@@ -115,16 +114,8 @@ describe("hold hint", () => {
 });
 
 describe("hold hint counter", () => {
-  it("is shown five times, then never again, and the hint stays 6 s on screen", () => {
-    expect(HOLD_HINT_MAX).toBe(5);
+  it("the hint stays 6 s on screen", () => {
     expect(HOLD_HINT_MS).toBe(6000);
-    expect(Array.from({ length: 7 }, () => takeHoldHint())).toEqual([true, true, true, true, true, false, false]);
-  });
-
-  it("is never shown again once dismissed", () => {
-    expect(takeHoldHint()).toBe(true);
-    dismissHoldHint();
-    expect(takeHoldHint()).toBe(false);
   });
 
   it.each([["2", "5", 1], ["1", "5", 1], ["5", "5", 0], ["7", "7", 0]])(
@@ -134,21 +125,6 @@ describe("hold hint counter", () => {
       expect(store.get(KEY)).toBe(after);
       expect(writes).toHaveLength(written);
     });
-
-  it.each(["-2", "-3"])("a negative count (%s) counts as none", (count) => {
-    store.set(KEY, count);
-    expect(takeHoldHint()).toBe(true);
-    expect(store.get(KEY)).toBe("1");
-  });
-
-  it("counts the first showing even when the storage cannot be read", () => {
-    vi.stubGlobal("window", { localStorage: {
-      getItem: () => { throw new Error("denied"); },
-      setItem: (k: string, v: string) => { store.set(k, v); },
-    } });
-    expect(takeHoldHint()).toBe(true);
-    expect([...store.values()]).toEqual(["1"]);
-  });
 });
 
 describe("hold hint stacking", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { domainChoices, domainIcon, programDomains } from "../domains";
+import { domainIcon, programDomains } from "../domains";
 import type { ProgramEntity } from "../types";
 
 const program = (...ids: string[]) => ({ entities: ids.map((entity_id): ProgramEntity => ({ entity_id, default_label: null, label_overrides: {} })) });
@@ -19,16 +19,6 @@ describe("generic card type filters", () => {
   it("has no default catalogue on an empty installation", () => {
     expect(programDomains([])).toEqual([]);
     expect(programDomains([], ["vacuum"])).toEqual(["vacuum"]);
-  });
-  it("uses HA domain titles and sorts by the translated names", () => {
-    const titles: Record<string, string> = { "component.vacuum.title": "Aspirateur", "component.climate.title": "Climatisation" };
-    expect(domainChoices(["climate", "vacuum"], "fr", (key) => titles[key])).toEqual([
-      { id: "vacuum", label: "Aspirateur" }, { id: "climate", label: "Climatisation" },
-    ]);
-  });
-  it("keeps an unfamiliar domain selectable when HA has no translation", () => {
-    expect(domainChoices(["future_domain"], "fr", () => "")).toEqual([{ id: "future_domain", label: "future_domain" }]);
-    expect(domainChoices(["vacuum"], "en")).toEqual([{ id: "vacuum", label: "vacuum" }]);
   });
 });
 

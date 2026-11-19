@@ -96,9 +96,7 @@ describe("wp-times-day: buttons and sizes", () => {
     expect(flat(comp({ state: "loading" }).render())).not.toContain("<button");
   });
 
-  it("uses the same words for the row and the button, and every text is at least 16 px", () => {
-    expect(strings("fr").times_row_open).toContain(strings("fr").edit_bar);
-    expect(strings("en").times_row_open).toContain(strings("en").edit_bar);
+  it("every text is at least 16 px", () => {
     const css = String((WpTimesDay as any).styles?.cssText ?? (WpTimesDay as any).styles);
     expect(css).not.toMatch(/font-size:\s*0\.(75|8\d*)rem/);
     expect(css).not.toContain("secondary-text-color");
@@ -111,7 +109,7 @@ describe("times: config, editor and texts", () => {
   });
   it("has the same keys in English and French", () => {
     for (const k of ["ce_times", "times_none", "times_rest", "times_loading", "times_failed", "times_until", "times_until_tomorrow",
-      "times_since_yesterday", "times_retry", "sun_rule_before", "sun_rule_after", "sun_np_sunset", "sun_at_sunset", "times_random", "times_now", "times_list_label", "times_row_open"]) {
+      "times_since_yesterday", "times_retry", "sun_rule_before", "sun_rule_after", "sun_np_sunset", "sun_at_sunset", "times_random", "times_now", "times_list_label"]) {
       expect((strings("en") as any)[k]).toBeTruthy();
       expect((strings("fr") as any)[k]).toBeTruthy();
     }

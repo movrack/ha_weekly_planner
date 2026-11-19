@@ -465,7 +465,7 @@ export class WpSchedule extends LitElement {
     const program = this._programs.find((p) => p.id === this._programId);
     const g = this._group;
     if (!program || !g) return;
-    const problem = this._problem(program);
+    const problem = this._problem();
     if (problem) {
       this._error = problem;
       return;
@@ -591,7 +591,7 @@ export class WpSchedule extends LitElement {
     });
   }
 
-  private _problem(program: Program): string {
+  private _problem(): string {
     const lang = this._lang;
     const g = this._group;
     if (!g) return "";
@@ -625,12 +625,12 @@ export class WpSchedule extends LitElement {
     }
   }
 
-  /** The values of the open slot that an edit for one device changes (never its id, devices or seed). */
+  /**
+   * The values of the open slot that an edit for one device changes (never its id, devices or seed). An absent
+   * field stays undefined: `editForDevice` drops undefined fields, so it keeps the slot's own value.
+   */
   private _patch(slot: Slot): SlotPatch {
-    const patch: SlotPatch = { start: slot.start, end: slot.end ?? null, label: slot.label };
-    if (slot.conditions !== undefined) patch.conditions = slot.conditions;
-    if (slot.color !== undefined) patch.color = slot.color;
-    return patch;
+    return { start: slot.start, end: slot.end ?? null, label: slot.label, conditions: slot.conditions, color: slot.color };
   }
 
   /**
@@ -646,7 +646,6 @@ export class WpSchedule extends LitElement {
     for (const d of new Set([...edited, ...wanted])) {
       const id = origin.ids[d];
       if (id) {
-        if (!edited.includes(d) && !wanted.includes(d)) continue;
         const res = editForDevice(days, id, eid, draft && wanted.includes(d) ? this._patch(draft.slot) : null, { devices });
         if (!res) return null;
         days = res.days;
@@ -659,19 +658,19 @@ export class WpSchedule extends LitElement {
   }
 
   /**
-   * The group being edited against the current profile: unchanged, merged when only its other days moved,
-   * or changed meanwhile (then the editor shows the new version, or closes if it is gone).
+   * The group being edited against the current profile. False: unchanged, or merged when only its other days moved.
+   * True: changed meanwhile (then the editor shows the new version, or closes if it is gone).
    */
-  private _checkOrigin(profile: Profile, program: Program): "ok" | "changed" {
+  private _originChanged(profile: Profile, program: Program): boolean {
     const origin = this._origin;
-    if (!origin || !this._openId) return "ok";
+    if (!origin || !this._openId) return false;
     const fresh = findGroup(profile, this._include, this._minutes, this._openId);
     const state = compareOrigin(fresh, origin);
-    if (state === "same") return "ok";
+    if (state === "same") return false;
     if (state === "days" && fresh && this._dayOnly !== null && fresh.days.includes(this._dayOnly)) {
       this._rest = dayView(fresh, this._dayOnly).rest;
       this._origin = structuredClone(fresh);
-      return "ok";
+      return false;
     }
     const message = t(this._lang, "ss_changed");
     if (fresh) {
@@ -684,7 +683,7 @@ export class WpSchedule extends LitElement {
     }
     this._error = fresh ? message : "";
     this._note = fresh ? "" : message;
-    return "changed";
+    return true;
   }
 
   /**
@@ -739,7 +738,7 @@ export class WpSchedule extends LitElement {
     const draft = this._group;
     const program = this._live(this._programId);
     if (!program || !draft) return;
-    const problem = this._problem(program);
+    const problem = this._problem();
     if (problem) {
       this._error = problem;
       return;
@@ -749,7 +748,7 @@ export class WpSchedule extends LitElement {
       const ok = await this._commit(program.id, (live) => {
         const profile = this._editProfile(live);
         if (!profile) return { error: t(this._lang, "ss_changed") };
-        if (this._checkOrigin(profile, live) === "changed" || !this._origin) { stale = true; return { changed: true }; }
+        if (this._originChanged(profile, live) || !this._origin) { stale = true; return { changed: true }; }
         const days = this._forDevice(profile.days, this._origin, draft, devicesOf(live));
         if (!days) return { error: t(this._lang, "ss_changed") };
         const next = { ...profile, days };
@@ -765,7 +764,7 @@ export class WpSchedule extends LitElement {
     const saved = await this._commit(program.id, (live) => {
       const profile = this._editProfile(live);
       if (!profile) return { error: t(this._lang, "ss_changed") };
-      if (this._checkOrigin(profile, live) === "changed") {
+      if (this._originChanged(profile, live)) {
         changed = true;
         return { changed: true };
       }
@@ -774,7 +773,7 @@ export class WpSchedule extends LitElement {
       let group = draft;
       dropped = [];
       if (this._dropBusy) {
-        const { free, busy } = splitBusyDays(current, include, this._minutes, draft.slot, draft.days);
+        const { free, busy } = splitBusyDays(current, include, draft.slot, draft.days);
         if (!free.length) return { error: this._overlapText(applyEdit(current, include, this._minutes, { openId: this._openId, rest: this._rest, draft })) };
         group = { ...draft, days: free };
         dropped = busy;
@@ -806,7 +805,7 @@ export class WpSchedule extends LitElement {
     const ok = await this._commit(program.id, (live) => {
       const profile = this._editProfile(live);
       if (!profile) return { error: t(this._lang, "ss_changed") };
-      if (this._checkOrigin(profile, live) === "changed") return { changed: true };
+      if (this._originChanged(profile, live)) return { changed: true };
       if (one && this._origin) {
         // "This device": the slot stops for this device only, the other devices keep it (D1)
         const days = this._forDevice(profile.days, this._origin, null, devicesOf(live));
@@ -979,8 +978,7 @@ export class WpSchedule extends LitElement {
 
   private _renderRest() {
     const lang = this._lang;
-    const program = this._programs[0];
-    if (!program) return nothing;
+    const program = this._programs[0];  // render() shows this list only when the device has a program
     return [this._eid].filter((e) => program.entities.some((x) => x.entity_id === e)).map((eid) => {
       const entity = program.entities.find((x) => x.entity_id === eid)!;
       const key = `rest:${eid}`;

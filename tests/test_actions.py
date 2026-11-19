@@ -155,7 +155,7 @@ async def test_next_action_of_a_one_shot(hass, hass_storage, freezer):
     Recorder(hass)
     slots = [slot("s", "05:00", None, "t25")]
     engine = await setup(hass, hass_storage, freezer, [program(slots=slots)], local(26, 6, 0))
-    nxt = engine.next_action(CLIMATE)
+    nxt = engine.program_status("office")["next_actions"][CLIMATE]
     assert nxt["action"] == temp(25) and nxt["at"].startswith("2026-10-27T04:00")  # tomorrow 05:00 local
 
 

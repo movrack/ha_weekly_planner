@@ -17,7 +17,7 @@ from custom_components.weekly_planner.timeline import occurrence
 from custom_components.weekly_planner.validation import (
     TIME_SPEC,
     ProgramError,
-    _check_overlaps,
+    _check_day_overlaps,
     _check_week_overlaps,
 )
 
@@ -101,11 +101,11 @@ def fixed(sid, start, end, start_random=0, end_random=0):
 
 def test_fixed_validation_reserves_max_end_and_min_duration():
     with pytest.raises(ProgramError, match="random_window_too_short"):
-        _check_overlaps([fixed("a", "08:00", "08:15", 15)])
-    _check_overlaps([fixed("a", "08:00", "08:20", 15)])
+        _check_day_overlaps([fixed("a", "08:00", "08:15", 15)], None)
+    _check_day_overlaps([fixed("a", "08:00", "08:20", 15)], None)
     with pytest.raises(ProgramError, match="overlapping_slots"):
-        _check_overlaps([fixed("a", "08:00", "09:00", end_random=15), fixed("b", "09:10", "10:00")])
-    _check_overlaps([fixed("a", "08:00", "09:00", end_random=15), fixed("b", "09:15", "10:00")])
+        _check_day_overlaps([fixed("a", "08:00", "09:00", end_random=15), fixed("b", "09:10", "10:00")], None)
+    _check_day_overlaps([fixed("a", "08:00", "09:00", end_random=15), fixed("b", "09:15", "10:00")], None)
 
 
 @pytest.mark.parametrize("weekday", [0, 6])

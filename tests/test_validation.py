@@ -406,7 +406,7 @@ def test_adjacent_slots_do_not_overlap_but_crossing_ones_do():
     for second in (("08:59", "10:00"), ("07:00", "08:01"), ("08:30", "08:45")):
         days = _week((0, [_fixed("a", "08:00", "09:00"), _fixed("b", *second)]))
         assert _error(v._check_week_overlaps, days) == "overlapping_slots"
-        assert _error(v._check_overlaps, days[0]) == "overlapping_slots"
+        assert _error(v._check_day_overlaps, days[0], None) == "overlapping_slots"
 
 
 def test_overlap_check_is_order_independent():
@@ -470,8 +470,8 @@ def test_slots_without_fixed_bounds_are_skipped():
     one_shot = {"id": "c", "start": {"time": "08:00"}, "end": None, "label": "t21", "conditions": []}
     no_end = {"id": "d", "start": {"time": "08:00"}, "label": "t21", "conditions": []}
     overlapping = [solar_start, solar_end, one_shot, no_end, _fixed("e", "08:00", "09:00"), _fixed("f", "08:30", "09:30")]
-    assert _error(v._check_overlaps, overlapping) == "overlapping_slots"
-    v._check_overlaps(overlapping[:5])
+    assert _error(v._check_day_overlaps, overlapping, None) == "overlapping_slots"
+    v._check_day_overlaps(overlapping[:5], None)
 
 
 def test_program_runs_the_overlap_check_for_each_profile():
@@ -536,8 +536,8 @@ def test_service_accepts_splits_on_the_first_dot_only():
 def test_ignored_slots_reserve_no_interval():
     too_short = _fixed("a", "08:00", "08:03")
     empty = _fixed("b", "18:00", "13:00")
-    v._check_overlaps([too_short, _fixed("c", "08:01", "09:00")])
-    v._check_overlaps([empty, _fixed("c", "14:00", "15:00")])
+    v._check_day_overlaps([too_short, _fixed("c", "08:01", "09:00")], None)
+    v._check_day_overlaps([empty, _fixed("c", "14:00", "15:00")], None)
     v._check_week_overlaps(_week((0, [too_short, _fixed("c", "08:01", "09:00")])))
 
 

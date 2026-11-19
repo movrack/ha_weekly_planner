@@ -11,11 +11,6 @@ export function programDomains(programs: Pick<Program, "entities">[], selected: 
   ])].filter(Boolean).sort();
 }
 
-export function domainChoices(domains: string[], lang: string, localize?: DomainLocalize) {
-  return domains.map((id) => ({ id, label: localize?.(`component.${id}.title`) || id }))
-    .sort((a, b) => a.label.localeCompare(b.label, lang) || a.id.localeCompare(b.id));
-}
-
 const iconCache = new Map<string, Promise<string>>();
 
 /** Icon Home Assistant itself uses for a domain (its icon translations); `fallback` when it has none. */

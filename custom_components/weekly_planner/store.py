@@ -173,9 +173,5 @@ class PlannerStore:
         return self.runtime["entities"].setdefault(entity_id, {})
 
     @staticmethod
-    def now_iso() -> str:
-        return dt_util.utcnow().isoformat()
-
-    @staticmethod
     def parse(value: str | None) -> datetime | None:
         return dt_util.parse_datetime(value) if value else None

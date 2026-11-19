@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { SlotGroup } from "../actions";
 import { groupSlots } from "../actions";
 import {
-  applyEdit, compareOrigin, dayView, findGroup, freshGroup, groupId, keptRest, nextTimes, overlapDay, splitBusyDays,
+  applyEdit, compareOrigin, dayView, findGroup, freshGroup, groupId, keptRest, nextTimes, overlapPair, splitBusyDays,
 } from "../edits";
 import { findOverlap } from "../slots";
 import type { Profile, Slot } from "../types";
@@ -116,7 +116,7 @@ describe("one day of a group", () => {
     const out = save(p, edit);
     expect(view(out)[3]).toEqual(["08:45-13:00:t18", "14:00-18:00:t20"]);
     expect(out.days[3].find((s) => s.label === "t20")!.id).toBe("j");
-    expect(overlapDay(out)).toBeNull();
+    expect(overlapPair(out)).toBeNull();
   });
 
   it("a day-only edit onto a day with an overlapping slot is detected, the input is untouched", () => {
@@ -125,7 +125,7 @@ describe("one day of a group", () => {
     const edit = open(p, "t", 1);
     edit.draft.days = [1, 3];
     const out = save(p, edit);
-    expect(overlapDay(out)).toBe(3);
+    expect(overlapPair(out)?.day).toBe(3);
     expect(JSON.stringify(p)).toBe(before);
     expect(out.days[3]).toHaveLength(2);
   });
@@ -185,13 +185,13 @@ describe("overlaps", () => {
   it("are found and reported without altering anything", () => {
     const p = prof({ 1: [slot("10:00", "17:00", "t18", "a")] });
     const out = add(p, freshGroup("t15", [1], { start: "16:00", end: "19:00" }));
-    expect(overlapDay(out)).toBe(1);
+    expect(overlapPair(out)?.day).toBe(1);
     expect(p.days[1]).toHaveLength(1);
   });
 
   it("allow 24:00 next to 00:00 of the next day", () => {
     const p = prof({ 1: [slot("22:00", "24:00", "t15", "a")], 2: [slot("00:00", "06:00", "t18", "b")] });
-    expect(overlapDay(p)).toBeNull();
+    expect(overlapPair(p)).toBeNull();
     const out = add(p, freshGroup("t20", [2], { start: "06:00", end: "08:00" }));
     expect(view(out)[1]).toEqual(["22:00-24:00:t15"]);
     expect(view(out)[2]).toEqual(["00:00-06:00:t18", "06:00-08:00:t20"]);
@@ -230,20 +230,20 @@ describe("new slot on all days", () => {
   it("drops busy days and keeps the free ones", () => {
     const p = prof({ 1: [slot("08:30", "10:00", "t18", "a")], 4: [slot("07:00", "08:30", "t18", "b")] });
     const fresh = freshGroup("t15", [], { start: "08:00", end: "09:00" });
-    const { free, busy } = splitBusyDays(p, all, minutes, fresh.slot);
+    const { free, busy } = splitBusyDays(p, all, fresh.slot);
     expect(busy).toEqual([1, 4]);
     expect(free).toEqual([0, 2, 3, 5, 6]);
     const out = add(p, { ...fresh, days: free });
     expect(out.days[1]).toHaveLength(1);
     expect(out.days[4]).toHaveLength(1);
     expect(out.days[0]).toHaveLength(1);
-    expect(overlapDay(out)).toBeNull();
+    expect(overlapPair(out)).toBeNull();
   });
 
   it("only the slots the screen shows can make a day busy", () => {
     const p = prof({ 0: [sl("a", "08:00", "10:00", { label: "hidden" })], 1: [sl("b", "08:00", "10:00")] });
     const shown = (s: Slot) => s.label !== "hidden";
-    expect(splitBusyDays(p, shown, minutes, sl("n", "09:00", "11:00"), [0, 1])).toEqual({ free: [0], busy: [1] });
+    expect(splitBusyDays(p, shown, sl("n", "09:00", "11:00"), [0, 1])).toEqual({ free: [0], busy: [1] });
   });
 });
 

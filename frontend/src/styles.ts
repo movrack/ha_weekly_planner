@@ -8,7 +8,7 @@ import { css, html, nothing, unsafeCSS } from "lit";
 export type Tone = "success" | "warning" | "error" | "info";
 
 /** Tone colours (Home Assistant theme variables with their usual fallbacks) and default icons. */
-export const tones: Record<Tone, { color: string; icon: string }> = {
+const tones: Record<Tone, { color: string; icon: string }> = {
   success: { color: "var(--success-color, #43a047)", icon: "mdi:check-circle-outline" },
   warning: { color: "var(--warning-color, #ff9800)", icon: "mdi:alert-outline" },
   error: { color: "var(--error-color, #db4437)", icon: "mdi:alert-circle-outline" },
@@ -62,9 +62,9 @@ export function readableOn(color: string): { fg: string; shadow: string } {
   return L > 0.179 ? { fg: "#000", shadow: "none" } : { fg: "#fff", shadow: "rgba(0, 0, 0, 0.6)" };
 }
 
-export const radiusNotice = "10px";
+const radiusNotice = "10px";
 /** Share of the tone colour in the tint (the rest is transparent, so the card background shows through). */
-export const tintPercent = 16;
+const tintPercent = 16;
 
 const toneRules = (Object.keys(tones) as Tone[]).map((k) => `.callout.tone-${k} { --co-color: ${tones[k].color}; }`).join("\n");
 const iconPct = String(tf.iconPct);

@@ -18,7 +18,7 @@ export function specMinutes(hass: HomeAssistant, spec: TimeSpec): number {
 }
 
 /** Largest sun offset the server accepts (minutes, either side). */
-export const SUN_OFFSET_MAX = 240;
+const SUN_OFFSET_MAX = 240;
 
 /**
  * Moves a time spec by `delta` minutes and always returns a spec the server accepts: a solar time keeps
@@ -115,9 +115,4 @@ export function sameEntities(a: Pick<Slot, "entities">, b: Pick<Slot, "entities"
   const x = [...a.entities].sort();
   const y = [...b.entities].sort();
   return x.length === y.length && x.every((e, i) => e === y[i]);
-}
-
-/** The slots of a day that run for this device. */
-export function daySlotsFor(day: readonly Slot[], entityId: string): Slot[] {
-  return day.filter((s) => applies(s, entityId));
 }

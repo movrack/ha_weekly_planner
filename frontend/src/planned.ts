@@ -20,10 +20,10 @@ export interface PlannedDefault {
   active: boolean;
 }
 
-export interface Step { from: number; to: number; value: number; color: string }
-export interface Riser { m: number; from: number; to: number; color: string }
+interface Step { from: number; to: number; value: number; color: string }
+interface Riser { m: number; from: number; to: number; color: string }
 /** Who is in force for a stretch of the day: the colour of its label and its number (null: not numeric). */
-export interface Zone { from: number; to: number; value: number | null; color: string; name?: string }
+interface Zone { from: number; to: number; value: number | null; color: string; name?: string }
 export interface Planned {
   zones: Zone[];
   steps: Step[];

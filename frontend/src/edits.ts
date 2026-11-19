@@ -65,12 +65,6 @@ export function applyEdit(profile: Profile, include: Include, minutes: Minutes, 
   return writeGroups(profile, groups, include, minutes);
 }
 
-/** First day whose slots overlap (null: none). */
-export function overlapDay(profile: Profile): number | null {
-  const day = profile.days.findIndex((slots) => findOverlap(slots));
-  return day < 0 ? null : day;
-}
-
 /** The first overlap of a profile: the day and the two slots that collide (null: none). */
 export function overlapPair(profile: Profile): { day: number; a: Slot; b: Slot } | null {
   for (let day = 0; day < profile.days.length; day++) {
@@ -82,7 +76,7 @@ export function overlapPair(profile: Profile): { day: number; a: Slot; b: Slot }
 
 /** Days where a slot would overlap nothing: `days` split into the free ones and the busy ones. */
 export function splitBusyDays(
-  profile: Profile, include: Include, minutes: Minutes, slot: Slot, days: number[] = ALL_DAYS,
+  profile: Profile, include: Include, slot: Slot, days: number[] = ALL_DAYS,
 ): { free: number[]; busy: number[] } {
   const free: number[] = [];
   const busy: number[] = [];
@@ -146,12 +140,12 @@ const view = (slots: Slot[], ctx: DayCtx): Slot[] => {
 
 const withEntities = (slot: Slot, ctx: DayCtx): Slot => (ctx.newEntities ? { ...slot, entities: [...ctx.newEntities] } : slot);
 
-export const SNAP = 15;
+const SNAP = 15;
 const snap = (m: number): number => Math.round(m / SNAP) * SNAP;
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
 
 /** A fixed time spec for minutes 0–1440 ("24:00" for the end of the day). */
-export function fixedTime(m: number): TimeSpec {
+function fixedTime(m: number): TimeSpec {
   const v = clamp(Math.round(m), 0, DAY);
   return { time: `${String(Math.floor(v / 60)).padStart(2, "0")}:${String(v % 60).padStart(2, "0")}` };
 }

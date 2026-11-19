@@ -6,7 +6,6 @@ from typing import Final
 
 DOMAIN: Final = "weekly_planner"
 
-STORAGE_KEY: Final = DOMAIN
 STORAGE_VERSION: Final = 3
 # Minor 2 (issue #54): optional ``holiday`` per profile, ``holiday_entity`` / ``holiday_invert`` in the configuration.
 # Minor 3 (issue #60): ``priority`` is a rank 1..n inside each group of programs sharing a device.

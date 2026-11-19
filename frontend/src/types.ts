@@ -125,7 +125,7 @@ export interface Program {
   profiles: Profile[];
 }
 
-export interface ProgramStatus {
+interface ProgramStatus {
   program_id: string;
   /** Present only when today is a day off that changes this program's day: a copied weekday, or its own day. */
   holiday?: { copy: number } | { own: true };
@@ -140,7 +140,7 @@ export interface ProgramStatus {
 }
 
 /** The global mode (one for the whole house), read from an external selector. */
-export interface ModeInfo {
+interface ModeInfo {
   /** Entity read for the mode; null when there is a single mode. */
   selector: string | null;
   default: string | null;

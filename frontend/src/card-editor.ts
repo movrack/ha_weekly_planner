@@ -10,7 +10,7 @@ import { syncSelectValues } from "./select-value";
 import { areaList, areaValue, roomKey, roomKeys, roomOptions } from "./program-areas";
 import { domainIcon, programDomains, type DomainLocalize } from "./domains";
 import { normalizeConfig, withDefaults } from "./config";
-import { allPrograms, isOn, selectCreated, toggleAllOff, toggleProgram, programRows, toggleType, typeGroups, typeState, type FilterConfig, type FilterPatch } from "./filter-editor";
+import { allPrograms, isOn, selectCreated, toggleAllOff, toggleProgram, programRows, toggleType, typeGroups, typeState, type FilterPatch } from "./filter-editor";
 import { t } from "./i18n";
 import { moveId, sortItems, sortMode, SORTS } from "./list-order";
 import { setTimeFormat } from "./time";

@@ -11,7 +11,7 @@ interface EntityFilter {
   supported_features?: (number | number[])[];
 }
 
-export interface ServiceInfo {
+interface ServiceInfo {
   name?: string;
   description?: string;
   fields?: Record<string, ServiceFieldInfo>;

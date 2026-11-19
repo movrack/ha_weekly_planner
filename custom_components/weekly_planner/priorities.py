@@ -41,10 +41,6 @@ def components(programs: list[dict]) -> list[list[dict]]:
     return [sorted(group, key=rank_key) for group in groups.values()]
 
 
-def competing_groups(programs: list[dict]) -> list[list[dict]]:
-    return [group for group in components(programs) if len(group) > 1]
-
-
 def renumber_all(programs: list[dict]) -> None:
     """Storage migration: every group gets the ranks 1..n in its current order (in place)."""
     for group in components(programs):

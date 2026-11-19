@@ -41,7 +41,7 @@ function boundsText(lang: string, spec: Extract<TimeSpec, { sun: string }>): str
 }
 
 /** Minutes of today's solar event (offset and bounds applied), or null when the sun entity gives no time for today. */
-export function todaySunMinutes(hass: HomeAssistant | undefined, spec: TimeSpec): number | null {
+function todaySunMinutes(hass: HomeAssistant | undefined, spec: TimeSpec): number | null {
   if (!hass || !("sun" in spec)) return null;
   const iso = hass.states?.["sun.sun"]?.attributes?.[SUN_ATTR[spec.sun]] as string | undefined;
   const zone = hass.config?.time_zone;
@@ -239,7 +239,6 @@ export class WpSlotForm extends LitElement {
     const spec = this.group.slot[which];
     if (!spec) return nothing;
     const lang = this._lang;
-    const s = strings(lang);
     const dis = this.disabled;
     return html`
       <div class="time" role="group" aria-label=${title}>

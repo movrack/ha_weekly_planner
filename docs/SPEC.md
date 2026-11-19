@@ -383,7 +383,7 @@ avant la 1.0 : les deux champs sont facultatifs, les données existantes restent
 - **Moteur** : `applies` est testé AVANT `resolve` dans `running_slot` (l'arbitrage de priorité ne compare que les
   horaires qui s'appliquent à l'appareil) ; les ponctuels (`_fire_one_shots`, y compris le rattrapage
   `last_tick < start <= now`) parcourent les occurrences rognées PAR APPAREIL ; `_next_action_in` et `used` de
-  `checks.py` sont calculés par appareil ; `next_transition` = union des sous-ensembles (`subsets`), aussi pour
+  `checks.py` sont calculés par appareil ; `next_transition` = union des sous-ensembles, aussi pour
   `_program_status` et `skip_next` (la carte dit quel appareil et quelle action sont sautés). Le réglage par défaut
   appartient toujours au programme de plus haute priorité qui contient l'appareil : les listes ne changent que les horaires qui s'exécutent, jamais le réglage par défaut (décision confirmée). Renvoi à
   l'enregistrement limité aux appareils dont le segment ou la cible a changé (D2).

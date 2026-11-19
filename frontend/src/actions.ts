@@ -5,16 +5,14 @@ import { newId } from "./planner";
 import { DAY, STEP, fmtClock, fmtDayEnd } from "./time";
 import type { Profile, Slot, TimeSpec } from "./types";
 
-export const NBSP = " ";
+const NBSP = " ";
 export const nb = (text: string): string => text.replace(/ /g, NBSP);
 
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
 /* ------------------------------------------------------------------ time of a slot */
 
-export type SunName = "sunrise" | "sunset";
-
-const offsetWord = (lang: string, minutes: number): string => {
+const offsetWord = (minutes: number): string => {
   const abs = Math.abs(minutes);
   const d = abs < 60 ? `${abs} min` : abs % 60 ? `${Math.floor(abs / 60)} h ${String(abs % 60).padStart(2, "0")}` : `${abs / 60} h`;
   return `${minutes > 0 ? "+" : "−"}${d}`;
@@ -28,7 +26,7 @@ export function specText(lang: string, spec: TimeSpec, minutes?: number): string
     return nb((h * 60 + m >= DAY ? fmtDayEnd(lang) : fmtClock(lang, h * 60 + m)) + random);
   }
   const name = t(lang, (spec.sun === "sunrise" || spec.sun === "sunset" ? `sun_${spec.sun}_short` : `sun_${spec.sun}`) as never);
-  const off = spec.offset ? ` ${offsetWord(lang, spec.offset)}` : "";
+  const off = spec.offset ? ` ${offsetWord(spec.offset)}` : "";
   void minutes;
   return nb(`${name}${off}${random}`);
 }

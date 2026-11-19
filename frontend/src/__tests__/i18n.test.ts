@@ -30,7 +30,6 @@ describe("plain vocabulary", () => {
     expect(fr.chart_day).toBe("Graphique du jour");
     expect(fr.planned).toBe("Prévu");
     expect(fr.measured).toBe("Valeur mesurée");
-    expect(fr.ch_set).toBe("Demandé à l’appareil");
     expect(fr.ce_type_count).toBe("{on} sur {total}");
     expect(fr.ce_all_programs_hint_off).toBe("Seuls les programmes activés ci-dessous sont montrés. Ceux que vous créerez plus tard n’apparaîtront pas sur cette carte.");
     expect(en.ce_show_chart).toBe("Chart button");

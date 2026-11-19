@@ -92,8 +92,6 @@ UNAVAILABLE = ("unavailable", "unknown")
 # #34): a save re-sends only to devices whose effective segment or target changed, see _process_entity.
 REAPPLY_REASONS = frozenset({"startup", "enable", "modification", "profile", "vacation_off"})
 
-SIGNAL_UPDATED = f"{DOMAIN}_updated"
-
 # A long recompute hands the event loop back at least this often (spec § 21): Home Assistant must
 # never be held by one of our callbacks for more than a few tens of milliseconds.
 YIELD_SLICE_S = 0.01
@@ -545,16 +543,12 @@ class PlannerEngine:
             targets.append({"entity_id": eid, "action": seg.action, "label": seg.label})
         return targets
 
-    def next_action(self, entity_id: str, now: datetime | None = None) -> dict[str, Any] | None:
+    def _next_action_in(self, ctx: _Pass, entity_id: str, now: datetime) -> dict[str, Any] | None:
         """Next thing the plan does to an entity: ``{"at": iso, "action": {...}, "label": id}``.
 
         Looks at the next days of the enabled programs: a slot gives its action at its start and,
         when it has an end, the default action at its end.
         """
-        with self.shared_pass() as ctx:
-            return self._next_action_in(ctx, entity_id, now or dt_util.utcnow())
-
-    def _next_action_in(self, ctx: _Pass, entity_id: str, now: datetime) -> dict[str, Any] | None:
         if ctx.vacation:
             return None
         previous_key = self._segment_in(ctx, entity_id, now).key

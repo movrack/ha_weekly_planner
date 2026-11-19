@@ -264,10 +264,6 @@ export class WpProgramEditor extends LitElement {
 
   /* ---- save / delete ---- */
 
-  private _validate(): string {
-    return this._problem()?.message ?? "";
-  }
-
   /** First problem with the draft, and the field it belongs to (`form` = no single field). */
   private _problem(): { field: "name" | "entities" | "form"; message: string } | undefined {
     const p = this._p;
@@ -518,11 +514,11 @@ export class WpProgramEditor extends LitElement {
     trackScrollHints(this.renderRoot.querySelector<HTMLElement>(".tabs"));
   }
 
-  private _renderEntities(compact = false) {
+  private _renderEntities() {
     const p = this._p;
     return html`
       ${p.entities.length === 0 ? html`<p class="muted">${this._tr("pe_no_entity")}</p>` : nothing}
-      ${p.entities.map((e, i) => this._renderEntity(e, i, compact))}
+      ${p.entities.map((e, i) => this._renderEntity(e, i))}
       ${keyed(this._pickerKey, this._picker
         ? html`<ha-selector id="pe-entity-add" aria-invalid=${this._entitiesError ? "true" : "false"} aria-describedby=${this._entitiesError ? "pe-entities-error" : nothing} .hass=${this.hass} .selector=${{ entity: { exclude_entities: p.entities.map((x) => x.entity_id) } }}
             .label=${this._tr(p.entities.length ? "pe_add_another_entity" : "pe_add_entity")} .value=${""} .required=${!p.entities.length}
@@ -601,7 +597,7 @@ export class WpProgramEditor extends LitElement {
     }).catch(() => { if (key === this._typeNamesKey) this._typeNamesKey = ""; });
   }
 
-  private _renderEntity(e: ProgramEntity, index: number, compact = false) {
+  private _renderEntity(e: ProgramEntity, index: number) {
     this._loadTypeNames();
     const type = this._typeName(e.entity_id);
     const entityName = displayName(this.hass, e.entity_id);
@@ -676,7 +672,7 @@ export class WpProgramEditor extends LitElement {
         </div>
         ${this._isNew ? html`<p class="hint">${this._tr("pe_create_hint")}</p>
           ${this._nameField()}
-          <h3>${this._tr("tab_entities")}</h3>${this._renderEntities(true)}${this._renderCompetition()}` : html`
+          <h3>${this._tr("tab_entities")}</h3>${this._renderEntities()}${this._renderCompetition()}` : html`
         <div class="tabs" role="tablist" aria-label=${this._tr("tab_scroll")}>
           ${tabs.map(([id, label]) => html`<button id=${`pe-tab-${id}`} role="tab" aria-controls="pe-panel" tabindex=${this._tab === id ? 0 : -1} aria-selected=${this._tab === id} class="tab ${this._tab === id ? "on" : ""}"
             @keydown=${(event: KeyboardEvent) => this._tabKey(event, tabs)} @click=${() => (this._tab = id)}>${this._tr(label)}</button>`)}

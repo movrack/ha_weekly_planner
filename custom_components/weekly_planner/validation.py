@@ -460,11 +460,6 @@ def _reject_overlaps(intervals: list[tuple]) -> None:
         latest_end = end
 
 
-def _check_overlaps(day_slots: list[dict]) -> None:
-    """Validate a standalone day's fixed windows (solar intervals trim at runtime)."""
-    _reject_overlaps(_fixed_intervals(day_slots, date(2026, 1, 5)))
-
-
 def _check_day_overlaps(day_slots: list[dict], entity_ids: list[str] | None) -> None:
     """One day on its own (a day off): fixed windows, random delays included; scoped by device with lists."""
     day = date(2026, 1, 5)

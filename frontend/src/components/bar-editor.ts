@@ -771,7 +771,7 @@ export class WpBarEditor extends LitElement {
       });
       const sel = this._selected;
       if (sel?.kind === "slot" && absorbed.has(sel.id)) this._selected = { kind: "slot", id: absorbed.get(sel.id)! };
-      const changed = merged.map((day, i) => i).filter((i) => JSON.stringify(merged[i]) !== JSON.stringify(before[i]));
+      const changed = merged.map((_, i) => i).filter((i) => JSON.stringify(merged[i]) !== JSON.stringify(before[i]));
       if (!changed.length) {
         this._dropDraft();
         return true;

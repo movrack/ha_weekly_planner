@@ -157,12 +157,6 @@ describe("compare rows", () => {
     handlers(c._compare([[a]], false)).find((h: any) => h.event === "click")!.fn();
     expect(c._dialog).toEqual({ kind: "schedule", scope: { kind: "program", programId: "p1" } });
   });
-  it("the scope of a device is its program, plus the device when the program has several", () => {
-    const c = wednesdayCard([]);
-    const [a, b] = two();
-    expect(c._scopeOf(a, "cover.z")).toEqual({ kind: "program", programId: "p1" });
-    expect(c._scopeOf(b, "cover.b")).toEqual({ kind: "program", programId: "p2", entityId: "cover.b" });
-  });
   it("a program is not running when off, or when everything is paused", () => {
     const c = wednesdayCard([uniformProgram("p1", "A", ["cover.a"])]);
     expect(c._notRunning(c._data.programs[0])).toBe(false);

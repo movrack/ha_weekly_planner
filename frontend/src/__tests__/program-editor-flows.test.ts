@@ -129,7 +129,7 @@ describe("program editor: general and entities tabs", () => {
     find(e._renderGeneral(), "wp-change", "wp-conditions-editor").fn({ stopPropagation() {}, detail: [{ entity_id: "", op: "eq", value: "on" }] });
     expect(e._p.conditions).toHaveLength(1);
     expect(e._p.name).toBe("New name"); expect(e._p.area).toBeNull();
-    expect(e._validate()).not.toBe("");
+    expect(e._problem()).toMatchObject({ field: "form" }); // the incomplete condition
     e._p.conditions = [];
   });
   it("uses the icon selector when HA provides one", () => {

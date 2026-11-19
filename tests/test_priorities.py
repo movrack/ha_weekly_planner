@@ -5,7 +5,7 @@ import pytest
 from custom_components.weekly_planner.const import DOMAIN
 from custom_components.weekly_planner.priorities import (
     apply_order,
-    competing_groups,
+    components,
     renumber_all,
     settle_saved,
     write_ranks,
@@ -25,13 +25,13 @@ def ids(group: list[dict]) -> list[str]:
 
 def test_programs_sharing_a_device_compete_transitively_and_the_others_do_not():
     programs = [prog("a", ["x"], 2), prog("b", ["x", "y"], 1), prog("c", ["y"], 3), prog("d", ["z"]), prog("e", ["w"])]
-    groups = competing_groups(programs)
-    assert [ids(g) for g in groups] == [["b", "a", "c"]]  # rank order, d and e compete with nobody
+    groups = components(programs)
+    assert [ids(g) for g in groups] == [["b", "a", "c"], ["d"], ["e"]]  # rank order, d and e compete with nobody
 
 
 def test_ties_go_to_the_oldest_program():
     programs = [prog("new", ["x"], 1, "2026-02-01"), prog("old", ["x"], 1, "2026-01-01")]
-    assert ids(competing_groups(programs)[0]) == ["old", "new"]
+    assert ids(components(programs)[0]) == ["old", "new"]
 
 
 def test_migration_renumbers_each_group_keeping_its_order():

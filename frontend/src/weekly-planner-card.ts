@@ -287,11 +287,6 @@ export class WeeklyPlannerCard extends LitElement {
     return !program.enabled || Boolean(this._data?.vacation);
   }
 
-  private _scopeOf(program: Program, entityId: string): Scope {
-    const scope: Scope = { kind: "program", programId: program.id };
-    return program.entities.length > 1 ? { ...scope, entityId } : scope;
-  }
-
   /** One comparison for the whole card: a group per day (Monday to Sunday), a bar per device, then the day-off group. */
   private _compare(groups: Program[][], grouped: boolean) {
     const lang = this._lang;
