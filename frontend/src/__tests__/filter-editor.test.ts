@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allPrograms, isOn, programRows, selectCreated, toggleAllOff, toggleProgram, toggleType, typeGroups, typeState } from "../filter-editor";
+import { allPrograms, isOn, programRows, toggleAllOff, toggleProgram, toggleType, typeGroups, typeState } from "../filter-editor";
 import { filterPrograms } from "../planner";
 import type { PlannerData, Program } from "../types";
 
@@ -218,27 +218,5 @@ describe("switches", () => {
   });
   it("orphan references are kept as they are", () => {
     expect(toggleProgram(programs, { programs: ["gone", "a"] }, "c", true)).toEqual({ programs: ["a", "c", "gone"] });
-  });
-});
-
-describe("created program", () => {
-  const hass: any = { areas: { salon: { area_id: "salon", name: "Salon" } } };
-  const created = progOf("n", "New", ["cover.n"], "Kitchen");
-  it("single program mode points to it and drops the filter", () => {
-    expect(selectCreated({ program: "old", filter: { types: ["x"] } } as any, [], created)).toEqual({ program: "n" });
-  });
-  it("list mode: a room that would hide it is dropped, a room it belongs to is kept, a hidden program is widened in", () => {
-    const hidden = selectCreated({ filter: { area: "Salon" } } as any, [], created, hass) as any;
-    expect("area" in hidden.filter).toBe(false);
-    const keep = selectCreated({ filter: { area: "Kitchen" } } as any, [], created, hass) as any;
-    expect(keep.filter.area).toBe("Kitchen");
-    const many = selectCreated({ filter: { area: ["salon", "kitchen"] } } as any, [], created, hass) as any;
-    expect(many.filter.area).toEqual(["salon", "kitchen"]);
-    const widened = selectCreated({ filter: { programs: ["a"] } } as any, [progOf("a", "A", ["cover.a"])], created) as any;
-    expect(widened.filter.programs).toEqual(["a", "n"]);
-    const noRoom = selectCreated({ filter: { types: ["cover"] } } as any, [], created) as any;
-    expect(noRoom.filter).toEqual({ types: ["cover"] });
-    const known = selectCreated({ filter: {} } as any, [created], created) as any;
-    expect(known.filter).toEqual({});
   });
 });

@@ -152,6 +152,23 @@ describe("card frame", () => {
     const filled = frame({}, {}, (c) => { c._data.programs = [program("p1", "A", ["cover.a"])]; });
     expect(flat(filled.render())).not.toContain('class="empty"');
   });
+  it("an empty card links to the programs panel only for an administrator who can edit, outside read only mode", () => {
+    const link = `<a class="manage-programs" href="/weekly-planner">`;
+    const shown = (admin: boolean | undefined, data: any = {}, programs: any[] = []) => flat(frame({}, data, (c) => {
+      c.hass = { ...c.hass, user: admin === undefined ? undefined : { is_admin: admin } };
+      c._data.programs = programs;
+    }).render());
+    const html = shown(true);
+    expect(html).toContain(link);
+    expect(html).toContain(t("en", "ce_manage_programs"));
+    expect(shown(false)).not.toContain("manage-programs");
+    expect(shown(undefined)).not.toContain("manage-programs");
+    expect(shown(true, { can_edit: false })).not.toContain("manage-programs");
+    expect(shown(true, { read_only: true })).not.toContain("manage-programs");
+    expect(shown(true, {}, [program("p1", "A", ["cover.a"])])).not.toContain("manage-programs");
+    const loading = frame({}, {}, (c) => { c.hass = { ...c.hass, user: { is_admin: true } }; c._data = undefined; });
+    expect(flat(loading.render())).not.toContain("manage-programs");
+  });
   it("the undo snackbar", () => {
     const c = frame({}, {}, (x) => { x._snack = true; x._undo = vi.fn(); });
     const html = flat(c.render());
