@@ -2,7 +2,7 @@
 import { tokenStyles } from "../styles";
 import { LitElement, css, html, svg, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
-import { sunTip, nowTip, type BarSpan } from "./day-bar";
+import { sunTip, nowTip, scheduleBoundaries, type BarSpan } from "./day-bar";
 import { radialSegments } from "../radial";
 import { fmtClock, fmtDayEnd } from "../time";
 import { t } from "../i18n";
@@ -93,6 +93,15 @@ export class WpRadialDay extends LitElement {
           const q = point(h * 60 / period, radius(ring) + width / 2 - (major ? width : 6));
           return svg`<line class="tick" x1=${p.x} y1=${p.y} x2=${q.x} y2=${q.y} stroke="var(--primary-text-color)" stroke-opacity=".35" stroke-width="1" />`;
         }))}
+        ${scheduleBoundaries(this.spans).flatMap((b) => {
+          const rings = this.double ? (b.minute === 720 ? [0, 1] : [b.minute < 720 ? 0 : 1]) : [0];
+          return rings.map((ring) => {
+            const turn = (b.minute - ring * period) / period;
+            const p = point(turn, radius(ring) - width / 2 + 4);
+            const q = point(turn, radius(ring) + width / 2 - 4);
+            return svg`<line class="schedule-boundary" data-minute=${b.minute} x1=${p.x} y1=${p.y} x2=${q.x} y2=${q.y} stroke=${b.color} stroke-width="2" />`;
+          });
+        })}
         ${(this.double ? [0, 1] : [0]).map((ring) =>
           (this.double ? (ring === 0 ? [12, 3, 6, 9] : [24, 15, 18, 21]) : [0, 6, 12, 18]).map((h, i) => {
             const p = point(i / 4, this.double && ring === 0 ? 53 : 145);
@@ -131,6 +140,7 @@ export class WpRadialDay extends LitElement {
     button { display: block; width: 100%; padding: 0; color: inherit; border: 0; background: none; cursor: pointer; border-radius: 50%; }
     button:focus-visible { outline: 2px solid var(--wp-primary-text); }
     svg { display: block; width: 100%; } text { fill: var(--primary-text-color); font-size: 14px; }
+    .schedule-boundary { pointer-events: none; }
     wp-tip { position: absolute; transform: translate(-50%, -50%); }
     .icon { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: var(--card-background-color, #fff); color: var(--primary-text-color); box-shadow: 0 0 0 1px var(--divider-color); }
     ha-icon { --mdc-icon-size: 14px; }

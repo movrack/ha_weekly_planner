@@ -36,6 +36,36 @@ export interface BarSpan {
   endMs?: number | null;
 }
 
+/** Visible transitions between distinct schedules; paint order decides overlapping spans. */
+export function scheduleBoundaries(spans: readonly BarSpan[]): { minute: number; color: string }[] {
+  const events = new Map<number, { index: number; start: boolean }[]>();
+  spans.forEach((s, index) => {
+    if (s.ignored || s.marker || !Number.isFinite(s.start) || !Number.isFinite(s.end) || s.end <= s.start) return;
+    const start = Math.max(0, s.start), end = Math.min(DAY, s.end);
+    if (end <= start) return;
+    for (const [minute, begins] of [[start, true], [end, false]] as const) {
+      const at = events.get(minute) ?? [];
+      at.push({ index, start: begins });
+      events.set(minute, at);
+    }
+  });
+  const active = new Set<number>();
+  const out: { minute: number; color: string }[] = [];
+  let before: BarSpan | undefined;
+  for (const [minute, changes] of [...events].sort(([a], [b]) => a - b)) {
+    for (const e of changes) {
+      if (e.start) active.add(e.index);
+      else active.delete(e.index);
+    }
+    const after = active.size ? spans[Math.max(...active)] : undefined;
+    if (before && after && before !== after && (before.slotId === undefined || before.slotId !== after.slotId)) {
+      out.push({ minute, color: readableOn(after.color).fg });
+    }
+    before = after;
+  }
+  return out;
+}
+
 /** Icon side of a time that follows the sun: sunrise side ("up") or sunset side ("down"), null for a fixed time. */
 export function sunDir(spec: { time: string } | { sun: string } | null | undefined): "up" | "down" | null {
   if (!spec || !("sun" in spec)) return null;
@@ -184,6 +214,7 @@ export class WpDayBar extends LitElement {
               title=${s.label}
             >${box ? html`<span class="name" style="left:${box.left}%;width:${box.width}%">${box.text}</span>` : nothing}</div>`;
           })}
+          ${scheduleBoundaries(this.spans).map((b) => html`<i class="schedule-boundary" aria-hidden="true" style="left:${pct(b.minute)};--c:${b.color}"></i>`)}
         </div>
         <div class="icons">${this._markerTips()}${this._sunIcons()}</div>
         <slot></slot>
@@ -209,6 +240,10 @@ export class WpDayBar extends LitElement {
     .span {
       position: absolute; top: 0; bottom: 0; background: var(--c);
       display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
+    .schedule-boundary {
+      position: absolute; top: 4px; bottom: 4px; width: 2px; margin-left: -1px;
+      background: var(--c); pointer-events: none;
     }
     .span.ignored {
       background: repeating-linear-gradient(135deg, var(--c) 0 4px, transparent 4px 8px);

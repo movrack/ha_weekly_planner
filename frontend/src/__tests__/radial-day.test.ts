@@ -302,3 +302,38 @@ describe("radial day: the now mark of a double dial", () => {
     expect(+m[2]).toBeCloseTo(160 + 96 * Math.sin(a), 6);
   });
 });
+
+describe("radial schedule boundaries", () => {
+  it.each([false, true])("same-setting schedules stay distinct on the dial (double=%s)", (double) => {
+    const dial = new WpRadialDay();
+    dial.double = double;
+    dial.spans = [
+      { start: 0, end: 420, slotId: "night", spill: true, color: "#ffbf00", label: "19°" },
+      { start: 1140, end: 1290, slotId: "evening", color: "#ffbf00", label: "19°" },
+      { start: 1290, end: 1440, slotId: "night", color: "#ffbf00", label: "19°" },
+    ];
+    const html = flat(dial.render());
+    const separators = [...html.matchAll(/class="schedule-boundary" data-minute=(\d+) x1=([^ ]+) y1=([^ ]+) x2=([^ ]+) y2=([^ ]+)/g)];
+    expect(separators.map((m) => Number(m[1]))).toEqual([1290]);
+    const line = separators[0];
+    const a = Math.atan2(Number(line[3]) - 160, Number(line[2]) - 160);
+    expect((a + Math.PI / 2 + Math.PI * 2) % (Math.PI * 2)).toBeCloseTo((double ? 570 / 720 : 1290 / 1440) * Math.PI * 2);
+    expect(Math.hypot(Number(line[2]) - 160, Number(line[3]) - 160)).toBeCloseTo(double ? 104 : 98);
+    expect(Math.hypot(Number(line[4]) - 160, Number(line[5]) - 160)).toBeCloseTo(double ? 120 : 126);
+  });
+  it("splitting one schedule at noon does not add a separator", () => {
+    const dial = new WpRadialDay();
+    dial.double = true;
+    dial.spans = [{ start: 600, end: 900, slotId: "one", color: "#ffbf00", label: "19°" }];
+    expect(flat(dial.render())).not.toContain('class="schedule-boundary"');
+  });
+  it("a true noon boundary separates both ring endpoints", () => {
+    const dial = new WpRadialDay();
+    dial.double = true;
+    dial.spans = [
+      { start: 600, end: 720, slotId: "one", color: "#ffbf00", label: "19°" },
+      { start: 720, end: 900, slotId: "two", color: "#ffbf00", label: "19°" },
+    ];
+    expect([...flat(dial.render()).matchAll(/class="schedule-boundary" data-minute=(\d+)/g)].map((m) => Number(m[1]))).toEqual([720, 720]);
+  });
+});

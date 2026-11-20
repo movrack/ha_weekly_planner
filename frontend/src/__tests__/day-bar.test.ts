@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LitElement } from "lit";
 import { t } from "../i18n";
-import { WpDayBar, nowTip, sunDir, sunTip } from "../components/day-bar";
+import { WpDayBar, nowTip, scheduleBoundaries, sunDir, sunTip } from "../components/day-bar";
 import { WpRadialDay } from "../components/radial-day";
 import { flat } from "./helpers/tpl";
 import { attrOf } from "./helpers/planner-card";
@@ -281,5 +281,35 @@ describe("day bar for assistive technology", () => {
     const el = new WpDayBar() as any; el.lang = "en"; el.noTab = true;
     el.spans = [{ start: 600, end: 610, color: "#e91e63", label: "Start", slotId: "a", marker: true }];
     expect(flat(el.render())).toContain("?no-tab");
+  });
+});
+
+describe("boundaries between visible schedules", () => {
+  const span = (start: number, end: number, slotId: string, extra = {}) => ({ start, end, slotId, color: "#ffbf00", label: "19°", ...extra });
+  it.each([
+    ["two evening schedules with the same setting", [span(0, 420, "night", { spill: true }), span(1140, 1290, "evening"), span(1290, 1440, "night")], [1290]],
+    ["a gap between schedules", [span(1140, 1200, "evening"), span(1290, 1440, "night")], []],
+    ["one continuous schedule", [span(600, 900, "one")], []],
+    ["two pieces of one schedule", [span(600, 720, "one"), span(720, 900, "one")], []],
+    ["an ignored neighbour", [span(600, 720, "one"), span(720, 900, "two", { ignored: "overlap" })], []],
+    ["a one-shot neighbour", [span(600, 720, "one"), span(720, 730, "two", { marker: true })], []],
+    ["a covering schedule hides an earlier boundary", [span(600, 720, "one"), span(720, 900, "two"), span(500, 1000, "cover")], []],
+    ["paint order wins when schedules overlap", [span(600, 900, "under"), span(700, 800, "over")], [700, 800]],
+    ["unsorted schedules", [span(720, 900, "two"), span(600, 720, "one")], [720]],
+    ["invalid schedules", [span(NaN, 720, "one"), span(720, Infinity, "two"), span(900, 800, "three"), span(100, NaN, "four"), span(-100, -1, "before"), span(1440, 1500, "after")], []],
+    ["clipped overnight pieces", [span(-100, 720, "one"), span(720, 1600, "two")], [720]],
+    ["empty day", [], []],
+    ["fallback spans without ids", [span(600, 720, "one", { slotId: undefined }), span(720, 900, "two", { slotId: undefined })], [720]],
+  ])("%s", (_name, spans, expected) => {
+    expect(scheduleBoundaries(spans).map((b) => b.minute)).toEqual(expected);
+  });
+  it("draws the 21:30 separator without another interactive or spoken target", () => {
+    const bar = new WpDayBar();
+    bar.spans = [span(1140, 1290, "evening"), span(1290, 1440, "night")];
+    const line = flat(bar.render()).match(/<i[^>]*class="schedule-boundary"[^>]*>/g);
+    expect(line).toHaveLength(1);
+    expect(line![0]).toContain('aria-hidden="true"');
+    expect(Number(/left:([^%;]+)/.exec(line![0])![1])).toBeCloseTo(89.5833);
+    expect(line![0]).not.toMatch(/tabindex|role=/);
   });
 });
