@@ -392,7 +392,11 @@ un **Type** (les pastilles Climatisation, Ouverture… cochent d’un coup tous 
 puis la liste **Programmes** : **Tous les programmes** (activé, la carte montre aussi les programmes créés plus tard),
 puis un interrupteur par programme, avec ses appareils dessous. La pièce et le type limitent la liste. Sous **Affichage**, choisir **Barres**, **Cadran 24 heures**, **Double
 cadran 12 heures**, **Liste compacte**, **Horaires du jour** ou **Comparateur**. Les cadrans sont aussi possibles en
-liste filtrée. Enregistrer la carte et terminer l’édition du tableau de bord.
+liste filtrée. L’interrupteur **Afficher les horaires** ajoute, sous les barres ou le cadran de chaque programme et
+au-dessus des boutons **Semaine** et **Graphique du jour**, la liste **Horaires** d’aujourd’hui (une ligne par période,
+avec son réglage) ; un appui long sur une ligne (souris aussi), ou Entrée ou Espace, ouvre cet horaire quand la modification est permise ; un simple clic ne l’ouvre pas (clé `show_schedule_list`).
+Cette liste n’existe ni en liste compacte, ni en **Comparateur**, ni en **Horaires du jour**, qui est déjà cette liste.
+Enregistrer la carte et terminer l’édition du tableau de bord.
 
 
 Voir [la création S37](SCREENS.fr.md#s37), [la pièce S40](SCREENS.fr.md#s40) et [les filtres S41](SCREENS.fr.md#s41).

@@ -22,7 +22,7 @@ import type { At, DayCtx, Handle, Target } from "../edits";
 import { editorStyles } from "../editors/shared";
 import { callout } from "../styles";
 import { devicesOf, isShared, isolateForDevice, remergeIdentical, undoSlots } from "../device-edits";
-import { HOLD_HINT_MS } from "../hold-hint";
+import { HOLD_HINT_MS, LONG_PRESS_MS, MOVE_PX } from "../hold-hint";
 import { slotDeviceError, strings, t } from "../i18n";
 import { appliedAction, labelName, labelOf, labelsFor } from "../labels";
 import { onServiceNames } from "../services";
@@ -32,9 +32,7 @@ import { DAY, clockToMinutes, fmtClock, fmtDayEnd, localMinutes } from "../time"
 import { selectedTimeText } from "../selected-time";
 import type { HomeAssistant, PlannerData, PreviewSlot, Program, Slot } from "../types";
 
-const LONG_PRESS_MS = 450;
 const GRAB_PX = 22; // half of the 44 px hit target
-const MOVE_PX = 8;
 const COMMIT_DELAY_MS = 700; // keyboard: wait for the last key press
 
 /** Newest known version of each program saved from any bar (the pushed data may be a moment late). */

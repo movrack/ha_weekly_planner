@@ -65,6 +65,8 @@ export class WpSchedule extends LitElement {
   @property({ attribute: false }) day: { weekday: number; offset: number } | null = null;
   /** Opened from the card's "Create a setting" button: straight to the first slot when there is none. */
   @property({ type: Boolean }) create = false;
+  /** Opened from a row of the card's Schedules list: open the editor of that slot (with `day`). */
+  @property({ attribute: false }) slotId: string | null = null;
 
   @state() private _chartContext: { programId: string; entityId: string; mainUnit: string | null; histories: Record<string, SourcePoint[]> } | null = null;
   @state() private _chartProgram: Program | null = null;
@@ -272,6 +274,9 @@ export class WpSchedule extends LitElement {
     const { weekday, offset } = this.day;
     if (offset >= -BACK && offset <= AHEAD) this._offset = offset;
     this._focus = weekday;
+    const wanted = this.slotId;
+    const row = wanted ? this._rows().find((r) => Object.values(r.group.ids).includes(wanted)) : undefined;
+    if (row) { this._openRow(row.key, row.program, row.group); return; }
     // a day without a slot: straight to a new one
     if (!this._rows().length && this._canEdit) this._add([weekday]);
   }
