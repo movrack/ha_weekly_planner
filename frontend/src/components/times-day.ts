@@ -3,8 +3,8 @@
 
 import { tokenStyles } from "../styles";
 import { LitElement, css, html, nothing } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
-import { HOLD_HINT_MS, LONG_PRESS_MS, MOVE_PX } from "../hold-hint";
+import { customElement, property } from "lit/decorators.js";
+import { HoldPress } from "../hold-hint";
 import { t } from "../i18n";
 import { fmtClock } from "../time";
 import { sunRuleText } from "../times-list";
@@ -26,74 +26,16 @@ export class WpTimesDay extends LitElement {
 
   /** Schedules list of the card: a row opens its schedule by a long press or the keyboard, never by a plain click (like the bars). */
   @property({ type: Boolean }) hold = false;
-  @state() private _hint = false;
-  private _hintTimer?: ReturnType<typeof setTimeout>;
-  private _press?: { id: number; x: number; y: number; fired: boolean; timer?: ReturnType<typeof setTimeout> };
+  private readonly _hold = new HoldPress(this);
 
   private _open(slotId?: string): void {
     if (!this.editable) return;
     this.dispatchEvent(new CustomEvent("open-day", { detail: slotId ? { slotId } : undefined, bubbles: true, composed: true }));
   }
 
-  private _down(e: PointerEvent, slotId?: string): void {
-    if (e.button !== 0) return;
-    this._press = { id: e.pointerId, x: e.clientX, y: e.clientY, fired: false };
-    this._press.timer = setTimeout(() => {
-      if (!this._press) return;
-      this._press.fired = true;
-      navigator.vibrate?.(12);
-      this._clearHint();
-      this._open(slotId);
-    }, LONG_PRESS_MS);
-  }
-
-  private _move(e: PointerEvent): void {
-    const p = this._press;
-    if (p && p.id === e.pointerId && !p.fired && Math.hypot(e.clientX - p.x, e.clientY - p.y) > MOVE_PX) this._cancel();
-  }
-
-  private _up(e: PointerEvent): void {
-    const p = this._press;
-    if (!p || p.id !== e.pointerId) return;
-    this._cancel();
-    if (!p.fired) this._tapHint(); // a plain click or tap never edits: it only says how
-  }
-
-  private _cancel(): void {
-    clearTimeout(this._press?.timer);
-    this._press = undefined;
-  }
-
-  private _tapHint(): void {
-    clearTimeout(this._hintTimer);
-    this._hint = true;
-    this._hintTimer = setTimeout(() => this._clearHint(), HOLD_HINT_MS);
-  }
-
-  private _clearHint(): void {
-    clearTimeout(this._hintTimer);
-    this._hintTimer = undefined;
-    this._hint = false;
-  }
-
-  private _key(e: KeyboardEvent, slotId?: string): void {
-    if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
-    e.preventDefault();
-    this._clearHint();
-    this._open(slotId);
-  }
-
-  /** A click with no pointer behind it (screen reader, voice "click") opens like Enter does. */
-  private _click(e: MouseEvent, slotId?: string): void {
-    if (e.detail !== 0) return;
-    this._clearHint();
-    this._open(slotId);
-  }
-
   disconnectedCallback(): void {
     super.disconnectedCallback();
-    this._cancel();
-    clearTimeout(this._hintTimer);
+    this._hold.dispose();
   }
 
   private _retry(): void {
@@ -129,6 +71,7 @@ export class WpTimesDay extends LitElement {
 
   private _row(r: TimesRow) {
     const holdable = this.hold && this.editable && !this.locked;
+    const go = () => this._open(r.slotId);
     const content = html`
       <span class="dot" style="background:${r.color}" aria-hidden="true"></span>${holdable && this.deviceName ? html`<span class="sr">${this.deviceName},</span>` : nothing}
       <span class="text">
@@ -138,10 +81,10 @@ export class WpTimesDay extends LitElement {
       </span>`;
     return html`<li class=${r.now ? "current" : r.done ? "done" : ""} aria-current=${r.now ? "time" : nothing}>${holdable
       ? html`<div class="row press" role="button" tabindex="0" aria-description=${t(this.lang, "times_row_action")}
-        @keydown=${(e: KeyboardEvent) => this._key(e, r.slotId)} @click=${(e: MouseEvent) => this._click(e, r.slotId)}
-        @pointerdown=${(e: PointerEvent) => this._down(e, r.slotId)} @pointermove=${(e: PointerEvent) => this._move(e)}
-        @pointerup=${(e: PointerEvent) => this._up(e)} @pointercancel=${() => this._cancel()}
-        @contextmenu=${(e: Event) => { if (this._press) e.preventDefault(); }}>${content}</div>`
+        @keydown=${(e: KeyboardEvent) => this._hold.key(e, go)} @click=${(e: MouseEvent) => this._hold.click(e, go)}
+        @pointerdown=${(e: PointerEvent) => this._hold.down(e, go)} @pointermove=${(e: PointerEvent) => this._hold.move(e)}
+        @pointerup=${(e: PointerEvent) => this._hold.up(e)} @pointercancel=${() => this._hold.cancel()}
+        @contextmenu=${(e: Event) => { if (this._hold.active) e.preventDefault(); }}>${content}</div>`
       : html`<div class="row">${content}</div>`}</li>`;
   }
 
@@ -160,7 +103,7 @@ export class WpTimesDay extends LitElement {
     // the status region stays in the page and only its content changes, so a screen reader announces it
     const shown = this.state === "ready" && this.rows.length > 0;
     return html`<div class="status" role="status" aria-live="polite" tabindex="-1">${this._message()}</div>
-      ${shown && this.hold && this.editable && !this.locked ? html`<p class="hint" role="status">${this._hint ? t(this.lang, "hold_hint") : nothing}</p>` : nothing}
+      ${shown && this.hold && this.editable && !this.locked ? html`<p class="hint" role="status">${this._hold.hint ? t(this.lang, "hold_hint") : nothing}</p>` : nothing}
       ${shown ? html`<ul role="list" aria-label=${t(this.lang, "times_list_label")}>${this.rows.map((r) => this._row(r))}</ul>`
       : this.state === "failed" ? this._button(t(this.lang, "times_retry"), "mdi:refresh", () => this._retry())
       : this.state === "ready" && this.editable && !this.locked ? this._button(t(this.lang, "times_add"), "mdi:plus", () => this._open())

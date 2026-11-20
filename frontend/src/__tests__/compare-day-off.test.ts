@@ -19,8 +19,8 @@ describe("compare: day-off group", () => {
     const c = card([withOff, A()], {}, dayOff);
     const tpl = week(c);
     const h = flat(tpl);
-    expect(h.indexOf("cday-off")).toBeGreaterThan(h.lastIndexOf("role=\"tabpanel\" aria-label=Sunday"));
-    expect(h).toContain(`>${t("en", "holiday_title")}</button>`); // the chip of the day off, after Sunday's
+    expect(h.indexOf("cday-off")).toBeGreaterThan(h.lastIndexOf("role=\"group\" aria-label=Sunday"));
+    expect(h).toContain(`>${t("en", "holiday_title")}</div>`); // the title of the day-off group, after Sunday's
     const g = group(h);
     expect(names(g)).toEqual(["Alpha", "Zeta"]);
     expect(g.match(/class="cnone"/g)).toHaveLength(1);

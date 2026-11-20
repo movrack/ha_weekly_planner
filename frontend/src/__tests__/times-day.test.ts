@@ -458,7 +458,7 @@ describe("wp-times-day: Schedules list rows (hold)", () => {
       rowHandler(c, "contextmenu")(ctx);
       expect(ctx.preventDefault).toHaveBeenCalled();
       c.disconnectedCallback();
-      expect(c._press).toBeUndefined();
+      expect(c._hold.active).toBe(false);
     } finally { vi.useRealTimers(); }
   });
 });

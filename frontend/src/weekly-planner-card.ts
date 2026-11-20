@@ -26,6 +26,7 @@ import { reloadIfOutdated } from "./update";
 import { deviceDays, fetchPreviewResponse } from "./preview-cache";
 import { applies } from "./slots";
 import { timesRows } from "./times-list";
+import { HoldPress } from "./hold-hint";
 import { configDefaults, normalizeConfig } from "./config";
 import { roomKey, roomLabel } from "./program-areas";
 import { activeFollow, activeProfile, entityDomain, filterPrograms, friendlyName, subscribePlanner } from "./planner";
@@ -73,8 +74,8 @@ export class WeeklyPlannerCard extends LitElement {
   @state() private _preview: Record<string, Record<string, PreviewResponse>> = {};
   @state() private _now = new Date();
   @state() private _week = new Set<string>();
-  /** Day shown by the comparison: 0 to 6 (Monday to Sunday), 7 for the day off, null for today. */
-  @state() private _cmpDay: number | null = null;
+  /** Long press, keyboard and hint of the rows of the comparison. */
+  private readonly _hold = new HoldPress(this);
   @state() private _expandedProgram: string | null = null;
   /** Device shown for each program that has several (program id -> entity id); lives as long as the card. */
   @state() private _deviceOf = new Map<string, string>();
@@ -207,6 +208,7 @@ export class WeeklyPlannerCard extends LitElement {
     this._unsub?.();
     this._unsub = undefined;
     window.clearInterval(this._clock);
+    this._hold.dispose();
   }
 
   willUpdate(): void {
@@ -280,7 +282,7 @@ export class WeeklyPlannerCard extends LitElement {
     void this._loadPreviews();
   }
 
-  /* ---- comparison view (`schedule_view: compare`): every device, day by day, read only ---- */
+  /* ---- comparison view (`schedule_view: compare`): the whole week, every device; a long press or the keyboard opens a day ---- */
 
   /** A program that does not run: switched off or paused (same test as the "Paused" badge), or all programs suspended. */
   private _notRunning(program: Program): boolean {
@@ -308,55 +310,55 @@ export class WeeklyPlannerCard extends LitElement {
     const said = (r: { program: Program; entityId: string }, what: string) =>
       `${name(r)}${this._notRunning(r.program) ? ` ${paused}` : ""}, ${what}`;
     const rowClass = (r: { program: Program; gap: boolean }) => ["crow", r.gap ? "gap" : "", this._notRunning(r.program) ? "off" : ""].filter(Boolean).join(" ");
+    // a row (and a day title) opens by a long press or Enter / Space, never by a plain click; inert when editing is not allowed
+    const hold = this._hold;
+    const press = (cls: string, aria: string, go: (() => void) | null, inner: unknown, off = false) => go
+      ? html`<div class="${cls} press" role="button" tabindex="0" aria-label=${aria} aria-description=${t(lang, "compare_row_action")}
+        @keydown=${(e: KeyboardEvent) => hold.key(e, go)} @click=${(e: MouseEvent) => hold.click(e, go)}
+        @pointerdown=${(e: PointerEvent) => hold.down(e, go)} @pointermove=${(e: PointerEvent) => hold.move(e)}
+        @pointerup=${(e: PointerEvent) => hold.up(e)} @pointercancel=${() => hold.cancel()}
+        @contextmenu=${(e: Event) => { if (hold.active) e.preventDefault(); }}>${inner}</div>`
+      : off ? html`<div class="${cls}">${inner}</div>` : html`<div class="${cls}" role="img" aria-label=${aria}>${inner}</div>`;
+    const opener = (r: { program: Program; entityId: string }, day?: { weekday: number; offset: number }): (() => void) | null =>
+      this._barEditable(r.program, day?.offset ?? 1)
+        ? () => this._open({ kind: "program", programId: r.program.id, entityId: r.entityId }, day) : null;
+    let anyHold = false;
+    const reach = (go: (() => void) | null) => { if (go) anyHold = true; return go; };
     const dayView = (weekday: number) => {
       const o = (weekday - todayDay + 7) % 7;
-      return html`<div class="cday ${o === 0 ? "is-today" : ""}" role="tabpanel" aria-label=${days[weekday]}>
+      const day = { weekday, offset: o };
+      const first = rows.find((r) => opener(r, day));
+      return html`<div class="cday ${o === 0 ? "is-today" : ""}" role="group" aria-label=${days[weekday]}>
+        ${press("ctitle", days[weekday], reach(first ? opener(first, day) : null), days[weekday], true)}
         ${rows.map((r, ri) => { const spans = this._spans(r.entityId, [r.program], o); return html`<div class=${rowClass(r)}>
           ${label(r)}
-          <div class="cbar" role="img" aria-label=${said(r, [days[weekday], spoken(spans)].filter(Boolean).join(": "))}>
-            <wp-day-bar lang=${lang} notches no-tab ?no-clock=${ri > 0} device-name=${name(r)} .now=${o === 0 ? nowMin : null}
-              .spans=${spans}></wp-day-bar></div></div>`; })}
+          ${press("cbar", said(r, [days[weekday], spoken(spans)].filter(Boolean).join(": ")), reach(opener(r, day)),
+            html`<wp-day-bar lang=${lang} notches no-tab ?no-clock=${ri > 0} device-name=${name(r)} .now=${o === 0 ? nowMin : null}
+              .spans=${spans}></wp-day-bar>`)}</div>`; })}
       </div>`;
     };
     const off = rows.map((r) => ({ r, spans: this._holidaySpans(r.entityId, r.program), copy: this._holidayCopy(r.program) }));
-    const holiday = this._data?.holiday_entity && off.some((x) => x.spans) ? html`<div class="cday cday-off" role="tabpanel" aria-label=${t(lang, "holiday_title")}>
+    const holiday = this._data?.holiday_entity && off.some((x) => x.spans) ? html`<div class="cday cday-off" role="group" aria-label=${t(lang, "holiday_title")}>
+      ${press("ctitle", t(lang, "holiday_title"), reach(opener(off[0].r)), t(lang, "holiday_title"), true)}
       ${off.map(({ r, spans, copy }) => {
         // a copied weekday: its bar and "like <day>"; an own day: the bar alone; no day off: "not configured"
         const note = copy !== null ? t(lang, "holiday_what_copy", { day: dayInText(lang, copy) }) : "";
         const what = spans ? [t(lang, "holiday_title"), note, spoken(spans)].filter(Boolean).join(", ") : `${t(lang, "holiday_title")}, ${t(lang, "compare_not_set")}`;
         return html`<div class="${rowClass(r)} ${note ? "note" : ""}">
           ${label(r)}
-          <div class="cbar" role="img" aria-label=${said(r, what)}>
-            <wp-day-bar lang=${lang} notches no-tab device-name=${name(r)} .spans=${spans ?? []}></wp-day-bar>
+          ${press("cbar", said(r, what), reach(opener(r)), html`<wp-day-bar lang=${lang} notches no-tab device-name=${name(r)} .spans=${spans ?? []}></wp-day-bar>
             ${spans ? nothing : html`<span class="cnone">${t(lang, "compare_not_set")}</span>`}
-            ${note ? html`<span class="ccopy">${note}</span>` : nothing}</div></div>`;
+            ${note ? html`<span class="ccopy">${note}</span>` : nothing}`)}</div>`;
       })}
     </div>` : nothing;
-    // one day at a time: a chip per day (and the day off when there is one), a single choice
-    const holidayOn = Boolean(this._data?.holiday_entity && off.some((x) => x.spans));
-    const ids = [0, 1, 2, 3, 4, 5, 6, ...(holidayOn ? [7] : [])];
-    const shown = this._cmpDay !== null && ids.includes(this._cmpDay) ? this._cmpDay : todayDay;
-    const pickDay = (d: number) => { this._cmpDay = d; };
-    const dayKey = (e: KeyboardEvent) => {
-      const at = ids.indexOf(shown);
-      const next = e.key === "ArrowRight" || e.key === "ArrowDown" ? (at + 1) % ids.length
-        : e.key === "ArrowLeft" || e.key === "ArrowUp" ? (at + ids.length - 1) % ids.length
-        : e.key === "Home" ? 0 : e.key === "End" ? ids.length - 1 : -1;
-      if (next < 0) return;
-      e.preventDefault();
-      pickDay(ids[next]);
-      void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>('.cdchip[aria-selected="true"]')?.focus());
-    };
-    const short = strings(lang).days_short;
-    const tabs = html`<div class="cdays" role="tablist" aria-label=${t(lang, "compare_day")} @keydown=${dayKey}>
-      ${ids.map((d) => html`<button class="cdchip ${d === todayDay ? "is-today" : ""}" role="tab" aria-selected=${d === shown}
-        tabindex=${d === shown ? 0 : -1} aria-label=${d === 7 ? t(lang, "holiday_title") : days[d]} @click=${() => pickDay(d)}>${d === 7 ? t(lang, "holiday_title") : short[d]}</button>`)}
-    </div>`;
     const programs = groups.flat();
+    // the whole week, Monday to Sunday, then the day off; the groups are built first so that the hint knows whether any row opens
+    const week = [0, 1, 2, 3, 4, 5, 6].map(dayView);
     return html`<div class="compare">
       <div class="cedit"><button class="hours" aria-label=${t(lang, "compare_edit")} title=${t(lang, "compare_edit")}
         @click=${() => { this._dialog = programs.length === 1 ? { kind: "schedule", scope: { kind: "program", programId: programs[0].id } } : { kind: "pick", programs }; }}><ha-icon icon="mdi:calendar-edit"></ha-icon><span class="hl">${t(lang, "compare_edit")}</span></button></div>
-      ${tabs}${shown === 7 ? holiday : dayView(shown)}
+      ${anyHold ? html`<p class="chint" role="status">${hold.hint ? t(lang, "hold_hint") : nothing}</p>` : nothing}
+      ${week}${holiday}
       <div class="caxis" aria-hidden="true">${[0, 6, 12, 18, 24].map((h) => html`<span class="h${h}" style="left:${(h / 24) * 100}%">${h === 24 ? fmtDayEnd(lang) : fmtClock(lang, h * 60)}</span>`)}</div>
     </div>`;
   }
@@ -1055,7 +1057,7 @@ export class WeeklyPlannerCard extends LitElement {
     .compare { padding-bottom: 4px; }
     .cday { display: flex; flex-direction: column; gap: 4px; padding-top: 8px; }
     /* "is-today", not "today": the plain today rule of the day row (flex, align-items: flex-start) shrank the rows of today to nothing */
-    .cday.is-today .crow:first-of-type { margin-top: 14px; } /* room for the "now" clock above the first bar */
+    .cday.is-today .ctitle + .crow { margin-top: 14px; } /* room for the "now" clock above the first bar */
     .crow { display: flex; align-items: center; gap: ${TIMELINE.gap}px; min-height: 32px; }
     .crow.gap { margin-top: 8px; }
     .crow.off wp-day-bar { opacity: 0.7; }
@@ -1066,14 +1068,14 @@ export class WeeklyPlannerCard extends LitElement {
     .cbar { position: relative; flex: 1; min-width: 0; padding: 0; border: none; background: none; color: inherit; font: inherit; cursor: default; display: block; text-align: left; }
     .cbar wp-day-bar { --wp-bar-height: 28px; }
     .crow.note { padding-bottom: 1.5rem; }
-    .cdays { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 4px; }
-    .cdchip {
-      display: inline-flex; align-items: center; justify-content: center; min-width: 48px; min-height: 48px; padding: 0 10px; border-radius: 24px;
-      border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem; cursor: pointer;
-    }
-    .cdchip.is-today { font-weight: 700; }
-    .cdchip[aria-selected="true"] { background: var(--wp-primary-fill); border-color: var(--wp-primary-fill); color: #fff; font-weight: 600; }
-    .cdchip:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
+    .ctitle { margin: 0; padding: 0; font-size: 1rem; font-weight: 600; color: var(--primary-text-color); }
+    .cday.is-today .ctitle { font-weight: 700; }
+    .ctitle.press { display: flex; align-items: center; min-height: 44px; margin: -10px 0 -6px; }
+    .cbar.press { margin: -6px 0; padding: 8px 0; cursor: pointer; touch-action: manipulation; }
+    .cbar.press .ccopy { top: calc(100% - 6px); }
+    .press:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
+    .chint { margin: 0; padding: 4px 0; color: var(--secondary-text-color); }
+    .chint:empty { display: none; }
     .cedit { display: flex; justify-content: flex-end; margin-bottom: -8px; }
     /* the mode line and the edit button share one row: the line on the left, the button on the right (no empty band between them) */
     .mode-line + .compare .cedit { margin-top: -26px; }

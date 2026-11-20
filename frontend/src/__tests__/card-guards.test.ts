@@ -140,7 +140,7 @@ describe("spans of a day: guards", () => {
     const c = card([], { schedule_view: "compare" });
     const p = program("p", "P", ["cover.a"]);
     c._spans = vi.fn(() => []); c._holidaySpans = vi.fn(() => null);
-    for (let d = 0; d < 7; d++) { c._cmpDay = d; flat(c._compare([[p]], false)); } // each chip shows its own day
+    flat(c._compare([[p]], false)); // the whole week in one render
     expect(c._spans.mock.calls.map((x: any[]) => x[2])).toEqual([5, 6, 0, 1, 2, 3, 4]);
   });
 });

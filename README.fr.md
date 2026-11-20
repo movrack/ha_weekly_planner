@@ -31,7 +31,7 @@ Ce projet a été réalisé avec l’aide d’agents d’intelligence artificiel
   entité sélecteur que vous choisissez.
 - **Jour férié** : une autre journée d’horaires un jour férié ou de congé, lu sur une entité que vous choisissez.
 - **Une carte, six affichages** : barres, liste compacte (groupée par type, deux lignes par appareil), cadran 24 h,
-  cadrans 12 h, horaires du jour ou comparateur de tous les appareils, un jour à la fois,
+  cadrans 12 h, horaires du jour ou comparateur de tous les appareils sur toute la semaine,
   avec un graphique du jour qui compare ce qui est prévu et l’historique enregistré.
 - **Commandes de tous les jours** : sauter le prochain changement, mettre un programme en pause pour des
   heures ou des jours, suspendre tous les programmes, resynchroniser les appareils après une panne.
@@ -133,7 +133,7 @@ Chaque option se règle dans l’éditeur visuel ou en YAML. Les principales :
 |---|---|
 | `program` | Affiche un seul programme (son identifiant ou son nom). |
 | `filter` | Sans `program` : garde les programmes selon `types`, `area` ou `programs`. Sans filtre, tous les programmes sont affichés. |
-| `schedule_view` | `bars` (par défaut), `list`, `radial`, `radial_12h`, `times` ou `compare` (tous les appareils, un seul jour à la fois, choisi avec des pastilles). |
+| `schedule_view` | `bars` (par défaut), `list`, `radial`, `radial_12h`, `times` ou `compare` (tous les appareils sur toute la semaine, un groupe par jour). |
 | `sort`, `order` | Ordre de la liste : par `type` (par défaut), `area`, `name`, ou votre propre ordre. |
 | `show_chart`, `chart_collapsed` | Bouton du graphique sous chaque appareil, et graphique fermé ou ouvert au départ. |
 | `show_schedule_list` | Liste des horaires d’aujourd’hui sous les barres ou les cadrans (désactivée par défaut). |

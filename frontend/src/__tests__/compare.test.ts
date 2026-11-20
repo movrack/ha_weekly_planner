@@ -1,15 +1,17 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeConfig } from "../config";
 import { strings, t } from "../i18n";
 import { WeeklyPlannerCard, commonWordPrefix } from "../weekly-planner-card";
 import { WeeklyPlannerCardEditor } from "../card-editor";
 import { flat, handlers } from "./helpers/tpl";
-import { attrOf, card, hass, names, noClocksOf, nowsOf, program, selectedOf, uniformProgram, wednesdayCard, week, weekOf } from "./helpers/planner-card";
+import { attrOf, card, hass, names, noClocksOf, nowsOf, program, slot, uniformProgram, wednesdayCard, week, weekOf } from "./helpers/planner-card";
 
 const A = () => program("pa", "Zeta", ["light.z"]);
 const B = () => program("pb", "Alpha", ["cover.a"]);
 const C = () => program("pc", "Beta", ["cover.b"]);
-const firstDay = names;
+/** The device names of the first group (Monday); the other days list the same names. */
+const firstDay = (h: string) => names(h.split('class="cday').slice(1)[0]);
+const every = (h: string) => h.split('class="cday').slice(1).map(names);
 const render = (c: any) => c._list(c._data.programs);
 const clicks = (c: any) => handlers(render(c)).filter((h) => h.event === "click");
 
@@ -55,23 +57,20 @@ describe("short device names (words every name starts with are left out)", () =>
 });
 
 describe("compare: structure", () => {
-  it("one comparison for the whole card, one day at a time, a chip per day Monday to Sunday", () => {
+  it("one comparison for the whole card: a titled group per day Monday to Sunday, no day chips", () => {
     const c = card([A(), B()]);
     const h = flat(render(c));
     expect(h.match(/class="compare"/g)).toHaveLength(1);
     const days = strings("en").days;
-    expect([...h.matchAll(/class="cday[^"]*" role="tabpanel" aria-label=([^>]*)>/g)].map((m) => m[1])).toEqual(["Monday"]); // today, alone
-    expect([...flat(week(c)).matchAll(/class="cday[^"]*" role="tabpanel" aria-label=([^>]*)>/g)].map((m) => m[1])).toEqual(days);
-    expect([...h.matchAll(/class="cdchip[^"]*" role="tab" aria-selected=\s+tabindex=-?\d aria-label=(\w+) @click=>/g)].map((m) => m[1])).toEqual(days);
-    expect(selectedOf(render(c))).toEqual([true, ...Array(6).fill(false)]); // a single choice, today by default
-    for (const d of strings("en").days_short) expect(h).toContain(`>${d}</button>`);
-    for (const bad of ["wp-bar-editor", "class=\"phead\"", "role=\"switch\"", "weekbtn", "wp-chart", "class=\"create\"", "class=\"next\"", "<h2"]) expect(h).not.toContain(bad);
+    expect([...h.matchAll(/class="cday[^"]*" role="group" aria-label=([^>]*)>/g)].map((m) => m[1])).toEqual(days);
+    expect([...h.matchAll(/class="ctitle[^"]*"[^>]*>(\w+)<\/div>/g)].map((m) => m[1])).toEqual(days);
+    for (const bad of ["cdchip", "cdays", "role=\"tab", "wp-bar-editor", "class=\"phead\"", "role=\"switch\"", "weekbtn", "wp-chart", "class=\"create\"", "class=\"next\"", "<h2"]) expect(h).not.toContain(bad);
   });
   it("one row per device, default order type then name, same in every day", () => {
     const c = card([A(), B(), C()]);
     const h = flat(render(c));
     expect(firstDay(h)).toEqual(["Alpha", "Beta", "Zeta"]);
-    expect(names(flat(week(c)))).toHaveLength(21);
+    expect(every(h)).toEqual(Array(7).fill(["Alpha", "Beta", "Zeta"]));
   });
   it("sort name and custom order", () => {
     expect(firstDay(flat(render(card([A(), B(), C()], { sort: "name" }))))).toEqual(["Alpha", "Beta", "Zeta"]);
@@ -111,9 +110,9 @@ describe("compare rows", () => {
   it("only the first device of the first program of a later group carries the gap, only when grouped", () => {
     const c = wednesdayCard([]);
     const [a, b, g] = two();
-    const day = flat(c._compare([[a], [b, g]], true)); // one day only
-    expect(day.match(/class=crow gap>/g)).toHaveLength(1);
-    expect(day.match(/class=crow>/g)).toHaveLength(3);
+    const day = flat(c._compare([[a], [b, g]], true));
+    expect(day.match(/class=crow gap>/g)).toHaveLength(7); // one per day
+    expect(day.match(/class=crow>/g)).toHaveLength(21); // every row, the gap one included, takes the plain class too
     expect(flat(c._compare([[a], [b, g]], false))).not.toContain("gap");
     expect(flat(c._compare([[a, g]], true))).not.toContain("gap");
   });
@@ -136,8 +135,7 @@ describe("compare rows", () => {
     const html = flat(weekOf(c, [[two()[0]]], false));
     expect(html.match(/class="cday is-today"/g)).toHaveLength(1);
     expect(html.match(/class="cday "/g)).toHaveLength(6);
-    expect(html).toMatch(/class="cday is-today" role="tabpanel" aria-label=Wednesday/);
-    expect(flat(c._compare([[two()[0]]], false)).match(/class="cdchip is-today"/g)).toHaveLength(1); // the chip of today is in bold
+    expect(html).toMatch(/class="cday is-today" role="group" aria-label=Wednesday/);
   });
   it("the hour axis has five labels at 0, 25, 50, 75 and 100 %, 24 h reading as the day end", () => {
     const c = wednesdayCard([]);
@@ -175,11 +173,9 @@ describe("compare: today, touch and names", () => {
     const c = card([A(), B()]);
     const tpl = week(c);
     const h = flat(tpl);
-    const one = flat(render(c));
-    expect(one.match(/cdchip is-today/g)).toHaveLength(1); // one chip is today's, in bold
     expect(h.match(/cday is-today/g)).toHaveLength(1);
-    expect(h).not.toMatch(/class="cday today|class=cday today|cdchip today/); // the plain `.today` class of the day row must not leak into this view
-    expect(one).toMatch(/cdchip is-today" role="tab" aria-selected=\s+tabindex=0 aria-label=Monday @click=>Mon</);
+    expect(h).not.toMatch(/class="cday today|class=cday today/); // the plain `.today` class of the day row must not leak into this view
+    expect((WeeklyPlannerCard as any).styles.map((x: any) => x.cssText ?? "").join("")).toContain(".cday.is-today .ctitle { font-weight: 700; }"); // today's title is in bold
     const nows = nowsOf(tpl);
     expect(nows).toHaveLength(14);
     expect(nows.filter((n) => n === 540)).toHaveLength(2);
@@ -192,26 +188,21 @@ describe("compare: today, touch and names", () => {
     expect(flags).toHaveLength(14);
     for (let day = 0; day < 7; day++) expect(flags.slice(day * 2, day * 2 + 2)).toEqual([false, true]);
   });
-  it("on another weekday today moves (Wednesday) and days are their next occurrence", () => {
+  it("on another weekday today moves (Wednesday) and each day is its next occurrence", () => {
     const c = card([A()]);
     c._now = new Date("2026-11-04T09:00:00Z");
     const h = flat(render(c));
-    expect(h).toMatch(/cdchip is-today" role="tab" aria-selected=\s+tabindex=0 aria-label=Wednesday @click=>/);
-    expect(h).toMatch(/cdchip " role="tab" aria-selected=\s+tabindex=-1 aria-label=Monday @click=>/);
-    expect(selectedOf(render(c))).toEqual([false, false, true, false, false, false, false]);
-    expect(h).toContain('role="tabpanel" aria-label=Wednesday'); // today's day is the one shown
+    expect(h).toMatch(/class="cday is-today" role="group" aria-label=Wednesday/);
+    expect(h.match(/cday is-today/g)).toHaveLength(1);
+    expect(nowsOf(render(c))).toEqual([null, null, 540, null, null, null, null]); // only Wednesday's bar carries the now line
   });
-  it("bars and day titles are read only: a click opens nothing; only the icon at the top right edits", () => {
+  it("the icon at the top right opens the choice of the program to edit", () => {
     const multi = program("pm", "Multi", ["light.y", "light.x"]);
     const c = card([A(), B(), multi], { sort: "name" });
     const h = flat(render(c));
-    expect(h).not.toContain("<button class=cbar");
-    expect(h).not.toMatch(/<button class="?ctitle/);
-    const cl = clicks(c);
-    expect(cl).toHaveLength(1 + 7); // the icon, then a chip per day
     expect(h).toContain(t("en", "compare_edit"));
     expect(h.indexOf(t("en", "compare_edit"))).toBeLessThan(h.indexOf("cday"));
-    cl[0].fn();
+    clicks(c)[0].fn();
     expect(c._dialog.kind).toBe("pick");
     expect(c._dialog.programs.map((p: any) => p.id)).toEqual(["pb", "pm", "pa"]); // Alpha, Multi, Zeta
   });
@@ -251,64 +242,106 @@ describe("compare: today, touch and names", () => {
   });
 });
 
-describe("compare: one day at a time", () => {
-  const chips = (c: any) => handlers(render(c)).filter((h) => h.event === "click").slice(1); // after the edit icon
-  const panels = (c: any) => [...flat(render(c)).matchAll(/role="tabpanel" aria-label=([^>]*)>/g)].map((m) => m[1]);
-  it("shows today first and only that day", () => {
+describe("compare: opening a day by long press or keyboard", () => {
+  const down = (c: any) => handlers(render(c)).filter((h) => h.event === "pointerdown");
+  const ev = (extra: any = {}) => ({ button: 0, pointerId: 1, clientX: 10, clientY: 10, ...extra });
+  const enter = (fn: (e: any) => void, key = "Enter") => { const el = {}; const e = { key, target: el, currentTarget: el, preventDefault: vi.fn() }; fn(e); return e; };
+  beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal("navigator", {}); });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+  it("a plain click or tap on a bar only shows the hint and opens nothing", () => {
     const c = card([A(), B()]);
-    c._now = new Date("2026-11-04T09:00:00Z"); // a Wednesday
-    expect(panels(c)).toEqual(["Wednesday"]);
-    expect(names(flat(render(c)))).toEqual(["Alpha", "Zeta"]);
+    const bar = down(c)[1]; // Monday: the title, then Alpha's bar
+    bar.fn(ev());
+    handlers(render(c)).filter((h) => h.event === "pointerup")[1].fn(ev());
+    expect(c._open).not.toHaveBeenCalled();
+    expect(flat(render(c))).toContain(`<p class="chint" role="status">${t("en", "hold_hint")}</p>`);
+    vi.advanceTimersByTime(6000);
+    expect(flat(render(c))).toContain('<p class="chint" role="status"></p>');
   });
-  it("a chip shows its day and only its day; one choice at a time", () => {
+  it("a press held 450 ms opens that device's program on that day, a mouse press too", () => {
     const c = card([A(), B()]);
-    chips(c)[4].fn(); // Friday
-    expect(c._cmpDay).toBe(4);
-    expect(panels(c)).toEqual(["Friday"]);
-    expect(selectedOf(render(c))).toEqual([false, false, false, false, true, false, false]);
-    chips(c)[1].fn();
-    expect(panels(c)).toEqual(["Tuesday"]);
-    expect(selectedOf(render(c)).filter(Boolean)).toHaveLength(1);
+    down(c)[1].fn(ev({ pointerType: "mouse" }));
+    vi.advanceTimersByTime(449);
+    expect(c._open).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(c._open).toHaveBeenCalledWith({ kind: "program", programId: "pb", entityId: "cover.a" }, { weekday: 0, offset: 0 });
+    down(c)[(1 + 2) * 2 + 1].fn(ev()); // Wednesday: its title, then the first bar after Monday's and Tuesday's three elements
+    vi.advanceTimersByTime(450);
+    expect(c._open).toHaveBeenLastCalledWith({ kind: "program", programId: "pb", entityId: "cover.a" }, { weekday: 2, offset: 2 });
   });
-  it("a day that is not today carries no now line; today's does", () => {
+  it("moving the finger more than 8 px (a scroll) cancels the press", () => {
     const c = card([A()]);
-    expect(nowsOf(render(c))).toEqual([540]);
-    c._cmpDay = 2;
-    expect(nowsOf(render(c))).toEqual([null]);
+    down(c)[1].fn(ev());
+    handlers(render(c)).filter((h) => h.event === "pointermove")[1].fn(ev({ clientX: 30 }));
+    vi.advanceTimersByTime(450);
+    expect(c._open).not.toHaveBeenCalled();
   });
-  it("the day-off chip exists only with a day off, and shows that group", () => {
-    const p = program("pb", "Alpha", ["cover.a"], {}, { copy: 6 });
-    expect(chips(card([A()]))).toHaveLength(7);
-    const c = card([p], {}, { holiday_entity: "binary_sensor.off" });
-    expect(chips(c)).toHaveLength(8);
-    chips(c)[7].fn();
-    expect(flat(render(c))).toContain("cday cday-off");
-    expect(panels(c)).toEqual([t("en", "holiday_title")]);
+  it("Enter and Space on a bar open its day, another key does nothing", () => {
+    const c = card([A(), B()]);
+    const key = handlers(render(c)).filter((h) => h.event === "keydown")[1].fn;
+    expect(enter(key).preventDefault).toHaveBeenCalled();
+    enter(key, " ");
+    enter(key, "x");
+    expect(c._open).toHaveBeenCalledTimes(2);
+    expect(c._open).toHaveBeenCalledWith({ kind: "program", programId: "pb", entityId: "cover.a" }, { weekday: 0, offset: 0 });
   });
-  it("a chosen day-off view falls back to today when the day off disappears", () => {
+  it("a click without a pointer (screen reader) opens the day, a mouse click does not", () => {
     const c = card([A()]);
-    c._cmpDay = 7;
-    expect(panels(c)).toEqual(["Monday"]);
+    const click = handlers(render(c)).filter((h) => h.event === "click")[2].fn; // after the icon and Monday's title
+    click({ detail: 1 });
+    expect(c._open).not.toHaveBeenCalled();
+    click({ detail: 0 });
+    expect(c._open).toHaveBeenCalledTimes(1);
   });
-  it("arrow keys move the choice, Home and End jump, other keys do nothing", () => {
-    const c = card([A()]);
-    const key = handlers(render(c)).find((h) => h.event === "keydown")!;
-    const press = (k: string) => { const e = { key: k, preventDefault: vi.fn() }; key.fn(e); return e.preventDefault; };
-    expect(press("ArrowRight")).toHaveBeenCalled();
-    expect(c._cmpDay).toBe(1);
-    const k2 = () => handlers(render(c)).find((h) => h.event === "keydown")!;
-    k2().fn({ key: "End", preventDefault: vi.fn() });
-    expect(c._cmpDay).toBe(6);
-    k2().fn({ key: "ArrowRight", preventDefault: vi.fn() });
-    expect(c._cmpDay).toBe(0); // wraps
-    k2().fn({ key: "ArrowLeft", preventDefault: vi.fn() });
-    expect(c._cmpDay).toBe(6);
-    k2().fn({ key: "Home", preventDefault: vi.fn() });
-    expect(c._cmpDay).toBe(0);
-    const prevented = vi.fn();
-    k2().fn({ key: "x", preventDefault: prevented });
-    expect(prevented).not.toHaveBeenCalled();
-    expect(c._cmpDay).toBe(0);
+  it("a day title opens that day for the first device of the card", () => {
+    const c = card([A(), B()]);
+    down(c)[0].fn(ev());
+    vi.advanceTimersByTime(450);
+    expect(c._open).toHaveBeenCalledWith({ kind: "program", programId: "pb", entityId: "cover.a" }, { weekday: 0, offset: 0 });
+  });
+  it("a bar of the day-off group opens its program without a day", () => {
+    const own = program("po", "Own", ["cover.o"], {}, { copy: 6 });
+    const c = card([own], {}, { holiday_entity: "binary_sensor.off" });
+    const presses = down(c);
+    presses[presses.length - 1].fn(ev());
+    vi.advanceTimersByTime(450);
+    expect(c._open).toHaveBeenCalledWith({ kind: "program", programId: "po", entityId: "cover.o" }, undefined);
+  });
+  it("rows are focusable buttons named from the device and the day, only when editing is allowed", () => {
+    const h = flat(render(card([A()])));
+    expect(h.match(/class="cbar press" role="button" tabindex="0" aria-label=Zeta, \w+/g)).toHaveLength(7);
+    expect(h.match(/class="ctitle press" role="button" tabindex="0" aria-label=\w+/g)).toHaveLength(7);
+    expect(h).toContain(`aria-description=${t("en", "compare_row_action")}`);
+    expect(h).toContain('<p class="chint"');
+  });
+  it.each([
+    ["the user may not edit", { can_edit: false }],
+    ["the card is read only", { read_only: true }],
+  ])("when %s, nothing is a button, nothing opens, no hint line", (_why, data) => {
+    const c = card([A()], {}, data);
+    const h = flat(render(c));
+    expect(h).not.toContain("role=\"button\"");
+    expect(h).not.toContain("tabindex");
+    expect(h).not.toContain("chint");
+    expect(down(c)).toHaveLength(0);
+    expect(h.match(/class="cbar" role="img"/g)).toHaveLength(7);
+  });
+  it("today's bar is inert while a day off replaces today, the other days still open", () => {
+    const p = program("pb", "Alpha", ["cover.a"], {}, { day: [slot("h", "12:00", "13:00")] });
+    const c = card([p], {}, { holiday_entity: "binary_sensor.off", holiday_today: true, status: { pb: { holiday: { own: true } } } });
+    const h = flat(render(c));
+    expect(h.match(/class="cbar press"/g)).toHaveLength(7); // six days and the day off
+    expect(h.match(/class="cbar" role="img"/g)).toHaveLength(1); // today's
+  });
+  it("the touch targets are 44 px high", () => {
+    const css = (WeeklyPlannerCard as any).styles.map((x: any) => x.cssText ?? "").join("");
+    expect(css).toContain(".ctitle.press { display: flex; align-items: center; min-height: 44px;");
+    expect(css).toContain(".cbar.press { margin: -6px 0; padding: 8px 0;");
+  });
+  it("the texts exist in EN and FR", () => {
+    expect(t("en", "compare_row_action")).toBe("Opens this day for editing");
+    expect(t("fr", "compare_row_action")).toBe("Ouvre ce jour pour le modifier");
   });
 });
 
