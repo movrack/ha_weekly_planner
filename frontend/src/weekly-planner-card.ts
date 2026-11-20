@@ -782,7 +782,8 @@ export class WeeklyPlannerCard extends LitElement {
   /**
    * The two collapsible parts under today's bar: the next 6 days (one thin bar each) and, unless `show_chart` is off,
    * the chart of today (same component as the schedule screen; no history is fetched while it is collapsed).
-   * The buttons sit on one row, 16 px apart; the panels open below. The chart choice is remembered per card and device.
+   * Stacked at every width: each button is immediately followed by its own panel (Week, week bars, Today's chart,
+   * chart). The chart choice is remembered per card and device.
    */
   private _extras(scope: Scope, entityId: string, programs: Program[]) {
     const lang = this._lang;
@@ -809,12 +810,8 @@ export class WeeklyPlannerCard extends LitElement {
     const date = localDateIso(this._now, this._tz);
     const { today: slots, previous } = this._deviceDays(program.id, date, entityId);
     return html`
-      <div class="toggles">
-        <button class="weekbtn" aria-label=${t(lang, "week_of", { name: who })} aria-expanded=${weekOpen} @click=${toggleWeek}>
-          <ha-icon icon="mdi:calendar-week"></ha-icon>${t(lang, "week")}<ha-icon class="after" icon=${weekOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>
-        ${showChart ? html`<button class="weekbtn chartbtn" aria-label=${t(lang, "chart_day_of", { name: who })} aria-expanded=${chartOpen} @click=${toggleChart}>
-          <ha-icon icon="mdi:chart-line"></ha-icon>${t(lang, "chart_day")}<ha-icon class="after" icon=${chartOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>` : nothing}
-      </div>
+      <button class="weekbtn" aria-label=${t(lang, "week_of", { name: who })} aria-expanded=${weekOpen} @click=${toggleWeek}>
+        <ha-icon icon="mdi:calendar-week"></ha-icon>${t(lang, "week")}<ha-icon class="after" icon=${weekOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>
       ${weekOpen ? html`<div class="week wp-appear">
         ${[0, 1, 2, 3, 4, 5, 6].map((weekday) => {
           // the whole week, Monday to Sunday, each day at its next occurrence (today included)
@@ -827,6 +824,8 @@ export class WeeklyPlannerCard extends LitElement {
         })}
         ${this._holidayRow(entityId, program)}
       </div>` : nothing}
+      ${showChart ? html`<button class="weekbtn chartbtn" aria-label=${t(lang, "chart_day_of", { name: who })} aria-expanded=${chartOpen} @click=${toggleChart}>
+        <ha-icon icon="mdi:chart-line"></ha-icon>${t(lang, "chart_day")}<ha-icon class="after" icon=${chartOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>` : nothing}
       ${chartOpen ? html`<div class="chartbox wp-appear"><wp-chart .hass=${this.hass} .data=${this._data} .program=${program}
         entity-id=${entityId} date=${date} .slots=${slots ? [...(previous ?? []), ...slots] : null}
         @open-history=${(e: CustomEvent<string>) => openHistory(e.detail)}></wp-chart></div>` : nothing}`;
@@ -947,7 +946,7 @@ export class WeeklyPlannerCard extends LitElement {
     .compact-details { padding-bottom: 8px; }
     .devtabs { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0 8px; }
     .devtab {
-      display: inline-flex; align-items: center; gap: 4px; min-height: 48px; max-width: 100%; padding: 0 16px; border-radius: 24px;
+      display: flex; align-items: center; gap: 4px; min-height: 48px; max-width: 100%; padding: 0 16px; border-radius: 24px;
       border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem;
       text-align: left; cursor: pointer; --mdc-icon-size: 20px;
     }
@@ -1009,9 +1008,8 @@ export class WeeklyPlannerCard extends LitElement {
     wp-bar-editor { margin-top: 2px; }
     .schedule-list { margin: 8px 0 0; }
     .sl-title { margin: 0 0 4px; font-size: 1rem; font-weight: 700; color: var(--primary-text-color); }
-    .toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }
     .weekbtn {
-      display: inline-flex; align-items: center; gap: 4px; min-height: 48px; min-width: 48px; padding: 0 8px 0 0; border: none;
+      display: flex; align-items: center; gap: 4px; min-height: 48px; min-width: 48px; padding: 0 8px 0 0; border: none;
       background: none; color: var(--wp-primary-text); font: inherit; font-size: 1rem; cursor: pointer; --mdc-icon-size: 22px;
     }
     .weekbtn .after { --mdc-icon-size: 20px; }

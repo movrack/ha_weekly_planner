@@ -60,9 +60,29 @@ describe("chart under the week on the card", () => {
     expect(out).toContain("mdi:chevron-down");
     expect(out).not.toContain("wp-chart");
   });
-  it("keeps the week and chart buttons on one row", async () => {
-    const out = flat((await card())._extras(scope, "switch.x", [program]));
-    expect(out).toMatch(/class="toggles"[\s\S]*Week[\s\S]*Today’s chart/);
+  it("puts each panel directly under its own button (week, week panel, chart, chart panel)", async () => {
+    const c = await card();
+    c._week = new Set([`${scopeKey(scope)}|switch.x`]);
+    c._charts = new Map([[keyOf(c), true]]);
+    const out = flat(c._extras(scope, "switch.x", [program]));
+    expect(out).not.toContain("toggles");
+    const at = (s: string) => out.indexOf(s);
+    expect(at("mdi:calendar-week")).toBeGreaterThan(-1);
+    expect(at("mdi:calendar-week")).toBeLessThan(at('class="week wp-appear"'));
+    expect(at('class="week wp-appear"')).toBeLessThan(at("mdi:chart-line"));
+    expect(at("mdi:chart-line")).toBeLessThan(at("<wp-chart"));
+  });
+  it("keeps the week and the chart independent", async () => {
+    const c = await card();
+    c._week = new Set([`${scopeKey(scope)}|switch.x`]);
+    const out = flat(c._extras(scope, "switch.x", [program]));
+    expect(out).toContain('class="week wp-appear"');
+    expect(out).not.toContain("<wp-chart");
+    const c2 = await card();
+    c2._charts = new Map([[keyOf(c2), true]]);
+    const out2 = flat(c2._extras(scope, "switch.x", [program]));
+    expect(out2).toContain("<wp-chart");
+    expect(out2).not.toContain('class="week wp-appear"');
   });
   it("renders the chart only when expanded", async () => {
     const c = await card();
