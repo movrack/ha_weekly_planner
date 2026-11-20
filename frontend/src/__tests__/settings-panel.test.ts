@@ -72,8 +72,8 @@ describe("bar panel", () => {
     Object.defineProperty(el, "_sel", { get: () => ({ target: { kind: "slot", id: "1" }, slot: { id: "1", label: "t21" }, start: 480, end: 720 }) });
     el._ctx = () => ({ defaultLabel: "t21", at: () => 0 });
     const html = flat(el._strip());
-    expect(html.indexOf("class=\"copy\"")).toBeGreaterThan(-1);
-    expect(html.indexOf("class=\"copy\"")).toBeLessThan(html.indexOf("<wp-label-picker"));
+    expect(html.indexOf("class=\"copy wp-appear\"")).toBeGreaterThan(-1);
+    expect(html.indexOf("class=\"copy wp-appear\"")).toBeLessThan(html.indexOf("<wp-label-picker"));
   });
   it("hands the settings picker as choose-only", () => {
     expect(strip(true)).toContain("readonly-settings");

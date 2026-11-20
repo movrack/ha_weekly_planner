@@ -3,8 +3,8 @@
 // of several runs, each set to 5-10x the median measured on a laptop (noted next to each budget).
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { groupSlots, writeGroups } from "../actions";
-import { boundaries, moveBoundary, overlapDay, segments, splitBusyDays, type DayCtx } from "../edits";
-import { clearPreviewCache, fetchPreview, syncPreviewCache } from "../preview-cache";
+import { boundaries, moveBoundary, overlapPair, segments, splitBusyDays, type DayCtx } from "../edits";
+import { clearPreviewCache, fetchPreviewResponse, syncPreviewCache } from "../preview-cache";
 import { findOverlap, fixedInterval } from "../slots";
 import { clockToMinutes, dateFormat, fmtClock, formatWhen, localDateIso, localMinutes } from "../time";
 import type { HomeAssistant, Profile, Program, Slot, TimeSpec } from "../types";
@@ -154,19 +154,19 @@ describe("preview cache with 400 entries", () => {
 
   it("asks the server once per (program, date), then answers from the cache", async () => {
     const hass = hassWith();
-    await Promise.all(keys.map(([p, d]) => fetchPreview(hass, p, 1, d)));
+    await Promise.all(keys.map(([p, d]) => fetchPreviewResponse(hass, p, 1, d)));
     expect(hass.callWS).toHaveBeenCalledTimes(400);
-    await Promise.all(keys.map(([p, d]) => fetchPreview(hass, p, 1, d)));
-    await Promise.all(keys.map(([p, d]) => fetchPreview(hass, p, 1, d)));
+    await Promise.all(keys.map(([p, d]) => fetchPreviewResponse(hass, p, 1, d)));
+    await Promise.all(keys.map(([p, d]) => fetchPreviewResponse(hass, p, 1, d)));
     expect(hass.callWS).toHaveBeenCalledTimes(400);
   });
 
   it("stays bounded at 400 entries and syncs 50 programs under budget", async () => {
     const hass = hassWith();
-    await Promise.all(keys.map(([p, d]) => fetchPreview(hass, p, 1, d)));
-    await fetchPreview(hass, "extra", 1, "2026-02-01"); // 401st: evicts the oldest
+    await Promise.all(keys.map(([p, d]) => fetchPreviewResponse(hass, p, 1, d)));
+    await fetchPreviewResponse(hass, "extra", 1, "2026-02-01"); // 401st: evicts the oldest
     expect(hass.callWS).toHaveBeenCalledTimes(401);
-    await fetchPreview(hass, "extra", 1, "2026-02-01");
+    await fetchPreviewResponse(hass, "extra", 1, "2026-02-01");
     expect(hass.callWS).toHaveBeenCalledTimes(401);
     const programs = Array.from({ length: 50 }, (_, i) => ({ id: `prog${i}`, revision: 1 }));
     const ms = best(() => {
@@ -195,10 +195,10 @@ describe("edits on 50 slots a day", () => {
 
   it("snaps and overlap-checks the whole week under budget", () => {
     const ms = best(() => {
-      expect(overlapDay(profile)).toBeNull();
+      expect(overlapPair(profile)).toBeNull();
       segments(slots, ctx);
       for (const b of boundaries(slots, ctx)) if (b.refs[0]) moveBoundary(slots, b.refs[0], b.m + 1, ctx);
-      splitBusyDays(profile, all, at, slotsOf("n", 1, 2)[0]);
+      splitBusyDays(profile, all, slotsOf("n", 1, 2)[0]);
       writeGroups(profile, groupSlots(profile, all, at), all, at);
     }, 5);
     console.log(`[perf] edits, 50 slots x 7 days: ${ms.toFixed(1)} ms (budget ${BUDGET.edits})`);

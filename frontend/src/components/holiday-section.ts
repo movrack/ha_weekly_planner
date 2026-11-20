@@ -13,6 +13,7 @@ import { dayInText, holidayChoice, holidayOwnSlots } from "../holiday";
 import { errorText, strings, t } from "../i18n";
 import { labelName, labelOf } from "../labels";
 import { specMinutes } from "../slots";
+import { collapse } from "../styles";
 import { editorStyles, langOf } from "../editors/shared";
 import { confirmAction } from "./confirm";
 import type { HolidaySetting, HomeAssistant, PlannerData, Profile, Program, Slot } from "../types";
@@ -204,7 +205,7 @@ export class WpHoliday extends LitElement {
         <span class="state">${this._summary(shown.holiday)}</span>
         <ha-icon icon=${this._open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>
       <p class="sr-only" role="status">${this._status}</p>
-      <div id=${id} ?hidden=${!this._open}>
+      ${collapse(this._open, html`
         ${this.source ? html`<p class="muted">${t(lang, "holiday_follows_note", { mode: this.source.name })}</p>` : html`
           <label class="sw"><input type="checkbox" role="switch" .checked=${choice !== "none"} ?disabled=${this._readOnly}
             @change=${(e: Event) => void this._toggle((e.target as HTMLInputElement).checked)} />
@@ -218,7 +219,7 @@ export class WpHoliday extends LitElement {
         </fieldset>
         ${choice === "own" ? this._ownDay() : nothing}` : nothing}`}
         ${this._error ? html`<p class="err" role="alert">${this._error}</p>` : nothing}
-      </div>
+      `, id)}
     </section>`;
   }
 

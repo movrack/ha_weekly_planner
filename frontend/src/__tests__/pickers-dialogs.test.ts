@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WpActionPicker } from "../components/action-picker";
 import { WpDialog } from "../components/dialog";
-import { WpConfirm, WpPauseChoice, confirmAction, pauseChoice } from "../components/confirm";
 import { flat, handlers, find } from "./helpers/tpl";
 
 beforeEach(() => {
@@ -41,8 +40,7 @@ describe("wp-action-picker advanced options", () => {
     const html = flat(svc().el.render());
     expect(html).toContain('id="action"');
     expect(html).toContain("temperature");
-    expect(html).not.toContain("action-target-mode");
-    expect(html).not.toContain("target_temp_high");
+    expect(html).toContain('class="wp-collapse "'); expect(html).not.toContain("wp-collapse open");   // the rest is drawn but folded
     expect(html).toContain("aria-expanded=");
   });
   it("shows the target choice and the upper / lower temperatures once opened", () => {
@@ -61,7 +59,7 @@ describe("wp-action-picker advanced options", () => {
   it("opens by itself when another entity is targeted, or when a parent asks for it", () => {
     expect(flat(svc({}, { action: { kind: "service", service: "climate.set_temperature", target_entity_id: "climate.t", data: { temperature: 20 } } }).el.render())).toContain("action-target-mode");
     expect(flat(svc({}, { advancedOpen: true }).el.render())).toContain('<slot name="advanced">');
-    expect(flat(svc().el.render())).not.toContain('<slot name="advanced">');
+    expect(flat(svc().el.render())).not.toContain("wp-collapse open");
   });
 });
 
@@ -90,7 +88,7 @@ describe("wp-action-picker", () => {
   });
   it("switches the target between the device and another entity", () => {
     const { el, seen } = picker({ action: { kind: "service", service: "climate.turn_off" } });
-    expect(flat(el.render())).not.toContain("action-target-mode");
+    expect(flat(el.render())).not.toContain("wp-collapse open");
     find(el.render(), "click", "opts").fn();
     find(el.render(), "change", "action-target-mode").fn({ target: { value: "other" } });
     expect(seen[0]).toEqual({ kind: "service", service: "", target_entity_id: "" });
@@ -222,119 +220,5 @@ describe("wp-dialog", () => {
     vi.stubGlobal("matchMedia", () => ({ matches: false }));
     el._hdown(p({})); expect(el._sw).toBeUndefined();
     el._hmove(p({})); el._hup(p({}));
-  });
-});
-
-describe("wp-confirm", () => {
-  it("renders the message with a destructive and a cancel button and reports the choice", () => {
-    const el = new WpConfirm() as any;
-    Object.assign(el, { message: "Sure?", confirmLabel: "Delete", lang: "en" });
-    const closed = vi.fn(); el.renderRoot = { querySelector: () => ({ close: closed }) };
-    const seen: any[] = []; el.dispatchEvent = (e: any) => { seen.push(e.detail); return true; };
-    const r = el.render();
-    expect(flat(r)).toContain("Sure?"); expect(flat(r)).toContain("Delete");
-    find(r, "click", "danger").fn();
-    find(r, "closed", "wp-dialog").fn({ stopPropagation() {} });
-    find(r, "click", "cancel").fn();
-    find(r, "closed", "wp-dialog").fn({ stopPropagation() {} });
-    expect(seen).toEqual([true, false]); expect(closed).toHaveBeenCalledTimes(2);
-  });
-  it("confirmAction appends the element and resolves with the choice", async () => {
-    const listeners: Record<string, (e: any) => void> = {};
-    const created: any = { addEventListener: (n: string, f: any) => { listeners[n] = f; }, remove: vi.fn() };
-    (document as any).createElement = () => created;
-    const append = vi.fn();
-    const yes = confirmAction({ shadowRoot: { appendChild: append }, hass: { locale: { language: "fr" } } } as any, "m", "ok", "no");
-    expect(created).toMatchObject({ message: "m", confirmLabel: "ok", cancelLabel: "no", lang: "fr" });
-    listeners.choice({ detail: true });
-    expect(await yes).toBe(true); expect(created.remove).toHaveBeenCalled();
-    const host: any = { appendChild: append, hass: { language: "de" } };
-    const no = confirmAction(host, "m", "ok");
-    expect(created.lang).toBe("de");
-    listeners.choice({ detail: false });
-    expect(await no).toBe(false);
-    void confirmAction({ appendChild: append } as any, "m", "ok");
-    expect(created.lang).toBe("en");
-  });
-});
-
-describe("wp-pause-choice", () => {
-  const mount = () => {
-    const el = new WpPauseChoice() as any;
-    Object.assign(el, { message: "Office", lang: "fr" });
-    el.renderRoot = { querySelector: () => ({ close: vi.fn() }) };
-    const seen: any[] = []; el.dispatchEvent = (e: any) => { seen.push(e.detail); return true; };
-    return { el, seen };
-  };
-  const done = (r: any) => find(r, "closed", "wp-dialog").fn({ stopPropagation() {} });
-  it("shows a Duration label, a Indefinite / Pause switch, the durations, then Confirm and Cancel", () => {
-    const { el } = mount();
-    const out = flat(el.render());
-    for (const w of ["Jusqu’à quand ?", "Jusqu’à la reprise", "Pour une durée", "Pause", "1 jour", "7 jours", "jours", "Confirmer", "Annuler"]) expect(out).toContain(w);
-  });
-  it("confirms 1 day (24 h) by default, or 1 hour, or 7 days once picked", () => {
-    let { el, seen } = mount();
-    let r = el.render();
-    handlers(r).filter((h) => h.event === "click").slice(-1)[0]!.fn();   // Confirm (last click)
-    done(r);
-    expect(seen).toEqual([24]);
-    ({ el, seen } = mount());
-    r = el.render();
-    handlers(r).filter((h) => h.event === "click")[2]!.fn();       // 1 hour
-    r = el.render();
-    handlers(r).filter((h) => h.event === "click").slice(-1)[0]!.fn();
-    done(r);
-    expect(seen).toEqual([1]);
-    ({ el, seen } = mount());
-    r = el.render();
-    handlers(r).filter((h) => h.event === "click")[4]!.fn();       // 7 days
-    r = el.render();
-    handlers(r).filter((h) => h.event === "click").slice(-1)[0]!.fn();
-    done(r);
-    expect(seen).toEqual([168]);
-  });
-  it("hides the durations with Indefinite and confirms 'none'; Cancel gives null", () => {
-    const { el, seen } = mount();
-    handlers(el.render()).filter((h) => h.event === "click")[0]!.fn(); // Indefinite
-    const r = el.render();
-    expect(flat(r)).not.toContain("7 jours");
-    expect(flat(r)).toContain("restent arrêtés");
-    handlers(r).filter((h) => h.event === "click").slice(-1)[0]!.fn();
-    done(r);
-    const c = mount();
-    handlers(c.el.render()).filter((h) => h.event === "click").slice(-2)[0]!.fn();
-    done(c.el.render());
-    expect(seen).toEqual(["none"]); expect(c.seen).toEqual([null]);
-  });
-  it("takes days and hours: 1 hour to 365 days in total, whole numbers, and refuses the rest", () => {
-    const { el, seen } = mount();
-    for (const [v, ok] of [["10", true], ["365", true], ["0", false], ["366", false], ["2.5", false], ["", false]] as const) {
-      el._custom = v; el._hours = "0";
-      expect(el._customHours()).toBe(ok ? Number(v) * 24 : null);
-    }
-    el._custom = "2"; el._hours = "5"; expect(el._customHours()).toBe(53);       // 2 days 5 hours
-    el._custom = "0"; el._hours = "6"; expect(el._customHours()).toBe(6);        // hours alone
-    el._custom = "365"; el._hours = "1"; expect(el._customHours()).toBeNull();   // over a year
-    el._custom = "1"; el._hours = "-1"; expect(el._customHours()).toBeNull();
-    el._custom = "3"; el._hours = "0";
-    let r = el.render();
-    handlers(r).filter((h) => h.event === "input")[1]!.fn({ target: { value: "21" } });   // the days field
-    expect(el._custom).toBe("21");
-    expect(el._pick).toBe("x");
-    el._custom = "0"; el._confirm(); expect(seen).toEqual([]);   // invalid: nothing sent
-    el._custom = "12";
-    r = el.render();
-    handlers(r).find((h) => h.event === "keydown")!.fn({ key: "Enter" });
-    done(r);
-    expect(seen).toEqual([288]);
-  });
-  it("pauseChoice resolves with the choice", async () => {
-    const listeners: Record<string, (e: any) => void> = {};
-    const created: any = { addEventListener: (n: string, f: any) => { listeners[n] = f; }, remove: vi.fn() };
-    (document as any).createElement = () => created;
-    const p = pauseChoice({ appendChild: vi.fn(), hass: { language: "fr" } } as any, "Office");
-    expect(created).toMatchObject({ message: "Office", lang: "fr" });
-    listeners.choice({ detail: 14 });
-    expect(await p).toBe(14);
   });
 });

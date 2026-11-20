@@ -28,16 +28,81 @@ export const labelOf = (data: PlannerData, id: string | null | undefined): Label
 
 const SERVICE_ID = /^[a-z0-9_]+\.[a-z0-9_]+$/;
 
+const toNumber = (raw: unknown): number => (typeof raw === "number" ? raw : typeof raw === "string" && raw.trim() !== "" ? Number(raw) : NaN);
+
+/** One thermostat's temperature for a preset: attribute `preset_temperatures.<preset>_temp`, else the number entity `number.<name>_preset_<preset>_temp`, else attribute `<preset>_temp`. 0 means "preset not used". */
+function readPreset(hass: HomeAssistant, entityId: string, preset: string): number {
+  const key = `${preset.toLowerCase()}_temp`;
+  const attrs = hass.states[entityId]?.attributes ?? {};
+  const nested = (attrs.preset_temperatures as Record<string, unknown> | undefined)?.[key];
+  const candidates = [nested, hass.states[`number.${entityId.split(".")[1]}_preset_${key}`]?.state, attrs[key]];
+  for (const raw of candidates) {
+    const n = toNumber(raw);
+    if (Number.isFinite(n) && n !== 0) return n;
+  }
+  return NaN;
+}
+
+/**
+ * Temperature of a preset mode, read from the thermostat (Versatile Thermostat: `preset_temperatures`, its number
+ * entities). On several thermostats: shown only when they all agree. Undefined when unreadable.
+ */
+export function presetTemperature(hass: HomeAssistant, action: Action, entityId?: string): number | undefined {
+  if (action.kind !== "service" || action.service !== "climate.set_preset_mode") return undefined;
+  const preset = action.data?.preset_mode;
+  if (typeof preset !== "string" || !preset) return undefined;
+  const target = action.target_entity_id ?? entityId;
+  const ids = target
+    ? [target]
+    : Object.values(hass.states).filter((s) => s.entity_id.startsWith("climate.") && Array.isArray(s.attributes.preset_modes) && s.attributes.preset_modes.includes(preset)).map((s) => s.entity_id);
+  const values = new Set<number>();
+  for (const id of ids) {
+    const n = readPreset(hass, id, preset);
+    if (Number.isFinite(n)) values.add(n);
+    else if (target) return undefined;
+  }
+  return values.size === 1 ? [...values][0] : undefined;
+}
+
+/**
+ * Value an action reads from an entity ("Value of an entity" on a field: `data_sources`), with its unit:
+ * a favourite position "40 %", a temperature "19 °C". Several linked values are joined; unreadable ones are left out.
+ */
+export function linkedValueText(hass: HomeAssistant, action: Action): string | undefined {
+  if (action.kind !== "service" || !action.data_sources) return undefined;
+  const out: string[] = [];
+  for (const source of Object.values(action.data_sources)) {
+    const state = hass.states[source.entity_id];
+    const raw = source.attribute ? state?.attributes[source.attribute] : state?.state;
+    if (raw === undefined || raw === null || raw === "" || raw === "unknown" || raw === "unavailable") continue;
+    const n = toNumber(raw);
+    const unit = source.attribute ? "" : String(state?.attributes.unit_of_measurement ?? "");
+    out.push(Number.isFinite(n) ? `${fmtNum(hass.language, n)}${unit ? ` ${unit}` : ""}` : String(raw));
+  }
+  return out.length ? out.join(", ") : undefined;
+}
+
 /**
  * Name to show for a setting. A name that is a raw service id ("vacuum.start", what an unnamed setting got
  * from its action) is shown with Home Assistant's translated service name, else the service part made readable.
- * The stored name is never changed.
+ * With `show_value`, the value the action reads from an entity follows ("Favourite (40 %)"), else, for a preset mode,
+ * its temperature ("Comfort (19 °C)"). The stored name is never changed.
  */
-export function labelName(hass: HomeAssistant, label: Pick<Label, "name">): string {
-  if (!SERVICE_ID.test(label.name)) return label.name;
-  const translated = serviceLabel(hass, label.name);
-  if (translated !== label.name) return translated;
-  const part = label.name.split(".")[1].replace(/_/g, " ");
+export function labelName(hass: HomeAssistant, label: Pick<Label, "name"> & Partial<Pick<Label, "action" | "show_value">>, entityId?: string): string {
+  const base = baseName(hass, label.name);
+  if (!label.show_value || !label.action) return base;
+  const linked = linkedValueText(hass, label.action);
+  if (linked !== undefined) return `${base} (${linked})`;
+  const value = presetTemperature(hass, label.action, entityId);
+  if (value === undefined) return base;
+  return `${base} (${fmtNum(hass.language, value)} ${hass.config.unit_system?.temperature ?? "°C"})`;
+}
+
+function baseName(hass: HomeAssistant, name: string): string {
+  if (!SERVICE_ID.test(name)) return name;
+  const translated = serviceLabel(hass, name);
+  if (translated !== name) return translated;
+  const part = name.split(".")[1].replace(/_/g, " ");
   return part.charAt(0).toUpperCase() + part.slice(1);
 }
 
@@ -173,9 +238,28 @@ export function actionSummary(hass: HomeAssistant, lang: string, action: Action 
   return [serviceLabel(hass, action.service), ...(action.target_entity_id ? [String(hass.states[action.target_entity_id]?.attributes.friendly_name ?? action.target_entity_id)] : []), ...values].join(" · ");
 }
 
+/** Does the program use the label (slots of any profile, defaults, values for a device)? */
+export const usesLabel = (p: Program, labelId: string): boolean =>
+  p.entities.some((e) => e.default_label === labelId || labelId in (e.label_overrides ?? {}))
+  || p.profiles.some((profile) => profile.days.some((day) => day.some((s: Slot) => s.label === labelId)) || holidayOwnSlots(profile).some((s: Slot) => s.label === labelId));
+
 /** Names of the programs using a label (slots of any profile, defaults, values for a device). */
-export function labelUsers(data: PlannerData, labelId: string): string[] {
-  return data.programs.filter((p) =>
-    p.entities.some((e) => e.default_label === labelId || labelId in (e.label_overrides ?? {}))
-    || p.profiles.some((profile) => profile.days.some((day) => day.some((s: Slot) => s.label === labelId)) || holidayOwnSlots(profile).some((s: Slot) => s.label === labelId))).map((p) => p.name);
+export const labelUsers = (data: PlannerData, labelId: string): string[] => data.programs.filter((p) => usesLabel(p, labelId)).map((p) => p.name);
+
+/** A copy of the program where `to` replaces `from` (slots, "the rest of the time"); the values of `from` for a device go with it. */
+export function replaceLabel(program: Program, from: string, to: string): Program {
+  const swap = (slot: Slot): Slot => (slot.label === from ? { ...slot, label: to } : slot);
+  return {
+    ...program,
+    entities: program.entities.map((e) => {
+      const overrides = { ...(e.label_overrides ?? {}) };
+      delete overrides[from];
+      return { ...e, default_label: e.default_label === from ? to : e.default_label, label_overrides: overrides };
+    }),
+    profiles: program.profiles.map((profile) => ({
+      ...profile,
+      days: profile.days.map((day) => day.map(swap)),
+      ...(profile.holiday && "day" in profile.holiday && profile.holiday.day ? { holiday: { ...profile.holiday, day: profile.holiday.day.map(swap) } } : {}),
+    })),
+  };
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { randomDelayRangeText, solarMeaningText, solarTodayText, WpSlotForm } from "../components/slot-form";
 import { t } from "../i18n";
 import { groupSlots, shiftSpec, slotKey, specText } from "../actions";
@@ -108,7 +108,10 @@ describe("random delay explanation", () => {
 });
 
 describe("solar time help", () => {
-  const hass = { states: { "sun.sun": { attributes: { next_setting: `${new Date().toISOString().slice(0, 11)}17:00:00Z` } } }, config: { time_zone: "UTC" } } as any;
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date("2026-11-02T10:00:00Z")); });
+  afterEach(() => vi.useRealTimers());
+  const sunset = (time: string) => ({ states: { "sun.sun": { attributes: { next_setting: `2026-11-02T${time}Z` } } }, config: { time_zone: "UTC" } }) as any;
+  const hass = sunset("17:00:00");
   const spec = { sun: "sunset", offset: 30, earliest: "18:00", latest: "19:00" } as const;
   it("explains the real time with offset and only the bounds that are set", () => {
     expect(solarMeaningText("fr", spec)).toBe("Heure réelle : coucher du soleil + 30 min, mais pas avant 18 h ni après 19 h.");
@@ -118,13 +121,14 @@ describe("solar time help", () => {
   });
   it("shows today's result only when computable", () => {
     expect(solarTodayText("fr", hass, spec)).toBe("Aujourd’hui : 18 h");
+    expect(solarTodayText("fr", sunset("17:30:00"), { sun: "sunset" })).toBe("Aujourd’hui : 17 h 30"); // the spoken clock, minutes included
     expect(solarTodayText("fr", undefined, spec)).toBe("");
     expect(solarTodayText("fr", { states: {}, config: { time_zone: "UTC" } } as any, spec)).toBe("");
   });
   it("uses clear labels and error text", () => {
     expect(t("fr", "sun_earliest")).toBe("Au plus tôt à");
     expect(t("fr", "sun_latest")).toBe("Au plus tard à");
-    expect(t("fr", "err_sun_bounds")).toBe("« Au plus tôt » doit précéder « Au plus tard ».");
+    expect(t("fr", "err_sun_bounds")).toBe("« Au plus tôt » doit précéder « Au plus tard ».");
     expect(t("en", "sun_earliest")).toBe("Not earlier than");
   });
 });

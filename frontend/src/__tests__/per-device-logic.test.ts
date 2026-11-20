@@ -2,17 +2,17 @@
 import { describe, expect, it } from "vitest";
 import { groupSlots, slotKey } from "../actions";
 import {
-  alsoFor, applyIntent, applyToAll, devicesOf, editForDevice, forDevices, isShared, remergeIdentical,
+  devicesOf, editForDevice, forDevices, isShared, remergeIdentical,
   removeDeviceFromSlots,
 } from "../device-edits";
 import {
   boundaries, compareOrigin, copyConflicts, copyToDays, findGroup, mergeAdjacent, moveBoundary, moveSlotBy, moveToDay,
-  nextTimes, overlapDay, overlapPair, segments, setLabel, splitAt, splitBusyDays,
+  nextTimes, overlapPair, segments, setLabel, splitAt, splitBusyDays,
 } from "../edits";
 import type { DayCtx, Shift } from "../edits";
 import { appliedAction } from "../labels";
-import { deviceSpans, fetchPreview, fetchPreviewResponse, clearPreviewCache } from "../preview-cache";
-import { applicable, daySlotsFor, findOverlap, normaliseEntities, sameEntities, sharesDevice } from "../slots";
+import { deviceSpans, fetchPreviewResponse, clearPreviewCache } from "../preview-cache";
+import { applicable, findOverlap, normaliseEntities, sameEntities, sharesDevice } from "../slots";
 import { clockToMinutes } from "../time";
 import type { Profile, Program, Slot, TimeSpec } from "../types";
 
@@ -43,7 +43,7 @@ describe("slots.ts helpers", () => {
     expect(sharesDevice({ entities: [A] }, { entities: [B] })).toBe(false);
     expect(sharesDevice({ entities: [A, B] }, { entities: [B] })).toBe(true);
   });
-  it("applicable, normaliseEntities (D5), sameEntities, daySlotsFor", () => {
+  it("applicable, normaliseEntities (D5), sameEntities", () => {
     expect(applicable({}, DEVICES)).toEqual(DEVICES);
     expect(applicable({ entities: [C, A] }, DEVICES)).toEqual([A, C]);
     expect(normaliseEntities([C, A, A, "x.unknown"], DEVICES)).toEqual([A, C]);
@@ -54,8 +54,6 @@ describe("slots.ts helpers", () => {
     expect(sameEntities({}, { entities: [A] })).toBe(false);
     expect(sameEntities({}, {})).toBe(true);
     expect(sameEntities({ entities: [A] }, { entities: [A, B] })).toBe(false);
-    const day = [slot("1", "07:00", "09:00", "t", [A]), slot("2", "07:00", null, "c", [B]), slot("3", "20:00", "22:00")];
-    expect(daySlotsFor(day, B).map((s) => s.id)).toEqual(["2", "3"]);
   });
   it("findOverlap: owner case (thermostat 07-22 vs cover 07-09) is not an overlap", () => {
     expect(findOverlap([slot("t", "07:00", "22:00", "15", [A]), slot("c", "07:00", "09:00", "close", [B])])).toBeNull();
@@ -91,18 +89,16 @@ describe("slotKey, groupSlots, compareOrigin", () => {
 });
 
 describe("schedule-screen checks", () => {
-  it("overlapPair / overlapDay follow devices", () => {
+  it("overlapPair follows devices", () => {
     const ok: Profile = { id: "m", name: "M", days: week([slot("t", "07:00", "22:00", "15", [A]), slot("c", "07:00", "09:00", "close", [B])]) };
     expect(overlapPair(ok)).toBeNull();
-    expect(overlapDay(ok)).toBeNull();
     const bad: Profile = { id: "m", name: "M", days: week([slot("t", "07:00", "22:00", "15", [A]), slot("c", "07:00", "09:00", "close")]) };
     expect(overlapPair(bad)?.day).toBe(0);
-    expect(overlapDay(bad)).toBe(0);
   });
   it("splitBusyDays: a slot of another device does not make a day busy", () => {
     const profile: Profile = { id: "m", name: "M", days: week([slot("t", "07:00", "22:00", "15", [A])]) };
-    expect(splitBusyDays(profile, () => true, at, slot("new", "08:00", "09:00", "c", [B]), [0]).busy).toEqual([]);
-    expect(splitBusyDays(profile, () => true, at, slot("new", "08:00", "09:00", "c"), [0]).busy).toEqual([0]);
+    expect(splitBusyDays(profile, () => true, slot("new", "08:00", "09:00", "c", [B]), [0]).busy).toEqual([]);
+    expect(splitBusyDays(profile, () => true, slot("new", "08:00", "09:00", "c"), [0]).busy).toEqual([0]);
   });
   it("nextTimes counts only the device's slots", () => {
     const day = [slot("t", "07:00", "22:00", "15", [A]), slot("c", "07:00", "09:00", "close", [B])];
@@ -198,14 +194,11 @@ describe("copies to other days", () => {
 
 describe("device-edits: normalisation and removal (D5)", () => {
   const p = program(week([]));
-  it("applyToAll, forDevices, alsoFor", () => {
-    expect(applyToAll(slot("1", "07:00", "08:00", "a", [A])).entities).toBeUndefined();
+  it("forDevices, isShared, devicesOf", () => {
     expect(forDevices(slot("1", "07:00", "08:00"), [C, A], p)!.entities).toEqual([A, C]);
     expect(forDevices(slot("1", "07:00", "08:00", "a", [A]), DEVICES, p)!.entities).toBeUndefined();
     expect("entities" in forDevices(slot("1", "07:00", "08:00", "a", [A]), DEVICES, p)!).toBe(false);
     expect(forDevices(slot("1", "07:00", "08:00"), [], p)).toBeNull();
-    expect(alsoFor(slot("1", "07:00", "08:00", "a", [B]), [A], p)!.entities).toEqual([A, B]);
-    expect(alsoFor(slot("1", "07:00", "08:00", "a", [B]), [A, C], p)!.entities).toBeUndefined();
     const single = program(week([]), [A]);
     expect(forDevices(slot("1", "07:00", "08:00"), [A], single)!.entities).toBeUndefined();
     expect(isShared(slot("1", "07:00", "08:00"), DEVICES)).toBe(true);
@@ -268,34 +261,6 @@ describe("device-edits: copy-on-write (D1, D7)", () => {
   });
 });
 
-describe("conflict retry by intent", () => {
-  it("re-evaluated on fresh data keeps a concurrent change made on another device", () => {
-    // tab 1 wanted: slot s, device B, label "close". Meanwhile tab 2 changed s for device A.
-    const base = program(week([slot("s", "07:00", "09:00", "on")]));
-    const tab2 = editForDevice(base.profiles[0].days, "s", A, { label: "15" }, { devices: DEVICES, newId: () => "a1" })!;
-    const fresh = { ...base, revision: 2, profiles: [{ ...base.profiles[0], days: tab2.days }] };
-    const r = applyIntent(fresh, { profileId: "m", slotId: "s", eid: B, change: { label: "close" } }, () => "b1");
-    expect("program" in r).toBe(true);
-    if (!("program" in r)) return;
-    expect(show(r.program.profiles[0].days[0]).sort()).toEqual([
-      "07:00-09:00:15[climate.living]", "07:00-09:00:close[cover.living]", "07:00-09:00:on[light.desk]",
-    ]);
-    expect(r.id).toBe("b1");
-  });
-  it("errors: gone, device, overlap; eid null edits every device", () => {
-    const base = program(week([slot("s", "07:00", "09:00", "on", [A]), slot("t", "09:00", "10:00", "x")]));
-    expect(applyIntent(base, { profileId: "zz", slotId: "s", eid: A, change: null })).toEqual({ error: "gone" });
-    expect(applyIntent(base, { profileId: "m", slotId: "nope", eid: A, change: null })).toEqual({ error: "gone" });
-    expect(applyIntent(base, { profileId: "m", slotId: "s", eid: B, change: { label: "y" } })).toEqual({ error: "device" });
-    expect(applyIntent(base, { profileId: "m", slotId: "s", eid: A, change: { end: { time: "09:30" } } })).toEqual({ error: "overlap" });
-    const all = applyIntent(base, { profileId: "m", slotId: "t", eid: null, change: { label: "z" } });
-    expect("program" in all && all.program.profiles[0].days[0][1].label).toBe("z");
-    const del = applyIntent(base, { profileId: "m", slotId: "t", eid: null, change: null });
-    expect("program" in del && del.program.profiles[0].days[0].length).toBe(1);
-    expect("program" in del && del.id).toBeNull();
-  });
-});
-
 describe("appliedAction follows applies", () => {
   const hass: any = { language: "en", config: { time_zone: "UTC" }, states: {}, services: { climate: { set_temperature: {} }, cover: { close_cover: {} } } };
   const temp: any = { id: "t", name: "15", color: "#00f", action: { kind: "service", service: "climate.set_temperature", data: { temperature: 15 } } };
@@ -315,13 +280,13 @@ describe("preview by device", () => {
     expect(deviceSpans({ slots: [span("1")], by_entity: {} }, A)).toEqual([]);
     expect(deviceSpans({ slots: [span("1"), span("2", [B])] }, A).map((s) => s.slot_id)).toEqual(["1"]);
   });
-  it("fetchPreviewResponse keeps by_entity and shares the cache with fetchPreview", async () => {
+  it("fetchPreviewResponse keeps by_entity and answers a repeated call from the cache", async () => {
     clearPreviewCache();
     let calls = 0;
     const hass: any = { callWS: async () => { calls++; return { slots: [span("1")], by_entity: { [A]: [span("1")] } }; } };
     const res = await fetchPreviewResponse(hass, "p", 1, "2026-11-01", "m");
     expect(res.by_entity?.[A].length).toBe(1);
-    expect((await fetchPreview(hass, "p", 1, "2026-11-01", "m")).length).toBe(1);
+    expect((await fetchPreviewResponse(hass, "p", 1, "2026-11-01", "m")).slots.length).toBe(1);
     expect(calls).toBe(1);
     const bare: any = { callWS: async () => ({ slots: [span("9")] }) };
     expect(await fetchPreviewResponse(bare, "q", 1, "2026-11-01")).toEqual({ slots: [span("9")] });

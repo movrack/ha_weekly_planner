@@ -21,8 +21,8 @@ import { applyEdit, compareOrigin, dayView, findGroup, freshGroup, groupId, next
 import { devicesOf, dropDeviceSlots, editForDevice, isShared, remergeIdentical } from "../device-edits";
 import type { SlotPatch } from "../device-edits";
 import type { RowEdit } from "../edits";
-import { appliedAction, labelDomains, labelName, labelOf, labelsFor } from "../labels";
-import type { LabelDraft } from "./label-picker";
+import { appliedAction, labelDomains, labelName, labelOf, labelsFor, replaceLabel } from "../labels";
+import type { LabelDraft, LabelReplaced } from "./label-picker";
 import { addDaysIso } from "./chart";
 import { chooseAction, confirmAction, pauseChoice } from "./confirm";
 import { errorText, slotDeviceError, strings, t } from "../i18n";
@@ -33,7 +33,7 @@ import { DAY, formatPauseEnd, localDateIso, localWeekday, minutesToClock, pauseE
 import { dayInText, holidayApplies, holidayChoice, holidayDayToday, holidayOwnSlots, holidayReplaces } from "../holiday";
 import { applicable, applies, normaliseEntities, shiftTimeSpec, specMinutes, sunBoundsInvalid } from "../slots";
 import { editorStyles, langOf } from "../editors/shared";
-import { callout } from "../styles";
+import { callout, collapse } from "../styles";
 import type { Action, HomeAssistant, PlannerData, PreviewResponse, PreviewSlot, Profile, Program, Slot, TimeSpec } from "../types";
 
 /** The profiles with `next` in place of the one with its id, added at the end when it is new. */
@@ -366,8 +366,9 @@ export class WpSchedule extends LitElement {
   private _revealEditor(): void {
     const editor = this.renderRoot.querySelector<HTMLElement>(".editor");
     if (!editor) return;
-    const twoColumns = typeof matchMedia === "function" && matchMedia("(min-width: 768px)").matches;
-    const content = this.renderRoot.querySelector("wp-dialog")?.shadowRoot?.querySelector<HTMLElement>(".content");
+    const dialogRoot = this.renderRoot.querySelector("wp-dialog")?.shadowRoot;
+    const twoColumns = (dialogRoot?.querySelector<HTMLElement>(".panel")?.getBoundingClientRect().width ?? 0) >= 736;
+    const content = dialogRoot?.querySelector<HTMLElement>(".content");
     if (!twoColumns || !content) { editor.scrollIntoView({ block: "start" }); return; }
     const e = editor.getBoundingClientRect();
     const c = content.getBoundingClientRect();
@@ -450,7 +451,8 @@ export class WpSchedule extends LitElement {
     const first = labelsFor(this.hass, this.data, [eid], program)[0];
     const day = days.length === 1 ? days[0] : null;
     const times = day === null ? undefined : nextTimes(this._modeProfile(program)?.days[day] ?? [], this._minutes, eid);
-    const group = freshGroup(first?.id ?? "", days, times);
+    // the new slot starts after the last one of the day and has no end (“One-time” is the default)
+    const group = freshGroup(first?.id ?? "", days, times && { start: times.start });
     // a new slot belongs to the device it is created from ("Also for" adds others); absent for a single device (D5)
     const entities = normaliseEntities([eid], devicesOf(program));
     if (entities) group.slot.entities = entities;
@@ -463,7 +465,7 @@ export class WpSchedule extends LitElement {
     const program = this._programs.find((p) => p.id === this._programId);
     const g = this._group;
     if (!program || !g) return;
-    const problem = this._problem(program);
+    const problem = this._problem();
     if (problem) {
       this._error = problem;
       return;
@@ -589,7 +591,7 @@ export class WpSchedule extends LitElement {
     });
   }
 
-  private _problem(program: Program): string {
+  private _problem(): string {
     const lang = this._lang;
     const g = this._group;
     if (!g) return "";
@@ -623,12 +625,12 @@ export class WpSchedule extends LitElement {
     }
   }
 
-  /** The values of the open slot that an edit for one device changes (never its id, devices or seed). */
+  /**
+   * The values of the open slot that an edit for one device changes (never its id, devices or seed). An absent
+   * field stays undefined: `editForDevice` drops undefined fields, so it keeps the slot's own value.
+   */
   private _patch(slot: Slot): SlotPatch {
-    const patch: SlotPatch = { start: slot.start, end: slot.end ?? null, label: slot.label };
-    if (slot.conditions !== undefined) patch.conditions = slot.conditions;
-    if (slot.color !== undefined) patch.color = slot.color;
-    return patch;
+    return { start: slot.start, end: slot.end ?? null, label: slot.label, conditions: slot.conditions, color: slot.color };
   }
 
   /**
@@ -644,7 +646,6 @@ export class WpSchedule extends LitElement {
     for (const d of new Set([...edited, ...wanted])) {
       const id = origin.ids[d];
       if (id) {
-        if (!edited.includes(d) && !wanted.includes(d)) continue;
         const res = editForDevice(days, id, eid, draft && wanted.includes(d) ? this._patch(draft.slot) : null, { devices });
         if (!res) return null;
         days = res.days;
@@ -657,19 +658,19 @@ export class WpSchedule extends LitElement {
   }
 
   /**
-   * The group being edited against the current profile: unchanged, merged when only its other days moved,
-   * or changed meanwhile (then the editor shows the new version, or closes if it is gone).
+   * The group being edited against the current profile. False: unchanged, or merged when only its other days moved.
+   * True: changed meanwhile (then the editor shows the new version, or closes if it is gone).
    */
-  private _checkOrigin(profile: Profile, program: Program): "ok" | "changed" {
+  private _originChanged(profile: Profile, program: Program): boolean {
     const origin = this._origin;
-    if (!origin || !this._openId) return "ok";
+    if (!origin || !this._openId) return false;
     const fresh = findGroup(profile, this._include, this._minutes, this._openId);
     const state = compareOrigin(fresh, origin);
-    if (state === "same") return "ok";
+    if (state === "same") return false;
     if (state === "days" && fresh && this._dayOnly !== null && fresh.days.includes(this._dayOnly)) {
       this._rest = dayView(fresh, this._dayOnly).rest;
       this._origin = structuredClone(fresh);
-      return "ok";
+      return false;
     }
     const message = t(this._lang, "ss_changed");
     if (fresh) {
@@ -682,13 +683,24 @@ export class WpSchedule extends LitElement {
     }
     this._error = fresh ? message : "";
     this._note = fresh ? "" : message;
-    return "changed";
+    return true;
   }
 
   /**
    * The label form of the open row is part of the row: saved first (then its values for a device become part
    * of the row's draft). False: stop, the error is shown.
    */
+  /** A setting was replaced everywhere and deleted: what this window holds follows, and the revision of its program too. */
+  private _onLabelReplaced({ from, to, revisions }: LabelReplaced): void {
+    if (this._draft) {
+      const revision = revisions[this._draft.id];
+      this._draft = { ...replaceLabel(this._draft, from, to), ...(revision !== undefined ? { revision } : {}) };
+    }
+    if (this._restLabel === from) this._restLabel = to;
+    if (this._group?.slot.label === from) this._group = { ...this._group, slot: { ...this._group.slot, label: to } };
+    this._pickerKey += 1;
+  }
+
   private async _saveLabelDraft(): Promise<boolean> {
     const d = this._labelDraft;
     if (!d) return true;
@@ -700,7 +712,7 @@ export class WpSchedule extends LitElement {
     try {
       const res = await this.hass.callWS<{ label: { id: string } }>({
         type: "weekly_planner/label/save",
-        label: { ...(d.id ? { id: d.id } : {}), name: d.name, color: d.color, action: d.action },
+        label: { ...(d.id ? { id: d.id } : {}), name: d.name, color: d.color, action: d.action, show_value: d.showValue },
       });
       for (const o of d.overrides) this._onOverride({ entityId: o.entityId, labelId: res.label.id, action: o.action });
       if (!d.id) {
@@ -726,7 +738,7 @@ export class WpSchedule extends LitElement {
     const draft = this._group;
     const program = this._live(this._programId);
     if (!program || !draft) return;
-    const problem = this._problem(program);
+    const problem = this._problem();
     if (problem) {
       this._error = problem;
       return;
@@ -736,7 +748,7 @@ export class WpSchedule extends LitElement {
       const ok = await this._commit(program.id, (live) => {
         const profile = this._editProfile(live);
         if (!profile) return { error: t(this._lang, "ss_changed") };
-        if (this._checkOrigin(profile, live) === "changed" || !this._origin) { stale = true; return { changed: true }; }
+        if (this._originChanged(profile, live) || !this._origin) { stale = true; return { changed: true }; }
         const days = this._forDevice(profile.days, this._origin, draft, devicesOf(live));
         if (!days) return { error: t(this._lang, "ss_changed") };
         const next = { ...profile, days };
@@ -752,7 +764,7 @@ export class WpSchedule extends LitElement {
     const saved = await this._commit(program.id, (live) => {
       const profile = this._editProfile(live);
       if (!profile) return { error: t(this._lang, "ss_changed") };
-      if (this._checkOrigin(profile, live) === "changed") {
+      if (this._originChanged(profile, live)) {
         changed = true;
         return { changed: true };
       }
@@ -761,7 +773,7 @@ export class WpSchedule extends LitElement {
       let group = draft;
       dropped = [];
       if (this._dropBusy) {
-        const { free, busy } = splitBusyDays(current, include, this._minutes, draft.slot, draft.days);
+        const { free, busy } = splitBusyDays(current, include, draft.slot, draft.days);
         if (!free.length) return { error: this._overlapText(applyEdit(current, include, this._minutes, { openId: this._openId, rest: this._rest, draft })) };
         group = { ...draft, days: free };
         dropped = busy;
@@ -793,7 +805,7 @@ export class WpSchedule extends LitElement {
     const ok = await this._commit(program.id, (live) => {
       const profile = this._editProfile(live);
       if (!profile) return { error: t(this._lang, "ss_changed") };
-      if (this._checkOrigin(profile, live) === "changed") return { changed: true };
+      if (this._originChanged(profile, live)) return { changed: true };
       if (one && this._origin) {
         // "This device": the slot stops for this device only, the other devices keep it (D1)
         const days = this._forDevice(profile.days, this._origin, null, devicesOf(live));
@@ -941,6 +953,8 @@ export class WpSchedule extends LitElement {
         .device=${this._eid} .also=${!this._shared}
         .dayOnly=${this._dayOnly} ?disabled=${!this._canEdit}
         @label-draft=${(e: CustomEvent<LabelDraft | null>) => { e.stopPropagation(); this._labelDraft = e.detail; this._error = ""; }}
+        @label-commit=${(e: Event) => { e.stopPropagation(); void this._saveLabelDraft(); }}
+        @label-replaced=${(e: CustomEvent<LabelReplaced>) => { e.stopPropagation(); this._onLabelReplaced(e.detail); }}
         @group-change=${(e: CustomEvent<SlotGroup>) => { e.stopPropagation(); this._group = e.detail; this._error = ""; }}></wp-slot-form>`)}
       ${this._shared && !isNew ? html`<div class="who" role="radiogroup" aria-label=${t(lang, "who_title")}>
         <span>${t(lang, "who_title")}</span>
@@ -952,8 +966,8 @@ export class WpSchedule extends LitElement {
         </div></div>` : nothing}
       ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
       <div class="btns">
-        <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRow()}>${t(lang, "save")}</button>
-        <button class="btn" @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
+        <button class="btn primary" ?disabled=${this._saving || !this._canEdit || this._labelDraft !== null} @click=${() => void this._saveRow()}>${t(lang, "save")}</button>
+        <button class="btn" ?disabled=${this._labelDraft !== null} @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
       </div>
       ${isNew || this._labelDraft ? nothing : html`<button class="btn dup" ?disabled=${!this._canEdit} @click=${() => this._duplicate()}>
         <ha-icon icon="mdi:content-copy"></ha-icon>${t(lang, "duplicate")}</button>`}
@@ -964,8 +978,7 @@ export class WpSchedule extends LitElement {
 
   private _renderRest() {
     const lang = this._lang;
-    const program = this._programs[0];
-    if (!program) return nothing;
+    const program = this._programs[0];  // render() shows this list only when the device has a program
     return [this._eid].filter((e) => program.entities.some((x) => x.entity_id === e)).map((eid) => {
       const entity = program.entities.find((x) => x.entity_id === eid)!;
       const key = `rest:${eid}`;
@@ -975,11 +988,13 @@ export class WpSchedule extends LitElement {
           ${keyed(this._pickerKey, html`<wp-label-picker embedded allow-none .hass=${this.hass} .data=${this.data} .program=${this._draft ?? program} .entityIds=${[eid]}
             .value=${this._restLabel} ?disabled=${!this._canEdit}
             @label-draft=${(e: CustomEvent<LabelDraft | null>) => { e.stopPropagation(); this._labelDraft = e.detail; this._error = ""; }}
+            @label-commit=${(e: Event) => { e.stopPropagation(); void this._saveLabelDraft(); }}
+            @label-replaced=${(e: CustomEvent<LabelReplaced>) => { e.stopPropagation(); this._onLabelReplaced(e.detail); }}
             @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._restLabel = e.detail; }}></wp-label-picker>`)}
           ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
           <div class="btns">
-            <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRest(eid)}>${t(lang, "save")}</button>
-            <button class="btn" @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
+            <button class="btn primary" ?disabled=${this._saving || !this._canEdit || this._labelDraft !== null} @click=${() => void this._saveRest(eid)}>${t(lang, "save")}</button>
+            <button class="btn" ?disabled=${this._labelDraft !== null} @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
           </div></div>`;
       }
       const label = labelOf(this.data, entity.default_label);
@@ -992,7 +1007,7 @@ export class WpSchedule extends LitElement {
   /** One chip per device of the program (icon and name from Home Assistant): the screen shows that device's schedules. */
   private _renderDevices() {
     if (this._entities.length < 2) return nothing;
-    return html`<div class="devices" role="radiogroup" aria-label=${t(this._lang, "device_label")}>
+    return html`<div class="label" id="devices-label">${t(this._lang, "device_label")}</div><div class="devices" role="radiogroup" aria-labelledby="devices-label">
       ${this._entities.map((eid) => {
         const on = eid === this._eid;
         return html`<button class="devchip ${on ? "on" : ""}" role="radio" aria-checked=${on} ?disabled=${this._open !== null}
@@ -1116,7 +1131,7 @@ export class WpSchedule extends LitElement {
         <ha-icon icon=${this._optsOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
         <span class="txt">${t(lang, "advanced_options")}</span>
         ${follow ? html`<small>${t(lang, "mode_follows_short", { source: follow })}</small>` : nothing}</button>
-      ${this._optsOpen ? html`<div class="opts-body">${this._renderFollow()}${this._renderCopy()}</div>` : nothing}`;
+      ${collapse(this._optsOpen, html`<div class="opts-body">${this._renderFollow()}${this._renderCopy()}</div>`)}`;
   }
 
   /** Warning shown when the opened mode is not the active one: what it means and when it will apply. */
@@ -1168,9 +1183,7 @@ export class WpSchedule extends LitElement {
           const text = notes.length ? `${m.name} (${notes.join(", ")})` : m.name;
           return html`<option value=${m.name} ?selected=${m.name === open}>${text}</option>`;
         })}
-      </select>
-      ${open !== null && open === this.data.mode?.active
-        ? callout("success", t(lang, "mode_active_now"), undefined, { role: "status", icon: "mdi:play-circle-outline" }) : nothing}`;
+      </select>`;
   }
 
   /** Other modes of the screen's programs that have schedules (sources of a copy). */
@@ -1188,10 +1201,10 @@ export class WpSchedule extends LitElement {
     return html`<button class="row copy" aria-expanded=${this._copyOpen} ?disabled=${this._saving}
         @click=${() => { this._copyOpen = !this._copyOpen; }}>
         <ha-icon icon="mdi:content-copy"></ha-icon><span class="txt">${t(lang, "mode_copy_from")}</span></button>
-      ${this._copyOpen ? html`<div class="copy-from" role="group" aria-label=${t(lang, "mode_copy_pick")}>
+      ${collapse(this._copyOpen, html`<div class="copy-from" role="group" aria-label=${t(lang, "mode_copy_pick")}>
         <span>${t(lang, "mode_copy_pick")}</span>
         ${sources.map((name) => html`<button class="modechip" ?disabled=${this._saving} @click=${() => void this._copyFrom(name)}>${name}</button>`)}
-      </div>` : nothing}`;
+      </div>`)}`;
   }
 
   /** Puts a copy of the seven days of another mode in the opened one (new slots), after confirming a replacement. */
@@ -1414,7 +1427,7 @@ export class WpSchedule extends LitElement {
     /* One DOM order (the phone order of section 24.2 = keyboard order). From 768 px the same order is laid out in two
        columns by the grid alone: parameters (and Delete) on the left, the 7-day schematic then the day chart on the right. */
     .cols, .params { display: block; }
-    @media (min-width: 768px) {
+    @container wpdlg (min-width: 736px) {
       .cols {
         display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 24px; row-gap: 0; align-items: start;
         grid-template-rows: auto auto 1fr auto;
@@ -1429,7 +1442,7 @@ export class WpSchedule extends LitElement {
       /* Hidden while a slot editor is open (nothing rendered): no empty grid cell. */
       .area-chart:empty, .area-options:empty, .area-delete:empty { display: none; }
     }
-    .devices { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .devices { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
     .devchip {
       display: inline-flex; align-items: center; gap: 8px; min-height: 48px; max-width: 100%; padding: 0 16px; border-radius: 24px;
       border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem; cursor: pointer;

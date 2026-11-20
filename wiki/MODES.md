@@ -109,4 +109,4 @@ data:
 
 A time-based change (summer / winter) is an automation that changes the
 selector. Ready-to-use examples (workday sensor, school holidays, away when nobody
-is home) are in the [Recettes pour les modes](Recettes-pour-les-modes) (French).
+is home) are in the [Recettes](Recettes) (French).

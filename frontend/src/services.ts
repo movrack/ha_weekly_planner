@@ -11,7 +11,7 @@ interface EntityFilter {
   supported_features?: (number | number[])[];
 }
 
-export interface ServiceInfo {
+interface ServiceInfo {
   name?: string;
   description?: string;
   fields?: Record<string, ServiceFieldInfo>;
@@ -44,6 +44,15 @@ export interface ServiceField {
 }
 
 const TARGET_FIELDS = new Set(["entity_id", "device_id", "area_id", "floor_id", "label_id"]);
+/**
+ * Optional fields left out of the form because another field of the same service already sets the same thing (a light's
+ * brightness as 0-255 next to brightness in %) or because they need a raw value (hs/xy/rgbw colours, a named profile).
+ */
+const REDUNDANT_FIELDS: Record<string, Set<string>> = {
+  light: new Set(["brightness", "brightness_step", "brightness_step_pct", "color_name", "hs_color", "xy_color", "rgbw_color", "rgbww_color", "white", "profile", "flash"]),
+};
+/** Fields that only refine a call ("how fast"); a service whose fields are all optional needs one of the others. */
+const REFINING_FIELDS = new Set(["transition"]);
 let loaded: Localize | undefined;
 const requested = new Set<string>();
 
@@ -157,7 +166,7 @@ function fieldApplies(field: ServiceFieldInfo, entity: HassEntity | undefined): 
  * Input fields of a service for a device: required first, without advanced or target fields, nor the fields the
  * device does not support. An optional field that another service of the domain sets on its own (the mode in
  * "set temperature", as "set mode" exists) is left out: one action, one thing. A service whose fields are all
- * optional needs at least one: its first field becomes required.
+ * optional needs at least one of them filled (see `missingFields`): a light's "turn on" with a brightness, a colour, or both.
  */
 export function serviceFields(hass: HomeAssistant, id: string, entityId?: string): ServiceField[] {
   const [domain, service] = id.split(".");
@@ -172,6 +181,7 @@ export function serviceFields(hass: HomeAssistant, id: string, entityId?: string
       }
       if (field.advanced || TARGET_FIELDS.has(key) || field.selector?.target || !fieldApplies(field, entity)) continue;
       if (!field.required && service !== `set_${key}` && `set_${key}` in own) continue;
+      if (!field.required && REDUNDANT_FIELDS[domain]?.has(key)) continue;
       out.push({
         key,
         selector: field.selector ?? { text: {} },
@@ -183,7 +193,6 @@ export function serviceFields(hass: HomeAssistant, id: string, entityId?: string
     }
   };
   walk(infoOf(hass, id)?.fields);
-  if (out.length && !out.some((f) => f.required)) out[0] = { ...out[0], required: true };
   return [...out.filter((f) => f.required), ...out.filter((f) => !f.required)];
 }
 
@@ -201,13 +210,21 @@ export function startData(hass: HomeAssistant, id: string, entityId: string): Re
   return data;
 }
 
-/** Required fields still empty (labels of them), so a form does not save a call that must fail. */
+/**
+ * Required fields still empty (labels of them), so a form does not save a call that must fail. A service whose fields are
+ * all optional (a light's "turn on") needs one of them, other than a refining one such as the transition.
+ */
 export function missingFields(
   hass: HomeAssistant, id: string, data: Record<string, unknown> | undefined, entityId?: string, sources?: Record<string, { entity_id: string }>,
 ): string[] {
-  return serviceFields(hass, id, entityId)
-    .filter((f) => sources?.[f.key] ? !sources[f.key].entity_id : f.required && (data?.[f.key] === undefined || data[f.key] === "" || data[f.key] === null))
-    .map((f) => f.label);
+  const fields = serviceFields(hass, id, entityId);
+  const filled = (f: ServiceField): boolean => sources?.[f.key] ? Boolean(sources[f.key].entity_id)
+    : data?.[f.key] !== undefined && data[f.key] !== "" && data[f.key] !== null;
+  const empty = fields.filter((f) => f.required && !filled(f)).map((f) => f.label);
+  if (empty.length || !fields.length || fields.some((f) => f.required)) return empty;
+  const main = fields.filter((f) => !REFINING_FIELDS.has(f.key));
+  const pool = main.length ? main : fields;
+  return pool.some(filled) ? [] : pool.map((f) => f.label);
 }
 
 /** Attribute listing the possible values of a field, for the services that pick one of the device's modes. */

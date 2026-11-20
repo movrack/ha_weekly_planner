@@ -9,13 +9,42 @@
     "src/edits.ts",
     "src/actions.ts",
     "src/preview-cache.ts",
-    "src/hold-hint.ts"
+    "src/hold-hint.ts",
+    "src/weekly-planner-card.ts",
+    "src/components/day-bar.ts",
+    "src/components/radial-day.ts",
+    "src/components/bar-editor.ts",
+    "src/components/label-picker.ts",
+    "src/card-editor.ts",
+    "src/components/schedule-dialog.ts",
+    "src/components/slot-form.ts",
+    "src/editors/program-editor.ts",
+    "src/planner.ts",
+    "src/config.ts",
+    "src/program-areas.ts",
+    "src/filter-editor.ts",
+    "src/components/chart-options.ts"
   ],
-  "vitest": { "configFile": "vite.config.ts" },
+  "vitest": {
+    "configFile": "vite.config.ts"
+  },
   "coverageAnalysis": "perTest",
-  "reporters": ["clear-text", "progress", "html", "json"],
-  "htmlReporter": { "fileName": "reports/mutation/index.html" },
-  "jsonReporter": { "fileName": "reports/mutation/mutation.json" },
+  "reporters": [
+    "clear-text",
+    "progress",
+    "html",
+    "json"
+  ],
+  "htmlReporter": {
+    "fileName": "reports/mutation/index.html"
+  },
+  "jsonReporter": {
+    "fileName": "reports/mutation/mutation.json"
+  },
   "tempDirName": ".stryker-tmp",
-  "thresholds": { "high": 80, "low": 60, "break": null }
+  "thresholds": {
+    "high": 80,
+    "low": 60,
+    "break": null
+  }
 }

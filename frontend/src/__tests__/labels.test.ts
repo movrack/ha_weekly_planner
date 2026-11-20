@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  PALETTE, actionText, allowedOf, actionValue, compatible, entityAction, hasOverride, labelUsers, labelsFor, nextColor,
+  PALETTE, actionText, allowedOf, actionValue, compatible, entityAction, hasOverride, labelDomains, labelName, labelUsers, labelsFor, nextColor,
 } from "../labels";
 import type { Action, HomeAssistant, Label, PlannerData, Program } from "../types";
 
@@ -110,6 +110,12 @@ describe("tooltips of the bar icons", () => {
     expect(sunTip("fr", { sun: "sunset", offset: 30 }, 17 * 60 + 55)).toBe("Coucher du soleil + 30 min · 17 h 55");
     expect(sunTip("fr", { sun: "sunrise", offset: -15 }, 7 * 60 + 43)).toBe("Lever du soleil - 15 min · 7 h 43");
     expect(sunTip("en", { sun: "sunset" }, 17 * 60 + 25)).toBe("Sunset · 5:25 pm");
+    expect(sunTip("fr", { sun: "sunset", random_minutes: 20 }, 17 * 60 + 14, 16 * 60 + 55)).toBe("Coucher du soleil · 16 h 55\n+ jusqu’à 20 min au hasard");
+    expect(sunTip("en", { sun: "sunset", offset: 10, random_minutes: 20 }, 17 * 60 + 21, 17 * 60 + 13)).toBe("Sunset + 10 min · 5:13 pm\n+ up to 20 min at random");
+    expect(sunTip("en", { sun: "sunset", random_minutes: 20 }, 17 * 60 + 40)).toBe("Sunset, at random · 5:40 pm");
+    expect(sunTip("fr", { sun: "sunset", latest: "22:00" }, 16 * 60 + 55)).toBe("Coucher du soleil · 16 h 55"); // a bound that does not decide is not named
+    expect(sunTip("fr", { sun: "sunset", earliest: "17:15" }, 17 * 60 + 15)).toBe("Coucher du soleil, pas avant 17 h 15 · 17 h 15");
+    expect(sunTip("en", { sun: "sunset", latest: "17:00" }, 17 * 60)).toBe("Sunset, not after 5 pm · 5 pm");
     expect(sunTip("fr", { time: "08:00" }, 480)).toBe("");
   });
   it("says now with the time", () => {
@@ -173,4 +179,25 @@ it("distinguishes new explicit empty action selection from legacy unrestricted d
   p.entities[0].allowed_services = ["climate.set_temperature"];
   expect(compatible(hass, "climate.a", temp(20), allowedOf(p, "climate.a"))).toBe(true);
   expect(compatible(hass, "climate.a", { kind: "service", service: "climate.set_hvac_mode" }, allowedOf(p, "climate.a"))).toBe(false);
+});
+
+describe("integrations to load for the setting names", () => {
+  it("loads the integration of an action AND of a name that is a raw service id", () => {
+    const l = (name: string, service?: string): any => ({ id: name, name, color: "#fff", action: service ? { kind: "service", service } : { kind: "scene", entity_id: "scene.x" } });
+    expect(labelDomains([l("vacuum.start", "vacuum.start"), l("Eco", "climate.set_temperature"), l("climate.eco"), l("scene.x")]).sort())
+      .toEqual(["climate", "scene", "vacuum"]);
+  });
+});
+
+describe("setting names shown to people", () => {
+  const localized = (translations: Record<string, string> = {}, services: any = {}) =>
+    ({ localize: (k: string) => translations[k] ?? "", services }) as any;
+  it("keeps a real name", () => expect(labelName(localized(), { name: "Comfort" })).toBe("Comfort"));
+  it("translates a raw service id with Home Assistant's service name", () => {
+    expect(labelName(localized({ "component.vacuum.services.start.name": "Démarrer" }), { name: "vacuum.start" })).toBe("Démarrer");
+    expect(labelName(localized({}, { vacuum: { start: { name: "Start cleaning" } } }), { name: "vacuum.start" })).toBe("Start cleaning");
+  });
+  it("falls back to a readable service part", () => {
+    expect(labelName(localized(), { name: "vacuum.return_to_base" })).toBe("Return to base");
+  });
 });

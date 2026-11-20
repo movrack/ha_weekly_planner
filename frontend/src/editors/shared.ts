@@ -3,7 +3,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { t } from "../i18n";
-import { calloutStyles } from "../styles";
+import { calloutStyles, collapse } from "../styles";
 import { entityDomain, friendlyName } from "../planner";
 import type { Condition, HassEntity, HomeAssistant } from "../types";
 
@@ -16,7 +16,7 @@ export function foldSection(lang: string, open: boolean, toggle: () => void, bod
   return html`<button class="row opts" aria-expanded=${open} @click=${toggle}>
       <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
       <span class="txt">${t(lang, "advanced_options")}</span></button>
-    ${open ? html`<div class="opts-body">${body}</div>` : nothing}`;
+    ${collapse(open, html`<div class="opts-body">${body}</div>`)}`;
 }
 
 export const editorStyles = css`
@@ -27,8 +27,13 @@ export const editorStyles = css`
   .opts-body { margin: 0 0 12px; padding: 8px 0 0 12px; border-left: 3px solid var(--divider-color); }
   :host { display: block; color: var(--primary-text-color); font-size: 0.875rem; }
   * { box-sizing: border-box; }
-  .field { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; min-width: 0; }
-  .field > label, .label { font-size: 0.75rem; color: var(--secondary-text-color); }
+  .field { display: flex; flex-direction: column; gap: 4px; margin: 16px 0 0; min-width: 0; }
+  /* one size for every form label and help text (owner, 2026-11-14): 14 px. A label is told from its help text by weight and
+     colour (600, primary text) against (400, secondary text), and by its place: 4 px above its field, the help 4 px below it. */
+  .field > label, .label, fieldset.group > legend { font-size: 0.875rem; font-weight: 600; line-height: 1.3; color: var(--primary-text-color); }
+  fieldset.group { border: 0; margin: 16px 0 0; padding: 0; min-width: 0; }
+  fieldset.group > legend { padding: 0; margin-bottom: 4px; }
+  .field > .hint { margin: 0; }
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .row > .field { flex: 1 1 140px; }
   input[type="text"], input[type="number"], input[type="time"], input[type="date"], input:not([type]),
@@ -41,6 +46,10 @@ export const editorStyles = css`
   input[type="color"] { width: 56px; height: 48px; padding: 2px; border: 1px solid var(--wp-field-border);
     border-radius: 8px; background: none; }
   input[type="checkbox"], input[type="radio"] { width: 20px; height: 20px; min-width: 20px; flex: none; margin: 0; accent-color: var(--primary-color); }
+  /* a radio drawn with the field border colour, so that an unselected one stays visible on a dark surface (WCAG 1.4.11) */
+  input[type="radio"] { appearance: none; -webkit-appearance: none; width: 24px; height: 24px; min-width: 24px; border: 2px solid var(--wp-field-border); border-radius: 50%; background: none; }
+  input[type="radio"]:checked { border-color: var(--wp-primary-text); background: radial-gradient(circle, var(--wp-primary-text) 0 45%, transparent 50%); }
+  input[type="radio"]:focus-visible, input[type="checkbox"]:focus-visible, ha-switch:focus-within { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
   label.check { display: flex; align-items: center; gap: 10px; min-height: 48px; cursor: pointer; }
   button { font: inherit; }
   .btn {
@@ -62,7 +71,7 @@ export const editorStyles = css`
     font-size: 1rem; font-weight: 500; margin: 8px 0; }
   .field-error { margin: 2px 0 4px; }
   input[aria-invalid="true"] { border-color: var(--wp-danger-text); border-width: 2px; }
-  .hint { display: flex; align-items: center; gap: 4px; --mdc-icon-size: 16px; color: var(--secondary-text-color); font-size: 0.75rem; margin: 4px 0; }
+  .hint { display: flex; align-items: center; gap: 4px; --mdc-icon-size: 16px; color: var(--secondary-text-color); font-size: 0.875rem; margin: 4px 0; }
   .card {
     border: 1px solid var(--divider-color); border-radius: 12px; padding: 8px 12px; margin: 8px 0;
   }

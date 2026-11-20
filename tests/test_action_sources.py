@@ -126,3 +126,15 @@ async def test_label_save_roundtrips_entity_sources(hass, hass_storage, freezer,
     saved = next(item for item in (await client.receive_json())["result"]["labels"] if item["id"] == "favorite")
     assert saved["action"]["data_sources"] == expected["action"]["data_sources"]
     assert saved["action"]["data"] == {}
+
+
+def test_label_show_value_is_an_optional_boolean():
+    """A setting may ask the card to show its preset's temperature; display only, so any boolean is accepted."""
+    from custom_components.weekly_planner.validation import LABEL
+
+    base = {"id": "c", "name": "Comfort", "action": {"kind": "service", "service": "climate.set_preset_mode",
+                                                      "data": {"preset_mode": "comfort"}}}
+    assert "show_value" not in LABEL(base)
+    assert LABEL({**base, "show_value": True})["show_value"] is True
+    with __import__("pytest").raises(__import__("voluptuous").Invalid):
+        LABEL({**base, "show_value": "yes"})

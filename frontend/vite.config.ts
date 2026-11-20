@@ -15,8 +15,8 @@ export default defineConfig({
       exclude: ["src/__tests__/**", "src/**/*.test.ts"],
       reporter: ["text", "text-summary", "lcov", "html"],
       reportsDirectory: "coverage",
-      // Floors (measured with vitest 5: 80.7 / 73.0 / 75.6 / 82.7 statements/branches/functions/lines).
-      thresholds: { statements: 80, branches: 60, functions: 60, lines: 80 },
+      // Floors, each file and the total (owner, 2026-11-16): statements 90, branches 80, functions 80, lines 80. Measured with vitest 5: 95.1 / 90.9 / 92.7 / 96.7.
+      thresholds: { statements: 90, branches: 80, functions: 80, lines: 80, perFile: true },
     },
   },
 });

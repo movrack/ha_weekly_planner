@@ -4,13 +4,21 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "./action-picker";
-import { actionSummary, actionText, allowedOf, entityAction, hasOverride, labelName, labelOf, labelsFor, labelUsers, nextColor, PALETTE, PALETTE_NAMES } from "../labels";
+import { actionSummary, actionText, allowedOf, entityAction, hasOverride, labelName, labelOf, labelsFor, labelUsers, nextColor, PALETTE, PALETTE_NAMES, replaceLabel, usesLabel } from "../labels";
 import { t } from "../i18n";
 import { friendlyName } from "../planner";
 import { loadServiceNames, missingFields } from "../services";
 import { editorStyles, langOf } from "../editors/shared";
 import { callout } from "../styles";
 import type { Action, HomeAssistant, Label, PlannerData, Program } from "../types";
+
+/** A setting deleted after being replaced everywhere: the window that holds a draft of a program follows it. */
+export interface LabelReplaced {
+  from: string;
+  to: string;
+  /** New revision of each program that was saved with the replacement. */
+  revisions: Record<string, number>;
+}
 
 /** The label form as a draft, for a parent that saves it together with its own form (`embedded`). */
 export interface LabelDraft {
@@ -19,6 +27,7 @@ export interface LabelDraft {
   name: string;
   color: string;
   action: Action | null;
+  showValue: boolean;
   /** Values for a device changed in the form (null: back to the common value). */
   overrides: { entityId: string; action: Action | null }[];
   /** Why it cannot be saved yet ("" when it can). */
@@ -48,6 +57,7 @@ export class WpLabelPicker extends LitElement {
   @state() private _editId: string | null = null;
   @state() private _name = "";
   @state() private _color = "";
+  @state() private _showValue = false;
   @state() private _action: Action | null = null;
   /** Values for a device changed in the form. */
   @state() private _ov: Record<string, Action | null> = {};
@@ -56,6 +66,7 @@ export class WpLabelPicker extends LitElement {
   @state() private _valueFor: string | null = null;
   /** The delete confirmation (or the refusal) is shown for the chosen label. */
   @state() private _confirmDel = false;
+  @state() private _replaceBy: string | null = null;
   @state() private _delError = "";
   private _loaded = "";
 
@@ -81,6 +92,7 @@ export class WpLabelPicker extends LitElement {
     this._editId = label?.id ?? null;
     this._name = label?.name ?? "";
     this._color = label?.color ?? nextColor(this.data.labels);
+    this._showValue = Boolean(label?.show_value);
     this._action = label ? structuredClone(label.action) : null;
     this._ov = {};
     this._valueFor = null;
@@ -102,7 +114,7 @@ export class WpLabelPicker extends LitElement {
 
   private _draft(): LabelDraft {
     return {
-      id: this._editId, name: this._name.trim(), color: this._color, action: this._action,
+      id: this._editId, name: this._name.trim(), color: this._color, action: this._action, showValue: this._showValue,
       overrides: Object.entries(this._ov).map(([entityId, action]) => ({ entityId, action })),
       problem: this._formProblem,
     };
@@ -119,7 +131,8 @@ export class WpLabelPicker extends LitElement {
     return "";
   }
 
-  private _set(patch: { name?: string; color?: string; action?: Action | null }): void {
+  private _set(patch: { name?: string; color?: string; action?: Action | null; showValue?: boolean }): void {
+    if (patch.showValue !== undefined) this._showValue = patch.showValue;
     if (patch.name !== undefined) this._name = patch.name;
     if (patch.color !== undefined) this._color = patch.color;
     if (patch.action !== undefined) this._action = patch.action;
@@ -173,7 +186,7 @@ export class WpLabelPicker extends LitElement {
     try {
       const res = await this.hass.callWS<{ label: { id: string } }>({
         type: "weekly_planner/label/save",
-        label: { ...(this._editId ? { id: this._editId } : {}), name: this._name.trim(), color: this._color, action: this._action },
+        label: { ...(this._editId ? { id: this._editId } : {}), name: this._name.trim(), color: this._color, action: this._action, show_value: this._canShowValue ? this._showValue : false },
       });
       await this._saveOverrides(res.label.id);
       this._form = false;
@@ -206,10 +219,57 @@ export class WpLabelPicker extends LitElement {
     }
   }
 
+  /**
+   * A setting still in use cannot be deleted as is: the programs that use it get another setting first, then it goes.
+   * Every program is saved with its own check (revision, admin rights); the first one refused stops everything and the
+   * setting stays, so nothing is half deleted.
+   */
+  private async _replaceAndDelete(label: Label): Promise<void> {
+    const to = this._replaceBy;
+    if (!to || this._saving) return;
+    this._saving = true;
+    this._delError = "";
+    try {
+      const revisions: Record<string, number> = {};
+      for (const program of this.data.programs.filter((p) => usesLabel(p, label.id))) {
+        const res = await this.hass.callWS<{ program: Program }>({ type: "weekly_planner/program/save", program: replaceLabel(program, label.id, to) });
+        revisions[program.id] = res.program.revision;
+      }
+      await this.hass.callWS({ type: "weekly_planner/label/delete", label_id: label.id });
+      this._confirmDel = false;
+      this._replaceBy = null;
+      this._form = false;
+      this._changed();
+      this._emit("label-replaced", { from: label.id, to, revisions } satisfies LabelReplaced);
+      this._emit("label-change", to);
+    } catch (err) {
+      const e = err as { code?: string };
+      this._delError = e?.code === "unauthorized" ? t(this._lang, "err_unauthorized") : e?.code === "conflict" ? t(this._lang, "lb_replace_conflict") : t(this._lang, "lb_err_delete");
+    } finally {
+      this._saving = false;
+    }
+  }
+
   private _renderDelete(chosen: Label) {
     const lang = this._lang;
     const name = labelName(this.hass, chosen);
     const users = labelUsers(this.data, chosen.id);
+    if (users.length && !this.disabled) {
+      const others = labelsFor(this.hass, this.data, this.entityIds, this.program).filter((l) => l.id !== chosen.id);
+      return html`<div class="delbox" role="alert">
+        ${callout("warning", "", this._delError || t(lang, "lb_delete_used", { name, programs: users.join(", ") }))}
+        ${others.length ? html`<p class="label" id="lb-repl">${t(lang, "lb_replace_with")}</p>
+          <div class="chips" role="radiogroup" aria-labelledby="lb-repl">
+            ${others.map((l) => html`<button class="chip ${l.id === this._replaceBy ? "on" : ""}" role="radio" aria-checked=${l.id === this._replaceBy}
+              @click=${() => { this._replaceBy = l.id; }}><i class="dot" style="background:${l.color}"></i><span>${labelName(this.hass, l, this.entityIds[0])}</span></button>`)}
+          </div>` : nothing}
+        <div class="btns">
+          ${others.length ? html`<button class="btn danger-line" ?disabled=${this._saving || !this._replaceBy} @click=${() => void this._replaceAndDelete(chosen)}>
+            <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "lb_replace_go")}</button>` : nothing}
+          <button class="btn" @click=${() => { this._confirmDel = false; this._delError = ""; this._replaceBy = null; }}>${t(lang, "cancel")}</button>
+        </div>
+      </div>`;
+    }
     const used = users.length > 0 || !!this._delError;
     const msg = this._delError
       || (users.length ? t(lang, "lb_delete_used", { name, programs: users.join(", ") }) : t(lang, "lb_delete_ask", { name }));
@@ -241,7 +301,7 @@ export class WpLabelPicker extends LitElement {
     return html`<div class="dev">
       <button class="link ${own ? "own" : ""}" ?disabled=${this.disabled} aria-expanded=${shown}
         @click=${() => (this._valueFor = shown ? null : entityId)}>${t(lang, "lb_value_here")}${this.entityIds.length > 1 ? ` · ${friendlyName(this.hass, entityId)}` : ""}</button>
-      ${shown ? html`<div class="valbox">
+      ${shown ? html`<div class="valbox wp-appear">
         <wp-action-picker no-fold .hass=${this.hass} entity-id=${entityId} .allowed=${allowedOf(this.program, entityId)}
           .action=${own ?? this._action} ?disabled=${this.disabled}
           @action-change=${(e: CustomEvent<Action>) => { e.stopPropagation(); this._ov = { ...this._ov, [entityId]: e.detail }; this._error = ""; this._changed(); }}></wp-action-picker>
@@ -269,7 +329,7 @@ export class WpLabelPicker extends LitElement {
       this._set({ color: PALETTE[next] });
       (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>("button.sw:not(.custom)")[next]?.focus();
     };
-    return html`<div class="swatches" role="radiogroup" aria-label=${t(lang, "lb_color")} @keydown=${key}>
+    return html`<div class="label" id="lb-color-label">${t(lang, "lb_color")}</div><div class="swatches" role="radiogroup" aria-labelledby="lb-color-label" @keydown=${key}>
       ${PALETTE.map((c, i) => html`<button class="sw" role="radio" aria-checked=${i === current} tabindex=${i === stop ? 0 : -1}
         aria-label=${t(lang, PALETTE_NAMES[i])} @click=${() => this._set({ color: c })}><i class=${i === current ? "on" : ""} style="background:${c}"></i></button>`)}
       ${custom ? html`<button class="sw custom" role="radio" aria-checked="true" tabindex="0" aria-label=${t(lang, "color_custom")}
@@ -277,12 +337,20 @@ export class WpLabelPicker extends LitElement {
     </div>`;
   }
 
+  /** A value to show: one the action reads from an entity, or the temperature of a preset mode. */
+  private get _canShowValue(): boolean {
+    const a = this._action;
+    return a?.kind === "service" && (Object.keys(a.data_sources ?? {}).length > 0 || a.service === "climate.set_preset_mode");
+  }
+
   private _renderForm() {
     const lang = this._lang;
     return html`<div class="form">
       <div class="field"><label for="lb-name">${t(lang, "lb_name")}</label>
         <input id="lb-name" type="text" maxlength="30" .value=${this._name} ?disabled=${this.disabled}
-          @input=${(e: Event) => this._set({ name: (e.target as HTMLInputElement).value })} /></div>
+          @input=${(e: Event) => this._set({ name: (e.target as HTMLInputElement).value })} />
+        ${this._canShowValue ? html`<label class="check"><input type="checkbox" .checked=${this._showValue} ?disabled=${this.disabled}
+          @change=${(e: Event) => this._set({ showValue: (e.target as HTMLInputElement).checked })} /> ${t(lang, "lb_show_value")}</label>` : nothing}</div>
       ${this._swatches()}
       <wp-action-picker .hass=${this.hass} entity-id=${this.entityIds[0] ?? ""} .allowed=${allowedOf(this.program, this.entityIds[0] ?? "")}
         .action=${this._action} ?disabled=${this.disabled} ?advanced-open=${Boolean(this._editId) && this.entityIds.some((eid) => this._ownValue(eid, this._editId!))}
@@ -290,10 +358,11 @@ export class WpLabelPicker extends LitElement {
         ${this._editId ? html`<div slot="advanced">${this.entityIds.map((eid) => this._valueEditor(eid, this._editId!))}</div>` : nothing}
       </wp-action-picker>
       ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
-      ${this.embedded ? nothing : html`<div class="btns">
-        <button class="btn primary" ?disabled=${this._saving || this.disabled} @click=${() => void this._save()}>${t(lang, "save")}</button>
+      <div class="btns">
+        <button class="btn primary" ?disabled=${this._saving || this.disabled}
+          @click=${() => (this.embedded ? this._emit("label-commit", null) : void this._save())}>${t(lang, this.embedded ? "lb_save" : "save")}</button>
         <button class="btn" @click=${() => this._close()}>${t(lang, "cancel")}</button>
-      </div>`}
+      </div>
     </div>`;
   }
 
@@ -304,7 +373,7 @@ export class WpLabelPicker extends LitElement {
       <!-- framed in the label's colour so it clearly belongs to it -->
       <div class="details" style="--lc:${chosen.color}">
         <div class="dhead">
-          <i class="dot" style="background:${chosen.color}"></i><b>${labelName(this.hass, chosen)}</b>
+          <i class="dot" style="background:${chosen.color}"></i><b>${labelName(this.hass, this._form && this._editId === chosen.id && this._action ? { ...chosen, action: this._action, show_value: this._canShowValue && this._showValue } : chosen, this.entityIds[0])}</b>
           ${this.readonlySettings ? nothing : html`<button class="pen ${this._form ? "on" : ""}" aria-label=${t(lang, "rename_label")} title=${t(lang, "rename_label")}
             aria-pressed=${this._form} ?disabled=${this.disabled}
             @click=${() => (this._form && this._editId ? this._close() : this._open(true))}><ha-icon icon="mdi:pencil"></ha-icon></button>
@@ -343,7 +412,7 @@ export class WpLabelPicker extends LitElement {
     return html`
       <div class="chips" role="radiogroup" aria-label=${t(lang, "action")}>
         ${this.allowNone ? chip(t(lang, "rest_none"), this.value === null, () => this._choose(null)) : nothing}
-        ${labels.map((l) => chip(labelName(this.hass, l), l.id === this.value, () => this._choose(l.id), l.color))}
+        ${labels.map((l) => chip(labelName(this.hass, l, this.entityIds[0]), l.id === this.value, () => this._choose(l.id), l.color))}
         ${this.value && !chosen ? chip("?", true, () => undefined) : nothing}
         ${this.compact || this.readonlySettings ? nothing : html`<button class="chip add ${this._form && !this._editId ? "on" : ""}" ?disabled=${this.disabled}
           @click=${() => (this._form && !this._editId ? this._close() : this._open(false))}>
@@ -355,6 +424,8 @@ export class WpLabelPicker extends LitElement {
 
   static styles = [editorStyles, css`
     :host { display: block; }
+    .check { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 0.9em; font-weight: normal; cursor: pointer; }
+    .check input { width: auto; min-height: 0; margin: 0; }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; }
     .details {
       margin-top: 10px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--lc);
@@ -379,7 +450,7 @@ export class WpLabelPicker extends LitElement {
     }
     .pen.on { background: var(--secondary-background-color); color: var(--wp-primary-text); }
     .pen:hover { background: var(--secondary-background-color); }
-    .shared { display: block; margin: -4px 0 4px; font-size: 0.75rem; color: var(--secondary-text-color); overflow-wrap: anywhere; }
+    .shared { display: block; margin: -4px 0 4px; font-size: 0.875rem; color: var(--secondary-text-color); overflow-wrap: anywhere; }
     .dot { width: 14px; height: 14px; border-radius: 7px; flex: none; }
     .form { margin-top: 12px; padding: 12px; border: 1px solid var(--divider-color); border-radius: 12px; }
     .swatches { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }

@@ -21,6 +21,13 @@ describe("YAML-only card configuration", () => {
     expect(normalizeConfig({ type: "x", filter: "bad" })).toEqual({ type: "x" });
     expect(normalizeConfig({ type: "x", filter: ["a"] })).toEqual({ type: "x" });
   });
+  it("filter.area accepts one room (text) or several (list); empty entries are dropped", () => {
+    expect(normalizeConfig({ type: "x", filter: { area: "Salon" } })).toEqual({ type: "x", filter: { area: "Salon" } });
+    expect(normalizeConfig({ type: "x", filter: { area: ["Salon", "Bureau"] } })).toEqual({ type: "x", filter: { area: ["Salon", "Bureau"] } });
+    expect(normalizeConfig({ type: "x", filter: { area: ["Salon", "", 3] } })).toEqual({ type: "x", filter: { area: "Salon" } });
+    expect(normalizeConfig({ type: "x", filter: { area: [] } })).toEqual({ type: "x", filter: {} });
+    expect(normalizeConfig({ type: "x", filter: { area: "" } })).toEqual({ type: "x", filter: {} });
+  });
   it("rejects a non-mapping config with a clear error (HA shows an error card)", () => {
     for (const bad of [null, undefined, "x", 3, []]) expect(() => normalizeConfig(bad)).toThrow(/YAML mapping/);
   });

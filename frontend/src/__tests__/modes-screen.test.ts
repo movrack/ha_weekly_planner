@@ -56,7 +56,7 @@ describe("mode choice in the schedules screen", () => {
       { name: "Home", orphan: false }, { name: "Winter", orphan: false }, { name: "Away", orphan: false }, { name: "Old", orphan: true }]);
     const html = flat(view.render());
     expect(html).toContain("<fieldset");
-    expect(html.match(/<option /g)).toHaveLength(4);
+    expect(html.slice(0, html.indexOf('class="row opts"')).match(/<option /g)).toHaveLength(4);   // the mode tabs, before the folded advanced options
     expect(html).not.toContain("mdi:check");
     expect(html).toContain("Winter (Active)");   // only the active mode carries the mark
     expect(html.match(/\(Active/g)).toHaveLength(1);
@@ -160,11 +160,12 @@ describe("mode options fold", () => {
     view._optsOpen = false;
     const out = flat(view.render());
     expect(out).toContain("Advanced options");
-    expect(out).not.toContain("Reuse the schedules of another mode");
+    expect(out).toContain('class="wp-collapse "'); expect(out).not.toContain("wp-collapse open");   // folded: drawn but closed
     const toggle = handlers(view.render()).find((h: any) => h.event === "click" && String(h.fn).includes("_optsOpen"));
     expect(toggle).toBeTruthy();
     toggle!.fn();
     expect(view._optsOpen).toBe(true);
+    expect(flat(view.render())).toContain("wp-collapse open");
     expect(flat(view.render())).toContain("Reuse the schedules of another mode");
   });
 });
@@ -175,7 +176,7 @@ describe("copy from another mode", () => {
     expect(view._copySources()).toEqual(["Old"]);
     const html = flat(view.render());
     expect(html).toContain("Reuse the schedules of another mode");
-    expect(html).not.toContain("Copy the schedules of");
+    expect(html).toContain('class="wp-collapse "');      // the list of modes to copy from is drawn but closed until the button is pressed
   });
   it("is not offered without a selector, without sources, read-only, or while editing", () => {
     expect(flat(make(mode({ selector: null, options: [], active: null })).view.render())).not.toContain("Reuse the schedules of another mode");

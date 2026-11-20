@@ -110,6 +110,7 @@ LABEL = vol.Schema({
     vol.Required("name"): vol.All(str, vol.Length(min=1, max=30)),
     vol.Optional("color", default="#9e9e9e"): vol.Match(r"^#[0-9a-fA-F]{6}$"),
     vol.Required("action"): ACTION,
+    vol.Optional("show_value"): bool,  # the card adds the preset's temperature to the name (display only)
 })
 
 CONDITION = vol.Schema({
@@ -203,7 +204,7 @@ PROGRAM = vol.Schema({
     vol.Required("name"): vol.All(str, vol.Length(min=1, max=60)),
     vol.Optional("icon"): vol.Any(None, str),
     vol.Optional("area"): vol.Any(None, str),
-    vol.Optional("priority", default=DEFAULT_PRIORITY): vol.All(int, vol.Range(min=1, max=100)),
+    vol.Optional("priority", default=DEFAULT_PRIORITY): vol.All(int, vol.Range(min=1)),
     vol.Optional("enabled", default=True): bool,
     vol.Optional("paused_until"): vol.Any(None, _utc_datetime),
     vol.Optional("reapply", default=True): bool,
@@ -457,11 +458,6 @@ def _reject_overlaps(intervals: list[tuple]) -> None:
         if latest_end is not None and start < latest_end:
             raise ProgramError("overlapping_slots")
         latest_end = end
-
-
-def _check_overlaps(day_slots: list[dict]) -> None:
-    """Validate a standalone day's fixed windows (solar intervals trim at runtime)."""
-    _reject_overlaps(_fixed_intervals(day_slots, date(2026, 1, 5)))
 
 
 def _check_day_overlaps(day_slots: list[dict], entity_ids: list[str] | None) -> None:

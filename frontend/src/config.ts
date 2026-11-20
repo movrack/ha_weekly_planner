@@ -3,7 +3,7 @@
 import { SORTS } from "./list-order";
 import type { CardConfig } from "./types";
 
-const VIEWS = ["bars", "radial", "radial_12h", "list", "times"] as const;
+const VIEWS = ["bars", "radial", "radial_12h", "list", "times", "compare"] as const;
 const strings = (v: unknown): string[] | undefined => {
   if (typeof v === "string") return v ? [v] : [];
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x !== "") : undefined;
@@ -22,7 +22,7 @@ export function normalizeConfig(raw: unknown): CardConfig {
     else {
       const f = { ...(c.filter as Record<string, unknown>) };
       for (const k of ["types", "programs"]) if (f[k] !== undefined) { const v = strings(f[k]); if (v) f[k] = v; else delete f[k]; }
-      if (f.area !== undefined && typeof f.area !== "string") delete f.area;
+      if (f.area !== undefined) { const v = strings(f.area); if (v?.length) f.area = v.length === 1 ? v[0] : v; else delete f.area; } // one room (text) or several (list)
       c.filter = f;
     }
   }

@@ -30,7 +30,7 @@ Le mode se choisit en dehors de Weekly Planner. Les horaires de chaque mode se p
 
 ### S39 — Choisir l’entité qui donne le mode
 
-Le sélecteur de mode se règle une fois dans les options de l’intégration ([S35](#s35)) et ses options sont les modes. Une entité qui change d’état, comme un capteur, ne donne pas le mode directement : une automatisation change le sélecteur ([recettes](MODES_COOKBOOK.fr.md)).
+Le sélecteur de mode se règle une fois dans les options de l’intégration ([S35](#s35)) et ses options sont les modes. Une entité qui change d’état, comme un capteur, ne donne pas le mode directement : une automatisation change le sélecteur ([recettes](RECETTES.fr.md)).
 
 <a href="images/guide/s39-modes-external.png"><img src="images/guide/s39-modes-external.png" width="320" alt="Choisir l’entité qui donne le mode" /></a>
 
@@ -38,7 +38,7 @@ Le sélecteur de mode se règle une fois dans les options de l’intégration ([
 
 ### S40 — Pièce du programme
 
-Définir la pièce dans Général (« Pièce du programme ») puis Appliquer au programme. Elle ne vient pas automatiquement des pièces des appareils.
+Choisir la pièce dans la liste de Général (« Pièce du programme » : pièces de Home Assistant, pièces déjà utilisées ou « Autre pièce… ») puis enregistrer. Elle ne vient pas automatiquement des pièces des appareils.
 
 <a href="images/guide/s40-program-area.png"><img src="images/guide/s40-program-area.png" width="320" alt="Zone du programme" /></a>
 
@@ -46,7 +46,7 @@ Définir la pièce dans Général (« Pièce du programme ») puis Appliquer au 
 
 ### S41 — Filtres et présentation
 
-Choisir la pièce, les programmes à afficher et la présentation de la journée. Les interrupteurs « Bouton Graphique sous chaque appareil » et « Graphique ouvert d’office » règlent le graphique.
+Choisir les programmes à afficher (dont la pièce) et l’affichage. Les interrupteurs « Bouton Graphique » et « Graphique ouvert par défaut » règlent le graphique.
 
 <a href="images/guide/s41-card-filter.png"><img src="images/guide/s41-card-filter.png" width="320" alt="Filtres et présentation" /></a>
 
@@ -104,7 +104,7 @@ Une carte fixée sur le chauffage du salon donne accès à ses horaires sans pas
 
 ## S03 — Cadran de 24 heures
 
-Le cadran présente les horaires du jour et leur légende. Un clic ou un appui long permet de modifier les arcs avec leurs poignées.
+Le cadran présente les horaires du jour et leur légende. Un appui long (doigt ou souris) permet de modifier les arcs avec leurs poignées ; un simple clic ne modifie rien.
 
 <a href="images/guide/s03-radial.png"><img src="images/guide/s03-radial.png" width="320" alt="S03 — Cadran de 24 heures" /></a>
 
@@ -164,7 +164,7 @@ Dans **Options avancées**, les choix Lever et Coucher remplacent l’heure fixe
 
 ## S10 — Action sans fin
 
-Sans fin crée une action ponctuelle : elle est lancée au début, sans retour automatique à « Le reste du temps ».
+Ponctuelle crée une action lancée une seule fois : elle est lancée au début, sans retour automatique à « Le reste du temps ».
 
 <a href="images/guide/s10-one-shot.png"><img src="images/guide/s10-one-shot.png" width="320" alt="S10 — Action sans fin" /></a>
 
@@ -228,7 +228,7 @@ Le bouton **Agrandir / réduire** (flèches, à côté de la croix) élargit la 
 
 ## S18 — Édition directe sur une barre
 
-Un clic à la souris ou un appui long au doigt affiche les poignées et les actions de l’horaire sélectionné : **Couper en deux**, **Copier sur d’autres jours**, **Effacer** et le choix du réglage.
+Un appui long, au doigt ou à la souris, affiche les poignées et les actions de l’horaire sélectionné : **Couper en deux**, **Copier sur d’autres jours**, **Effacer** et le choix du réglage.
 
 <a href="images/guide/s18-bar-edit.png"><img src="images/guide/s18-bar-edit.png" width="320" alt="S18 — Édition directe sur une barre" /></a>
 
@@ -260,7 +260,7 @@ Après l’enregistrement au relâcher, le bandeau Enregistré · Annuler permet
 
 ## S24 — Affichage : liste filtrée
 
-Choix de la pièce, présentation de la journée et réglages du graphique pour « Plusieurs programmes ».
+Choix des programmes à afficher (dont la pièce), de l’affichage et réglages du graphique pour « Plusieurs programmes ».
 
 <a href="images/guide/s24-card-filter-settings.png"><img src="images/guide/s24-card-filter-settings.png" width="320" alt="S24 — Affichage : liste filtrée" /></a>
 
@@ -408,7 +408,7 @@ L’éditeur d’un réglage (nom, couleur, réglage à appliquer) avec ses **Op
 
 ### S51 — Les trois sortes de notice côte à côte
 
-Les trois sortes de notice côte à côte (montage de trois fragments, pas un seul écran). Toutes partagent le même aspect : succès (**Mode actif : ces horaires s’appliquent maintenant**), information (**Ce mode n’est pas actif**) et erreur.
+Les trois sortes de notice côte à côte (montage de trois fragments, pas un seul écran). Toutes partagent le même aspect : succès (une confirmation, par exemple après une modification), information (**Ce mode n’est pas actif**) et erreur.
 
 <a href="images/guide/s51-notifications.png"><img src="images/guide/s51-notifications.png" width="320" alt="S51 — Les trois sortes de notice côte à côte" /></a>
 

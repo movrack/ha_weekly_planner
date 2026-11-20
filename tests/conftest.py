@@ -17,3 +17,14 @@ def yaml_in_tmp(monkeypatch, tmp_path_factory):
     folder = tmp_path_factory.mktemp("www")
     monkeypatch.setattr(yaml_file, "yaml_path", lambda hass: folder / "weekly_planner.yml")
     return folder / "weekly_planner.yml"
+
+
+@pytest.fixture(autouse=True)
+def home_assistant_panel_stack(monkeypatch):
+    """`panel_custom` is a dependency of the integration; the real `frontend` needs the HA web bundle, absent in tests."""
+    from unittest.mock import AsyncMock
+
+    from homeassistant.components import frontend, panel_custom
+
+    monkeypatch.setattr(frontend, "async_setup", AsyncMock(return_value=True))
+    monkeypatch.setattr(panel_custom, "async_register_panel", AsyncMock())

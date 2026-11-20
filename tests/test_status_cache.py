@@ -1,5 +1,7 @@
 """program_status is memoised only during one notification and never changes results."""
 
+from homeassistant.util import dt as dt_util
+
 from .helpers import Recorder, local, program, setup, slot
 
 
@@ -11,7 +13,10 @@ def _two_entities(pid="office"):
 async def test_status_identical_with_and_without_shared_occurrences(hass, hass_storage, freezer):
     Recorder(hass)
     engine = await setup(hass, hass_storage, freezer, [_two_entities()], local(26, 9, 0))
-    plain = {e: engine.next_action(e) for e in ("climate.e0", "climate.e1")}
+    plain = {}
+    for e in ("climate.e0", "climate.e1"):
+        with engine.shared_pass() as ctx:  # one fresh pass per device: nothing shared between them
+            plain[e] = engine._next_action_in(ctx, e, dt_util.utcnow())
     shared = engine.program_status("office")["next_actions"]
     assert shared == plain and all(plain.values())
 

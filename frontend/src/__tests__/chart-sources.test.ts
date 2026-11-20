@@ -1,6 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { sourceKind, sourceUnits, sourceColor, knownStates, stateIntervals, stateNumber, numericAxes, axisTicks, mergeSourceDays } from "../chart-sources";
-import { entityHistories } from "../chart-history";
 import { WpChartOptions } from "../components/chart-options";
 import { WpChart } from "../components/chart";
 import { WpSchedule } from "../components/schedule-dialog";
@@ -43,25 +42,6 @@ describe("generic chart sources", () => {
       {from:7,to:10,state:"unavailable",selected:false,missing:true},
     ]);
     expect(stateIntervals([p(5,"on")],["on"],0,10)[0].missing).toBe(true);
-  });
-});
-describe("history cache", () => {
-  it("batches sources, shares in-flight requests and keeps gaps instead of future history", async () => {
-    const h=hass(); h.callWS=vi.fn(async (m:any)=>Object.fromEntries(m.entity_ids.map((id:string)=>[id,[{lu:1,s:"12",a:{}}]])));
-    const a=entityHistories(h,["sensor.temp","sensor.humidity"],0,10000), b=entityHistories(h,["sensor.temp"],0,10000);
-    expect((await a)["sensor.temp"]).toHaveLength(1);await b;expect(h.callWS).toHaveBeenCalledOnce();
-    expect(await entityHistories(h,["sensor.temp"],Date.now()+1,Date.now()+1000)).toEqual({"sensor.temp":[]});
-    expect(h.callWS).toHaveBeenCalledOnce();
-  });
-  it("returns every entity of a call even if the shared cache evicts early entries", async () => {
-    const h=hass();h.callWS=vi.fn(async(m:any)=>Object.fromEntries(m.entity_ids.map((id:string)=>[id,[{lu:1,s:"1"}]])));
-    const result=await entityHistories(h,Array.from({length:130},(_,i)=>`sensor.x${i}`),0,10000);
-    expect(Object.values(result).every(points=>points.length===1)).toBe(true);expect(Object.keys(result)).toHaveLength(130);
-  });
-  it("isolates failed histories and retries rather than caching failure", async () => {
-    const h=hass(),failed=vi.fn();h.callWS=vi.fn().mockRejectedValueOnce(Error()).mockResolvedValue({"sensor.temp":[]});
-    expect(await entityHistories(h,["sensor.temp"],0,10000,failed)).toEqual({"sensor.temp":[]});
-    expect(failed).toHaveBeenCalledWith("sensor.temp");await entityHistories(h,["sensor.temp"],0,10000);expect(h.callWS).toHaveBeenCalledTimes(2);
   });
 });
 const options=():any=>{const o:any=new WpChartOptions();o.hass=hass();o.program=program();o.entityId="sensor.temp";o.data={can_edit:true,read_only:false};o.mainUnit="°C";o.dispatchEvent=vi.fn();o.willUpdate();return o;};

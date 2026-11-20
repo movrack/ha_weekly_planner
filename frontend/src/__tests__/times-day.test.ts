@@ -17,11 +17,12 @@ function comp(props: Partial<WpTimesDay>): any {
 }
 
 describe("wp-times-day", () => {
-  it("is a real list, a row is a button only when editing is allowed", () => {
+  it("is a real list; a row is never a button (the icon at the top right edits)", () => {
     const view = flat(comp({ rows: [row()], editable: true }).render());
     expect(view).toContain("<ul");
     expect(view).toContain("<li");
-    expect(view).toContain("<button");
+    expect(view).not.toContain("<button");
+    expect(view).toContain("Heat");
     const ro = flat(comp({ rows: [row()], editable: false }).render());
     expect(ro).toContain("<ul");
     expect(ro).not.toContain("<button");
@@ -95,9 +96,7 @@ describe("wp-times-day: buttons and sizes", () => {
     expect(flat(comp({ state: "loading" }).render())).not.toContain("<button");
   });
 
-  it("uses the same words for the row and the button, and every text is at least 16 px", () => {
-    expect(strings("fr").times_row_open).toContain(strings("fr").edit_bar);
-    expect(strings("en").times_row_open).toContain(strings("en").edit_bar);
+  it("every text is at least 16 px", () => {
     const css = String((WpTimesDay as any).styles?.cssText ?? (WpTimesDay as any).styles);
     expect(css).not.toMatch(/font-size:\s*0\.(75|8\d*)rem/);
     expect(css).not.toContain("secondary-text-color");
@@ -110,7 +109,7 @@ describe("times: config, editor and texts", () => {
   });
   it("has the same keys in English and French", () => {
     for (const k of ["ce_times", "times_none", "times_rest", "times_loading", "times_failed", "times_until", "times_until_tomorrow",
-      "times_since_yesterday", "times_retry", "sun_rule_before", "sun_rule_after", "sun_np_sunset", "sun_at_sunset", "times_random", "times_now", "times_list_label", "times_row_open"]) {
+      "times_since_yesterday", "times_retry", "sun_rule_before", "sun_rule_after", "sun_np_sunset", "sun_at_sunset", "times_random", "times_now", "times_list_label"]) {
       expect((strings("en") as any)[k]).toBeTruthy();
       expect((strings("fr") as any)[k]).toBeTruthy();
     }
@@ -249,7 +248,7 @@ describe("times: approximate start, done rows, header icon, next line, week icon
   });
 
   it("the header icon is there in the times view too, as in every other view", () => {
-    const icon = (c: any) => flat(c._bySchedule(c._data.programs)).includes("mdi:calendar-edit\"></ha-icon></button>");
+    const icon = (c: any) => flat(c._bySchedule(c._data.programs)).includes("mdi:calendar-edit\"></ha-icon><span class=\"hl\">");
     const c = card([program("p", ["switch.a"])]);
     expect(flat(c._bySchedule(c._data.programs))).toContain("wp-times-day");
     expect(icon(c)).toBe(true);
@@ -273,3 +272,91 @@ describe("times: approximate start, done rows, header icon, next line, week icon
   });
 });
 
+describe("wp-times-day: details of a row and of its events", () => {
+  const ev = (c: any, action: (c: any) => void) => {
+    const on = vi.fn();
+    c.dispatchEvent = on;
+    action(c);
+    return on.mock.calls.map(([e]: any[]) => e as CustomEvent);
+  };
+  it("has the defaults of a ready, read-only English list", () => {
+    const c = new WpTimesDay() as any;
+    expect([c.rows, c.state, c.rest, c.editable, c.lang, c.deviceName]).toEqual([[], "ready", "", false, "en", ""]);
+  });
+  it("open-day and retry cross the shadow root and bubble", () => {
+    const [open] = ev(comp({ editable: true }), (c) => c._open());
+    expect([open.type, open.bubbles, open.composed]).toEqual(["open-day", true, true]);
+    const [retry] = ev(comp({ state: "failed" }), (c) => c._retry());
+    expect([retry.type, retry.bubbles, retry.composed]).toEqual(["retry", true, true]);
+  });
+  it("a retry puts the focus on the status region, and does not fail when there is none", () => {
+    const focus = vi.fn();
+    const c = comp({ state: "failed" });
+    c.dispatchEvent = vi.fn();
+    c.renderRoot = { querySelector: (sel: string) => (sel === ".status" ? { focus } : null) };
+    c._retry();
+    expect(focus).toHaveBeenCalledTimes(1);
+    c.renderRoot = { querySelector: () => null };
+    expect(() => c._retry()).not.toThrow();
+  });
+  it("says until when, 'until tomorrow' for the next day, nothing when the end is unknown", () => {
+    expect(flat(comp({ rows: [row({ until: { day: "today", min: 540 } })] }).render())).toContain("until 9 am");
+    const tom = flat(comp({ rows: [row({ until: { day: "tomorrow", min: 120 } })] }).render());
+    expect(tom).toContain("until tomorrow 2 am");
+    const unknown = flat(comp({ rows: [row({ until: { day: "tomorrow", min: null } })] }).render());
+    expect(unknown).toMatch(/until tomorrow\s*</);
+    expect(unknown).not.toContain("undefined");
+    expect(unknown).not.toContain("Stryker");
+    const one = flat(comp({ rows: [row({ until: null, oneShot: true })] }).render());
+    expect(one).not.toContain("until");
+    expect(one).not.toContain('class="more"');
+  });
+  it("the sun rule needs both the rule and the side; the icon follows the side", () => {
+    const rule = { sun: "sunset" as const, offset: 10 };
+    const up = flat(comp({ rows: [row({ sun: "up", rule })] }).render());
+    expect(up).toContain("mdi:weather-sunset-up");
+    expect(up).toContain("10 min after sunset");
+    const down = flat(comp({ rows: [row({ sun: "down", rule })] }).render());
+    expect(down).toContain("mdi:weather-sunset-down");
+    expect(flat(comp({ rows: [row({ sun: "up", rule: null })] }).render())).not.toContain('class="sun"');
+    expect(flat(comp({ rows: [row({ sun: null, rule })] }).render())).not.toContain('class="sun"');
+  });
+  it("the random mention only appears for a random start", () => {
+    expect(flat(comp({ rows: [row()] }).render())).not.toContain("varies");
+    expect(flat(comp({ rows: [row({ random: true })] }).render())).toContain("varies");
+  });
+  it("marks the current row and the done row, by class and aria-current", () => {
+    const now = flat(comp({ rows: [row({ now: true })] }).render());
+    expect(now).toContain("<li class=current");
+    expect(now).toContain("aria-current=time");
+    const done = flat(comp({ rows: [row({ done: true })] }).render());
+    expect(done).toContain("<li class=done");
+    expect(done).toContain("done");
+    expect(done).not.toContain("aria-current=time");
+    const plain = flat(comp({ rows: [row()] }).render());
+    expect(plain).toMatch(/<li class= /);
+    expect(plain).not.toContain("aria-current=time");
+  });
+  it("the list has its role and its name; the empty day has none", () => {
+    const html = flat(comp({ rows: [row()] }).render());
+    expect(html).toContain('role="list"');
+    expect(html).toContain("Today’s times");
+    expect(flat(comp({ rows: [] }).render())).not.toContain("<ul");
+    expect(flat(comp({ rows: [row()], state: "loading" }).render())).not.toContain("<ul");
+  });
+  it("the status region is live and focusable only by script", () => {
+    const html = flat(comp({ rows: [row()] }).render());
+    expect(html).toContain('role="status"');
+    expect(html).toContain('aria-live="polite"');
+    expect(html).toContain('tabindex="-1"');
+  });
+  it("the retry button carries its icon and retries; no text button opens the day (the header icon does)", () => {
+    const edit = comp({ rows: [row()], editable: true });
+    expect(flat(edit.render())).not.toContain('class="action"');
+    const retry = comp({ state: "failed" });
+    expect(flat(retry.render())).toContain("mdi:refresh");
+    expect(ev(retry, (x) => find(x.render(), "click", 'class="action"').fn())[0].type).toBe("retry");
+    const add = comp({ rows: [], state: "ready", editable: true });
+    expect(ev(add, (x) => find(x.render(), "click", 'class="action"').fn())[0].type).toBe("open-day");
+  });
+});

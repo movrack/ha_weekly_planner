@@ -30,7 +30,8 @@ Ce projet a été réalisé avec l’aide d’agents d’intelligence artificiel
 - **Modes** : une semaine d’horaires par mode de la maison (Maison, Absent, Vacances…), lu sur une
   entité sélecteur que vous choisissez.
 - **Jour férié** : une autre journée d’horaires un jour férié ou de congé, lu sur une entité que vous choisissez.
-- **Une carte, cinq affichages** : barres, liste compacte, cadran 24 h, cadrans 12 h ou horaires du jour,
+- **Une carte, six affichages** : barres, liste compacte (groupée par type, deux lignes par appareil), cadran 24 h,
+  cadrans 12 h, horaires du jour ou comparateur de tous les appareils, un jour à la fois,
   avec un graphique du jour qui compare ce qui est prévu et l’historique enregistré.
 - **Commandes de tous les jours** : sauter le prochain changement, mettre un programme en pause pour des
   heures ou des jours, suspendre tous les programmes, resynchroniser les appareils après une panne.
@@ -132,12 +133,22 @@ Chaque option se règle dans l’éditeur visuel ou en YAML. Les principales :
 |---|---|
 | `program` | Affiche un seul programme (son identifiant ou son nom). |
 | `filter` | Sans `program` : garde les programmes selon `types`, `area` ou `programs`. Sans filtre, tous les programmes sont affichés. |
-| `schedule_view` | `bars` (par défaut), `list`, `radial`, `radial_12h` ou `times`. |
+| `schedule_view` | `bars` (par défaut), `list`, `radial`, `radial_12h`, `times` ou `compare` (tous les appareils, un seul jour à la fois, choisi avec des pastilles). |
 | `sort`, `order` | Ordre de la liste : par `type` (par défaut), `area`, `name`, ou votre propre ordre. |
 | `show_chart`, `chart_collapsed` | Bouton du graphique sous chaque appareil, et graphique fermé ou ouvert au départ. |
 | `title` | Titre de la carte. |
 
 Tableau complet et types YAML : [options de la carte](https://github.com/movrack/ha_weekly_planner/blob/main/wiki/REFERENCE.fr.md#configuration-de-la-carte).
+
+### Vues de la carte
+
+Choisissez l’apparence avec `schedule_view` :
+
+| | |
+|---|---|
+| **Barres**<br>`bars`<br>![Barres](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s01-overview.png) | **Cadran 24 h**<br>`radial`<br>![Cadran 24 h](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s03-radial.png) |
+| **Cadran 12 h**<br>`radial_12h`<br>![Cadran 12 h](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s03-radial-12h.png) | **Liste compacte**<br>`list`<br>![Liste compacte](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s04-compact-list.png) |
+| **Horaires du jour**<br>`times`<br>![Horaires du jour](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s52-times.png) | **Comparateur**<br>`compare`<br>![Comparateur](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s54-compare.png) |
 
 ## Entités et actions
 
@@ -239,7 +250,7 @@ data:
   option: Absent
 ```
 
-D’autres exemples : [recettes pour les modes](https://github.com/movrack/ha_weekly_planner/wiki/Recettes-pour-les-modes)
+D’autres exemples : [recettes](https://github.com/movrack/ha_weekly_planner/wiki/Recettes)
 et [actions des réglages](https://github.com/movrack/ha_weekly_planner/wiki/Actions-generiques).
 
 ## Fonctionnement

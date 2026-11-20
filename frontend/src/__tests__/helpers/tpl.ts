@@ -39,3 +39,19 @@ export const find = (v: any, event: string, mark: string): Handler => {
 };
 
 export const target = (props: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({ target: props, currentTarget: props, stopPropagation() {}, preventDefault() {}, ...extra });
+
+/** Values bound to a Lit attribute/property, in template order, without depending on whitespace. */
+export const bindings = (tpl: any, name: string): any[] => {
+  if (Array.isArray(tpl)) return tpl.flatMap((v) => bindings(v, name));
+  if (!tpl?.strings) return [];
+  return tpl.values.flatMap((value: any, i: number) =>
+    tpl.strings[i].trimEnd().endsWith(` ${name}=`) ? [value] : bindings(value, name));
+};
+
+/** Every value bound right after a static fragment of the template (for example `class="btn primary" ?disabled=`). */
+export const valuesAfter = (tpl: any, fragment: string): unknown[] => {
+  if (Array.isArray(tpl)) return tpl.flatMap((v) => valuesAfter(v, fragment));
+  if (tpl?._$litDirective$ && Array.isArray(tpl.values)) return valuesAfter(tpl.values, fragment);
+  if (!tpl?.strings) return [];
+  return tpl.values.flatMap((value: unknown, i: number) => (tpl.strings[i].trimEnd().endsWith(fragment) ? [value] : valuesAfter(value, fragment)));
+};

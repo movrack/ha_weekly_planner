@@ -17,7 +17,7 @@ export function shouldReload(running: string | null, served: string | null | und
 }
 
 /** Reloads the page (once per served version) when it is idle and the bundle is out of date. */
-export function reloadIfOutdated(served: string | null | undefined, idle: boolean): boolean {
+export function reloadIfOutdated(served: string | null | undefined, idle: boolean, running: string | null = runningVersion()): boolean {
   if (!idle) return false;
   let remembered: string | null = null;
   try {
@@ -25,7 +25,7 @@ export function reloadIfOutdated(served: string | null | undefined, idle: boolea
   } catch {
     /* no storage: the check below still avoids a loop within this page */
   }
-  if (!shouldReload(runningVersion(), served, remembered)) return false;
+  if (!shouldReload(running, served, remembered)) return false;
   try {
     sessionStorage.setItem(KEY, served as string);
   } catch {

@@ -52,15 +52,22 @@ montrent le lever et le coucher.
 
 [Double cadran S44](SCREENS.fr.md#s44).
 
-Toucher une ligne compacte déplie sa barre. Toucher le calendrier ouvre les
-horaires. Un clic ou un appui long sur un cadran permet de modifier ses arcs avec les poignées.
+Deux autres affichages existent. **Horaires du jour** montre aujourd’hui sous forme de liste simple : une ligne par horaire, avec son
+réglage, jusqu’à quand il dure et un repère « Maintenant ». Le **Comparateur** montre un seul jour à la fois pour toute la carte :
+une rangée de pastilles (lun. à dim., et **Jour férié** quand il est activé pour un programme de la carte) permet de choisir le jour,
+aujourd’hui par défaut, un seul à la fois. Chaque appareil y a sa barre, tous les programmes mélangés. Il est en lecture seule : une
+icône en haut à droite ouvre le choix du programme à modifier, et la barre d’un programme en pause est grisée avec la mention
+« en pause ».
+
+Toucher une ligne compacte déplie sa barre ; chaque appareil y tient sur deux lignes, groupés par type. Toucher le calendrier ouvre les
+horaires. Un simple clic ne modifie jamais : un appui long (doigt ou souris) sur un cadran permet de modifier ses arcs avec les poignées.
 Au clavier, une poignée sélectionnée se déplace de 15 minutes avec les flèches gauche et droite ;
 le changement est enregistré après un court instant. La touche Échap ferme d’abord l’éditeur
 ouvert, puis la fenêtre ; dans une fenêtre, le focus reste à l’intérieur et revient à son point de départ à
 la fermeture. Sur téléphone, un balayage vers le bas sur l’en-tête d’une fenêtre la ferme ; sur ordinateur, le bouton
 **Agrandir / réduire** (flèches, à côté de la croix) l’élargit.
 
-Quand un réglage est sélectionné, ses heures restent visibles au-dessus de la barre, au centre du cadran simple ou sous le cercle pour le double cadran et les textes longs, même sur téléphone. Elles se mettent à jour pendant le déplacement ou le glissé d’une poignée. Pour un horaire solaire, l’heure calculée est précisée avec le lever ou le coucher du soleil. « Dès » indique une action sans fin ; « lendemain » indique une fin après minuit. Au survol ou au focus clavier, chaque réglage affiche son nom et ses heures, sélectionné ou non, dans les barres comme sur les cercles. Le trait « maintenant » affiche l’heure actuelle au survol ou au focus, actualisée chaque minute. Sa zone de survol dépasse le trait pour le rendre facile à viser, sans gêner les poignées. Les mêmes informations sont accessibles aux lecteurs d’écran.
+Quand un réglage est sélectionné, ses heures restent visibles au-dessus de la barre, au centre du cadran simple ou sous le cercle pour le double cadran et les textes longs, même sur téléphone. Elles se mettent à jour pendant le déplacement ou le glissé d’une poignée. Pour un horaire solaire, l’heure calculée est précisée avec le lever ou le coucher du soleil ; au survol de l’icône du soleil sur une barre, l’infobulle donne l’heure du lever ou du coucher calculée par le serveur (la même pour tous les appareils le même jour), suivie de « plus jusqu’à n min au hasard » quand l’horaire a un délai aléatoire. « Dès » indique une action sans fin ; « lendemain » indique une fin après minuit. Au survol ou au focus clavier, chaque réglage affiche son nom et ses heures, sélectionné ou non, dans les barres comme sur les cercles. Le trait « maintenant » affiche l’heure actuelle au survol ou au focus, actualisée chaque minute. Sa zone de survol dépasse le trait pour le rendre facile à viser, sans gêner les poignées. Les mêmes informations sont accessibles aux lecteurs d’écran.
 
 ## Je veux du confort le matin et le soir
 
@@ -189,8 +196,7 @@ modification en cours. Pour enlever un horaire, ouvrir sa ligne, toucher
 (un horaire déjà enregistré seulement). Le **Supprimer** tout en bas de l’écran est un autre bouton : voir
 [plusieurs appareils](#jai-plusieurs-appareils-dans-un-programme).
 
-Vous pouvez aussi modifier la barre directement : faire un **appui long au doigt**, ou
-un clic à la souris, puis sélectionner l’horaire. Déplacer ses poignées change
+Vous pouvez aussi modifier la barre directement : faire un **appui long** (au doigt ou à la souris), puis sélectionner l’horaire. Un simple clic ne modifie rien. Déplacer ses poignées change
 les heures. **C’est enregistré dès que vous relâchez**, pour ce jour seulement.
 Le bandeau **Enregistré · Annuler** permet de revenir en arrière pendant quelques
 secondes : [S21](SCREENS.fr.md#s21).
@@ -274,7 +280,7 @@ puis renseigner **Au plus tôt à**, **Au plus tard à**, ou les deux. Cette opt
 séparément pour le début et la fin solaires. Décocher la case retire les deux limites.
 Voir [l’écran solaire S09](SCREENS.fr.md#s09).
 
-**Sans fin** sert à lancer une action une seule fois à son début, sans action de
+**Ponctuelle** sert à lancer une action une seule fois à son début, sans action de
 fin : [S10](SCREENS.fr.md#s10). Une action ponctuelle passée n’est pas rejouée après
 un redémarrage.
 
@@ -306,7 +312,7 @@ automatisation… Pour le faire connaître à Weekly Planner :
 Les options du sélecteur sont les modes. Weekly Planner le lit et ne le modifie
 jamais : pour changer de mode, changer le sélecteur. Si le sélecteur est
 indisponible, le dernier mode valide reste actif. Des
-[recettes d’automatisation](MODES_COOKBOOK.fr.md) changent le mode selon un capteur.
+[recettes d’automatisation](RECETTES.fr.md) changent le mode selon un capteur.
 
 ### Modifier les horaires d’un mode
 
@@ -366,8 +372,8 @@ modifie pas directement ce jour-là.
 
 La section **Jour férié** n’apparaît que si une entité « jour férié » est choisie dans **Paramètres →
 Appareils et services → Weekly Planner → Configurer → Réglages → Mode et jour férié** (réservé aux
-administrateurs). Pour créer cette entité, voir la
-[recette 6](MODES_COOKBOOK.fr.md#recette-6--un-interrupteur--jour-férié-).
+administrateurs). Pour créer cette entité, voir la recette
+[Un interrupteur « Jour férié »](RECETTE_INTERRUPTEUR_JOUR_FERIE.fr.md).
 
 ## Je veux changer la présentation ou créer un programme
 
@@ -381,14 +387,17 @@ Si les boutons manquent, demander à cette personne de les ouvrir.
 Les intitulés de Home Assistant peuvent varier légèrement selon sa version.
 
 **Affichage de la carte** permet de choisir **Un seul programme** ou **Plusieurs programmes**.
-Dans **Programmes à afficher**, un interrupteur par programme choisit ce que la carte montre ; sous chaque
-programme figurent ses appareils. Les boutons **Tout sélectionner par type** (Climatisation, Ouverture…) cochent
-d’un coup tous les programmes qui ont un appareil de ce type. Sous **Présentation de la journée**, choisir **Barres**, **Cadran 24 heures**, **Double
-cadran 12 heures** ou **Liste compacte**. Les cadrans sont aussi possibles en
+Dans **Programmes à afficher**, on réduit la liste puis on affine : une **Pièce** (une pastille, ou **Toutes les pièces**),
+un **Type** (les pastilles Climatisation, Ouverture… cochent d’un coup tous les programmes qui ont un appareil de ce type),
+puis la liste **Programmes** : **Tous les programmes** (activé, la carte montre aussi les programmes créés plus tard),
+puis un interrupteur par programme, avec ses appareils dessous. La pièce et le type limitent la liste. Sous **Affichage**, choisir **Barres**, **Cadran 24 heures**, **Double
+cadran 12 heures**, **Liste compacte**, **Horaires du jour** ou **Comparateur**. Les cadrans sont aussi possibles en
 liste filtrée. Enregistrer la carte et terminer l’édition du tableau de bord.
 
 
 Voir [la création S37](SCREENS.fr.md#s37), [la pièce S40](SCREENS.fr.md#s40) et [les filtres S41](SCREENS.fr.md#s41).
+
+Le panneau **Programmes** a deux rubriques. **Actions** : **Nouveau programme**, **Dupliquer un programme** (choisir le programme à copier, puis **Dupliquer** : la copie s’appelle **Copie** suivi du nom, avec un numéro si ce nom existe déjà, garde les appareils, les réglages et les horaires, et apparaît tout en bas de la liste) **Ordre des priorités** (voir [Priorités](PRIORITES.fr.md)). **Liste des programmes** : sur téléphone, une bascule **Liste | Aperçu** remplace les lignes par la carte Weekly Planner en liste compacte, sans quitter l’écran (les Actions, **Trier** et **Filtrer** restent là) ; l’aperçu montre les mêmes programmes dans le même ordre que la liste, filtres et tri compris, et on peut y modifier les horaires. Sur grand écran, l’aperçu occupe la partie de droite tant qu’aucun programme n’est ouvert. La **Liste des programmes** : le bouton **Trier** ouvre une fenêtre pour trier par **Ordre de création** (par défaut), **Nom** ou **Priorité**. Le bouton **Filtrer** ouvre une fenêtre pour filtrer par **Type**, **Pièce** (avec **Sans pièce**) et **Appareil** ; chacun est une section d’un accordéon, ouvrir l’une referme les autres, et le titre indique combien de filtres y sont actifs : un programme est affiché s’il correspond à l’une des valeurs choisies dans chaque filtre. **Réinitialiser** efface les filtres et garde le tri choisi.
 
 Pour commencer, toucher **Nouveau programme**, donner un nom et ajouter un
 appareil. **Aucune commande n’est cochée au départ** : choisir celles que l’on veut
@@ -404,13 +413,13 @@ les horaires** pour continuer directement. Si aucune commande n’a encore été
 choisie, les régler plus tard dans **Réglages des programmes → Appareils →
 Actions proposées**. Enregistrer aussi la carte pour garder sa présentation.
 
-Dans **Général**, on règle aussi le nom, l’icône, la **Priorité (1–100)** et **Réappliquer**. **Dupliquer**
-crée une copie du programme et **Supprimer** le supprime, avec ses horaires. L’onglet **Modes** explique
+Dans **Général**, on règle aussi le nom, l’icône, la **Priorité** (bloc **Partage un appareil avec N programmes**, voir [Priorités](PRIORITES.fr.md)) et, sous **Autres paramètres**, **Réappliquer**. **Supprimer**
+supprime le programme, avec ses horaires. L’onglet **Modes** explique
 que chaque mode a sa propre semaine, indique **Actif actuellement : X** et propose **Modifier les
 horaires de ce mode**. Les onglets se parcourent aux flèches, avec Début et Fin.
 
 Dans **Général**, **Pièce du programme** permet de le ranger, par exemple dans
-Salon. Choisir un nom existant ou en écrire un nouveau. Cette pièce est propre
+Salon. Choisir une pièce de Home Assistant ou une pièce déjà utilisée par un programme dans la liste, ou **Autre pièce…** pour en écrire une nouvelle. Cette pièce est propre
 au programme : elle n’est pas reprise automatiquement de la pièce d’un appareil.
 Dans **Affichage de la carte → Plusieurs programmes**, choisir ensuite cette pièce ou
 **Toutes les pièces**. Si la carte est vide, vérifier ses filtres.
@@ -493,9 +502,10 @@ droits de modification avec la personne qui a installé la carte.
 
 ## Pour la personne qui installe
 
-- Plusieurs programmes peuvent utiliser le même appareil. **Le plus petit numéro
-  de priorité l’emporte** ; à égalité, le plus ancien. Un autre programme peut
-  reprendre la main à la fin d’un horaire.
+- Plusieurs programmes peuvent utiliser le même appareil : ils sont **en concurrence** et classés par rang
+  (1, 2, 3…). **Le rang 1 l’emporte** ; à égalité, le plus ancien. L’ordre se règle par glisser-déposer
+  (bouton **Ordre des priorités** du panneau, ou bloc de l’onglet Général) : [Priorités](PRIORITES.fr.md).
+  Un autre programme peut reprendre la main à la fin d’un horaire.
 - Général contient les conditions du programme ; elles doivent toutes être
   satisfaites pour ses horaires. Une condition fausse peut laisser agir le défaut.
   Le formulaire n’édite pas les conditions par horaire.
@@ -512,7 +522,7 @@ droits de modification avec la personne qui a installé la carte.
   appareil est indisponible (1 à 1440 minutes) et le délai d’attente avant d’appliquer un changement de condition
   (0 à 60 minutes).
 - Limites : nom de programme 60 caractères, de réglage 30, de mode 40 ; 20 modes par programme,
-  50 horaires par jour, 100 appareils par programme, 10 conditions par horaire ; priorité de 1 à 100 ;
+  50 horaires par jour, 100 appareils par programme, 10 conditions par horaire ;
   décalage solaire de −240 à +240 minutes ; délai aléatoire de 1 à 240 minutes ; nom affiché d’une source de
   graphique 60 caractères, 100 états mis en évidence.
 - Notifications persistantes : « X est indisponible : son action planifiée est toujours en attente »,

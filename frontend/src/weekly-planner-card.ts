@@ -27,6 +27,7 @@ import { deviceDays, fetchPreviewResponse } from "./preview-cache";
 import { applies } from "./slots";
 import { timesRows } from "./times-list";
 import { configDefaults, normalizeConfig } from "./config";
+import { roomKey, roomLabel } from "./program-areas";
 import { activeFollow, activeProfile, entityDomain, filterPrograms, friendlyName, subscribePlanner } from "./planner";
 import { groupItems, sortMode } from "./list-order";
 import { allSlots, dayInText, holidayApplies, holidayChoice, holidayDayToday, holidayLine, holidayOwnSlots, holidayReplaces } from "./holiday";
@@ -34,7 +35,7 @@ import { passesMidnight } from "./components/holiday-section";
 import { specMinutes } from "./slots";
 import type { DomainLocalize } from "./domains";
 import { dayBounds, addDaysIso } from "./components/chart";
-import { currentTimeFormat, formatPauseEnd, formatWhen, setTimeFormat, localDateIso, localMinutes, localWeekday, nominal, pauseEnd, spillover, DAY } from "./time";
+import { currentTimeFormat, fmtClock, fmtDayEnd, formatPauseEnd, formatWhen, setTimeFormat, localDateIso, localMinutes, localWeekday, nominal, pauseEnd, spillover, DAY } from "./time";
 import type { CardConfig, HomeAssistant, PlannerData, PreviewResponse, Program, Slot } from "./types";
 
 /** How long a confirmation message stays (ms), counted from the end of any hover or focus on it. */
@@ -42,7 +43,22 @@ const INFO_MS = 8000;
 
 type Dialog =
   | { kind: "schedule"; scope: Scope; day?: { weekday: number; offset: number }; create?: boolean }
+  | { kind: "pick"; programs: Program[] }
   | null;
+
+/**
+ * The names without the words they all start with, when that leaves every name non-empty and different from the others
+ * (`["Volet bureau", "Volet cuisine"]` → "bureau", "cuisine"). Otherwise the names stay whole.
+ */
+export function commonWordPrefix(names: string[]): (name: string) => string {
+  const unique = [...new Set(names)];
+  const words = unique.map((n) => n.split(/\s+/));
+  let n = 0;
+  while (unique.length > 1 && words.every((w) => w.length > n + 1 && w[n].toLowerCase() === words[0][n].toLowerCase())) n++;
+  if (!n) return (name) => name;
+  const cut = (name: string) => name.split(/\s+/).slice(n).join(" ");
+  return new Set(unique.map(cut)).size === unique.length ? cut : (name) => name;
+}
 
 @customElement("weekly-planner-card")
 export class WeeklyPlannerCard extends LitElement {
@@ -57,6 +73,8 @@ export class WeeklyPlannerCard extends LitElement {
   @state() private _preview: Record<string, Record<string, PreviewResponse>> = {};
   @state() private _now = new Date();
   @state() private _week = new Set<string>();
+  /** Day shown by the comparison: 0 to 6 (Monday to Sunday), 7 for the day off, null for today. */
+  @state() private _cmpDay: number | null = null;
   @state() private _expandedProgram: string | null = null;
   /** Device shown for each program that has several (program id -> entity id); lives as long as the card. */
   @state() private _deviceOf = new Map<string, string>();
@@ -117,11 +135,15 @@ export class WeeklyPlannerCard extends LitElement {
   /** The programs in the order of the `sort` option, with a small heading above each type or room (not with name / custom). */
   private _list(programs: Program[]) {
     const mode = sortMode(this._config.sort);
-    const items = programs.map((p) => ({ id: p.id, name: p.name, type: entityDomain(p.entities[0]?.entity_id ?? ""), area: p.area, p }));
+    const items = programs.map((p) => ({ id: p.id, name: p.name, type: entityDomain(p.entities[0]?.entity_id ?? ""), area: roomKey(this.hass, p.area), p }));
     const grouped = mode === "type" || mode === "area";
+    if (this._config.schedule_view === "compare") {
+      return this._compare(groupItems(items, mode, { order: this._config.order, typeLabel: this._typeLabel, lang: this._lang })
+        .map((g) => g.items.map((i) => i.p)), grouped);
+    }
     const view = (ps: Program[]) => (this._config.schedule_view === "list" ? this._compactList(ps) : this._bySchedule(ps, grouped));
     return groupItems(items, mode, { order: this._config.order, typeLabel: this._typeLabel, lang: this._lang }).map((g) => {
-      const label = g.key === "" ? t(this._lang, "sort_other") : mode === "type" ? this._typeLabel(g.key) : g.key;
+      const label = g.key === "" ? t(this._lang, "sort_other") : mode === "type" ? this._typeLabel(g.key) : roomLabel(this.hass, g.key, g.items.map((i) => i.p.area));
       return html`${g.header ? html`<h2 class="group">${label}</h2>` : nothing}${view(g.items.map((i) => i.p))}`;
     });
   }
@@ -229,7 +251,7 @@ export class WeeklyPlannerCard extends LitElement {
   private async _loadPreviews(): Promise<void> {
     if (!this._data) return;
     const dates = [-1, 0, 1, 2, 3, 4, 5, 6].map((o) => localDateIso(this._dateAt(o), this._tz));
-    const programs = filterPrograms(this._data, this._config);
+    const programs = filterPrograms(this._data, this._config, this.hass);
     const key = `${dates[0]}|${this._data.holiday_today ? "off" : ""}|${programs.map((p) => `${p.id}:${p.revision}:${activeProfile(p, this._data!).id}`).join(",")}`;
     if (key === this._previewKey || (key === this._failedPreviewKey && Date.now() < this._previewRetryAt)) return;
     this._previewKey = key;
@@ -256,6 +278,87 @@ export class WeeklyPlannerCard extends LitElement {
     this._failedPreviewKey = ""; // back to "loading" until the answer
     this.requestUpdate();
     void this._loadPreviews();
+  }
+
+  /* ---- comparison view (`schedule_view: compare`): every device, day by day, read only ---- */
+
+  /** A program that does not run: switched off or paused (same test as the "Paused" badge), or all programs suspended. */
+  private _notRunning(program: Program): boolean {
+    return !program.enabled || Boolean(this._data?.vacation);
+  }
+
+  /** One comparison for the whole card: a group per day (Monday to Sunday), a bar per device, then the day-off group. */
+  private _compare(groups: Program[][], grouped: boolean) {
+    const lang = this._lang;
+    const rows = groups.flatMap((ps, gi) => ps.flatMap((program) => program.entities.map((e, ei) => ({
+      program, entityId: e.entity_id, gap: grouped && gi > 0 && ei === 0 && program === ps[0] }))));
+    if (!rows.length) return nothing;
+    const days = strings(lang).days;
+    const todayDay = localWeekday(this._now, this._tz);
+    const nowMin = localMinutes(this._now, this._tz);
+    const name = (r: { program: Program; entityId: string }) => this._deviceLabel(r.program, r.entityId);
+    const paused = t(lang, "compare_paused");
+    // words every name begins with ("Volet" in "Volet bureau", "Volet cuisine"…) are dropped from the short name: the column is narrow
+    const shortOf = commonWordPrefix(rows.map(name));
+    const label = (r: { program: Program; entityId: string }) => html`<span class="cname" aria-hidden="true" title=${name(r)}>
+      <span class="cn">${shortOf(name(r))}</span>${this._notRunning(r.program) ? html`<span class="cp">${paused}</span>` : nothing}</span>`;
+    // what a bar shows, for a screen reader: each stretch with its action and times
+    const spoken = (spans: BarSpan[]) => spans.filter((s) => !s.ignored).map((s) =>
+      s.marker ? `${s.label} ${fmtClock(lang, s.start)}` : `${s.label} ${fmtClock(lang, s.start)}–${s.end >= DAY ? fmtDayEnd(lang) : fmtClock(lang, s.end)}`).join(", ");
+    const said = (r: { program: Program; entityId: string }, what: string) =>
+      `${name(r)}${this._notRunning(r.program) ? ` ${paused}` : ""}, ${what}`;
+    const rowClass = (r: { program: Program; gap: boolean }) => ["crow", r.gap ? "gap" : "", this._notRunning(r.program) ? "off" : ""].filter(Boolean).join(" ");
+    const dayView = (weekday: number) => {
+      const o = (weekday - todayDay + 7) % 7;
+      return html`<div class="cday ${o === 0 ? "is-today" : ""}" role="tabpanel" aria-label=${days[weekday]}>
+        ${rows.map((r, ri) => { const spans = this._spans(r.entityId, [r.program], o); return html`<div class=${rowClass(r)}>
+          ${label(r)}
+          <div class="cbar" role="img" aria-label=${said(r, [days[weekday], spoken(spans)].filter(Boolean).join(": "))}>
+            <wp-day-bar lang=${lang} notches no-tab ?no-clock=${ri > 0} device-name=${name(r)} .now=${o === 0 ? nowMin : null}
+              .spans=${spans}></wp-day-bar></div></div>`; })}
+      </div>`;
+    };
+    const off = rows.map((r) => ({ r, spans: this._holidaySpans(r.entityId, r.program), copy: this._holidayCopy(r.program) }));
+    const holiday = this._data?.holiday_entity && off.some((x) => x.spans) ? html`<div class="cday cday-off" role="tabpanel" aria-label=${t(lang, "holiday_title")}>
+      ${off.map(({ r, spans, copy }) => {
+        // a copied weekday: its bar and "like <day>"; an own day: the bar alone; no day off: "not configured"
+        const note = copy !== null ? t(lang, "holiday_what_copy", { day: dayInText(lang, copy) }) : "";
+        const what = spans ? [t(lang, "holiday_title"), note, spoken(spans)].filter(Boolean).join(", ") : `${t(lang, "holiday_title")}, ${t(lang, "compare_not_set")}`;
+        return html`<div class="${rowClass(r)} ${note ? "note" : ""}">
+          ${label(r)}
+          <div class="cbar" role="img" aria-label=${said(r, what)}>
+            <wp-day-bar lang=${lang} notches no-tab device-name=${name(r)} .spans=${spans ?? []}></wp-day-bar>
+            ${spans ? nothing : html`<span class="cnone">${t(lang, "compare_not_set")}</span>`}
+            ${note ? html`<span class="ccopy">${note}</span>` : nothing}</div></div>`;
+      })}
+    </div>` : nothing;
+    // one day at a time: a chip per day (and the day off when there is one), a single choice
+    const holidayOn = Boolean(this._data?.holiday_entity && off.some((x) => x.spans));
+    const ids = [0, 1, 2, 3, 4, 5, 6, ...(holidayOn ? [7] : [])];
+    const shown = this._cmpDay !== null && ids.includes(this._cmpDay) ? this._cmpDay : todayDay;
+    const pickDay = (d: number) => { this._cmpDay = d; };
+    const dayKey = (e: KeyboardEvent) => {
+      const at = ids.indexOf(shown);
+      const next = e.key === "ArrowRight" || e.key === "ArrowDown" ? (at + 1) % ids.length
+        : e.key === "ArrowLeft" || e.key === "ArrowUp" ? (at + ids.length - 1) % ids.length
+        : e.key === "Home" ? 0 : e.key === "End" ? ids.length - 1 : -1;
+      if (next < 0) return;
+      e.preventDefault();
+      pickDay(ids[next]);
+      void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>('.cdchip[aria-selected="true"]')?.focus());
+    };
+    const short = strings(lang).days_short;
+    const tabs = html`<div class="cdays" role="tablist" aria-label=${t(lang, "compare_day")} @keydown=${dayKey}>
+      ${ids.map((d) => html`<button class="cdchip ${d === todayDay ? "is-today" : ""}" role="tab" aria-selected=${d === shown}
+        tabindex=${d === shown ? 0 : -1} aria-label=${d === 7 ? t(lang, "holiday_title") : days[d]} @click=${() => pickDay(d)}>${d === 7 ? t(lang, "holiday_title") : short[d]}</button>`)}
+    </div>`;
+    const programs = groups.flat();
+    return html`<div class="compare">
+      <div class="cedit"><button class="hours" aria-label=${t(lang, "compare_edit")} title=${t(lang, "compare_edit")}
+        @click=${() => { this._dialog = programs.length === 1 ? { kind: "schedule", scope: { kind: "program", programId: programs[0].id } } : { kind: "pick", programs }; }}><ha-icon icon="mdi:calendar-edit"></ha-icon><span class="hl">${t(lang, "compare_edit")}</span></button></div>
+      ${tabs}${shown === 7 ? holiday : dayView(shown)}
+      <div class="caxis" aria-hidden="true">${[0, 6, 12, 18, 24].map((h) => html`<span class="h${h}" style="left:${(h / 24) * 100}%">${h === 24 ? fmtDayEnd(lang) : fmtClock(lang, h * 60)}</span>`)}</div>
+    </div>`;
   }
 
   /* ---- blocks ---- */
@@ -289,7 +392,9 @@ export class WeeklyPlannerCard extends LitElement {
       const mk = (slot: Slot, start: number, end: number, extra: Partial<BarSpan> = {}): BarSpan => {
         const label = labelOf(data, slot.label)!;
         return { start, end, color: label.color, label: labelName(this.hass, label), labelId: label.id, slotId: slot.id, startSun: sunDir(slot.start),
-          endSun: slot.end ? sunDir(slot.end) : null, startSpec: slot.start, endSpec: slot.end ?? null, marker: !slot.end, ...extra };
+          endSun: slot.end ? sunDir(slot.end) : null, startSpec: slot.start, endSpec: slot.end ?? null, marker: !slot.end,
+          startBase: slot.start.random_minutes ? specMinutes(this.hass, { ...slot.start, random_minutes: 0 }) : null,
+          endBase: slot.end?.random_minutes ? specMinutes(this.hass, { ...slot.end, random_minutes: 0 }) : null, ...extra };
       };
       const date = localDateIso(at, this._tz);
       const { today: resolved, previous } = this._deviceDays(program.id, date, entityId);
@@ -308,6 +413,8 @@ export class WeeklyPlannerCard extends LitElement {
         const end = endMs === null ? null : endMs >= bounds.endMs ? DAY : localMinutes(r.end!, this._tz);
         spans.push(mk(slot, start, end === null ? Math.min(DAY, start + 10) : end, {
           spill, startSun: spill ? null : sunDir(slot.start), ignored: r.ignored ?? null,
+          ...(r.start_base ? { startBase: localMinutes(r.start_base, this._tz) } : {}),
+          ...(r.end_base && endMs !== null && endMs < bounds.endMs ? { endBase: localMinutes(r.end_base, this._tz) } : {}),
           sun: "sun" in slot.start || Boolean(slot.end && "sun" in slot.end), startMs, endMs,
         }));
       }
@@ -330,11 +437,12 @@ export class WeeklyPlannerCard extends LitElement {
    * The day-off row under Sunday in the week: the mode's day-off schedule, display only, cut at 24:00 (nothing carried over
    * from the day before). Empty without a day-off entity or when the shown mode has no day off that applies.
    */
-  private _holidayRow(entityId: string, program: Program) {
+  /** Spans of the day-off schedule of a device (null when the shown mode of its program has no day off, or no day-off entity). */
+  private _holidaySpans(entityId: string, program: Program): BarSpan[] | null {
     const data = this._data;
-    if (!data?.holiday_entity) return nothing;
+    if (!data?.holiday_entity) return null;
     const profile = activeProfile(program, data);
-    if (holidayChoice(profile) === "none" || !profile.holiday) return nothing;
+    if (holidayChoice(profile) === "none" || !profile.holiday) return null;
     const slots = "copy" in profile.holiday ? profile.days[profile.holiday.copy] ?? [] : holidayOwnSlots(profile);
     const spans: BarSpan[] = [];
     for (const slot of slots) {
@@ -346,10 +454,28 @@ export class WeeklyPlannerCard extends LitElement {
       spans.push({ start, end: end ?? Math.min(DAY, start + 10), color: label.color, label: labelName(this.hass, label), labelId: label.id, slotId: slot.id,
         startSun: sunDir(slot.start), endSun: cut ? null : sunDir(slot.end), startSpec: slot.start, endSpec: slot.end ?? null, marker: !slot.end });
     }
+    return spans;
+  }
+
+  /** The weekday a day off copies (0 = Monday), or null for an own day or when no day off is switched on. */
+  private _holidayCopy(program: Program): number | null {
+    const profile = activeProfile(program, this._data!);
+    return holidayChoice(profile) !== "none" && profile.holiday && "copy" in profile.holiday ? profile.holiday.copy : null;
+  }
+
+  private _holidayRow(entityId: string, program: Program) {
+    if (!this._data?.holiday_entity) return nothing;
+    const spans = this._holidaySpans(entityId, program);
+    if (!spans) return nothing; // no day-off setting for this device: nothing to show
+    const copy = this._holidayCopy(program);
     const lang = this._lang;
-    return html`<div class="wday wday-off" role="group" aria-label=${t(lang, "holiday_title")}>
+    // a copied weekday: its bar and "like <day>"; an own day: the bar alone; no day off: "not configured"
+    const note = copy !== null ? t(lang, "holiday_what_copy", { day: dayInText(lang, copy) }) : "";
+    return html`<div class="wday wday-off ${note ? "note" : ""}" role="group" aria-label=${t(lang, "holiday_title")}>
       <span class="wname">${t(lang, "holiday_row")}</span>
-      <wp-day-bar lang=${lang} notches .spans=${spans}></wp-day-bar></div>`;
+      <div class="woff">
+        <wp-day-bar lang=${lang} notches .spans=${spans}></wp-day-bar>
+        ${note ? html`<span class="ccopy">${note}</span>` : nothing}</div></div>`;
   }
 
   /** Resolved occurrences of one device for a date and the day before (see `deviceDays`). */
@@ -548,7 +674,7 @@ export class WeeklyPlannerCard extends LitElement {
     return program.entities.length > 1 ? `${program.name}, ${friendlyName(this.hass, entityId)}` : program.name;
   }
 
-  private _bar(entityId: string, program: Program, offset: number, kind: "today" | "week", openDay: () => void) {
+  private _bar(entityId: string, program: Program, offset: number, kind: "today" | "week") {
     const at = this._dateAt(offset);
     const weekday = localWeekday(at, this._tz);
     const date = localDateIso(at, this._tz);
@@ -563,7 +689,7 @@ export class WeeklyPlannerCard extends LitElement {
       @edit-request=${() => (this._edit = key)} @edit-exit=${() => { if (this._edit === key) this._edit = null; }}
       locked-reason=${offset === 0 ? this._lockedText(program) : ""}
       @locked-request=${() => this._say(this._lockedText(program))}
-      @open-day=${openDay} @edited=${(e: CustomEvent<{ undo: () => Promise<boolean> }>) => this._showSnack(e.detail.undo)}></wp-bar-editor>`;
+      @edited=${(e: CustomEvent<{ undo: () => Promise<boolean> }>) => this._showSnack(e.detail.undo)}></wp-bar-editor>`;
   }
 
   /** A bar is edited in place when editing is allowed, the mode is not followed, and no day off replaces today's schedule. */
@@ -626,12 +752,12 @@ export class WeeklyPlannerCard extends LitElement {
           </div>
           ${opts.button ? html`<div class="header-actions"><div class="header-icons">
             ${programs.length === 1 ? this._programToggle(programs[0]) : nothing}
-            <button class="hours" aria-label=${t(lang, "hours_of", { name: opts.name ?? friendlyName(this.hass, entityId) })} title=${t(lang, "hours")} @click=${open}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
+            <button class="hours" aria-label=${t(lang, "hours_of", { name: opts.name ?? friendlyName(this.hass, entityId) })} title=${t(lang, "hours")} @click=${open}><ha-icon icon="mdi:calendar-edit"></ha-icon><span class="hl">${t(lang, "edit_word")}</span></button>
           </div></div>` : nothing}
         </div>
-        ${create ? this._createButton(opts.open) : this._config.schedule_view === "times" ? this._todayBlock(entityId, programs[0], open) : (this._config.schedule_view === "radial" || this._config.schedule_view === "radial_12h") ? this._bar(entityId, programs[0], 0, "today", open) : html`<div class="today">
+        ${create ? this._createButton(opts.open) : this._config.schedule_view === "times" ? this._todayBlock(entityId, programs[0], open) : (this._config.schedule_view === "radial" || this._config.schedule_view === "radial_12h") ? this._bar(entityId, programs[0], 0, "today") : html`<div class="today">
           <span class="wname" title=${t(lang, "today")}>${t(lang, "today_short")}</span>
-          ${this._bar(entityId, programs[0], 0, "today", open)}
+          ${this._bar(entityId, programs[0], 0, "today")}
         </div>`}
         ${create ? nothing : this._lockedNote(programs[0])}
         ${create ? nothing : this._extras(opts.open, entityId, programs)}
@@ -674,7 +800,7 @@ export class WeeklyPlannerCard extends LitElement {
         ${showChart ? html`<button class="weekbtn chartbtn" aria-label=${t(lang, "chart_day_of", { name: who })} aria-expanded=${chartOpen} @click=${toggleChart}>
           <ha-icon icon="mdi:chart-line"></ha-icon>${t(lang, "chart_day")}<ha-icon class="after" icon=${chartOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>` : nothing}
       </div>
-      ${weekOpen ? html`<div class="week">
+      ${weekOpen ? html`<div class="week wp-appear">
         ${[0, 1, 2, 3, 4, 5, 6].map((weekday) => {
           // the whole week, Monday to Sunday, each day at its next occurrence (today included)
           const o = (weekday - localWeekday(this._now, this._tz) + 7) % 7;
@@ -682,11 +808,11 @@ export class WeeklyPlannerCard extends LitElement {
           return html`<div class="wday">
             <button class="wnamebtn" aria-label=${days[weekday]} @click=${openDay}>
               <span class="wname ${o === 0 ? "today" : ""}">${days[weekday]}</span></button>
-            ${this._bar(entityId, program, o, "week", openDay)}</div>`;
+            ${this._bar(entityId, program, o, "week")}</div>`;
         })}
         ${this._holidayRow(entityId, program)}
       </div>` : nothing}
-      ${chartOpen ? html`<div class="chartbox"><wp-chart .hass=${this.hass} .data=${this._data} .program=${program}
+      ${chartOpen ? html`<div class="chartbox wp-appear"><wp-chart .hass=${this.hass} .data=${this._data} .program=${program}
         entity-id=${entityId} date=${date} .slots=${slots ? [...(previous ?? []), ...slots] : null}
         @open-history=${(e: CustomEvent<string>) => openHistory(e.detail)}></wp-chart></div>` : nothing}`;
   }
@@ -705,7 +831,7 @@ export class WeeklyPlannerCard extends LitElement {
           <ha-icon icon=${p.icon ?? "mdi:calendar-clock"}></ha-icon>
           ${grouped ? html`<h3>${p.name}${this._noSchedule(p)}${this._disabledBadge(!p.enabled, [p])}</h3>` : html`<h2>${p.name}${this._noSchedule(p)}${this._disabledBadge(!p.enabled, [p])}</h2>`}
           <div class="header-actions"><div class="header-icons">${this._programToggle(p)}
-            <button class="hours" aria-label=${t(lang, "hours_of", { name: p.name })} title=${t(lang, "hours")} @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button>
+            <button class="hours" aria-label=${t(lang, "hours_of", { name: p.name })} title=${t(lang, "hours")} @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon><span class="hl">${t(lang, "edit_word")}</span></button>
           </div></div>
         </div>
         ${this._deviceTabs(p)}
@@ -715,28 +841,36 @@ export class WeeklyPlannerCard extends LitElement {
   }
 
   private _compactList(programs: Program[]) {
+    // the shared leading word of the group ("Volet …") is dropped from the lines; the full name stays in the title and the label
+    const shortOf = commonWordPrefix(programs.map((p) => p.name));
     return programs.map((p) => {
       const scope: Scope = { kind: "program", programId: p.id };
       const next = p.entities.map((e) => ({ entity: e.entity_id, next: this._next(e.entity_id, [p]) }))
         .filter((item) => item.next).sort((a, b) => Date.parse(a.next!.at) - Date.parse(b.next!.at));
       const expanded = this._expandedProgram === p.id;
+      const nextLabel = next.length ? (() => { const l = labelOf(this._data!, next[0].next!.label); return l ? labelName(this.hass, l) : actionText(this.hass, this._lang, next[0].next!.action); })() : "";
+      const nextAt = next.length ? next[0].next!.at : "";
+      const sameDay = next.length > 0 && localDateIso(new Date(nextAt), this._tz) === localDateIso(this._now, this._tz);
+      const nextWhen = next.length ? formatWhen(nextAt, this._tz, this._lang, this._now) : "";
+      // "Close at 4:55 pm" today, "Close · tomorrow 8:00 am" later
+      const nextText = !next.length ? "" : sameDay ? t(this._lang, "next_at", { action: nextLabel, time: nextWhen }) : t(this._lang, "next_on", { action: nextLabel, when: nextWhen });
       return html`<section class="compact-program"><div class="compact-row">
         <ha-icon icon=${p.icon ?? "mdi:calendar-clock"}></ha-icon>
-        <button class="summary" aria-expanded=${expanded} aria-controls=${`compact-${p.id}`}
+        <button class="summary" aria-expanded=${expanded} aria-controls=${`compact-${p.id}`} title=${p.name} aria-label=${next.length ? `${p.name}, ${nextText}` : p.name}
           @click=${() => { this._expandedProgram = expanded ? null : p.id; this._edit = null; }}>
-          <strong>${p.name}<ha-icon icon=${expanded ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></strong>${this._noSchedule(p)}${this._disabledBadge(!p.enabled, [p])}
-          ${next.length ? html`<span>${(() => { const l = labelOf(this._data!, next[0].next!.label); return l ? labelName(this.hass, l) : actionText(this.hass, this._lang, next[0].next!.action); })()} · ${t(this._lang, "then_label")} ${nb(formatWhen(next[0].next!.at, this._tz, this._lang, this._now))}</span>` : html`${p.enabled ? html`<span>${t(this._lang, "hours")}</span>` : nothing}`}
+          <strong><span class="sname">${shortOf(p.name)}</span><ha-icon icon=${expanded ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></strong>${this._noSchedule(p)}${this._disabledBadge(!p.enabled, [p])}
+          ${next.length ? html`<span class="sinfo" title=${nextText}><span class="sl">${nb(nextText)}</span></span>` : html`${p.enabled ? html`<span class="sinfo">${t(this._lang, "hours")}</span>` : nothing}`}
         </button><div class="header-actions"><div class="header-icons">${this._programToggle(p)}
         <button class="hours" aria-label=${t(this._lang, "hours_of", { name: p.name })} title=${t(this._lang, "hours")}
-          @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon></button></div></div></div>
-        ${expanded ? html`<div id=${`compact-${p.id}`} class="compact-details" role="region" aria-label=${p.name}>
+          @click=${() => this._open(scope)}><ha-icon icon="mdi:calendar-edit"></ha-icon><span class="hl">${t(this._lang, "edit_word")}</span></button></div></div></div>
+        ${expanded ? html`<div id=${`compact-${p.id}`} class="compact-details wp-appear" role="region" aria-label=${p.name}>
           ${this._deviceTabs(p)}
           ${p.entities.filter((e) => p.entities.length < 2 || e.entity_id === this._shownDevice(p)).map((e) => {
             const own: Scope = p.entities.length > 1 ? { ...scope, entityId: e.entity_id } : scope;
             return html`
             ${this._needsCreate(p, e.entity_id) ? this._createButton(own) : this._config.schedule_view === "times"
               ? html`${this._todayBlock(e.entity_id, p, () => this._open(own))}${this._extras(own, e.entity_id, [p])}` : html`<div class="today"><span class="wname" title=${t(this._lang, "today")}>${t(this._lang, "today_short")}</span>
-              ${this._bar(e.entity_id, p, 0, "today", () => this._open(own))}</div>
+              ${this._bar(e.entity_id, p, 0, "today")}</div>
             ${this._extras(own, e.entity_id, [p])}`}`;
           })}
         </div>` : nothing}</section>`;
@@ -747,7 +881,7 @@ export class WeeklyPlannerCard extends LitElement {
     if (!this._config || !this.hass) return nothing;
     const lang = this._lang;
     const data = this._data;
-    const programs = data ? filterPrograms(data, this._config) : [];
+    const programs = data ? filterPrograms(data, this._config, this.hass) : [];
     const showTitle = this._config.title !== undefined && this._config.title !== "";
     return html`
       <ha-card>
@@ -780,15 +914,18 @@ export class WeeklyPlannerCard extends LitElement {
       case "schedule":
         return keyed(`${scopeKey(d.scope)}|${d.scope.kind === "program" ? d.scope.entityId ?? "" : ""}`, html`<wp-schedule .hass=${this.hass} .data=${this._data} .scope=${d.scope} .day=${d.day ?? null} ?create=${Boolean(d.create)}
           .chart=${this._config.show_chart !== false} @closed=${close}></wp-schedule>`);
+      case "pick":
+        return html`<wp-dialog open compact heading=${t(this._lang, "compare_edit")} description=${t(this._lang, "compare_pick")} @closed=${close}>
+          <p class="pickhint">${t(this._lang, "compare_pick")}</p>
+          <ul class="picklist">${d.programs.map((p) => html`<li><button class="pick" @click=${() => this._open({ kind: "program", programId: p.id })}>
+            <ha-icon icon=${p.icon ?? "mdi:calendar-clock"}></ha-icon><span>${p.name}</span></button></li>`)}</ul>
+        </wp-dialog>`;
     }
   }
 
   static styles = [calloutStyles, css`
-    .compact-program { border-top: 1px solid var(--divider-color); }
-    .compact-program:first-of-type { border-top: 0; }
-    .compact-row { display: flex; align-items: center; gap: 8px; min-height: 72px; }
-    .summary strong { display: flex; align-items: center; gap: 4px; overflow-wrap: anywhere; }
-    .summary ha-icon { --mdc-icon-size: 18px; flex: none; }
+    .compact-row { display: flex; align-items: center; gap: 8px; min-height: 52px; }
+    .summary strong { display: flex; align-items: center; gap: 4px; }
     .compact-details { padding-bottom: 8px; }
     .devtabs { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0 8px; }
     .devtab {
@@ -799,8 +936,15 @@ export class WeeklyPlannerCard extends LitElement {
     .devtab span { min-width: 0; overflow-wrap: anywhere; }
     .devtab[aria-selected="true"] { background: var(--wp-primary-fill); border-color: var(--wp-primary-fill); color: #fff; font-weight: 600; }
     .devtab:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
-    .summary { flex: 1; min-width: 0; min-height: 56px; display: flex; flex-direction: column; justify-content: center; gap: 4px; text-align: left; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
-    .summary span { font-size: 0.875rem; color: var(--secondary-text-color); overflow-wrap: anywhere; }
+    /* two lines per program: the name, then in small type the next action and its time; the action gives way first (ellipsis) */
+    .summary { flex: 1; min-width: 0; min-height: 48px; display: flex; flex-direction: column; justify-content: center; gap: 0; padding: 0; text-align: left; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
+    .summary strong { min-width: 0; display: flex; align-items: center; gap: 2px; line-height: 1.3; }
+    .summary .sname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .summary .no-schedule, .summary .disabled-badge { align-self: flex-start; flex: none; width: auto; white-space: nowrap; }
+    .summary .sinfo { min-width: 0; display: flex; font-size: 0.8125rem; line-height: 1.3; color: var(--secondary-text-color); white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .summary .sl { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .summary .st { flex: none; }
+    .summary ha-icon { --mdc-icon-size: 18px; flex: none; }
     button:disabled { opacity: .5; cursor: default; }
     ha-card { padding: 8px 16px 12px; }
     .head { display: flex; align-items: center; gap: 8px; min-height: 48px; }
@@ -830,10 +974,11 @@ export class WeeklyPlannerCard extends LitElement {
     .line .header-actions { margin-top: -12px; }
     .name, .now { line-height: 24px; }
     button.hours {
-      flex: none; width: 48px; height: 48px; padding: 0; border-radius: 24px; border: none;
+      flex: none; min-width: 48px; min-height: 48px; padding: 0 4px; border-radius: 24px; border: none;
       background: none; color: var(--primary-text-color); cursor: pointer; --mdc-icon-size: 24px;
-      display: inline-flex; align-items: center; justify-content: center;
+      display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
     }
+    button.hours .hl { font-size: 0.75rem; line-height: 1.1; }
     button.create {
       display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 48px; margin-top: 8px;
       padding: 0 16px; border: none; border-radius: 24px; font: inherit; font-size: 1rem; font-weight: 500; cursor: pointer;
@@ -865,6 +1010,8 @@ export class WeeklyPlannerCard extends LitElement {
     .week > .wday:nth-child(6), .wday-off { margin-top: 6px; }
     .week > .wday:nth-child(6):has(.wname.today) { margin-top: 18px; }
     .wday-off { align-items: center; }
+    .wday-off.note { margin-bottom: 18px; }
+    .woff { position: relative; flex: 1; min-width: 0; }
     .wday-off .wname { line-height: 1.2; }
     .wname { flex: none; width: ${TIMELINE.label}px; font-size: 0.875rem; color: var(--secondary-text-color); }
     .wday wp-bar-editor, .wday wp-day-bar, .today wp-bar-editor { flex: 1; min-width: 0; }
@@ -886,6 +1033,47 @@ export class WeeklyPlannerCard extends LitElement {
       min-height: 48px; padding: 0 12px; border: none; background: none; font: inherit; font-weight: 600; cursor: pointer;
       color: inherit; text-decoration: underline; border-radius: 24px;
     }
+    /* comparison view: a group per day, a 28 px read-only bar per device (32 px rows, 4 px apart); the bar is the 44 px touch target */
+    .compare { padding-bottom: 4px; }
+    .cday { display: flex; flex-direction: column; gap: 4px; padding-top: 8px; }
+    /* "is-today", not "today": the plain today rule of the day row (flex, align-items: flex-start) shrank the rows of today to nothing */
+    .cday.is-today .crow:first-of-type { margin-top: 14px; } /* room for the "now" clock above the first bar */
+    .crow { display: flex; align-items: center; gap: ${TIMELINE.gap}px; min-height: 32px; }
+    .crow.gap { margin-top: 8px; }
+    .crow.off wp-day-bar { opacity: 0.7; }
+    .cname { flex: none; width: 5.5rem; min-width: 76px; min-width: 0; display: flex; flex-direction: column; justify-content: center; font-size: 0.8125rem; line-height: 1.25; color: var(--secondary-text-color); }
+    .cn, .cp { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cn { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; } /* two lines before the ellipsis */
+    .cp { font-size: 0.75rem; line-height: 1.25; }
+    .cbar { position: relative; flex: 1; min-width: 0; padding: 0; border: none; background: none; color: inherit; font: inherit; cursor: default; display: block; text-align: left; }
+    .cbar wp-day-bar { --wp-bar-height: 28px; }
+    .crow.note { padding-bottom: 1.5rem; }
+    .cdays { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 4px; }
+    .cdchip {
+      display: inline-flex; align-items: center; justify-content: center; min-width: 48px; min-height: 48px; padding: 0 10px; border-radius: 24px;
+      border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem; cursor: pointer;
+    }
+    .cdchip.is-today { font-weight: 700; }
+    .cdchip[aria-selected="true"] { background: var(--wp-primary-fill); border-color: var(--wp-primary-fill); color: #fff; font-weight: 600; }
+    .cdchip:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
+    .cedit { display: flex; justify-content: flex-end; margin-bottom: -8px; }
+    /* the mode line and the edit button share one row: the line on the left, the button on the right (no empty band between them) */
+    .mode-line + .compare .cedit { margin-top: -26px; }
+    .mode-line:has(+ .compare) { padding-bottom: 0; padding-right: 76px; }
+    .pickhint { margin: 8px 0 12px; font-size: 1rem; line-height: 1.4; color: var(--secondary-text-color); }
+    .picklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+    button.pick {
+      display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 16px; border-radius: 28px; text-align: left;
+      border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 1rem; cursor: pointer;
+    }
+    button.pick span { min-width: 0; overflow-wrap: anywhere; }
+    button.pick:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
+    .ccopy { position: absolute; left: 0; top: calc(100% + 2px); font-size: 0.8125rem; line-height: 1.25; color: var(--secondary-text-color); white-space: normal; right: 0; }
+    .cnone { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: var(--secondary-text-color); pointer-events: none; }
+    .caxis { position: relative; height: 20px; margin-left: calc(max(76px, 5.5rem) + ${TIMELINE.gap}px); font-size: 0.75rem; color: var(--secondary-text-color); }
+    .caxis span { position: absolute; top: 2px; transform: translateX(-50%); white-space: nowrap; }
+    .caxis .h0 { transform: none; }
+    .caxis .h24 { transform: translateX(-100%); }
     .group { margin: 12px 0 0; padding: 0 0 4px; font-size: 1rem; font-weight: 700; color: var(--primary-text-color); overflow-wrap: anywhere; }
     .empty { color: var(--primary-text-color); opacity: 0.8; padding: 16px 0; text-align: center; }
   `];

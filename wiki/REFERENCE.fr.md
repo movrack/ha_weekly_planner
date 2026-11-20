@@ -26,20 +26,20 @@ Les exemples de cartes sont dans le [README](../README.fr.md#exemples).
 | `type` | `custom:weekly-planner-card`. |
 | `program` | Identifiant interne existant, ou nom de programme (voir ci-dessous). Une valeur non vide affiche ce programme au lieu d’appliquer les filtres. |
 | `filter.types` | Domaines d’entités présents dans les programmes. Absent ou vide = tous les domaines. Les domaines inconnus restent utilisables. |
-| `filter.area` | Correspondance exacte avec la pièce du programme, définie dans Général. Les pièces HA des appareils ne sont pas déduites. |
+| `filter.area` | Une pièce (un texte) ou plusieurs pièces (une liste de textes) ; un programme est montré quand sa pièce correspond à l’une d’elles. La pièce d’un programme est définie dans Général. Les écritures d’une même pièce sont regroupées (majuscules, accents, `_` et `-` ignorés) et un texte qui est l’identifiant ou le nom d’une pièce Home Assistant affiche le nom de cette pièce : `bureau`, `Bureau` et `chambre_celine_manu` apparaissent comme **Bureau** et **Chambre Céline Manu**. Choisir une telle pièce enregistre son identifiant, sinon le texte ; une ancienne valeur sélectionne toujours la bonne pièce. Rien de ce qui est enregistré dans les programmes ne change, et les pièces HA des appareils ne sont pas déduites. |
 | `filter.programs` | Liste facultative d’identifiants ou de noms de programmes (voir ci-dessous), croisée avec les autres filtres. Absent = tous, futurs compris ; `[]` = aucun. |
 | `title` | Titre facultatif. |
-| `schedule_view` | `bars` par défaut, `list`, `radial` pour 24 h, `radial_12h` pour deux cercles de 12 h, ou `times` (**Horaires du jour** : la journée d’aujourd’hui en liste, une ligne par période avec son réglage, sa fin et un repère « Maintenant » ; l’icône calendrier de l’en-tête, ou un appui sur une ligne, ouvre la journée dans la fenêtre des horaires). Disponibles pour un programme ou une liste filtrée. |
+| `schedule_view` | `bars` par défaut, `list`, `radial` pour 24 h, `radial_12h` pour deux cercles de 12 h, `compare` (**Comparateur** : un seul jour à la fois pour toute la carte (puces lun. à dim. et **Jour férié**, aujourd’hui par défaut), une barre par appareil, tous programmes mélangés dans l’ordre de `sort` et `order` ; lecture seule, une icône en haut à droite ouvre le choix du programme à modifier ; les barres d’un programme en pause sont grisées et disent « en pause » ; une puce **Jour férié** apparaît quand un jour férié est activé pour un programme de la carte) ou `times` (**Horaires du jour** : la journée d’aujourd’hui en liste, une ligne par période avec son réglage, sa fin et un repère « Maintenant » ; l’icône calendrier de l’en-tête ouvre la journée dans la fenêtre des horaires). Disponibles pour un programme ou une liste filtrée. |
 | `sort` | Ordre de la liste : `type` (défaut : par type A→Z puis par nom ; types nommés par Home Assistant, avec un petit titre chacun), `area` (par pièce A→Z avec titres, programmes sans pièce sous « Autres »), `name` (A→Z) ou `custom` (la liste `order`). Le premier appareil d’un programme donne son type. |
 | `order` | Avec `sort: custom` : identifiants de programmes dans l’ordre voulu. Réglé dans l’éditeur (poignée ou boutons monter/descendre). Un programme absent de la liste passe à la fin (par type puis nom) ; un identifiant inconnu est ignoré. |
 | Format de l’heure | Pas d’option : la carte suit le réglage 12 h ou 24 h de votre profil Home Assistant (12 h affiche am/pm, « minuit » et « midi » ; les champs d’heure de l’éditeur d’horaire affichent l’heure choisie, par exemple « = 10:30 pm », en dessous). |
 | `show_chart` | Booléen, `true` par défaut. Actif : un bouton **Graphique du jour** sous chaque appareil sur la carte, et le graphique dans la fenêtre des horaires. Éteint : ni bouton ni graphique nulle part sur cette carte. Dans l’éditeur : « Bouton Graphique sous chaque appareil ». |
-| `chart_collapsed` | Booléen, `true` par défaut : le graphique sous chaque appareil démarre fermé (`false` : ouvert). N’a d’effet que si `show_chart` est actif. Dans l’éditeur : l’interrupteur « Graphique ouvert d’office » (l’inverse). Un choix fait avec le bouton du graphique est mémorisé par navigateur, par carte et par appareil, et prime ensuite. |
+| `chart_collapsed` | Booléen, `true` par défaut : le graphique sous chaque appareil démarre fermé (`false` : ouvert). N’a d’effet que si `show_chart` est actif. Dans l’éditeur : l’interrupteur « Graphique ouvert par défaut » (l’inverse). Un choix fait avec le bouton du graphique est mémorisé par navigateur, par carte et par appareil, et prime ensuite. |
 
 **Référence YAML.** Toutes les options de l’éditeur visuel se règlent aussi dans l’éditeur de code YAML,
 avec le même effet ; passer de l’un à l’autre conserve toutes les clés (même inconnues). Types : `title`,
-`program`, `filter.area` = texte ; `filter.types` et `filter.programs` = listes de textes (un texte seul
-vaut une liste d’un élément) ; `schedule_view` = `bars`, `list`, `radial`, `radial_12h` ou `times` ; `sort` = `type`, `area`, `name` ou `custom` ; `order` = liste de textes ; `show_chart` et
+`program` = texte ; `filter.area`, `filter.types` et `filter.programs` = listes de textes (un texte seul
+vaut une liste d’un élément) ; `schedule_view` = `bars`, `list`, `radial`, `radial_12h`, `times` ou `compare` ; `sort` = `type`, `area`, `name` ou `custom` ; `order` = liste de textes ; `show_chart` et
 `chart_collapsed` = booléens. Une valeur du mauvais type est ignorée et la valeur par défaut s’applique ;
 une configuration qui n’est pas un mapping YAML affiche une carte d’erreur explicite. Dans l’éditeur
 visuel, les interrupteurs de type et de programme écrivent `filter.programs` (et ne font qu’élargir, ou
@@ -57,14 +57,14 @@ en identifiants (stables) au premier changement.
 ```yaml
 type: custom:weekly-planner-card
 title: Horaires                 # défaut : aucun
-schedule_view: bars             # bars | list | radial | radial_12h | times
+schedule_view: bars             # bars | list | radial | radial_12h | times | compare
 sort: type                      # type | area | name | custom (défaut type)
 order: []                       # identifiants de programmes, si sort vaut custom
 show_chart: true                # défaut true
 chart_collapsed: true           # défaut true (replié)
 filter:                         # ignoré si `program` est renseigné
   types: [climate, cover]       # défaut : tous
-  area: Salon                   # défaut : toutes les pièces
+  area: Salon                   # défaut : toutes les pièces ; un texte ou une liste : [Salon, Bureau]
   programs: [ID1, Bureau]          # défaut : tous (futurs compris)
 ```
 
@@ -73,14 +73,14 @@ un nom simplifié. Le trouver dans l’attribut `program_id` de son interrupteur
 dans la réponse WebSocket `weekly_planner/get`. Remplacer l’identifiant
 d’exemple ci-dessus par un vrai identifiant. Les identifiants d’entités dépendent aussi de la langue et des renommages.
 
-Le filtre Pièce propose les pièces existantes et conserve un choix devenu absent.
+Le filtre Pièce propose les pièces existantes (une ligne par pièce, avec le nom de la pièce Home Assistant quand le texte en désigne une) et conserve un choix devenu absent.
 Définir cette pièce dans **Réglages des programmes → Général** : c’est un nom pour
 regrouper les programmes, indépendant des pièces des appareils.
 
 Les cadrans affichent les mêmes horaires que les barres et ouvrent le même éditeur. Ils partagent les couleurs, repères horaires et marqueurs solaires des
 barres. Le double cadran affiche minuit–midi à l’intérieur et midi–minuit à
-l’extérieur. Un clic ou un appui long sur un cadran permet de modifier ses arcs avec les poignées.
-En liste compacte, toucher une ligne déplie sa barre. La semaine se déplie à la
+l’extérieur. Un simple clic ne modifie jamais : un appui long (doigt ou souris) sur un cadran ou une barre permet de modifier ses arcs avec les poignées.
+En liste compacte, toucher une ligne déplie sa barre. Chaque appareil tient sur deux lignes (son nom, puis en petit la prochaine action et son heure) ; le premier mot commun à tous les appareils d’un groupe est retiré. La semaine se déplie à la
 demande. Une fenêtre a un bouton **Agrandir / réduire** (flèches, à côté de la croix)
 qui l’élargit sur ordinateur ; sur téléphone elle occupe déjà l’écran et
 un balayage vers le bas sur son en-tête la ferme.
@@ -124,8 +124,8 @@ continu l’état observé et ne détecte pas les réglages manuels pour les cor
 Leur affichage dans le graphique ne modifie pas cette règle.
 
 - **Avec fin** : action au début, puis défaut éligible ou action du programme qui reprend la main à la fin.
-- **Sans fin** : action ponctuelle, aucun événement de fin, jamais rejouée après son heure. Un horaire borné prioritaire peut la supprimer.
-- **Priorité** : le plus petit numéro gagne entre les horaires éligibles actifs ; le programme le plus ancien départage les égalités. Sans horaire actif, le programme activé le plus prioritaire contenant l’entité fournit son défaut facultatif.
+- **Ponctuelle** : action lancée une seule fois, aucun événement de fin, jamais rejouée après son heure. Un horaire borné prioritaire peut la supprimer.
+- **Priorité** : c’est un rang (1, 2, 3…, sans plafond) dans un groupe de programmes qui partagent un appareil ; le rang 1 gagne entre les horaires éligibles actifs, le programme le plus ancien départage les égalités. L’interface ne la saisit pas (glisser-déposer) ; `priority` reste dans le YAML et l’API. Commande `weekly_planner/program/priorities` : liste `{id, revision}` dans le nouvel ordre d’un groupe, tout ou rien ; `weekly_planner/program/save` accepte aussi `group_order`. Sans horaire actif, le programme activé le plus prioritaire contenant l’entité fournit son défaut facultatif.
 - **Conditions** : toutes les conditions du programme doivent être satisfaites pour ses horaires. Une condition fausse n’est pas une commande d’arrêt générique ; les règles des défauts comptent encore.
 - **Redémarrage** : stabilisation de 30 s, puis réapplication facultative de l’action bornée ou du défaut en cours après un redémarrage, une activation ou une modification. Les fins manquées sont rattrapées, pas les actions ponctuelles passées.
 - **Temps** : construction en heure locale HA, comparaisons en UTC. Un horaire passe au lendemain si sa fin est antérieure au début **et avant midi**. `24:00` est accepté en fin.
@@ -207,7 +207,7 @@ data:
   option: Absent
 ```
 
-Voir les [modes](MODES.md), les [exemples de modes](MODES_COOKBOOK.fr.md) et les
+Voir les [modes](MODES.md), les [exemples de modes](RECETTES.fr.md) et les
 [exemples d’actions natives](GENERIC_ACTIONS.md).
 
 ### Jour férié
@@ -335,7 +335,7 @@ programs:
 
 - Le filtre Pièce vise les métadonnées du programme, pas les pièces HA.
 - Le modèle accepte des conditions par horaire, mais le formulaire n’a pas de constructeur de conditions par horaire (les conditions du programme se règlent dans **Général**).
-- Limites de validation : nom de programme 60 caractères, de réglage 30, de mode 40 ; 20 modes par programme, 50 horaires par jour, 100 appareils par programme, 10 conditions par horaire ; priorité de 1 à 100 ; décalage solaire de −240 à +240 minutes ; délai aléatoire de 0 à 240 minutes ; 100 états mis en évidence et un nom affiché de 60 caractères au plus par source de graphique.
+- Limites de validation : nom de programme 60 caractères, de réglage 30, de mode 40 ; 20 modes par programme, 50 horaires par jour, 100 appareils par programme, 10 conditions par horaire ; décalage solaire de −240 à +240 minutes ; délai aléatoire de 0 à 240 minutes ; 100 états mis en évidence et un nom affiché de 60 caractères au plus par source de graphique.
 - L’historique et les changements manuels dépendent de Recorder/logbook ; l’attribution des modifications d’attributs seuls a des limites.
 
 Le graphique distingue historique absent, futur ou indisponible et absence

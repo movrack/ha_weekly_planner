@@ -4,12 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "deadcode": "cd .. && uv run --group deadcode --group lint python3 scripts/deadcode.py",
     "build": "vite build",
     "watch": "vite build --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
-    "mutation": "stryker run"
+    "mutation": "stryker run",
+    "test:all": "tsc --noEmit && vitest run --coverage --exclude '**/.stryker-tmp*/**' && cd .. && uv run ruff check . && uv run --group test pytest -q --cov --cov-report=term --cov-report=html",
+    "mutation:all": "stryker run && cd .. && uv run --group test --group mutation mutmut run && uv run --group test --group mutation mutmut results"
   },
   "dependencies": {
     "lit": "^3.2.1"
@@ -19,6 +22,7 @@
     "@stryker-mutator/typescript-checker": "^10.1.1",
     "@stryker-mutator/vitest-runner": "^10.1.1",
     "@vitest/coverage-v8": "^5.0.5",
+    "knip": "^6.46.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",
     "vitest": "^5.0.5"
