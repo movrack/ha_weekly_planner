@@ -92,19 +92,6 @@ describe("echo guard of setConfig", () => {
     expect(el._sent).toBe(guard);
     expect(sent(el)).toEqual([]);
   });
-  it("another program selected forgets the edit in progress and what was just created", () => {
-    const el = mk({ program: "a" });
-    el._editing = "a"; el._createdName = "N"; el._createdProgramId = "a";
-    el.setConfig({ type: "x", program: "b" });
-    expect([el._editing, el._createdName, el._createdProgramId]).toEqual([null, "", null]);
-    expect(el._unsub).toBeUndefined();
-  });
-  it("the same program selected keeps the edit in progress and what was just created", () => {
-    const el = mk({ program: "a" });
-    el._editing = "a"; el._createdName = "N"; el._createdProgramId = "a";
-    el.setConfig({ type: "x", program: "a" });
-    expect([el._editing, el._createdName, el._createdProgramId]).toEqual(["a", "N", "a"]);
-  });
 });
 
 describe("edits of the config", () => {
@@ -119,13 +106,10 @@ describe("edits of the config", () => {
     expect(sent(el)[0]).toEqual({ type: CARD, title: "A", program: "a", schedule_view: "bars", show_chart: false, chart_collapsed: true });
     expect(el._config).toEqual(sent(el)[0]);
   });
-  it("editing another key keeps the edit in progress; choosing a program forgets the creation state", () => {
+  it("choosing a program keeps the other keys and fills in the defaults", () => {
     const el = mk({ title: "A", program: "a" });
-    el._editing = "a"; el._createdName = "N"; el._createdProgramId = "a";
     el._set("title", "B");
-    expect([el._editing, el._createdName, el._createdProgramId]).toEqual(["a", "N", "a"]);
     el._set("program", "b");
-    expect([el._editing, el._createdName, el._createdProgramId]).toEqual([null, "", null]);
     expect(sent(el)[1]).toMatchObject({ program: "b", schedule_view: "bars", show_chart: true, chart_collapsed: true });
   });
   it("config events bubble through the dashboard shadow root", () => {
@@ -139,11 +123,9 @@ describe("edits of the config", () => {
   });
   it("switching to one program picks the first one and drops the filter", () => {
     const el = mk({ filter: { types: ["cover"] } });
-    el._editing = "x";
     el._setMode(true);
     expect(sent(el)[0].program).toBe("a");
     expect("filter" in sent(el)[0]).toBe(false);
-    expect(el._editing).toBeNull();
   });
   it("switching to one program with no program leaves the choice empty, and an empty choice still is the one-program mode", () => {
     const none = mk({}, []);
@@ -198,172 +180,6 @@ describe("form fields of the display tab", () => {
     expect(changes).toHaveLength(2);
     changes[0].fn(); expect(el._setMode).toHaveBeenLastCalledWith(true);
     changes[1].fn(); expect(el._setMode).toHaveBeenLastCalledWith(false);
-  });
-  it("opens the settings of the selected program and switches both tabs", () => {
-    const el = mk({ program: "b" });
-    const tpl = el.render();
-    const edit = handlers(tpl).filter((h) => h.event === "click" && h.before.endsWith('class="btn" @click=')).slice(-1)[0]!;
-    edit.fn();
-    expect(el._editing).toBe("b");
-    expect(el._section).toBe("programs");
-    eventNear(tpl, "click", 'id="ce-tab-display"')();
-    expect(el._section).toBe("display");
-    eventNear(tpl, "click", 'id="ce-tab-programs"')();
-    expect(el._section).toBe("programs");
-  });
-  it("opens the schedule of the newly created program once it has arrived, and consumes its close event", () => {
-    const el = mk();
-    el._data.programs = [];
-    el._createdName = "New room"; el._createdProgramId = "n";
-    const action = handlers(el.render()).find((h) => h.event === "click" && h.before.slice(-120).includes('class="btn primary"'))!;
-    action.fn();
-    expect(el._scheduleProgramId).toBe("n");
-    expect(flat(el.render())).not.toContain("<wp-schedule");
-    el._data.programs = [{ id: "n", name: "New room", entities: [], area: "" }];
-    const opened = el.render();
-    expect(flat(opened)).toContain("<wp-schedule");
-    const stopPropagation = vi.fn();
-    handlers(opened).find((h) => h.event === "closed")!.fn({ stopPropagation });
-    expect(stopPropagation).toHaveBeenCalledOnce();
-    expect(el._scheduleProgramId).toBeNull();
-  });
-  it("the settings tab selects an existing program, resumes a new draft, or selects nothing", () => {
-    const el = mk({}, [prog("a", "Alpha")]);
-    const editor = vi.spyOn(el, "_programEditor").mockReturnValue("EDITOR");
-    const fresh = vi.spyOn(el, "_newProgram").mockImplementation(() => {});
-    let tpl = el._settings();
-    eventNear(tpl, "change", 'id="ce-settings-program"')({ target: { value: "a" } });
-    expect(el._editing).toBe("a");
-    tpl = el._settings();
-    expect(flat(tpl)).toContain("EDITOR");
-    expect(editor).toHaveBeenLastCalledWith("a", el._data.programs[0]);
-    eventNear(tpl, "change", 'id="ce-settings-program"')({ target: { value: "new" } });
-    expect(fresh).toHaveBeenCalledOnce();
-    eventNear(tpl, "change", 'id="ce-settings-program"')({ target: { value: "" } });
-    expect(el._editing).toBe("");
-  });
-});
-
-describe("saved programs", () => {
-  const saved = (el: any, program: any, editor: any) => { const stop = vi.fn(); el._saved({ detail: program, currentTarget: editor, stopPropagation: stop }); return stop; };
-  it("a program saved in place updates the list and keeps the config", () => {
-    const el = mk({ program: "a" });
-    const editor = {};
-    el._editors.set("a", editor);
-    const stop = saved(el, prog("a", "Alpha2"), editor);
-    expect(stop).toHaveBeenCalled();
-    expect(el._data.programs.map((p: any) => p.name)).toEqual(["Beta", "Gamma", "Alpha2"]);
-    expect(el._programs.map((p: any) => p.id)).toEqual(["b", "c", "a"]);
-    expect(sent(el)).toEqual([]);
-    expect(el._editing).toBe("a");
-    expect([...el._editors.keys()]).toEqual(["a"]);
-  });
-  it("a new program takes the place of its draft: selected in the mode of the card, announced, section back to the display", () => {
-    const el = mk({ program: "a" });
-    const editor = {};
-    el._editors.set("new", editor);
-    el._editing = "new";
-    el._section = "programs";
-    saved(el, prog("n", "Nova"), editor);
-    expect([...el._editors.keys()]).toEqual(["n"]);
-    expect(el._editors.get("n")).toBe(editor);
-    expect(sent(el)[0].program).toBe("n");
-    expect([el._createdName, el._createdProgramId, el._section, el._editing]).toEqual(["Nova", "n", "display", "n"]);
-    expect(el._justCreated.id).toBe("n");
-  });
-  it("a new program on a card that shows a list is not selected", () => {
-    const list = mk({ filter: { types: [] } });
-    const draft = {};
-    list._editors.set("new", draft);
-    list._editing = "new";
-    saved(list, prog("n", "Nova"), draft);
-    expect("program" in sent(list)[0]).toBe(false);
-  });
-  it("a selected program renamed to another id selects the new id without a filter", () => {
-    const el = mk({ program: "a", filter: { types: ["x"] } });
-    const editor = {};
-    el._editors.set("a", editor);
-    saved(el, prog("z", "Zed"), editor);
-    expect(sent(el)[0].program).toBe("z");
-    expect("filter" in sent(el)[0]).toBe(false);
-    expect(el._editing).toBe("z");
-  });
-  it("a program that was not selected does not touch the config, and an unknown editor is not kept", () => {
-    const other = mk({ program: "a" });
-    const stray = {};
-    other._editors.set("b", stray);
-    saved(other, prog("b", "Beta2"), stray);
-    expect(sent(other)).toEqual([]);
-    expect(other._editing).toBeNull();
-    const unknown = mk({ program: "a" });
-    saved(unknown, prog("q", "Q"), {});
-    expect(sent(unknown)).toEqual([]);
-    expect(unknown._editors.size).toBe(0);
-  });
-  it("snapshots pushed before a created program arrived still list it, until one includes it", () => {
-    const el = mk({});
-    el._justCreated = prog("n", "Nova");
-    el._setData({ programs: [prog("a", "Alpha")] } as any);
-    expect(el._data.programs.map((p: any) => p.id)).toEqual(["a", "n"]);
-    expect(el._justCreated).toBeDefined();
-    el._setData({ programs: [prog("a", "Alpha"), prog("n", "Nova")] } as any);
-    expect(el._justCreated).toBeUndefined();
-    expect(el._programs).toEqual([{ id: "a", name: "Alpha" }, { id: "n", name: "Nova" }]);
-  });
-  it("the new-program draft opens the programs tab and clears the last creation", () => {
-    const el = mk({});
-    el._createdName = "x";
-    withFocus(el);
-    el._newProgram();
-    expect([el._createdName, el._editing, el._section]).toEqual(["", "new", "programs"]);
-  });
-});
-
-describe("embedded program editors", () => {
-  it("a draft is retained while its inputs are refreshed, and its saves are relayed", () => {
-    const el = mk();
-    const listeners = new Map<string, (e: any) => void>();
-    const editor: any = { addEventListener: vi.fn((name, fn) => listeners.set(name, fn)) };
-    const createElement = vi.fn(() => editor);
-    vi.stubGlobal("document", { createElement });
-    const saved = vi.spyOn(el, "_saved").mockImplementation(() => {});
-    const program = { id: "a" };
-    expect(el._programEditor("a", program)).toBe(editor);
-    expect(createElement).toHaveBeenCalledExactlyOnceWith("wp-program-editor");
-    expect(editor.embedded).toBe(true);
-    expect(editor.hass).toBe(el.hass);
-    expect(editor.data).toBe(el._data);
-    expect(editor.program).toBe(program);
-    const event = { detail: program };
-    listeners.get("program-saved")!(event);
-    expect(saved).toHaveBeenCalledExactlyOnceWith(event);
-    const next = { id: "a", name: "Updated" };
-    el.hass = { language: "fr" }; el._data = { programs: [next] };
-    expect(el._programEditor("a", next)).toBe(editor);
-    expect(createElement).toHaveBeenCalledTimes(1);
-    expect(editor.program).toBe(next);
-    expect(editor.hass).toBe(el.hass);
-    expect(editor.data).toBe(el._data);
-  });
-  it.each([true, false])("a deleted program drops only its own draft and leaves single mode only when it was the selected one (selected: %s)", (selected) => {
-    const el = mk();
-    let deleted: (e: any) => void = () => {};
-    vi.stubGlobal("document", { createElement: () => ({ addEventListener: (name: string, fn: any) => { if (name === "program-deleted") deleted = fn; } }) });
-    el._config.program = selected ? "a" : "b";
-    el._justCreated = { id: selected ? "a" : "other" };
-    const retained = el._justCreated;
-    el._programEditor("a");
-    el._editors.set("other", {});
-    const mode = vi.spyOn(el, "_setMode").mockImplementation(() => {});
-    const stopPropagation = vi.fn();
-    deleted({ detail: "a", stopPropagation });
-    expect(stopPropagation).toHaveBeenCalledOnce();
-    expect(el._editors.has("a")).toBe(false);
-    expect(el._editors.has("other")).toBe(true);
-    expect(el._editing).toBe("");
-    expect(el._justCreated).toBe(selected ? undefined : retained);
-    if (selected) expect(mode).toHaveBeenCalledExactlyOnceWith(false);
-    else expect(mode).not.toHaveBeenCalled();
   });
 });
 
@@ -472,33 +288,6 @@ describe("order of the programs by pointer", () => {
     expect(d.save).not.toHaveBeenCalled();
     expect(d.listeners.size).toBe(0);
     for (const row of d.rows) expect(row.classList.remove).toHaveBeenCalledWith("target");
-  });
-});
-
-describe("tabs", () => {
-  const press = async (el: any, key: string) => {
-    const ev = { key, preventDefault: vi.fn() };
-    el._tabKey(ev);
-    await Promise.resolve(); await Promise.resolve();
-    return ev.preventDefault.mock.calls.length;
-  };
-  it.each([
-    ["ArrowRight", "display", "programs"], ["ArrowLeft", "programs", "display"], ["End", "display", "programs"], ["Home", "programs", "display"],
-  ])("%s from the %s tab goes to the %s tab and gives it the focus", async (key, from, section) => {
-    const el = mk({});
-    el._section = from;
-    const { focus, querySelector } = withFocus(el);
-    expect(await press(el, key)).toBe(1);
-    expect(el._section).toBe(section);
-    expect(querySelector).toHaveBeenLastCalledWith(`#ce-tab-${section}`);
-    expect(focus).toHaveBeenCalledOnce();
-  });
-  it("other keys do nothing", async () => {
-    const el = mk({});
-    const { focus } = withFocus(el);
-    expect(await press(el, "x")).toBe(0);
-    expect(el._section).toBe("display");
-    expect(focus).not.toHaveBeenCalled();
   });
 });
 
@@ -641,18 +430,7 @@ describe("snapshot subscription", () => {
   });
 });
 
-describe("card editor: settings tab and touch targets", () => {
-  const settingsText = (editing: string | null) => {
-    const el = mk({}, []);
-    el._editors.set("new", { dispatchEvent: vi.fn() });
-    el._programEditor = () => "";
-    el._editing = editing;
-    return flat(el._settings());
-  };
-  it("shows the resume label only while another entry is selected", () => {
-    expect(settingsText("")).toContain(t("en", "ce_resume_creation"));
-    expect(settingsText("new")).not.toContain(t("en", "ce_resume_creation"));
-  });
+describe("card editor: touch targets", () => {
   // Layout at 360 px (UI review 2026-02-10): touch targets, wrapping, no word cut in a program name.
   it("fits a 360 px screen: 44 px type chips that wrap, program names not cut mid-word, notice button inside its box", () => {
     const css = [WeeklyPlannerCardEditor.styles].flat(Infinity).map((s: any) => s?.cssText ?? "").join("\n");

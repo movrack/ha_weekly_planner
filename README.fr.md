@@ -92,10 +92,10 @@ Home Assistant.
 
 ## Premier programme
 
-1. Modifier le tableau de bord et ouvrir l’éditeur de la carte **Weekly Planner**.
-2. Sous **Réglages des programmes**, choisir **Nouveau programme** (administrateurs seulement).
+1. Ouvrir **Weekly Planner** dans la barre latérale (administrateurs seulement).
+2. Choisir **Nouveau programme**.
 3. Nommer le programme, ajouter ses appareils et choisir les actions proposées pour chaque appareil.
-4. **Appliquer au programme** enregistre tout de suite, pour toutes les cartes qui montrent ce programme.
+4. **Créer le programme** enregistre tout de suite, pour toutes les cartes qui montrent ce programme.
 5. **Définir les horaires** ouvre les horaires du programme. Ajouter un horaire : les jours, les heures
    de début et de fin, puis le réglage.
 

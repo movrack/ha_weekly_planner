@@ -11,7 +11,7 @@ entités créées, les actions et la désinstallation sont dans le [README](../R
 L’éditeur distingue deux portées :
 
 - **Affichage de la carte** : titre, programme ou filtres, vue et visibilité du graphique. Le bouton Enregistrer de Lovelace conserve ces choix pour cette carte.
-- **Réglages des programmes** : données partagées par toutes les cartes. **Appliquer au programme** enregistre immédiatement dans l’intégration. Annuler ensuite l’éditeur Lovelace ne revient pas sur cet enregistrement. Cette section est réservée aux administrateurs.
+- **Réglages des programmes** : données partagées par toutes les cartes. **Appliquer au programme** enregistre immédiatement dans l’intégration. Annuler ensuite l’éditeur Lovelace ne revient pas sur cet enregistrement. Elle se trouve dans le panneau **Programmes** de la barre latérale, réservé aux administrateurs.
 
 Les brouillons et leur historique Annuler/Rétablir sont conservés entre les onglets
 et les programmes pendant l’édition. Fermer l’éditeur abandonne les modifications

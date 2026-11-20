@@ -90,10 +90,10 @@ loads the module through Home Assistant’s extra-JavaScript mechanism.
 
 ## First program
 
-1. Edit the dashboard and open the **Weekly Planner** card editor.
-2. Under **Program settings**, choose **New program** (administrators only).
+1. Open **Weekly Planner** in the sidebar (administrators only).
+2. Choose **New program**.
 3. Name the program, add its devices and choose the actions offered for each device.
-4. **Apply to program** saves it at once, for every card that shows this program.
+4. **Create program** saves it at once, for every card that shows this program.
 5. **Set schedules** opens the schedules of the program. Add a schedule: the days, the start and end times, then the setting.
 
 The [illustrated guide](https://github.com/movrack/ha_weekly_planner/wiki/Guide-utilisateur) (in French)

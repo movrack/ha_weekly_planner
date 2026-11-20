@@ -399,6 +399,9 @@ Voir [la création S37](SCREENS.fr.md#s37), [la pièce S40](SCREENS.fr.md#s40) e
 
 Le panneau **Programmes** a deux rubriques. **Actions** : **Nouveau programme**, **Dupliquer un programme** (choisir le programme à copier, puis **Dupliquer** : la copie s’appelle **Copie** suivi du nom, avec un numéro si ce nom existe déjà, garde les appareils, les réglages et les horaires, et apparaît tout en bas de la liste) **Ordre des priorités** (voir [Priorités](PRIORITES.fr.md)). **Liste des programmes** : sur téléphone, une bascule **Liste | Aperçu** remplace les lignes par la carte Weekly Planner en liste compacte, sans quitter l’écran (les Actions, **Trier** et **Filtrer** restent là) ; l’aperçu montre les mêmes programmes dans le même ordre que la liste, filtres et tri compris, et on peut y modifier les horaires. Sur grand écran, l’aperçu occupe la partie de droite tant qu’aucun programme n’est ouvert. La **Liste des programmes** : le bouton **Trier** ouvre une fenêtre pour trier par **Ordre de création** (par défaut), **Nom** ou **Priorité**. Le bouton **Filtrer** ouvre une fenêtre pour filtrer par **Type**, **Pièce** (avec **Sans pièce**) et **Appareil** ; chacun est une section d’un accordéon, ouvrir l’une referme les autres, et le titre indique combien de filtres y sont actifs : un programme est affiché s’il correspond à l’une des valeurs choisies dans chaque filtre. **Réinitialiser** efface les filtres et garde le tri choisi.
 
+Les programmes se gèrent **uniquement** dans ce panneau, plus dans l’éditeur de la carte : celui-ci ne garde que l’affichage
+(titre, programmes montrés, vue, couleurs). Une carte sans programme montre, aux administrateurs, un lien **Gérer les programmes**.
+
 Pour commencer, toucher **Nouveau programme**, donner un nom et ajouter un
 appareil. **Aucune commande n’est cochée au départ** : choisir celles que l’on veut
 retrouver dans les réglages. Lire leur description si le nom n’est pas clair.
@@ -408,10 +411,10 @@ est mis en évidence ; il disparaît dès qu’on le corrige.
 
 Le nouveau programme est alors sélectionné automatiquement : en mode **Un seul
 programme**, la carte le montre ; en **liste filtrée**, il est ajouté à la liste
-affichée. **Programme à modifier** le désigne. Toucher **Définir
+affichée. Toucher **Définir
 les horaires** pour continuer directement. Si aucune commande n’a encore été
-choisie, les régler plus tard dans **Réglages des programmes → Appareils →
-Actions proposées**. Enregistrer aussi la carte pour garder sa présentation.
+choisie, les régler plus tard dans les réglages du programme, onglet **Appareils →
+Actions proposées**.
 
 Dans **Général**, on règle aussi le nom, l’icône, la **Priorité** (bloc **Partage un appareil avec N programmes**, voir [Priorités](PRIORITES.fr.md)) et, sous **Autres paramètres**, **Réappliquer**. **Supprimer**
 supprime le programme, avec ses horaires. L’onglet **Modes** explique
@@ -424,15 +427,9 @@ au programme : elle n’est pas reprise automatiquement de la pièce d’un appa
 Dans **Affichage de la carte → Plusieurs programmes**, choisir ensuite cette pièce ou
 **Toutes les pièces**. Si la carte est vide, vérifier ses filtres.
 
-**Attention aux deux enregistrements :**
-
-| Je touche… | Ce qui change |
-|---|---|
-| Enregistrer la carte, dans Home Assistant | La présentation de cette carte. |
-| Appliquer au programme | Le programme, sur toutes les cartes qui l’utilisent. |
-
-Annuler l’éditeur de carte **n’annule pas un programme déjà appliqué**.
-Avant d’appliquer, **Annuler la modification** et **Rétablir** parcourent le
+**Attention aux deux enregistrements :** **Enregistrer la carte** (dans Home Assistant) ne change que la présentation de cette carte ;
+**Enregistrer** dans le panneau change le programme, sur toutes les cartes qui l’utilisent. Annuler l’éditeur de carte
+**n’annule pas un programme déjà enregistré**. Avant d’enregistrer, **Annuler la modification** et **Rétablir** parcourent le
 brouillon. Ils ne reviennent pas sur un enregistrement déjà envoyé.
 Changer d’onglet ou de programme conserve le brouillon pendant cette édition ;
 fermer l’éditeur abandonne ce qui n’a pas été appliqué.

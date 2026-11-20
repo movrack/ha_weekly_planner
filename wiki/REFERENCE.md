@@ -14,7 +14,7 @@ The visual editor has two sections:
   view, and chart visibility. Save these changes with the Lovelace editor.
 - **Program settings** changes integration data shared by every card displaying
   that program. **Apply to program** persists immediately. Cancelling the outer
-  Lovelace editor does not roll it back. This settings section is administrator-only.
+  Lovelace editor does not roll it back. This section lives in the **Programs** sidebar panel, administrator-only.
 
 Program-setting drafts and their local undo/redo history survive navigation
 between tabs and programs within the editor. Closing the editor discards unapplied

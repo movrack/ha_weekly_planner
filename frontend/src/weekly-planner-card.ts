@@ -899,6 +899,8 @@ export class WeeklyPlannerCard extends LitElement {
         ${data?.read_only ? html`${callout("error", "", t(lang, "read_only"))}` : nothing}
         ${!data ? html`<div class="empty">…</div>` : nothing}
         ${data && !programs.length ? html`<div class="empty" role="status">${t(lang, data.programs.length && this._config.program === undefined ? "no_matching_program" : "no_program")}</div>` : nothing}
+        ${data && !programs.length && this.hass.user?.is_admin && data.can_edit && !data.read_only
+          ? html`<a class="manage-programs" href="/weekly-planner"><ha-icon icon="mdi:calendar-edit"></ha-icon>${t(lang, "ce_manage_programs")}</a>` : nothing}
         ${data ? this._list(programs) : nothing}
       </ha-card>
       ${this._snack ? html`<div class="snack" role="status"><span>${t(lang, "edited")} ·</span>
@@ -924,6 +926,7 @@ export class WeeklyPlannerCard extends LitElement {
   }
 
   static styles = [calloutStyles, css`
+    .manage-programs { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; margin: 0 16px 16px; color: var(--wp-primary-text); text-decoration: none; }
     .compact-row { display: flex; align-items: center; gap: 8px; min-height: 52px; }
     .summary strong { display: flex; align-items: center; gap: 4px; }
     .compact-details { padding-bottom: 8px; }

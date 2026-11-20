@@ -356,7 +356,7 @@ Ces options Home Assistant concernent l’intégration entière : droits d’éd
 
 ## S36 — Une seule intégration suffit
 
-Home Assistant refuse une seconde configuration de Weekly Planner. Pour ajouter un programme, utiliser Réglages des programmes dans la carte ; il n’est pas nécessaire d’ajouter une autre intégration.
+Home Assistant refuse une seconde configuration de Weekly Planner. Pour ajouter un programme, utiliser le panneau Programmes (barre latérale) ; il n’est pas nécessaire d’ajouter une autre intégration.
 
 <a href="images/guide/s36-single-instance.png"><img src="images/guide/s36-single-instance.png" width="320" alt="S36 — Une seule intégration suffit" /></a>
 
