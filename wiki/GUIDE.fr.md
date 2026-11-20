@@ -53,10 +53,11 @@ montrent le lever et le coucher.
 [Double cadran S44](SCREENS.fr.md#s44).
 
 Deux autres affichages existent. **Horaires du jour** montre aujourd’hui sous forme de liste simple : une ligne par horaire, avec son
-réglage, jusqu’à quand il dure et un repère « Maintenant ». Le **Comparateur** montre un seul jour à la fois pour toute la carte :
-une rangée de pastilles (lun. à dim., et **Jour férié** quand il est activé pour un programme de la carte) permet de choisir le jour,
-aujourd’hui par défaut, un seul à la fois. Chaque appareil y a sa barre, tous les programmes mélangés. Il est en lecture seule : une
-icône en haut à droite ouvre le choix du programme à modifier, et la barre d’un programme en pause est grisée avec la mention
+réglage, jusqu’à quand il dure et un repère « Maintenant ». Le **Comparateur** montre toute la semaine pour toute la carte : un groupe par jour, de lundi à dimanche, avec le nom du jour en
+titre (aujourd’hui en gras, avec le repère « Maintenant »), puis un groupe **Jour férié** quand il est activé pour un programme de la carte.
+Chaque appareil y a sa barre, tous les programmes mélangés. Pour modifier un jour, gardez le doigt (ou le bouton de la souris) appuyé sur une barre
+ou sur le nom du jour, ou utilisez Entrée ou Espace : la fenêtre des horaires s’ouvre sur ce jour. Un simple clic ne l’ouvre pas, il rappelle seulement
+comment faire. Une icône en haut à droite ouvre le choix du programme à modifier, et la barre d’un programme en pause est grisée avec la mention
 « en pause ».
 
 Toucher une ligne compacte déplie sa barre ; chaque appareil y tient sur deux lignes, groupés par type. Toucher le calendrier ouvre les

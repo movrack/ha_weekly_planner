@@ -4,7 +4,7 @@ import { flat, handlers } from "./helpers/tpl";
 import { slot, uniformProgram as program, wednesdayCard as card, weekOf } from "./helpers/planner-card";
 
 // What a screen reader hears from the comparison bars, and the dialog its edit button opens.
-const labelsOf = (html: string): string[] => [...html.matchAll(/class="cbar" role="img" aria-label=([^>\n]*)>/g)].map((m) => m[1]);
+const labelsOf = (html: string): string[] => [...html.matchAll(/class="cbar(?: press)?" role="(?:img|button)"(?: tabindex="0")? aria-label=([^\n]*?)(?= aria-description=|>)/g)].map((m) => m[1]);
 
 describe("compare: what a screen reader hears from a bar", () => {
   it("each stretch with its action and times, ignored ones left out, one-shots with their time, day end as 24 h", () => {
