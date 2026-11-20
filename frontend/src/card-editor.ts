@@ -352,6 +352,8 @@ export class WeeklyPlannerCardEditor extends LitElement {
           <option value="compare">${this._tr("ce_compare")}</option>
         </select>
       </div>
+      <div class="switch-row"><span class="grow">${this._tr("ce_show_schedule_list")}</span>
+        ${this._switch(c.show_schedule_list === true, this._tr("ce_show_schedule_list"), (on) => this._set("show_schedule_list", on))}</div>
       <div class="switch-row"><span class="grow">${this._tr("ce_show_chart")}</span>
         ${this._switch(c.show_chart !== false, this._tr("ce_show_chart"), (on) => this._set("show_chart", on), false, false, "ce-show-chart-hint")}</div>
       <p id="ce-show-chart-hint" class="hint">${this._tr("ce_show_chart_hint")}</p>

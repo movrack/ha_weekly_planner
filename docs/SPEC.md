@@ -492,7 +492,12 @@ l'entrée. Instance unique.
 ### 10.1 Configuration de la carte (éditeur visuel)
 Options réelles : `title` ; `program: <id>` **ou** `filter: {types: [domaines], area: <zone du programme>, programs:
 [ids]}` (`programs` absent = tous, futurs compris ; liste vide = aucun ; intersection avec type et zone) ;
-`schedule_view: bars | radial | radial_12h | list | times | compare` (défaut `bars`) ; `show_chart` (défaut vrai).
+`schedule_view: bars | radial | radial_12h | list | times | compare` (défaut `bars`) ; `show_chart` (défaut vrai) ;
+`show_schedule_list` (booléen, défaut faux, #65) : liste « Horaires » (composant `wp-times-day`, lignes ≥ 48 px) sous le
+graphique principal et au-dessus des boutons Semaine / Graphique, sur barres, cadran 24 h et 12 h seulement (ni liste
+compacte, ni comparateur, ni Horaires du jour) ; toujours visible, sans repli ; une ligne ouvre son horaire par appui long (souris aussi) ou Entrée / Espace, jamais par simple clic (rappel « Gardez le doigt appuyé »), seulement si la
+modification est permise ; interrupteur « Afficher les horaires » dans l'éditeur.
+- [x] #65 liste « Horaires » facultative sous le graphique principal.
 `sort: type | area | name | custom` (défaut `type`) et `order: [ids de programmes]` règlent l'ordre de la liste (#55) :
 `type` = domaine HA du premier appareil, nommé par HA (domaine brut à défaut), types A→Z dans la langue de la carte,
 puis nom ; `area` = pièce du programme A→Z, puis nom, sans pièce ou type inconnu en dernier groupe « Autres » ;

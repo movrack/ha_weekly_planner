@@ -360,3 +360,105 @@ describe("wp-times-day: details of a row and of its events", () => {
     expect(ev(add, (x) => find(x.render(), "click", 'class="action"').fn())[0].type).toBe("open-day");
   });
 });
+
+describe("wp-times-day: Schedules list rows (hold)", () => {
+  const rowHandler = (c: any, ev: string) => find(c.render(), ev, 'class="row press"').fn;
+  const opened = (c: any) => {
+    const seen: any[] = [];
+    c.dispatchEvent = (e: any) => seen.push(e);
+    return seen;
+  };
+  const pe = (extra: any = {}) => ({ button: 0, pointerId: 1, clientX: 10, clientY: 10, ...extra });
+
+  it("a row is a focusable named button only when editable, not locked and in hold mode", () => {
+    const html = flat(comp({ rows: [row()], editable: true, hold: true, deviceName: "Bath" }).render());
+    expect(html).toContain('role="button"');
+    expect(html).toContain('tabindex="0"');
+    // the name comes from the visible text (WCAG 2.5.3): no aria-label, the device in a visually hidden span, the real action as description
+    expect(html).not.toContain("aria-label=\"Bath");
+    expect(html).toContain('<span class="sr">Bath,</span>');
+    expect(html).toContain("Opens this schedule for editing");
+    expect(html).not.toContain("aria-description=\"Keep your finger");
+    expect(flat(comp({ rows: [row()], editable: true, hold: true }).render())).not.toContain('class="sr"');
+    expect(strings("fr").times_row_action).toBe("Ouvre cet horaire pour le modifier");
+    for (const props of [{ hold: false }, { editable: false }, { locked: true }]) {
+      const view = flat(comp({ rows: [row()], editable: true, hold: true, ...props }).render());
+      expect(view).not.toContain('role="button"');
+      expect(view).not.toContain('tabindex="0"');
+    }
+  });
+
+  it("a long press opens that schedule, a plain click only gives the hint", () => {
+    vi.useFakeTimers();
+    try {
+      const c = comp({ rows: [row({ slotId: "x" })], editable: true, hold: true });
+      const seen = opened(c);
+      rowHandler(c, "pointerdown")(pe());
+      vi.advanceTimersByTime(500);
+      expect(seen).toHaveLength(1);
+      expect(seen[0].type).toBe("open-day");
+      expect(seen[0].detail).toEqual({ slotId: "x" });
+      rowHandler(c, "pointerup")(pe());
+      expect(seen).toHaveLength(1);
+      rowHandler(c, "pointerdown")(pe());
+      rowHandler(c, "pointerup")(pe());
+      vi.advanceTimersByTime(500);
+      expect(seen).toHaveLength(1);
+      expect(flat(c.render())).toMatch(/class="hint"[^>]*>Keep your finger/);
+      vi.advanceTimersByTime(7000);
+      expect(flat(c.render())).not.toMatch(/class="hint"[^>]*>Keep your finger/);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("moving the finger is a scroll, not a press; a cancel stops the press", () => {
+    vi.useFakeTimers();
+    try {
+      const c = comp({ rows: [row()], editable: true, hold: true });
+      const seen = opened(c);
+      rowHandler(c, "pointerdown")(pe());
+      rowHandler(c, "pointermove")(pe({ clientY: 60 }));
+      vi.advanceTimersByTime(600);
+      rowHandler(c, "pointerdown")(pe({ button: 2 }));
+      rowHandler(c, "pointerdown")(pe());
+      rowHandler(c, "pointercancel")();
+      vi.advanceTimersByTime(600);
+      expect(seen).toHaveLength(0);
+      rowHandler(c, "pointerup")(pe({ pointerId: 9 }));
+      expect(flat(c.render())).not.toMatch(/class="hint"[^>]*>Keep your finger/);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("Enter and Space open it, other keys and a mouse click do not, a screen-reader click does", () => {
+    const c = comp({ rows: [row({ slotId: "x" })], editable: true, hold: true });
+    const seen = opened(c);
+    const el: any = {};
+    const key = (k: string) => { const e = { key: k, target: el, currentTarget: el, preventDefault: vi.fn() }; rowHandler(c, "keydown")(e); return e; };
+    expect(key("Enter").preventDefault).toHaveBeenCalled();
+    key(" ");
+    key("a");
+    expect(seen.map((e: any) => e.detail)).toEqual([{ slotId: "x" }, { slotId: "x" }]);
+    rowHandler(c, "click")({ detail: 1 });
+    expect(seen).toHaveLength(2);
+    rowHandler(c, "click")({ detail: 0 });
+    expect(seen).toHaveLength(3);
+    rowHandler(c, "keydown")({ key: "Enter", target: {}, currentTarget: el, preventDefault: vi.fn() });
+    expect(seen).toHaveLength(3);
+    const ctx = { preventDefault: vi.fn() };
+    rowHandler(c, "contextmenu")(ctx);
+    expect(ctx.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("blocks the context menu during a press and cleans up when removed", () => {
+    vi.useFakeTimers();
+    try {
+      const c = comp({ rows: [row()], editable: true, hold: true });
+      opened(c);
+      rowHandler(c, "pointerdown")(pe());
+      const ctx = { preventDefault: vi.fn() };
+      rowHandler(c, "contextmenu")(ctx);
+      expect(ctx.preventDefault).toHaveBeenCalled();
+      c.disconnectedCallback();
+      expect(c._press).toBeUndefined();
+    } finally { vi.useRealTimers(); }
+  });
+});

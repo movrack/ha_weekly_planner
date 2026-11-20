@@ -136,6 +136,7 @@ Chaque option se règle dans l’éditeur visuel ou en YAML. Les principales :
 | `schedule_view` | `bars` (par défaut), `list`, `radial`, `radial_12h`, `times` ou `compare` (tous les appareils, un seul jour à la fois, choisi avec des pastilles). |
 | `sort`, `order` | Ordre de la liste : par `type` (par défaut), `area`, `name`, ou votre propre ordre. |
 | `show_chart`, `chart_collapsed` | Bouton du graphique sous chaque appareil, et graphique fermé ou ouvert au départ. |
+| `show_schedule_list` | Liste des horaires d’aujourd’hui sous les barres ou les cadrans (désactivée par défaut). |
 | `title` | Titre de la carte. |
 
 Tableau complet et types YAML : [options de la carte](https://github.com/movrack/ha_weekly_planner/blob/main/wiki/REFERENCE.fr.md#configuration-de-la-carte).

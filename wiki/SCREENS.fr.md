@@ -46,7 +46,7 @@ Choisir la pièce dans la liste de Général (« Pièce du programme » : pièce
 
 ### S41 — Filtres et présentation
 
-Choisir les programmes à afficher (dont la pièce) et l’affichage. Les interrupteurs « Bouton Graphique » et « Graphique ouvert par défaut » règlent le graphique.
+Choisir les programmes à afficher (dont la pièce) et l’affichage. L’interrupteur « Afficher les horaires » ajoute la liste « Horaires » sous les barres ou le cadran (pas en liste compacte). Les interrupteurs « Bouton Graphique » et « Graphique ouvert par défaut » règlent le graphique.
 
 <a href="images/guide/s41-card-filter.png"><img src="images/guide/s41-card-filter.png" width="320" alt="Filtres et présentation" /></a>
 

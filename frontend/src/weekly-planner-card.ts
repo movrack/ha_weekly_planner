@@ -42,7 +42,7 @@ import type { CardConfig, HomeAssistant, PlannerData, PreviewResponse, Program, 
 const INFO_MS = 8000;
 
 type Dialog =
-  | { kind: "schedule"; scope: Scope; day?: { weekday: number; offset: number }; create?: boolean }
+  | { kind: "schedule"; scope: Scope; day?: { weekday: number; offset: number }; create?: boolean; slotId?: string }
   | { kind: "pick"; programs: Program[] }
   | null;
 
@@ -509,8 +509,8 @@ export class WeeklyPlannerCard extends LitElement {
 
   /* ---- actions ---- */
 
-  private _open(scope: Scope, day?: { weekday: number; offset: number }, create = false): void {
-    this._dialog = { kind: "schedule", scope, day, create };
+  private _open(scope: Scope, day?: { weekday: number; offset: number }, create = false, slotId?: string): void {
+    this._dialog = { kind: "schedule", scope, day, create, slotId };
   }
 
   /** The device has no slot at all in the active mode of its program: nothing to show or tap on its bars. */
@@ -705,15 +705,29 @@ export class WeeklyPlannerCard extends LitElement {
   }
 
   /** Today as "daily times" (`schedule_view: times`): a reading list; a row opens the editor on today only when editing is allowed. */
-  private _todayBlock(entityId: string, program: Program, open: () => void) {
+  private _todayBlock(entityId: string, program: Program, open: (e?: Event) => void, hold = false) {
     const state = this._previewState(program, entityId);
     const editable = Boolean(this._data?.can_edit) && !this._data?.read_only && !activeFollow(program, this._data!);
     const rows = state === "ready" ? timesRows(this._spans(entityId, [program], 0), {
       tz: this._tz, nowMin: localMinutes(this._now, this._tz), nowMs: this._now.getTime() }) : [];
     const rest = labelOf(this._data!, program.entities.find((e) => e.entity_id === entityId)?.default_label);
     return html`<wp-times-day .rows=${rows} state=${state} .rest=${rest ? labelName(this.hass, rest) : t(this._lang, "rest_none")}
-      ?editable=${editable} ?locked=${this._lockedText(program) !== ""} lang=${this._lang} device-name=${this._deviceLabel(program, entityId)}
+      ?editable=${editable} ?hold=${hold} ?locked=${this._lockedText(program) !== ""} lang=${this._lang} device-name=${this._deviceLabel(program, entityId)}
       @open-day=${open} @retry=${() => this._retryPreviews()}></wp-times-day>`;
+  }
+
+  /**
+   * Optional "Schedules" list (`show_schedule_list`) between the main graphic and the Week / Day chart buttons:
+   * the rows of Daily times under a label. Not on the Daily times view (it is that list) nor on the compact list.
+   */
+  private _scheduleList(entityId: string, program: Program, scope: Scope) {
+    const view = this._config.schedule_view;
+    if (this._config.show_schedule_list !== true || view === "times" || view === "list") return nothing;
+    const title = t(this._lang, "schedules_title");
+    const id = `sl-${scopeKey(scope)}-${entityId}`.replace(/[^\w-]/g, "_");
+    return html`<section class="schedule-list" aria-labelledby=${id}>
+      <h3 id=${id} class="sl-title">${title}</h3>${this._todayBlock(entityId, program, (e?: Event) =>
+        this._open(scope, { weekday: localWeekday(this._now, this._tz), offset: 0 }, false, (e as CustomEvent<{ slotId?: string }> | undefined)?.detail?.slotId), true)}</section>`;
   }
 
   /** "7 am"; "at 7 am" in 12 h for today (the label before it has no separator otherwise). */
@@ -760,6 +774,7 @@ export class WeeklyPlannerCard extends LitElement {
           ${this._bar(entityId, programs[0], 0, "today")}
         </div>`}
         ${create ? nothing : this._lockedNote(programs[0])}
+        ${create ? nothing : this._scheduleList(entityId, programs[0], opts.open)}
         ${create ? nothing : this._extras(opts.open, entityId, programs)}
       </div>`;
   }
@@ -914,7 +929,7 @@ export class WeeklyPlannerCard extends LitElement {
     const close = () => (this._dialog = null);
     switch (d.kind) {
       case "schedule":
-        return keyed(`${scopeKey(d.scope)}|${d.scope.kind === "program" ? d.scope.entityId ?? "" : ""}`, html`<wp-schedule .hass=${this.hass} .data=${this._data} .scope=${d.scope} .day=${d.day ?? null} ?create=${Boolean(d.create)}
+        return keyed(`${scopeKey(d.scope)}|${d.scope.kind === "program" ? d.scope.entityId ?? "" : ""}`, html`<wp-schedule .hass=${this.hass} .data=${this._data} .scope=${d.scope} .day=${d.day ?? null} ?create=${Boolean(d.create)} .slotId=${d.slotId ?? null}
           .chart=${this._config.show_chart !== false} @closed=${close}></wp-schedule>`);
       case "pick":
         return html`<wp-dialog open compact heading=${t(this._lang, "compare_edit")} description=${t(this._lang, "compare_pick")} @closed=${close}>
@@ -992,6 +1007,8 @@ export class WeeklyPlannerCard extends LitElement {
     button.hours:disabled { opacity: 0.4; cursor: default; }
     button.hours:disabled:hover { background: none; }
     wp-bar-editor { margin-top: 2px; }
+    .schedule-list { margin: 8px 0 0; }
+    .sl-title { margin: 0 0 4px; font-size: 1rem; font-weight: 700; color: var(--primary-text-color); }
     .toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }
     .weekbtn {
       display: inline-flex; align-items: center; gap: 4px; min-height: 48px; min-width: 48px; padding: 0 8px 0 0; border: none;
