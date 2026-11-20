@@ -10404,12 +10404,8 @@ var Z = class extends S {
 			e.set(l, !u), this._charts = e, Fs(e);
 		}, f = n[0], p = this._deviceLabel(f, t), m = P(this._now, this._tz), { today: h, previous: ee } = this._deviceDays(f.id, m, t);
 		return y`
-      <div class="toggles">
-        <button class="weekbtn" aria-label=${k(r, "week_of", { name: p })} aria-expanded=${a} @click=${o}>
-          <ha-icon icon="mdi:calendar-week"></ha-icon>${k(r, "week")}<ha-icon class="after" icon=${a ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>
-        ${c ? y`<button class="weekbtn chartbtn" aria-label=${k(r, "chart_day_of", { name: p })} aria-expanded=${u} @click=${d}>
-          <ha-icon icon="mdi:chart-line"></ha-icon>${k(r, "chart_day")}<ha-icon class="after" icon=${u ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>` : x}
-      </div>
+      <button class="weekbtn" aria-label=${k(r, "week_of", { name: p })} aria-expanded=${a} @click=${o}>
+        <ha-icon icon="mdi:calendar-week"></ha-icon>${k(r, "week")}<ha-icon class="after" icon=${a ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>
       ${a ? y`<div class="week wp-appear">
         ${[
 			0,
@@ -10431,6 +10427,8 @@ var Z = class extends S {
 		})}
         ${this._holidayRow(t, f)}
       </div>` : x}
+      ${c ? y`<button class="weekbtn chartbtn" aria-label=${k(r, "chart_day_of", { name: p })} aria-expanded=${u} @click=${d}>
+        <ha-icon icon="mdi:chart-line"></ha-icon>${k(r, "chart_day")}<ha-icon class="after" icon=${u ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>` : x}
       ${u ? y`<div class="chartbox wp-appear"><wp-chart .hass=${this.hass} .data=${this._data} .program=${f}
         entity-id=${t} date=${m} .slots=${h ? [...ee ?? [], ...h] : null}
         @open-history=${(e) => zs(e.detail)}></wp-chart></div>` : x}`;
@@ -10562,7 +10560,7 @@ var Z = class extends S {
     .compact-details { padding-bottom: 8px; }
     .devtabs { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0 8px; }
     .devtab {
-      display: inline-flex; align-items: center; gap: 4px; min-height: 48px; max-width: 100%; padding: 0 16px; border-radius: 24px;
+      display: flex; align-items: center; gap: 4px; min-height: 48px; max-width: 100%; padding: 0 16px; border-radius: 24px;
       border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem;
       text-align: left; cursor: pointer; --mdc-icon-size: 20px;
     }
@@ -10624,9 +10622,8 @@ var Z = class extends S {
     wp-bar-editor { margin-top: 2px; }
     .schedule-list { margin: 8px 0 0; }
     .sl-title { margin: 0 0 4px; font-size: 1rem; font-weight: 700; color: var(--primary-text-color); }
-    .toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; }
     .weekbtn {
-      display: inline-flex; align-items: center; gap: 4px; min-height: 48px; min-width: 48px; padding: 0 8px 0 0; border: none;
+      display: flex; align-items: center; gap: 4px; min-height: 48px; min-width: 48px; padding: 0 8px 0 0; border: none;
       background: none; color: var(--wp-primary-text); font: inherit; font-size: 1rem; cursor: pointer; --mdc-icon-size: 22px;
     }
     .weekbtn .after { --mdc-icon-size: 20px; }
