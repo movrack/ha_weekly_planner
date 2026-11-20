@@ -255,9 +255,14 @@ describe("compare: opening a day by long press or keyboard", () => {
     bar.fn(ev());
     handlers(render(c)).filter((h) => h.event === "pointerup")[1].fn(ev());
     expect(c._open).not.toHaveBeenCalled();
-    expect(flat(render(c))).toContain(`<p class="chint" role="status">${t("en", "hold_hint")}</p>`);
+    const shown = flat(render(c));
+    expect(shown).toContain(`<p class="chint" role="status">${t("en", "hold_hint")}</p>`); // read out by screen readers
+    expect(shown.match(/class="hold-hint"/g)).toHaveLength(1); // one bubble, on the bar touched (Alpha, Monday) and no other
+    const at = shown.indexOf("aria-label=Alpha, Monday");
+    expect(shown.indexOf('class="hold-hint"')).toBeGreaterThan(at);
+    expect(shown.indexOf('class="hold-hint"')).toBeLessThan(shown.indexOf("aria-label=Zeta, Monday"));
     vi.advanceTimersByTime(6000);
-    expect(flat(render(c))).toContain('<p class="chint" role="status"></p>');
+    expect(flat(render(c))).not.toContain("hold-hint");
   });
   it("a press held 450 ms opens that device's program on that day, a mouse press too", () => {
     const c = card([A(), B()]);
@@ -334,10 +339,10 @@ describe("compare: opening a day by long press or keyboard", () => {
     expect(h.match(/class="cbar press"/g)).toHaveLength(7); // six days and the day off
     expect(h.match(/class="cbar" role="img"/g)).toHaveLength(1); // today's
   });
-  it("the touch targets are 44 px high", () => {
+  it("the day titles are 44 px high; a bar target reaches the middle of the 4 px gap, so two targets never overlap", () => {
     const css = (WeeklyPlannerCard as any).styles.map((x: any) => x.cssText ?? "").join("");
-    expect(css).toContain(".ctitle.press { display: flex; align-items: center; min-height: 44px;");
-    expect(css).toContain(".cbar.press { margin: -6px 0; padding: 8px 0;");
+    expect(css).toContain(".ctitle.press { position: relative; display: flex; align-items: center; min-height: 44px; }");
+    expect(css).toContain(".cbar.press { margin: -2px 0; padding: 2px 0;");
   });
   it("the texts exist in EN and FR", () => {
     expect(t("en", "compare_row_action")).toBe("Opens this day for editing");

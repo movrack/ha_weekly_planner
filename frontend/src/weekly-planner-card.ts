@@ -315,9 +315,9 @@ export class WeeklyPlannerCard extends LitElement {
     const press = (cls: string, aria: string, go: (() => void) | null, inner: unknown, off = false) => go
       ? html`<div class="${cls} press" role="button" tabindex="0" aria-label=${aria} aria-description=${t(lang, "compare_row_action")}
         @keydown=${(e: KeyboardEvent) => hold.key(e, go)} @click=${(e: MouseEvent) => hold.click(e, go)}
-        @pointerdown=${(e: PointerEvent) => hold.down(e, go)} @pointermove=${(e: PointerEvent) => hold.move(e)}
+        @pointerdown=${(e: PointerEvent) => hold.down(e, go, aria)} @pointermove=${(e: PointerEvent) => hold.move(e)}
         @pointerup=${(e: PointerEvent) => hold.up(e)} @pointercancel=${() => hold.cancel()}
-        @contextmenu=${(e: Event) => { if (hold.active) e.preventDefault(); }}>${inner}</div>`
+        @contextmenu=${(e: Event) => { if (hold.active) e.preventDefault(); }}>${inner}${hold.hint && hold.hintAt === aria ? html`<div class="hold-hint" aria-hidden="true">${t(lang, "hold_hint")}</div>` : nothing}</div>`
       : off ? html`<div class="${cls}">${inner}</div>` : html`<div class="${cls}" role="img" aria-label=${aria}>${inner}</div>`;
     const opener = (r: { program: Program; entityId: string }, day?: { weekday: number; offset: number }): (() => void) | null =>
       this._barEditable(r.program, day?.offset ?? 1)
@@ -1058,7 +1058,7 @@ export class WeeklyPlannerCard extends LitElement {
     .cday { display: flex; flex-direction: column; gap: 4px; padding-top: 8px; }
     /* "is-today", not "today": the plain today rule of the day row (flex, align-items: flex-start) shrank the rows of today to nothing */
     .cday.is-today .ctitle + .crow { margin-top: 14px; } /* room for the "now" clock above the first bar */
-    .crow { display: flex; align-items: center; gap: ${TIMELINE.gap}px; min-height: 32px; }
+    .crow { display: flex; align-items: center; gap: ${TIMELINE.gap}px; min-height: 28px; } /* 28 px bars, 4 px apart (a two-line name makes its row taller) */
     .crow.gap { margin-top: 8px; }
     .crow.off wp-day-bar { opacity: 0.7; }
     .cname { flex: none; width: 5.5rem; min-width: 76px; min-width: 0; display: flex; flex-direction: column; justify-content: center; font-size: 0.8125rem; line-height: 1.25; color: var(--secondary-text-color); }
@@ -1070,12 +1070,17 @@ export class WeeklyPlannerCard extends LitElement {
     .crow.note { padding-bottom: 1.5rem; }
     .ctitle { margin: 0; padding: 0; font-size: 1rem; font-weight: 600; color: var(--primary-text-color); }
     .cday.is-today .ctitle { font-weight: 700; }
-    .ctitle.press { display: flex; align-items: center; min-height: 44px; margin: -10px 0 -6px; }
-    .cbar.press { margin: -6px 0; padding: 8px 0; cursor: pointer; touch-action: manipulation; }
-    .cbar.press .ccopy { top: calc(100% - 6px); }
+    .ctitle.press { position: relative; display: flex; align-items: center; min-height: 44px; }
+    .cbar.press { margin: -2px 0; padding: 2px 0; cursor: pointer; touch-action: manipulation; } /* the target runs to the middle of the 4 px gap: 32 px, no overlap */
+    .cbar.press .ccopy { top: calc(100% - 2px); }
     .press:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
-    .chint { margin: 0; padding: 4px 0; color: var(--secondary-text-color); }
-    .chint:empty { display: none; }
+    /* the hint bubble sits on the row touched, like the bars (bar-editor.ts), above the "now" line; .chint only tells screen readers */
+    .hold-hint {
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; max-width: 96%;
+      padding: 6px 12px; border-radius: 16px; font-size: 0.8125rem; line-height: 1.3; text-align: center; pointer-events: none;
+      background: var(--primary-text-color); color: var(--card-background-color, #fff);
+    }
+    .chint { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     .cedit { display: flex; justify-content: flex-end; margin-bottom: -8px; }
     /* the mode line and the edit button share one row: the line on the left, the button on the right (no empty band between them) */
     .mode-line + .compare .cedit { margin-top: -26px; }

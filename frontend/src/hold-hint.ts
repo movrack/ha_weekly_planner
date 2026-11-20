@@ -12,8 +12,10 @@ export const MOVE_PX = 8;
  */
 export class HoldPress {
   hint = false;
+  /** Which row the hint belongs to (the `at` given to `down`), so that a list of rows shows it next to the one touched. */
+  hintAt?: string;
   private _hintTimer?: ReturnType<typeof setTimeout>;
-  private _press?: { id: number; x: number; y: number; fired: boolean; timer?: ReturnType<typeof setTimeout> };
+  private _press?: { id: number; x: number; y: number; fired: boolean; at?: string; timer?: ReturnType<typeof setTimeout> };
 
   constructor(private readonly host: { requestUpdate(): void }) {}
 
@@ -22,9 +24,9 @@ export class HoldPress {
     return this._press !== undefined;
   }
 
-  down(e: PointerEvent, go: () => void): void {
+  down(e: PointerEvent, go: () => void, at?: string): void {
     if (e.button !== 0) return;
-    this._press = { id: e.pointerId, x: e.clientX, y: e.clientY, fired: false };
+    this._press = { id: e.pointerId, x: e.clientX, y: e.clientY, fired: false, at };
     this._press.timer = setTimeout(() => {
       if (!this._press) return;
       this._press.fired = true;
@@ -43,7 +45,7 @@ export class HoldPress {
     const p = this._press;
     if (!p || p.id !== e.pointerId) return;
     this.cancel();
-    if (!p.fired) this._tapHint(); // a plain click or tap never edits: it only says how
+    if (!p.fired) this._tapHint(p.at); // a plain click or tap never edits: it only says how
   }
 
   cancel(): void {
@@ -80,9 +82,10 @@ export class HoldPress {
     clearTimeout(this._hintTimer);
   }
 
-  private _tapHint(): void {
+  private _tapHint(at?: string): void {
     clearTimeout(this._hintTimer);
     this.hint = true;
+    this.hintAt = at;
     this.host.requestUpdate();
     this._hintTimer = setTimeout(() => this.clearHint(), HOLD_HINT_MS);
   }

@@ -5040,12 +5040,13 @@ var $a = 6e3, eo = class {
 	get active() {
 		return this._press !== void 0;
 	}
-	down(e, t) {
+	down(e, t, n) {
 		e.button === 0 && (this._press = {
 			id: e.pointerId,
 			x: e.clientX,
 			y: e.clientY,
-			fired: !1
+			fired: !1,
+			at: n
 		}, this._press.timer = setTimeout(() => {
 			this._press && (this._press.fired = !0, navigator.vibrate?.(12), this.clearHint(), t());
 		}, 450));
@@ -5056,7 +5057,7 @@ var $a = 6e3, eo = class {
 	}
 	up(e) {
 		let t = this._press;
-		t && t.id === e.pointerId && (this.cancel(), t.fired || this._tapHint());
+		t && t.id === e.pointerId && (this.cancel(), t.fired || this._tapHint(t.at));
 	}
 	cancel() {
 		clearTimeout(this._press?.timer), this._press = void 0;
@@ -5073,8 +5074,8 @@ var $a = 6e3, eo = class {
 	dispose() {
 		this.cancel(), clearTimeout(this._hintTimer);
 	}
-	_tapHint() {
-		clearTimeout(this._hintTimer), this.hint = !0, this.host.requestUpdate(), this._hintTimer = setTimeout(() => this.clearHint(), $a);
+	_tapHint(e) {
+		clearTimeout(this._hintTimer), this.hint = !0, this.hintAt = e, this.host.requestUpdate(), this._hintTimer = setTimeout(() => this.clearHint(), $a);
 	}
 };
 // src/selected-time.ts
@@ -10024,11 +10025,11 @@ var Z = class extends S {
 			this._notRunning(e.program) ? "off" : ""
 		].filter(Boolean).join(" "), m = this._hold, h = (e, t, r, i, a = !1) => r ? y`<div class="${e} press" role="button" tabindex="0" aria-label=${t} aria-description=${k(n, "compare_row_action")}
         @keydown=${(e) => m.key(e, r)} @click=${(e) => m.click(e, r)}
-        @pointerdown=${(e) => m.down(e, r)} @pointermove=${(e) => m.move(e)}
+        @pointerdown=${(e) => m.down(e, r, t)} @pointermove=${(e) => m.move(e)}
         @pointerup=${(e) => m.up(e)} @pointercancel=${() => m.cancel()}
         @contextmenu=${(e) => {
 			m.active && e.preventDefault();
-		}}>${i}</div>` : a ? y`<div class="${e}">${i}</div>` : y`<div class="${e}" role="img" aria-label=${t}>${i}</div>`, ee = (e, t) => this._barEditable(e.program, t?.offset ?? 1) ? () => this._open({
+		}}>${i}${m.hint && m.hintAt === t ? y`<div class="hold-hint" aria-hidden="true">${k(n, "hold_hint")}</div>` : x}</div>` : a ? y`<div class="${e}">${i}</div>` : y`<div class="${e}" role="img" aria-label=${t}>${i}</div>`, ee = (e, t) => this._barEditable(e.program, t?.offset ?? 1) ? () => this._open({
 			kind: "program",
 			programId: e.program.id,
 			entityId: e.entityId
@@ -10718,7 +10719,7 @@ var Z = class extends S {
     .cday { display: flex; flex-direction: column; gap: 4px; padding-top: 8px; }
     /* "is-today", not "today": the plain today rule of the day row (flex, align-items: flex-start) shrank the rows of today to nothing */
     .cday.is-today .ctitle + .crow { margin-top: 14px; } /* room for the "now" clock above the first bar */
-    .crow { display: flex; align-items: center; gap: ${e.gap}px; min-height: 32px; }
+    .crow { display: flex; align-items: center; gap: ${e.gap}px; min-height: 28px; } /* 28 px bars, 4 px apart (a two-line name makes its row taller) */
     .crow.gap { margin-top: 8px; }
     .crow.off wp-day-bar { opacity: 0.7; }
     .cname { flex: none; width: 5.5rem; min-width: 76px; min-width: 0; display: flex; flex-direction: column; justify-content: center; font-size: 0.8125rem; line-height: 1.25; color: var(--secondary-text-color); }
@@ -10730,12 +10731,17 @@ var Z = class extends S {
     .crow.note { padding-bottom: 1.5rem; }
     .ctitle { margin: 0; padding: 0; font-size: 1rem; font-weight: 600; color: var(--primary-text-color); }
     .cday.is-today .ctitle { font-weight: 700; }
-    .ctitle.press { display: flex; align-items: center; min-height: 44px; margin: -10px 0 -6px; }
-    .cbar.press { margin: -6px 0; padding: 8px 0; cursor: pointer; touch-action: manipulation; }
-    .cbar.press .ccopy { top: calc(100% - 6px); }
+    .ctitle.press { position: relative; display: flex; align-items: center; min-height: 44px; }
+    .cbar.press { margin: -2px 0; padding: 2px 0; cursor: pointer; touch-action: manipulation; } /* the target runs to the middle of the 4 px gap: 32 px, no overlap */
+    .cbar.press .ccopy { top: calc(100% - 2px); }
     .press:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
-    .chint { margin: 0; padding: 4px 0; color: var(--secondary-text-color); }
-    .chint:empty { display: none; }
+    /* the hint bubble sits on the row touched, like the bars (bar-editor.ts), above the "now" line; .chint only tells screen readers */
+    .hold-hint {
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; max-width: 96%;
+      padding: 6px 12px; border-radius: 16px; font-size: 0.8125rem; line-height: 1.3; text-align: center; pointer-events: none;
+      background: var(--primary-text-color); color: var(--card-background-color, #fff);
+    }
+    .chint { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     .cedit { display: flex; justify-content: flex-end; margin-bottom: -8px; }
     /* the mode line and the edit button share one row: the line on the left, the button on the right (no empty band between them) */
     .mode-line + .compare .cedit { margin-top: -26px; }
