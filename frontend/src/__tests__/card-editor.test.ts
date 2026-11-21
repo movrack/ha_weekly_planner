@@ -430,6 +430,26 @@ describe("snapshot subscription", () => {
   });
 });
 
+describe("manage programs entry", () => {
+  const shown = (mutate: (el: any) => void) => { const el = mk(); mutate(el); return flat(el.render()); };
+  it("is a link for an administrator who can edit", () => {
+    const html = shown(() => {});
+    expect(html).toContain('<a class="btn manage-programs" href="/weekly-planner">');
+    expect(html).not.toContain("why-manage");
+  });
+  it("stays on screen, disabled with its reason, for the others (an element never disappears)", () => {
+    for (const html of [shown((e) => { e.hass.user.is_admin = false; }), shown((e) => { e._data.can_edit = false; })]) {
+      expect(html).not.toContain("<a class=\"btn manage-programs\"");
+      expect(html).toContain('disabled aria-disabled="true" aria-describedby="why-manage"');
+      expect(html).toContain(`id=why-manage role="status">${t("en", "manage_admins_only")}</p>`);
+    }
+    expect(shown((e) => { e._data.read_only = true; })).toContain(`id=why-manage role="status">${t("en", "read_only")}</p>`);
+  });
+  it("shows nothing while the data is loading", () => {
+    expect(shown((e) => { e._data = undefined; })).not.toContain("manage-programs");
+  });
+});
+
 describe("card editor: touch targets", () => {
   // Layout at 360 px (UI review 2026-02-10): touch targets, wrapping, no word cut in a program name.
   it("fits a 360 px screen: 44 px type chips that wrap, program names not cut mid-word, notice button inside its box", () => {

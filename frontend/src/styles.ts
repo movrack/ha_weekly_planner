@@ -117,8 +117,8 @@ export const calloutStyles = css`
 `;
 
 /** A callout: icon in the tone colour, an optional bold title, an optional normal text, optional extra content (buttons). */
-export function callout(tone: Tone, title: string, text?: string, opts: { role?: string; icon?: string; extra?: unknown } = {}) {
-  return html`<div class="callout tone-${tone}" role="${opts.role ?? nothing}">
+export function callout(tone: Tone, title: string, text?: string, opts: { role?: string; icon?: string; extra?: unknown; id?: string } = {}) {
+  return html`<div class="callout tone-${tone}" role="${opts.role ?? nothing}" id="${opts.id ?? nothing}">
     <ha-icon icon="${opts.icon ?? tones[tone].icon}"></ha-icon>
     <div class="co-body">${title ? html`<b>${title}</b>` : nothing}${text ? html`<p>${text}</p>` : nothing}${opts.extra ?? nothing}</div></div>`;
 }
