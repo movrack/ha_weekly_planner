@@ -19,19 +19,11 @@ les détails et questions ouvertes sont dans `docs/SPEC.md` § 37 et le travail 
 - [ ] Refaire les captures de `wiki/images/guide`, renuméroter l’atlas, tags/releases, HACS, test réel ≥ 3 jours (SPEC § 14.6, § 14.7).
 
 
-## Nouveau, à réécrire: (faire des issues)
+## Suivi dans les issues GitHub (2026-11-20)
 
-- Dans chaque vue d'édition des horaires il y a la description du réglage avec un bouton modifier. pour modifier le réglage. Toute la gestion de ces réglages (ajout/suppréssion et modification) doit être déplacer dans un fieldset entre Mode et Horaire. Par défaut juste montrer ceux qui existe, mais via un collapse avoir les paramètre d'édition. Le plus improtant dans l'écran reste la configuration d'horaires.
+Les demandes du propriétaire pour le planner sont des issues ; ce fichier ne garde que ce qui n'en a pas. Ce qui concerne la maison (Versatile Thermostat, Evohome, tableaux de bord) est suivi dans `movrack/ha-home`, pas ici.
 
-- Si je ne me trompe pas, lorsqu'un evenement extérieure arrive, il a la main. Donc si le weekly planner dit chauffe a 18degres entre 10h et 20h. Puis de 20h a 21h on demande 17° via le planner.Si depuis l'extérieure, à 12h on passe à 20degre, cela va déroger le planner et la temperature va etre à 20°. Par contre ma question, à 20h, est-ce que cela va rester sur 20 ou est-ce que le planner va reprendre la main? Je souhaite qu'il reprenne la main, que la température passe à 17 et je veux que ce soit documenter.
-
-
-- Supprime "Qui pilote le chauffage" depuis Thermostat/settings
-- Prio 1 :Vérifier que tous les thermostats fonctionne avec versatile thermostat et le weekly planner
-  - Empecher que evohome n'applique ces programme, on donne la main totale à versatile thermostat
-  - Verifier tous les écrans pour utiliser versatile thermostat et plus les climate d'evohome. Verifier les cartes et utiliser celle de versatile en suivant l'exemple de celle pour bureau. Ceci dans les vues thermostats mais aussi pour toutes les autres vue de pieces comme les chambres
-
-
-- verifie et met à jour toutes les issues. Regarde celle qui peuvent être cloturée
-- Pour les mutations, je veux que pour les prochaines fois, tu enregistre les evolutions dans l'issue comme un journal de bord (ou propose moi une autre maniere pour avoir un suivit)
-- fais une revue des issues, fais le triage, mets des tag (aussi par contenu ex nouvelle feature; bug fix; testing; configuration, ...) je ne sais pas quel label tu as et tu utilise
+- Gestion des réglages dans un fieldset repliable entre Mode et Horaires : #75.
+- Le planner reprend-il la main après un changement extérieur ? À vérifier et documenter : #76.
+- Journal de bord des mutants dans une issue : #77.
+- Revue et triage des issues : fait (labels `testing`, `configuration`, `refactor`, `integration`, `priority-1` ajoutés).
