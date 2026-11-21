@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { t } from "../i18n";
 import { confirmAction } from "../components/confirm";
 import { flat, handlers } from "./helpers/tpl";
 import { attributes, editor, slot, useBarEditorGlobals } from "./helpers/bar-editor";
@@ -71,19 +72,32 @@ describe("copy conflict choices", () => {
 describe("strip controls", () => {
   it("only enables a cut for a splittable duration or a gap with a default label", () => {
     const el = editor(); el._selected = { kind: "slot", id: "a" };
-    expect(attributes(el._strip(), "?disabled")[0]).toBe(false);
+    expect(attributes(el._strip(), "?disabled")[1]).toBe(false);
     el.program.profiles[0].days[0][0].end = undefined;
-    expect(attributes(el._strip(), "?disabled")[0]).toBe(true);
+    expect(attributes(el._strip(), "?disabled")[1]).toBe(true);
     el.program.profiles[0].days[0] = [slot("a", "06:00", "06:05")];
-    expect(attributes(el._strip(), "?disabled")[0]).toBe(true);
+    expect(attributes(el._strip(), "?disabled")[1]).toBe(true);
     el.program.profiles[0].days[0] = [];
     el._selected = { kind: "gap", start: 0, end: 1440 };
-    expect(attributes(el._strip(), "?disabled")[0]).toBe(false);
+    expect(attributes(el._strip(), "?disabled")[1]).toBe(false);
     el.data.labels = []; el.program.entities[0].default_label = null;
-    expect(attributes(el._strip(), "?disabled")[0]).toBe(true);
-    expect(flat(el._strip())).not.toContain('content-copy');
+    expect(attributes(el._strip(), "?disabled")[1]).toBe(true);
+    expect(flat(el._strip())).toContain('content-copy'); // kept, greyed (no schedule here)
+    expect(attributes(el._strip(), "?disabled")).toEqual([true, true, true]);
+    expect(flat(el._strip())).toContain('id=why-strip role="status">No schedule here.</p>');
     el._selected = null;
     expect(flat(el._strip())).toBe("");
+  });
+  it("Clear and Copy to are usable on a schedule and stay on screen, greyed with their reason, on a gap", () => {
+    const el = editor(); el._selected = { kind: "slot", id: "a" };
+    expect(attributes(el._strip(), "?disabled")[0]).toBe(false);
+    expect(attributes(el._strip(), "aria-disabled")).toContain("false");
+    expect(flat(el._strip())).not.toContain("why-strip");
+    el._selected = { kind: "gap", start: 0, end: 1440 };
+    const out = flat(el._strip());
+    expect(out).toContain("mdi:close-circle-outline");
+    expect(out.match(/aria-describedby=why-strip/g)).toHaveLength(2);
+    expect(t("fr", "strip_no_slot")).toBe("Aucun horaire ici.");
   });
   it("opens a day picker, clears its previous choices and routes its buttons", () => {
     const el = editor(); el._selected = { kind: "slot", id: "a" };

@@ -30,6 +30,7 @@ import { activeProfile, newId } from "../planner";
 import { applicable, applies, normaliseEntities, shiftTimeSpec, specMinutes } from "../slots";
 import { DAY, clockToMinutes, fmtClock, fmtDayEnd, localMinutes } from "../time";
 import { selectedTimeText } from "../selected-time";
+import { ariaDisabled, describedBy, whyNote, whyStyles } from "../reason";
 import type { HomeAssistant, PlannerData, PreviewSlot, Program, Slot } from "../types";
 
 const GRAB_PX = 22; // half of the 44 px hit target
@@ -1068,17 +1069,18 @@ export class WpBarEditor extends LitElement {
     const days = strings(lang).days_short;
     return html`<div class="strip" role="group">
       <div class="acts">
-        ${sel.slot ? html`<button class="act" @click=${() => void this._nothing()}><ha-icon icon="mdi:close-circle-outline"></ha-icon>${t(lang, "strip_erase")}</button>` : nothing}
+        <button class="act" ?disabled=${!sel.slot} aria-disabled=${ariaDisabled(!sel.slot)} aria-describedby=${describedBy(!sel.slot, "why-strip")} @click=${() => void this._nothing()}><ha-icon icon="mdi:close-circle-outline"></ha-icon>${t(lang, "strip_erase")}</button>
         <div class="grp" role="group" aria-label=${t(lang, "grp_time")}>
           <button class="act" ?disabled=${!canCut} aria-label=${`${t(lang, "cut")}. ${t(lang, "cut_hint")}`} title=${t(lang, "cut_hint")} @click=${() => this._cut()}>
             <ha-icon icon="mdi:arrow-split-vertical"></ha-icon>${t(lang, "cut")}</button>
         </div>
-        ${sel.slot ? html`<div class="grp" role="group" aria-label=${t(lang, "grp_days")}>
-          <button class="act ${this._copyOpen ? "on" : ""}" aria-expanded=${this._copyOpen}
+        <div class="grp" role="group" aria-label=${t(lang, "grp_days")}>
+          <button class="act ${this._copyOpen && sel.slot ? "on" : ""}" aria-expanded=${this._copyOpen && Boolean(sel.slot)} ?disabled=${!sel.slot} aria-disabled=${ariaDisabled(!sel.slot)} aria-describedby=${describedBy(!sel.slot, "why-strip")}
             aria-label=${`${t(lang, "copy_to")} ${t(lang, "copy_hint")}`} title=${t(lang, "copy_hint")}
             @click=${() => { this._copyOpen = !this._copyOpen; this._copyDays = []; }}><ha-icon icon="mdi:content-copy"></ha-icon>${t(lang, "copy_to")}</button>
-        </div>` : nothing}
+        </div>
       </div>
+      ${whyNote("why-strip", t(lang, "strip_no_slot"), !sel.slot)}
       ${this._copyOpen && sel.slot ? html`<div class="copy wp-appear">
         ${days.map((name, d) => d === this.weekday ? nothing : html`<button class="dchip ${this._copyDays.includes(d) ? "on" : ""}"
           role="checkbox" aria-checked=${this._copyDays.includes(d)} @click=${() => this._toggleDay(d)}>${name}</button>`)}
@@ -1173,7 +1175,7 @@ export class WpBarEditor extends LitElement {
       ${this._conflictDialog()}`;
   }
 
-  static styles = [editorStyles, css`
+  static styles = [editorStyles, whyStyles, css`
     .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     :host { display: block; min-width: 0; }
     .zone { position: relative; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: pointer; }
