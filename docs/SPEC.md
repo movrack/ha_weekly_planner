@@ -586,8 +586,9 @@ Vue de **lecture** de la journée d'aujourd'hui ; elle remplace la barre / le ca
   l'ouverture de la fenêtre, **Horaires** est ouvert, **Mode** et **Réglages** repliés (la configuration des horaires reste l'essentiel) ; exceptions :
   « Créer un réglage » de l'écran vide, ou aucun réglage encore (modification permise et fenêtre non ouverte depuis un
   jour), ouvrent **Réglages**. Le panneau **Horaires** comprend les appareils, « Le reste du temps », la liste des horaires
-  et le jour férié ; la semaine, le graphique et ses options lui appartiennent aussi et se replient avec lui (dans leurs
-  propres cases de la grille sur grand écran). Un panneau fermé garde son en-tête (il ne disparaît jamais) : titre,
+  et le jour férié ; la semaine, le graphique et ses options lui appartiennent aussi et se replient avec lui sur petit écran ; sur grand
+  écran (deux colonnes) ils restent affichés à droite quel que soit le panneau ouvert (propriétaire, 2026-11-21 : la colonne
+  de droite n'est plus vide quand Mode ou Réglages est ouvert), dans leurs propres cases de la grille. Un panneau fermé garde son en-tête (il ne disparaît jamais) : titre,
   chevron (`mdi:chevron-down` / `mdi:chevron-up`) et un court résumé (Mode : voir plus haut, aussi quand il est ouvert ;
   Réglages : points colorés et noms des réglages, ou « Aucun réglage » ; Horaires : « N horaires », ou « Aucun
   horaire. ») sur une seule ligne, coupé par des points de suspension, le texte complet formant le nom accessible de
@@ -695,7 +696,7 @@ Barre « Auj. » et sept barres de la semaine, doigt et souris (événements poi
 - **Enregistrer** au relâcher, **pour ce jour seulement** (jour de la semaine de la date dans le profil actif) ; changement refait sur les
   données COURANTES, un conflit de révision est retenté une fois, jamais de « rechargez ». Bandeau « Modifié · Annuler » ~6 s ;
   « Annuler » remet les horaires précédents de ces jours. Deux horaires voisins de même réglage (fin == début) sont fusionnés.
-- **Sélection** (toucher un horaire ou un trou) : bande sous la barre : « Rien », « Couper en deux »
+- **Sélection** (toucher un horaire ou un trou) : bande sous la barre (affichée dès que la barre est en édition : sans sélection, ou pendant la question « Cet appareil / Tous », ses boutons et ses réglages sont grisés avec la raison « Touchez un horaire ou un trou de la barre. » / « Répondez d’abord à la question. » ; seul le glisser d’une plage la masque, voir plus bas) : « Rien », « Couper en deux »
   (`mdi:arrow-split-vertical`, libellé visible, groupe « dans le temps » ; coupe au milieu, pas de 15 min : la partie gauche garde le réglage, la partie droite devient « Rien ») et « Copier vers… » (`mdi:content-copy`, groupe « sur d'autres jours »), chacun avec `title` / `aria-label` explicites, puis les réglages compatibles (choix seulement, sans crayon). Copie : pastilles Lun…Dim sans le jour courant ;
   sans chevauchement la copie est directe ; sinon petite fenêtre listant les jours en conflit, chacun « Remplacer » (défaut) ou
   « Ne pas copier ce jour ». « Remplacer » rogne ou coupe les horaires existants autour de la plage (mer. 8 h 45–17 h 18 °C + copie de

@@ -619,6 +619,14 @@ describe("schedule screen editing", () => {
       view.data.programs[0].profiles[0].days[2] = [slot("w", "12:00", "13:00")];
       expect(flat(view.render())).toContain(t("en", "sched_count", { n: "2" }));
     });
+    it("keeps the week and the chart beside the other panels on a two-column screen (the right column is not empty)", () => {
+      const { view } = make();
+      view._panel = "mode";
+      view._wide = true;
+      expect(flat(view.render())).toContain('class="wp-collapse open" id=acc-week');
+      view._wide = false;
+      expect(flat(view.render())).toContain('class="wp-collapse " id=acc-week');
+    });
     it("opens on Settings while there is no setting yet, unless opened from a day", () => {
       const { view } = make(undefined, undefined, { labels: [] });
       view.firstUpdated();
