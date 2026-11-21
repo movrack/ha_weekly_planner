@@ -124,7 +124,10 @@ describe("schedule screen rendering", () => {
     view._viewMode = "Away";
     const html = flat(view.render());
     expect(html).toContain("This mode is not active");
-    expect(html).not.toContain("wp-chart"); expect(html).not.toContain("delete-outline\"></ha-icon>Delete");
+    expect(html).not.toContain("wp-chart");
+    // Delete stays, greyed, and points to the reason
+    expect(html).toContain("delete-outline\"></ha-icon>Delete");
+    expect(html).toContain('id="why-mode"');
     expect(view._modeOnly).toBe(true);
   });
   it("navigates the chart days within bounds", () => {
@@ -232,7 +235,8 @@ describe("schedule screen editing", () => {
     expect(view._group.days).toEqual([0, 1, 2, 3, 4, 5, 6]);
     expect(view._group.slot).toMatchObject({ label: "comfort", entities: ["switch.demo"] });
     expect(view._group.slot.end).toBeUndefined();
-    expect(flat(view.render())).not.toContain(t("en", "duplicate"));
+    // a new schedule cannot be duplicated yet: the button stays, greyed, with its reason
+    expect(flat(view.render())).toContain(t("en", "dup_save_first"));
     view._group = { ...view._group, slot: { ...view._group.slot, start: { time: "09:00" }, end: { time: "11:00" } } };
     await view._saveRow();
     expect(view.hass.callWS).toHaveBeenCalled();
@@ -630,8 +634,6 @@ describe("schedule screen editing", () => {
       view._add([0]);
       const html = flat(view.render());
       expect(html).toContain(t("en", "settings_legend"));
-      expect(html).toContain('id="why-settings"');
-      expect(html).toContain('role="status"');
       expect(html).toContain(t("en", "finish_schedule_first"));
       expect(view._open).toBe("new");
     });
@@ -644,7 +646,6 @@ describe("schedule screen editing", () => {
       expect(stop).toHaveBeenCalledOnce();
       expect(view._settingForm).toBe(true);
       const html = flat(view.render());
-      expect(html).toContain('id="why-sched"');
       expect(html).toContain(t("en", "finish_setting_first"));
       expect(html).toContain("aria-disabled=");
       expect(view._group.slot.start).toEqual({ time: "05:00" });
@@ -653,7 +654,7 @@ describe("schedule screen editing", () => {
       expect(valuesAfter(view.render(), 'class="row opts" aria-expanded=')).toEqual([true]);
       find(view.render(), "label-form-change", "wp-label-picker .hass").fn({ stopPropagation: stop, detail: false });
       expect(view._settingForm).toBe(false);
-      expect(flat(view.render())).not.toContain('id="why-sched"');
+      expect(flat(view.render())).not.toContain(t("en", "finish_setting_first"));
       expect(view._group.slot.start).toEqual({ time: "05:00" });
     });
     it("ignores Escape on the open schedule while the setting form is open", async () => {
@@ -675,12 +676,14 @@ describe("schedule screen editing", () => {
       vi.mocked(confirmAction).mockResolvedValue(false);
       expect(await view._guardClose()).toBe(false);
     });
-    it("is not shown when the screen only edits an inactive mode", () => {
+    it("stays shown, with its controls greyed and the reason, when the screen only edits an inactive mode", () => {
       const { view } = make();
       view._viewMode = "Away";
       view.data.mode = { selector: "input_select.mode", active: "Home", options: ["Home", "Away"] };
       expect(view._modeOnly).toBe(true);
-      expect(flat(view.render())).not.toContain(t("en", "settings_legend"));
+      const html = flat(view.render());
+      expect(html).toContain(t("en", "settings_legend"));
+      expect(html).toContain('id="why-mode"');
     });
     it("follows the setting chosen in its picker, and lets every device give its own value", () => {
       const { view } = make();

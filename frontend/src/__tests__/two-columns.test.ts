@@ -74,8 +74,9 @@ describe("two-column schedule modal (CSS only)", () => {
     const params = html.indexOf('class="params"');
     expect(html.indexOf("[EDITOR]")).toBeGreaterThan(params);
     expect(html.indexOf("[EDITOR]")).toBeLessThan(html.indexOf('class="area-week"'));
-    expect(html).not.toContain("[CHART]");
-    expect(html).not.toContain("danger-line alone");
+    // chart and Delete stay shown (inert and greyed), they never disappear
+    expect(html).toContain("[CHART]");
+    expect(html).toContain("danger-line alone");
   });
 });
 
@@ -105,13 +106,14 @@ describe("slot editor open in two columns", () => {
     expect(scroll).toHaveBeenCalledWith({ block: "start" });
     vi.unstubAllGlobals();
   });
-  it("renders no empty grid cell for the hidden chart and Delete", () => {
+  it("keeps the chart and Delete in their grid cells, inert, while a slot is open", () => {
     expect(css(WpSchedule)).toMatch(/\.area-chart:empty, \.area-options:empty, \.area-delete:empty \{ display: none/);
     const view = screen() as any;
     view._open = "new";
     const html = flat(view.render());
-    expect(html).not.toContain("[CHART]");
-    expect(html).not.toContain("danger-line alone");
+    expect(html).toContain("[CHART]");
+    expect(html).toContain("danger-line alone");
+    expect(html).toContain('class="area-chart" ?inert=');
     expect(html).toContain('class="area-week"');
   });
 });

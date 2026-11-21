@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WpBarEditor } from "../components/bar-editor";
 import { WpLabelPicker } from "../components/label-picker";
@@ -38,9 +39,11 @@ describe("setting picker: choose versus configure", () => {
   it("readonly closes a form that was open", () => {
     const html = picker({ readonlySettings: true, _form: true, _editId: "t21" });
     expect(html).toContain("Comfort");
-    expect(html).not.toContain("mdi:pencil");
+    // the pencil and the plus stay, greyed, with the reason; the form is closed
+    expect(html).toContain("mdi:pencil");
+    expect(html).toContain("mdi:plus");
+    expect(html).toContain(t("en", "lb_manage_above"));
     expect(html).not.toContain("<input");
-    expect(html).not.toContain("mdi:plus");
   });
 });
 

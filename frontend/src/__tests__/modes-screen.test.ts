@@ -3,6 +3,7 @@ import { WpSchedule } from "../components/schedule-dialog";
 import { WpModeNotice } from "../components/mode-notice";
 import { WeeklyPlannerCard } from "../weekly-planner-card";
 import { confirmAction } from "../components/confirm";
+import { t } from "../i18n";
 import { flat, handlers, find, valuesAfter } from "./helpers/tpl";
 import type { Program } from "../types";
 
@@ -81,7 +82,9 @@ describe("mode choice in the schedules screen", () => {
     expect(flat(view._renderInactive())).toContain("The active mode is Home. These schedules will apply when the house goes to mode Old (“input_select.m”).");
     expect(view._modeOnly).toBe(true);
     expect(view._rows()[0].group.slot.id).toBe("c");
-    expect(html).not.toContain('class="switch"');
+    // the switch stays, greyed, and points to the reason
+    expect(html).toContain('class="switch"');
+    expect(html).toContain('id="why-mode"');
   });
   it("shows an empty week for a mode with no schedules yet", () => {
     const { view } = make();
@@ -102,7 +105,7 @@ describe("mode choice in the schedules screen", () => {
     const { view } = make();
     view._settingForm = true;
     expect(valuesAfter(view._renderModes(), "?disabled=")[0]).toBe(true);
-    expect(flat(view.render())).toContain('id="why-sched"');
+    expect(flat(view.render())).toContain(t("en", "finish_setting_first"));
   });
   it("switches mode and abandons the edit without asking when nothing changed", async () => {
     const { view } = make();
@@ -188,11 +191,14 @@ describe("copy from another mode", () => {
   it("is not offered without a selector, without sources, read-only, or while editing", () => {
     expect(flat(make(mode({ selector: null, options: [], active: null })).view.render())).not.toContain("Reuse the schedules of another mode");
     const none = mkProgram(); none.profiles[1].days = week();
-    expect(flat(make(mode(), none).view.render())).not.toContain("Reuse the schedules of another mode");
+    // never hidden otherwise: the button stays, disabled, with its reason
+    const reason = (view: any, key: any): void => { const h = flat(view.render()); expect(h).toContain("Reuse the schedules of another mode"); expect(h).toContain(t("en", key)); };
+    reason(make(mode(), none).view, "copy_no_source");
     const ro = make(); ro.view.data.read_only = true;
-    expect(flat(ro.view.render())).not.toContain("Reuse the schedules of another mode");
+    reason(ro.view, "read_only");
     const ed = make(); ed.view._open = "new";
-    expect(flat(ed.view.render())).not.toContain("Reuse the schedules of another mode");
+    expect(valuesAfter(ed.view._renderModeOptions(), 'class="row opts" aria-expanded=')).toEqual([false]);
+    expect(flat(ed.view.render())).toContain(t("en", "finish_schedule_first"));
   });
   it("opens the list of source modes", () => {
     const { view } = make();

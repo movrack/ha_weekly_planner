@@ -3,7 +3,7 @@ import { TIMELINE } from "../timeline-geometry";
 // the time, the chart of the day, the pause switch and the delete button.
 
 import { LitElement, css, html, nothing } from "lit";
-import { ifDefined } from "lit/directives/if-defined.js";
+import { ariaDisabled, describedBy, whyNote, whyStyles } from "../reason";
 import { customElement, property, state } from "lit/decorators.js";
 import "./chart";
 import "./chart-options";
@@ -80,7 +80,7 @@ export class WpSchedule extends LitElement {
   }
   private _renderChartOptions() {
     const owner = this._chartOwner();
-    if (!this.chart || !owner || !this._eid || this._modeOnly || this._open !== null) return nothing;
+    if (!this.chart || !owner || !this._eid || this._modeOnly) return nothing;
     const context = this._chartContext?.programId === owner.id && this._chartContext.entityId === this._eid ? this._chartContext : null;
     return html`<wp-chart-options .hass=${this.hass} .data=${this.data} .program=${owner} .entityId=${this._eid}
       .mainUnit=${context?.mainUnit ?? null} .histories=${context?.histories ?? {}}
@@ -830,6 +830,16 @@ export class WpSchedule extends LitElement {
     return confirmAction(this, t(lang, slot ? "edit_discard" : "setting_discard"), t(lang, "edit_discard_yes"), t(lang, "edit_discard_no"));
   };
 
+  /**
+   * Id of the reason shown for what is not usable right now (null: everything is usable): a form of the window is open
+   * (one form at a time), or the opened mode is not the active one.
+   */
+  private get _lockId(): string | null {
+    if (this._settingForm || this._open !== null) return "why-top";
+    if (this._modeOnly) return "why-mode";
+    return null;
+  }
+
   private _closeDialog(): void {
     this.renderRoot.querySelector<HTMLElement & { close(): void }>("wp-dialog")?.close();
   }
@@ -896,8 +906,9 @@ export class WpSchedule extends LitElement {
         <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRow()}>${t(lang, "save")}</button>
         <button class="btn" @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
       </div>
-      ${isNew ? nothing : html`<button class="btn dup" ?disabled=${!this._canEdit} @click=${() => this._duplicate()}>
-        <ha-icon icon="mdi:content-copy"></ha-icon>${t(lang, "duplicate")}</button>`}
+      <button class="btn dup" ?disabled=${!this._canEdit || isNew} aria-disabled=${ariaDisabled(isNew)} aria-describedby=${describedBy(isNew, "why-dup")} @click=${() => this._duplicate()}>
+        <ha-icon icon="mdi:content-copy"></ha-icon>${t(lang, "duplicate")}</button>
+      ${whyNote("why-dup", t(lang, "dup_save_first"), isNew)}
       <button class="btn danger-line alone" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._deleteRow()}>
         <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete")}</button>
     </div>`;
@@ -922,7 +933,7 @@ export class WpSchedule extends LitElement {
           </div></div>`;
       }
       const label = labelOf(this.data, entity.default_label);
-      return html`<button class="row rest" data-key=${key} aria-expanded="false" @click=${() => this._expand(key, program, null, { restLabel: entity.default_label ?? null })}>
+      return html`<button class="row rest" data-key=${key} aria-expanded="false" ?disabled=${this._modeOnly} aria-disabled=${ariaDisabled(this._modeOnly)} aria-describedby=${describedBy(this._modeOnly, "why-mode")} @click=${() => this._expand(key, program, null, { restLabel: entity.default_label ?? null })}>
         ${label ? html`<span class="dot" style="background:${label.color}"></span>` : html`<ha-icon icon="mdi:update"></ha-icon>`}
         <span class="txt">${title}${t(lang, "colon")}<b>${label ? labelName(this.hass, label) : t(lang, "rest_untouched")}</b></span><ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
     });
@@ -934,7 +945,7 @@ export class WpSchedule extends LitElement {
     return html`<div class="label" id="devices-label">${t(this._lang, "device_label")}</div><div class="devices" role="radiogroup" aria-labelledby="devices-label">
       ${this._entities.map((eid) => {
         const on = eid === this._eid;
-        return html`<button class="devchip ${on ? "on" : ""}" role="radio" aria-checked=${on} ?disabled=${this._open !== null}
+        return html`<button class="devchip ${on ? "on" : ""}" role="radio" aria-checked=${on} ?disabled=${this._open !== null} aria-disabled=${ariaDisabled(this._open !== null)} aria-describedby=${describedBy(this._open !== null, "why-top")}
           @click=${() => { this._pick = eid; this._error = ""; this._note = ""; }}>
           <ha-state-icon .hass=${this.hass} .stateObj=${this.hass.states[eid]}></ha-state-icon><span>${friendlyName(this.hass, eid)}</span></button>`;
       })}
@@ -1026,7 +1037,7 @@ export class WpSchedule extends LitElement {
   /** "This mode follows: (none / a mode)" for each program of the screen; the list of followers when others follow this mode. */
   private _renderFollow() {
     const open = this._openMode;
-    if (open === null || this._open !== null) return nothing;
+    if (open === null) return nothing;
     const lang = this._lang;
     const many = this._programs.length > 1;
     return this._programs.map((program) => {
@@ -1034,9 +1045,14 @@ export class WpSchedule extends LitElement {
       const followers = program.profiles.filter((p) => p.follows === open).map((p) => p.name);
       const name = many ? ` (${program.name})` : "";
       if (followers.length) return html`<p class="muted note">${t(lang, "mode_followed_by", { modes: followers.join(", ") })}${name}</p>`;
-      if (!this._canEdit) return current ? html`<p class="muted note">${t(lang, "mode_follows_info", { source: current })}${name}</p>` : nothing;
       const sources = this._followSources(program);
-      if (!sources.length && !current) return nothing;
+      if (!this._canEdit && current) return html`<p class="muted note">${t(lang, "mode_follows_info", { source: current })}${name}</p>`;
+      if (!this._canEdit || (!sources.length && !current)) {
+        // nothing to choose: the select stays, disabled, with the reason
+        return html`<label class="follow"><span>${t(lang, "mode_follows_label")}${name}</span>
+          <select disabled aria-disabled="true" aria-describedby="why-follow"><option>${t(lang, "mode_follows_none")}</option></select></label>
+          ${whyNote("why-follow", t(lang, this._canEdit ? "follow_no_source" : "read_only"))}`;
+      }
       const list = current && !sources.includes(current) ? [current, ...sources] : sources;
       return html`<label class="follow"><span>${t(lang, "mode_follows_label")}${name}</span>
         <select ?disabled=${this._saving} @change=${(e: Event) => void this._onFollowChange(program, e)}>
@@ -1048,14 +1064,16 @@ export class WpSchedule extends LitElement {
 
   /** "Mode options": what belongs to the opened mode only (the mode it follows, copying from another one), folded by default. */
   private _renderModeOptions() {
-    if (!this._modes().length || this._open !== null || this._openMode === null) return nothing;
+    if (!this._modes().length || this._openMode === null) return nothing;
     const lang = this._lang;
+    const busy = this._open !== null || this._settingForm;
     const follow = this._programs.map((p) => this._followOf(p)).find(Boolean);
-    return html`<button class="row opts" aria-expanded=${this._optsOpen} @click=${() => { this._optsOpen = !this._optsOpen; }}>
-        <ha-icon icon=${this._optsOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
+    return html`<button class="row opts" aria-expanded=${this._optsOpen && !busy} ?disabled=${busy} aria-disabled=${ariaDisabled(busy)} aria-describedby=${describedBy(busy, "why-top")}
+        @click=${() => { this._optsOpen = !this._optsOpen; }}>
+        <ha-icon icon=${this._optsOpen && !busy ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
         <span class="txt">${t(lang, "advanced_options")}</span>
         ${follow ? html`<small>${t(lang, "mode_follows_short", { source: follow })}</small>` : nothing}</button>
-      ${collapse(this._optsOpen, html`<div class="opts-body">${this._renderFollow()}${this._renderCopy()}</div>`)}`;
+      ${collapse(this._optsOpen && !busy, html`<div class="opts-body">${this._renderFollow()}${this._renderCopy()}</div>`)}`;
   }
 
   /**
@@ -1072,15 +1090,14 @@ export class WpSchedule extends LitElement {
     // no setting yet: the controls are open, the first one has to be created here
     const open = this._settingsOpen || !labels.length || this._settingForm;
     // a schedule form is open: the controls stay shown but greyed and disabled, with the reason
-    const locked = this._open !== null;
+    const locked = this._open !== null || this._modeOnly;
     return html`<fieldset class="box setbox"><legend>${t(lang, "settings_legend")}</legend>
       ${open ? nothing : html`<ul class="tags">${labels.length
         ? labels.map((l) => html`<li><i class="dot" style="background:${l.color}"></i>${labelName(this.hass, l, this._eid)}</li>`)
         : html`<li class="muted">${t(lang, "settings_none")}</li>`}</ul>`}
-      <button class="row opts" aria-expanded=${open} aria-describedby=${ifDefined(locked ? "why-settings" : undefined)} ?disabled=${this._settingForm} @click=${() => { this._settingsOpen = !open; }}>
+      <button class="row opts" aria-expanded=${open} aria-describedby=${describedBy(locked, this._lockId ?? "")} ?disabled=${this._settingForm} @click=${() => { this._settingsOpen = !open; }}>
         <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
         <span class="txt">${t(lang, "settings_edit")}</span></button>
-      ${locked ? html`<p class="why" id="why-settings" role="status">${t(lang, "finish_schedule_first")}</p>` : nothing}
       ${collapse(open, html`<wp-label-picker .hass=${this.hass} .data=${this.data} .program=${program} .entityIds=${this._entities}
         ?start-new=${this.create && !this.day && !this._rows().length && this._canEdit}
         .value=${this._settingId} ?disabled=${!this._canEdit || locked} aria-disabled=${locked ? "true" : "false"}
@@ -1130,7 +1147,7 @@ export class WpSchedule extends LitElement {
     const lang = this._lang;
     const open = this._openMode;
     return html`<select class="modesel" aria-label=${t(lang, "profile")} ?disabled=${this._settingForm} aria-disabled=${this._settingForm ? "true" : "false"}
-        aria-describedby=${ifDefined(this._settingForm ? "why-sched" : undefined)}
+        aria-describedby=${describedBy(this._settingForm, "why-top")}
         @change=${(e: Event) => { const el = e.target as HTMLSelectElement; void this._pickMode(el.value, el); }}>
         ${modes.map((m) => {
           const follows = this._programs.map((p) => p.profiles.find((x) => x.name === m.name)?.follows).find(Boolean);
@@ -1152,8 +1169,15 @@ export class WpSchedule extends LitElement {
 
   private _renderCopy() {
     const sources = this._copySources();
-    if (this._open !== null || !sources.length || !this._canEdit || this._programs.some((p) => this._followOf(p))) return nothing;
     const lang = this._lang;
+    const follows = this._programs.some((p) => this._followOf(p));
+    // not usable: the button stays, disabled, with the reason
+    const why = !this._canEdit ? "read_only" : follows ? "copy_follows" : !sources.length ? "copy_no_source" : "";
+    if (why) {
+      return html`<button class="row copy" aria-expanded="false" disabled aria-disabled="true" aria-describedby="why-copy">
+        <ha-icon icon="mdi:content-copy"></ha-icon><span class="txt">${t(lang, "mode_copy_from")}</span></button>
+        ${whyNote("why-copy", t(lang, why))}`;
+    }
     return html`<button class="row copy" aria-expanded=${this._copyOpen} ?disabled=${this._saving}
         @click=${() => { this._copyOpen = !this._copyOpen; }}>
         <ha-icon icon="mdi:content-copy"></ha-icon><span class="txt">${t(lang, "mode_copy_from")}</span></button>
@@ -1335,6 +1359,7 @@ export class WpSchedule extends LitElement {
     const first = !rows.length && this._focus === null && !this._modeOnly;
     // a setting form is open: the schedules (and the week, chart and delete button) stay shown but inert and greyed
     const sf = this._settingForm;
+    const editing = this._open !== null;
     // With a mode selector, everything about the mode and everything about the schedule each sit in a fieldset.
     const boxed = this._modes().length > 0;
     const box = (cls: string, legend: string, body: unknown) => boxed ? html`<fieldset class="box ${cls}"><legend>${legend}</legend>${body}</fieldset>` : body;
@@ -1342,51 +1367,51 @@ export class WpSchedule extends LitElement {
       <wp-dialog open columns heading=${this._title} .beforeClose=${this._guardClose} @escape=${(e: Event) => this._onEscape(e)}>
         <div class="cols">
         <div class="params">
-        ${this._modeOnly ? nothing : html`<label class="switch">
+        ${whyNote("why-top", t(lang, sf ? "finish_setting_first" : "finish_schedule_first"), sf || editing)}
+        <label class="switch">
           <span class="grow">${t(lang, "schedule_on")}</span>
           <span class="state">${this._stateText()}</span>
-          <input type="checkbox" .checked=${this._enabled} ?disabled=${!this._canEdit || this._toggling || this._open !== null}
-            aria-disabled=${this._open !== null ? "true" : "false"} aria-describedby=${ifDefined(this._open !== null ? "why-switch" : undefined)}
+          <input type="checkbox" .checked=${this._enabled} ?disabled=${!this._canEdit || this._toggling || editing || this._modeOnly}
+            aria-disabled=${ariaDisabled(!this._canEdit || editing || this._modeOnly)}
+            aria-describedby=${describedBy(!this._canEdit || editing || this._modeOnly, this._lockId ?? "why-ro")}
             @change=${(e: Event) => void this._setEnabled((e.target as HTMLInputElement).checked, e.target as HTMLInputElement)} />
           <span class="track"></span>
-          ${this._open !== null ? html`<small class="why" id="why-switch">${t(lang, "finish_schedule_first")}</small>` : nothing}
-        </label>`}
+        </label>
         ${box("modebox", t(lang, "profile"), html`${this._renderModes()}
-          ${this._modeOnly ? this._renderInactive() : nothing}
+          ${this._modeOnly ? html`<div id="why-mode">${this._renderInactive()}</div>` : nothing}
           ${this._renderModeOptions()}
           <wp-mode-notice .hass=${this.hass} .data=${this.data}></wp-mode-notice>`)}
-        ${this._modeOnly ? nothing : this._renderSettings()}
-        ${!this._canEdit ? html`${callout("error", "", t(lang, "read_only"), { role: "alert" })}` : nothing}
+        ${this._renderSettings()}
+        ${!this._canEdit ? html`<div id="why-ro">${callout("error", "", t(lang, "read_only"), { role: "alert" })}</div>` : nothing}
         ${this._error && !this._open ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
         ${box("schedbox", t(lang, "schedules_legend"), html`
-        ${sf ? html`<p class="why" id="why-sched" role="status">${t(lang, "finish_setting_first")}</p>` : nothing}
-        <div class="gate ${sf ? "off" : ""}" ?inert=${sf} aria-disabled=${sf ? "true" : "false"} aria-describedby=${ifDefined(sf ? "why-sched" : undefined)}>
+        <div class="gate ${sf ? "off" : ""}" ?inert=${sf} aria-disabled=${ariaDisabled(sf)} aria-describedby=${describedBy(sf, "why-top")}>
         ${this._renderDevices()}
-        ${this._modeOnly ? nothing : html`<div class="rests">${this._renderRest()}</div>`}
-        ${this._focus !== null && this._open === null ? html`<div class="focus">
-          <button class="chip back" @click=${() => { this._focus = null; this._note = ""; }}>
+        <div class="rests">${this._renderRest()}</div>
+        ${this._focus !== null ? html`<div class="focus">
+          <button class="chip back" ?disabled=${editing} aria-disabled=${ariaDisabled(editing)} aria-describedby=${describedBy(editing, "why-top")} @click=${() => { this._focus = null; this._note = ""; }}>
             <ha-icon icon="mdi:arrow-left"></ha-icon>${t(lang, "w_whole_week")}</button>
           <h3>${strings(lang).days[this._focus]}</h3></div>` : nothing}
-        ${this._note && this._open === null ? html`<p class="muted note">${this._note}</p>` : nothing}
+        ${this._note ? html`<p class="muted note">${this._note}</p>` : nothing}
         <div class="list">
           ${rows.length ? rows.map((r) => this._renderRow(r)) : (this._open === "new" ? nothing : html`<p class="muted">${t(lang, "w_none")}</p>`)}
           ${this._group && (this._open === "new" || (this._open !== null && !rows.some((r) => r.key === this._open))) ? this._renderEditor(this._programs.find((p) => p.id === this._programId) ?? this._programs[0], this._open!) : nothing}
-          ${this._open === null ? html`<button class="row add ${first ? "first" : ""}" ?disabled=${!this._canEdit} @click=${() => this._add()}>
-            <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${this._focus === null ? t(lang, "w_add") : t(lang, "w_add_day", { day: strings(lang).days[this._focus].toLocaleLowerCase(lang) })}</span></button>` : nothing}
+          <button class="row add ${first ? "first" : ""}" ?disabled=${!this._canEdit || editing} aria-disabled=${ariaDisabled(editing)} aria-describedby=${describedBy(editing, "why-top")} @click=${() => this._add()}>
+            <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${this._focus === null ? t(lang, "w_add") : t(lang, "w_add_day", { day: strings(lang).days[this._focus].toLocaleLowerCase(lang) })}</span></button>
         </div>
-        ${this._open === null ? this._renderHoliday() : nothing}
+        <div class="holiday-gate" ?inert=${editing} aria-disabled=${ariaDisabled(editing)} aria-describedby=${describedBy(editing, "why-top")}>${this._renderHoliday()}</div>
         </div>`)}
         </div>
         <div class="area-week" ?inert=${sf}>${this._renderWeek()}${this._renderWeekNote()}</div>
-        <div class="area-chart" ?inert=${sf}>${this._open !== null ? nothing : this._renderChart()}</div>
-        <div class="area-options">${this._renderChartOptions()}</div>
-        <div class="area-delete" ?inert=${sf}>${this._open !== null || this._modeOnly ? nothing : html`<button class="btn danger-line alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteAll()}>
-          <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete_schedule")}</button>`}</div>
+        <div class="area-chart" ?inert=${sf || editing}>${this._renderChart()}</div>
+        <div class="area-options" ?inert=${sf || editing}>${this._renderChartOptions()}</div>
+        <div class="area-delete" ?inert=${sf}><button class="btn danger-line alone" ?disabled=${!this._canEdit || editing || this._modeOnly} aria-disabled=${ariaDisabled(editing || this._modeOnly)} aria-describedby=${describedBy(editing || this._modeOnly, this._lockId ?? "")} @click=${() => void this._deleteAll()}>
+          <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete_schedule")}</button></div>
         </div>
       </wp-dialog>`;
   }
 
-  static styles = [editorStyles, css`
+  static styles = [editorStyles, whyStyles, css`
     :host { display: contents; }
     /* One DOM order (the phone order of section 24.2 = keyboard order). From 768 px the same order is laid out in two
        columns by the grid alone: parameters (and Delete) on the left, the 7-day schematic then the day chart on the right. */
@@ -1489,10 +1514,8 @@ export class WpSchedule extends LitElement {
     .btn.danger-line { color: var(--wp-danger-text); border-color: var(--wp-danger-text); }
     .btn.danger { background: var(--wp-danger-fill); border-color: var(--wp-danger-border); color: #fff; }
     .muted { color: var(--secondary-text-color); }
-    .why { margin: 4px 0 8px; font-size: 0.8125rem; color: var(--secondary-text-color); }
-    .gate.off, .area-week[inert], .area-chart[inert], .area-delete[inert] { opacity: 0.5; pointer-events: none; }
+    .gate.off, .area-week[inert], .area-chart[inert], .area-options[inert], .area-delete[inert], .holiday-gate[inert] { opacity: 0.5; pointer-events: none; }
     .switch:has(input:disabled) { opacity: 0.6; cursor: default; flex-wrap: wrap; }
-    .switch .why { flex: 1 0 100%; margin: 0; }
     .note { margin: 0 0 8px; font-size: 0.875rem; }
     .focus { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
     .focus h3 { margin: 0; font-size: 1.25rem; font-weight: 600; }

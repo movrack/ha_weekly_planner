@@ -299,7 +299,7 @@ describe("deleting", () => {
   });
   it.each([
     ["asking", "", 1],
-    ["showing a refusal", "x", 0],
+    ["showing a refusal", "x", 1],
   ])("cancelling the delete box while %s clears the confirmation and the refusal", (_state, error, button) => {
     const el = mk();
     el._delError = error;
