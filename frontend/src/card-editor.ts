@@ -10,9 +10,10 @@ import { domainIcon, programDomains, type DomainLocalize } from "./domains";
 import { normalizeConfig, withDefaults } from "./config";
 import { allPrograms, isOn, toggleAllOff, toggleProgram, programRows, toggleType, typeGroups, typeState, type FilterPatch } from "./filter-editor";
 import { t } from "./i18n";
-import { whyNote, whyStyles } from "./reason";
+import { ariaDisabled, whyNote, whyStyles } from "./reason";
 import { moveId, sortItems, sortMode, SORTS } from "./list-order";
 import { setTimeFormat } from "./time";
+import { usesScheduleList } from "./view-choice";
 import type { CardConfig, HomeAssistant, PlannerData } from "./types";
 import { editorStyles, langOf } from "./editors/shared";
 import type { K } from "./editors/shared";
@@ -170,8 +171,8 @@ export class WeeklyPlannerCardEditor extends LitElement {
     return this.hass?.localize?.(`component.${type}.title`) || this._domainLocalize?.(`component.${type}.title`) || type;
   }
 
-  private _switch(checked: boolean, label: string, onChange: (on: boolean) => void, partial = false, disabled = false, describedBy = "") {
-    return html`<ha-switch class=${partial ? "partial" : ""} .checked=${checked} .disabled=${disabled} aria-label=${label} aria-describedby=${describedBy || nothing}
+  private _switch(checked: boolean, label: string, onChange: (on: boolean) => void, partial = false, disabled = false, describing = "") {
+    return html`<ha-switch class=${partial ? "partial" : ""} .checked=${checked} .disabled=${disabled} aria-disabled=${ariaDisabled(disabled)} aria-label=${label} aria-describedby=${describing || nothing}
       @change=${(e: Event) => onChange((e.target as HTMLInputElement).checked)}></ha-switch>`;
   }
 
@@ -322,6 +323,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
 
   render() {
     const c = this._config;
+    const listUsed = usesScheduleList(c.schedule_view);
     return html`
       ${this._canManage ? html`<a class="btn manage-programs" href="/weekly-planner"><ha-icon icon="mdi:calendar-edit"></ha-icon>${this._tr("ce_manage_programs")}</a>`
         : !this._data ? nothing : html`<button type="button" class="btn manage-programs" disabled aria-disabled="true" aria-describedby="why-manage"><ha-icon icon="mdi:calendar-edit"></ha-icon>${this._tr("ce_manage_programs")}</button>
@@ -356,7 +358,8 @@ export class WeeklyPlannerCardEditor extends LitElement {
         </select>
       </div>
       <div class="switch-row"><span class="grow">${this._tr("ce_show_schedule_list")}</span>
-        ${this._switch(c.show_schedule_list === true, this._tr("ce_show_schedule_list"), (on) => this._set("show_schedule_list", on))}</div>
+        ${this._switch(c.show_schedule_list === true, this._tr("ce_show_schedule_list"), (on) => this._set("show_schedule_list", on), false, !listUsed, listUsed ? "" : "why-schedule-list")}</div>
+      ${whyNote("why-schedule-list", this._tr("ce_show_schedule_list_why"), !listUsed)}
       <div class="switch-row"><span class="grow">${this._tr("ce_show_chart")}</span>
         ${this._switch(c.show_chart !== false, this._tr("ce_show_chart"), (on) => this._set("show_chart", on), false, false, "ce-show-chart-hint")}</div>
       <p id="ce-show-chart-hint" class="hint">${this._tr("ce_show_chart_hint")}</p>

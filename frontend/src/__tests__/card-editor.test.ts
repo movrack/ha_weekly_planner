@@ -451,6 +451,19 @@ describe("manage programs entry", () => {
   });
 });
 
+describe("Show the schedules switch follows the display view", () => {
+  it.each([
+    ["bars", false], [undefined, false], ["radial", false], ["radial_12h", false],
+    ["times", true], ["list", true], ["compare", true],
+  ])("view %s: the switch is greyed = %s, with its reason", (view, greyed) => {
+    const out = flat(mk({ program: "a", ...(view ? { schedule_view: view } : {}) }).render());
+    expect(out.includes(t("en", "ce_show_schedule_list_why"))).toBe(greyed);
+    expect(out.includes("aria-describedby=why-schedule-list")).toBe(greyed);
+    expect(out.includes("aria-disabled=true")).toBe(greyed);
+    expect(out.includes(t("en", "ce_show_schedule_list"))).toBe(true); // never removed
+  });
+});
+
 describe("card editor: touch targets", () => {
   // Layout at 360 px (UI review 2026-02-10): touch targets, wrapping, no word cut in a program name.
   it("fits a 360 px screen: 44 px type chips that wrap, program names not cut mid-word, notice button inside its box", () => {
