@@ -119,6 +119,12 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
   layout, same rules). Any inconsistency found, in code, docs or between two
   owner decisions, is **reported to the owner to be fixed**, never worked around silently, and a later
   decision does not silently override an earlier one: the document that loses is updated in the same change.
+- **An element never disappears (owner rule, 2026-11-21, accessibility):** a control, switch, field, fold, section
+  or link that cannot be used in the current state (permission, read-only, another form open, empty list, mode)
+  stays on screen, **greyed and disabled** (`disabled` and `aria-disabled`), with a **short visible message**
+  that says why, linked by `aria-describedby` (EN and FR, shortest clear wording). Never hide it with `nothing`,
+  `hidden`, `display: none` or a removed branch. Exceptions: purely decorative elements and loading states.
+  Existing code that hides an element is an inconsistency to report and fix.
 - Bars are editable by touch and mouse (long press, never a plain click; 44 px handles, 15-minute steps, saved on
   release with an undo); typed times accept any minute.
 
