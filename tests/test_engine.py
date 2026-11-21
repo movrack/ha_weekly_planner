@@ -21,6 +21,7 @@ from .helpers import (
     tick,
 )
 
+
 async def test_start_of_slot_and_default_at_its_end(hass, hass_storage, freezer):  # S1
     rec = Recorder(hass)
     await setup(hass, hass_storage, freezer, [program()], local(26, 7, 0))
