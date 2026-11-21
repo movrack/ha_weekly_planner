@@ -47,7 +47,7 @@ fusionner. Données : `reports/ai/tests-analyse-2026-11-18.md` (local). Règles 
 - [ ] compare (`compare-mutants`, `compare-view`, `compare-mode-row`).
 - [ ] edits (`edits`, `dayedits`, `edits-mutants`).
 - [ ] card-editor (`card-editor-mutants`, `-codex-1..4`).
-- [ ] label-picker (`-mutants`, `-mutants-3`, `-codex-1/2`).
+- [ ] label-picker (`-mutants`, `-mutants-3`, `-codex-1/2`; le formulaire de réglage fait partie du cadre Réglages, #75).
 - [ ] card (`card-guards/main/lifecycle/list-mutants` et tests de la carte), par thème.
 - [ ] `mutants-0-28`, `mutation-survivors` → répartis dans hold-hint, time, actions, times-list, list-order,
       slots, chart-zoom.

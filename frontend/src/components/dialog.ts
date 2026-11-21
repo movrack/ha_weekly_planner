@@ -177,7 +177,16 @@ export class WpDialog extends LitElement {
   private _escape(): void {
     const ev = new CustomEvent("escape", { cancelable: true });
     this.dispatchEvent(ev);
-    if (!ev.defaultPrevented) this.close();
+    if (!ev.defaultPrevented) void this.requestClose();
+  }
+
+  /** The owner may refuse a close from the user (Escape, backdrop, close button, swipe) while there are unsaved changes. */
+  @property({ attribute: false }) beforeClose?: () => boolean | Promise<boolean>;
+
+  /** Closes unless the owner's guard says no (an unsaved form it asked the user about). */
+  async requestClose(): Promise<void> {
+    if (this.beforeClose && !(await this.beforeClose())) return;
+    this.close();
   }
 
   // Swipe down from the header closes the dialog on phones (button equivalent: the close button).
@@ -219,7 +228,7 @@ export class WpDialog extends LitElement {
       panel.style.transition = "";
       panel.style.transform = "";
     }
-    if (sw.dy >= 100 && dx < sw.dy) this.close();
+    if (sw.dy >= 100 && dx < sw.dy) void this.requestClose();
   }
 
   private _hcancel(): void {
@@ -282,7 +291,7 @@ export class WpDialog extends LitElement {
   render() {
     if (!this.open) return html``;
     return html`
-      <div class="backdrop" @click=${() => this.close()}></div>
+      <div class="backdrop" @click=${() => void this.requestClose()}></div>
       <div class="panel ${this._expanded ? "expanded" : this.wide ? "wide" : this.columns ? "columns" : ""}" role=${this.dialogRole} aria-modal="true"
         aria-label=${this.heading} aria-describedby=${this.description ? "wp-desc" : nothing} tabindex="-1">
         ${this.description ? html`<span id="wp-desc" class="sr-only">${this.description}</span>` : nothing}
@@ -291,7 +300,7 @@ export class WpDialog extends LitElement {
           <slot name="header-start"></slot>
           <h2>${this.heading}</h2>
           <slot name="header-actions"></slot>
-          <button class="icon" @click=${() => this.close()} aria-label=${document.documentElement.lang?.startsWith("fr") ? "Fermer" : "Close"}><ha-icon icon="mdi:close"></ha-icon></button>
+          <button class="icon" @click=${() => void this.requestClose()} aria-label=${document.documentElement.lang?.startsWith("fr") ? "Fermer" : "Close"}><ha-icon icon="mdi:close"></ha-icon></button>
         </header>
         <div class="content"><slot></slot></div>
         <footer><slot name="footer"></slot></footer>

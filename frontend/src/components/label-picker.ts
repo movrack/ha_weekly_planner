@@ -27,6 +27,12 @@ export class WpLabelPicker extends LitElement {
   /** Settings can be chosen but not configured: no pencil, no "new setting", no form (the strip under a bar). */
   @property({ type: Boolean, attribute: "readonly-settings" }) readonlySettings = false;
 
+  /** The empty screen's "Create a setting": the form for a new setting opens as soon as the picker is first shown. */
+  @property({ type: Boolean, attribute: "start-new" }) startNew = false;
+
+  /** What the form held when it opened, to tell whether anything changed. */
+  private _initialForm = "";
+
   /** The label form is open (edit of the chosen label, or a new one). */
   @state() private _form = false;
   /** Id of the label being edited (null: a new label is being created). */
@@ -73,6 +79,20 @@ export class WpLabelPicker extends LitElement {
     this._ov = {};
     this._valueFor = null;
     this._error = "";
+    this._initialForm = this._snapshot();
+  }
+
+  private _snapshot(): string {
+    return JSON.stringify([this._name, this._color, this._showValue, this._action, this._ov]);
+  }
+
+  /** The form is open and differs from what it was opened with (asked before the dialog closes). */
+  get dirty(): boolean {
+    return this._form && this._snapshot() !== this._initialForm;
+  }
+
+  firstUpdated(): void {
+    if (this.startNew && !this.readonlySettings && !this.disabled && !this._form) this._open(false);
   }
 
   private _close(): void {

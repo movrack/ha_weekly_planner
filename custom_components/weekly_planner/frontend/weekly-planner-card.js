@@ -1048,6 +1048,7 @@ var Et = {
 	slot_delete_yes: "Yes, delete it",
 	slot_delete_no: "No, keep it",
 	edit_discard: "Abandon the changes of this schedule?",
+	setting_discard: "Abandon the changes of this setting?",
 	edit_discard_yes: "Yes, abandon them",
 	edit_discard_no: "No, keep editing",
 	copy_hint: "Copy this schedule to other days",
@@ -1594,6 +1595,7 @@ var Et = {
 	slot_delete_yes: "Oui, supprimer",
 	slot_delete_no: "Non, garder",
 	edit_discard: "Abandonner les changements de cet horaire ?",
+	setting_discard: "Abandonner les changements de ce réglage ?",
 	edit_discard_yes: "Oui, les abandonner",
 	edit_discard_no: "Non, continuer",
 	copy_hint: "Copie cet horaire sur d’autres jours",
@@ -2596,7 +2598,10 @@ var bn = class extends S {
 	}
 	_escape() {
 		let e = new CustomEvent("escape", { cancelable: !0 });
-		this.dispatchEvent(e), e.defaultPrevented || this.close();
+		this.dispatchEvent(e), e.defaultPrevented || this.requestClose();
+	}
+	async requestClose() {
+		(!this.beforeClose || await this.beforeClose()) && this.close();
 	}
 	_isPhone() {
 		return typeof matchMedia == "function" && matchMedia("(max-width: 600px)").matches;
@@ -2624,7 +2629,7 @@ var bn = class extends S {
 		if (!t || e.pointerId !== t.id) return;
 		this._sw = void 0;
 		let n = this._panel(), r = Math.abs(e.clientX - t.x);
-		n && (n.style.transition = "", n.style.transform = ""), t.dy >= 100 && r < t.dy && this.close();
+		n && (n.style.transition = "", n.style.transform = ""), t.dy >= 100 && r < t.dy && this.requestClose();
 	}
 	_hcancel() {
 		this._sw = void 0;
@@ -2661,7 +2666,7 @@ var bn = class extends S {
 	}
 	render() {
 		return this.open ? y`
-      <div class="backdrop" @click=${() => this.close()}></div>
+      <div class="backdrop" @click=${() => void this.requestClose()}></div>
       <div class="panel ${this._expanded ? "expanded" : this.wide ? "wide" : this.columns ? "columns" : ""}" role=${this.dialogRole} aria-modal="true"
         aria-label=${this.heading} aria-describedby=${this.description ? "wp-desc" : x} tabindex="-1">
         ${this.description ? y`<span id="wp-desc" class="sr-only">${this.description}</span>` : x}
@@ -2670,7 +2675,7 @@ var bn = class extends S {
           <slot name="header-start"></slot>
           <h2>${this.heading}</h2>
           <slot name="header-actions"></slot>
-          <button class="icon" @click=${() => this.close()} aria-label=${document.documentElement.lang?.startsWith("fr") ? "Fermer" : "Close"}><ha-icon icon="mdi:close"></ha-icon></button>
+          <button class="icon" @click=${() => void this.requestClose()} aria-label=${document.documentElement.lang?.startsWith("fr") ? "Fermer" : "Close"}><ha-icon icon="mdi:close"></ha-icon></button>
         </header>
         <div class="content"><slot></slot></div>
         <footer><slot name="footer"></slot></footer>
@@ -2744,7 +2749,7 @@ D([T()], bn.prototype, "heading", void 0), D([T({
 })], bn.prototype, "open", void 0), D([T({ type: Boolean })], bn.prototype, "wide", void 0), D([T({
 	type: Boolean,
 	reflect: !0
-})], bn.prototype, "compact", void 0), D([T({ type: Boolean })], bn.prototype, "columns", void 0), D([T({ attribute: "dialog-role" })], bn.prototype, "dialogRole", void 0), D([T()], bn.prototype, "description", void 0), D([E()], bn.prototype, "_expanded", void 0), bn = D([w("wp-dialog")], bn);
+})], bn.prototype, "compact", void 0), D([T({ type: Boolean })], bn.prototype, "columns", void 0), D([T({ attribute: "dialog-role" })], bn.prototype, "dialogRole", void 0), D([T()], bn.prototype, "description", void 0), D([E()], bn.prototype, "_expanded", void 0), D([T({ attribute: !1 })], bn.prototype, "beforeClose", void 0), bn = D([w("wp-dialog")], bn);
 // src/holiday.ts
 var xn = (e) => e?.holiday ? "copy" in e.holiday ? "copy" : "own" : "none", Sn = (e) => e?.holiday?.off ? "none" : xn(e), Cn = (e) => e?.holiday && "day" in e.holiday && e.holiday.day ? e.holiday.day : [], wn = (e) => [...e.days.flat(), ...Cn(e)];
 function Tn(e, t, n) {
@@ -3798,7 +3803,7 @@ D([T({ attribute: !1 })], ji.prototype, "hass", void 0), D([T({ attribute: "enti
 // src/components/label-picker.ts
 var U = class extends S {
 	constructor(...e) {
-		super(...e), this.entityIds = [], this.value = null, this.allowNone = !1, this.disabled = !1, this.compact = !1, this.readonlySettings = !1, this._form = !1, this._editId = null, this._name = "", this._color = "", this._showValue = !1, this._action = null, this._ov = {}, this._error = "", this._saving = !1, this._valueFor = null, this._confirmDel = !1, this._replaceBy = null, this._delError = "", this._loaded = "";
+		super(...e), this.entityIds = [], this.value = null, this.allowNone = !1, this.disabled = !1, this.compact = !1, this.readonlySettings = !1, this.startNew = !1, this._initialForm = "", this._form = !1, this._editId = null, this._name = "", this._color = "", this._showValue = !1, this._action = null, this._ov = {}, this._error = "", this._saving = !1, this._valueFor = null, this._confirmDel = !1, this._replaceBy = null, this._delError = "", this._loaded = "";
 	}
 	get _lang() {
 		return wi(this.hass);
@@ -3816,7 +3821,22 @@ var U = class extends S {
 	}
 	_open(e) {
 		let t = e ? B(this.data, this.value) : void 0;
-		(!e || t) && (this._form = !0, this._editId = t?.id ?? null, this._name = t?.name ?? "", this._color = t?.color ?? ei(this.data.labels), this._showValue = !!t?.show_value, this._action = t ? structuredClone(t.action) : null, this._ov = {}, this._valueFor = null, this._error = "");
+		(!e || t) && (this._form = !0, this._editId = t?.id ?? null, this._name = t?.name ?? "", this._color = t?.color ?? ei(this.data.labels), this._showValue = !!t?.show_value, this._action = t ? structuredClone(t.action) : null, this._ov = {}, this._valueFor = null, this._error = "", this._initialForm = this._snapshot());
+	}
+	_snapshot() {
+		return JSON.stringify([
+			this._name,
+			this._color,
+			this._showValue,
+			this._action,
+			this._ov
+		]);
+	}
+	get dirty() {
+		return this._form && this._snapshot() !== this._initialForm;
+	}
+	firstUpdated() {
+		this.startNew && !this.readonlySettings && !this.disabled && !this._form && this._open(!1);
 	}
 	_close() {
 		this._form = !1, this._error = "";
@@ -4149,7 +4169,10 @@ D([T({ attribute: !1 })], U.prototype, "hass", void 0), D([T({ attribute: !1 })]
 })], U.prototype, "allowNone", void 0), D([T({ type: Boolean })], U.prototype, "disabled", void 0), D([T({ type: Boolean })], U.prototype, "compact", void 0), D([T({
 	type: Boolean,
 	attribute: "readonly-settings"
-})], U.prototype, "readonlySettings", void 0), D([E()], U.prototype, "_form", void 0), D([E()], U.prototype, "_editId", void 0), D([E()], U.prototype, "_name", void 0), D([E()], U.prototype, "_color", void 0), D([E()], U.prototype, "_showValue", void 0), D([E()], U.prototype, "_action", void 0), D([E()], U.prototype, "_ov", void 0), D([E()], U.prototype, "_error", void 0), D([E()], U.prototype, "_saving", void 0), D([E()], U.prototype, "_valueFor", void 0), D([E()], U.prototype, "_confirmDel", void 0), D([E()], U.prototype, "_replaceBy", void 0), D([E()], U.prototype, "_delError", void 0), U = D([w("wp-label-picker")], U);
+})], U.prototype, "readonlySettings", void 0), D([T({
+	type: Boolean,
+	attribute: "start-new"
+})], U.prototype, "startNew", void 0), D([E()], U.prototype, "_form", void 0), D([E()], U.prototype, "_editId", void 0), D([E()], U.prototype, "_name", void 0), D([E()], U.prototype, "_color", void 0), D([E()], U.prototype, "_showValue", void 0), D([E()], U.prototype, "_action", void 0), D([E()], U.prototype, "_ov", void 0), D([E()], U.prototype, "_error", void 0), D([E()], U.prototype, "_saving", void 0), D([E()], U.prototype, "_valueFor", void 0), D([E()], U.prototype, "_confirmDel", void 0), D([E()], U.prototype, "_replaceBy", void 0), D([E()], U.prototype, "_delError", void 0), U = D([w("wp-label-picker")], U);
 // src/components/confirm.ts
 var Mi = class extends S {
 	constructor(...e) {
@@ -8379,7 +8402,10 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
 			if (!Ln(e, t)) return !1;
 			let n = B(this.data, e.label), r = this._programs.find((e) => e.id === this._programId) ?? this._programs[0];
 			return !n?.action || !r || !!H(this.hass, r, t, n, e);
-		}, this._minutes = (e) => I(this.hass, e);
+		}, this._minutes = (e) => I(this.hass, e), this._guardClose = async () => {
+			let e = this._lang, t = this.renderRoot.querySelector("wp-label-picker:not([readonly-settings])"), n = this._editDirty;
+			return !n && !t?.dirty || Ni(this, k(e, n ? "edit_discard" : "setting_discard"), k(e, "edit_discard_yes"), k(e, "edit_discard_no"));
+		};
 	}
 	_chartOwner() {
 		let e = this._programs[0];
@@ -8491,7 +8517,7 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
 	}
 	firstUpdated() {
 		if (this._loadNames(), this.create && !this.day) {
-			!this._rows().length && this._canEdit && this._add();
+			!this._rows().length && this._canEdit && (this._settingsOpen = !0);
 			return;
 		}
 		if (!this.day) return;
@@ -8578,7 +8604,9 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
 		});
 	}
 	_onEscape(e) {
-		this._open !== null && (e.preventDefault(), this._cancel());
+		this._open !== null && (e.preventDefault(), this._guardClose().then((e) => {
+			e && this._cancel();
+		}));
 	}
 	_cancel() {
 		let e = this._open;
@@ -9128,6 +9156,7 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
         <ha-icon icon=${r ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
         <span class="txt">${k(e, "settings_edit")}</span></button>
       ${$e(r, y`<wp-label-picker .hass=${this.hass} .data=${this.data} .program=${t} .entityIds=${this._entities}
+        ?start-new=${this.create && !this.day && !this._rows().length && this._canEdit}
         .value=${this._settingId} ?disabled=${!this._canEdit}
         @label-change=${(e) => {
 			e.stopPropagation(), this._settingId = e.detail;
@@ -9337,7 +9366,7 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
 		if (!this._programs.length) return y`<wp-dialog open heading=${this._title}><p class="muted">${k(e, "no_program")}</p></wp-dialog>`;
 		let t = this._rows(), n = !t.length && this._focus === null && !this._modeOnly, r = this._modes().length > 0, i = (e, t, n) => r ? y`<fieldset class="box ${e}"><legend>${t}</legend>${n}</fieldset>` : n;
 		return y`
-      <wp-dialog open columns heading=${this._title} @escape=${(e) => this._onEscape(e)}>
+      <wp-dialog open columns heading=${this._title} .beforeClose=${this._guardClose} @escape=${(e) => this._onEscape(e)}>
         <div class="cols">
         <div class="params">
         ${this._open !== null || this._modeOnly ? x : y`<label class="switch">
@@ -9368,7 +9397,7 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
           ${t.length ? t.map((e) => this._renderRow(e)) : this._open === "new" ? x : y`<p class="muted">${k(e, "w_none")}</p>`}
           ${this._group && (this._open === "new" || this._open !== null && !t.some((e) => e.key === this._open)) ? this._renderEditor(this._programs.find((e) => e.id === this._programId) ?? this._programs[0], this._open) : x}
           ${this._open === null ? y`<button class="row add ${n ? "first" : ""}" ?disabled=${!this._canEdit} @click=${() => this._add()}>
-            <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${n ? k(e, "create_setting") : this._focus === null ? k(e, "w_add") : k(e, "w_add_day", { day: O(e).days[this._focus].toLocaleLowerCase(e) })}</span></button>` : x}
+            <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${this._focus === null ? k(e, "w_add") : k(e, "w_add_day", { day: O(e).days[this._focus].toLocaleLowerCase(e) })}</span></button>` : x}
         </div>
         ${this._open === null ? this._renderHoliday() : x}`)}
         </div>

@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { WeeklyPlannerCard } from "../weekly-planner-card";
 import { WpSchedule } from "../components/schedule-dialog";
+import { confirmAction } from "../components/confirm";
+import { t } from "../i18n";
 import { find, flat } from "./helpers/tpl";
+
+vi.mock("../components/confirm", () => ({ confirmAction: vi.fn(async () => true), pauseChoice: vi.fn(), chooseAction: vi.fn() }));
 
 const slot = { id: "s", start: { time: "08:00" }, end: { time: "09:00" }, label: "l" };
 const program = (id: string, entities: string[], filled: boolean) => ({
@@ -67,16 +71,33 @@ describe("Create a setting (dialog)", () => {
     v.renderRoot = { querySelector: () => null };
     return v;
   }
-  it("labels the add button 'Create a setting' when empty, 'Add a schedule' otherwise", () => {
-    expect(flat(dialog(false, false).render())).toContain("Create a setting");
-    const full = flat(dialog(true, false).render());
-    expect(full).not.toContain("Create a setting");
-    expect(full).toContain("Add a schedule");
+  it("labels the add button 'Add a schedule', empty or not (the schedule form no longer creates settings)", () => {
+    expect(flat(dialog(false, false).render())).toContain("Add a schedule");
+    expect(flat(dialog(false, false).render())).not.toContain("Create a setting");
+    expect(flat(dialog(true, false).render())).toContain("Add a schedule");
   });
-  it("opens the new-slot form straight away when created from the card", () => {
+  it("opens the Settings box on a new setting when created from the card", () => {
     const v = dialog(false, true);
     v.firstUpdated();
-    expect(v._open).toBe("new");
+    expect(v._open).toBeNull();
+    expect(v._settingsOpen).toBe(true);
+    expect(flat(v.render())).toContain("start-new");
+  });
+  it("asks before closing while the setting form holds changes", async () => {
+    const v = dialog(false, true);
+    const picker: any = { dirty: true };
+    v.renderRoot = { querySelector: () => picker };
+    vi.mocked(confirmAction).mockResolvedValueOnce(false);
+    expect(await v._guardClose()).toBe(false);
+    expect(confirmAction).toHaveBeenCalledWith(v, t("en", "setting_discard"), t("en", "edit_discard_yes"), t("en", "edit_discard_no"));
+    vi.mocked(confirmAction).mockResolvedValueOnce(true);
+    expect(await v._guardClose()).toBe(true);
+    picker.dirty = false;
+    vi.mocked(confirmAction).mockClear();
+    expect(await v._guardClose()).toBe(true);
+    expect(confirmAction).not.toHaveBeenCalled();
+    v.renderRoot = { querySelector: () => null };
+    expect(await v._guardClose()).toBe(true);
   });
   it("does not open the form when there are slots or the user cannot edit", () => {
     const a = dialog(true, true); a.firstUpdated(); expect(a._open).toBeNull();
