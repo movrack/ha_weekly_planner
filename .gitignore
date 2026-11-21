@@ -11,6 +11,9 @@ htmlcov/
 # Frontend
 node_modules/
 frontend/dist/
+# Card bundle: built by `npm run build`, shipped in the release zip (weekly_planner.zip), never committed
+custom_components/weekly_planner/frontend/weekly-planner-card.js
+/weekly_planner.zip
 
 # Local Home Assistant dev instance
 dev/config/*

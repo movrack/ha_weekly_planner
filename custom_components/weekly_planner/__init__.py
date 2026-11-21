@@ -64,8 +64,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: WeeklyPlannerConfigEntry
     await yaml_sync.async_start()  # a hand-edited file is imported before the entities exist
     store.on_config_saved = yaml_sync.schedule_write
     entry.async_on_unload(yaml_sync.async_stop)
-    await async_register_card(hass)
-    await async_register_panel(hass, bool(entry.options.get(CONF_SHOW_SIDEBAR, DEFAULT_SHOW_SIDEBAR)))
+    if await async_register_card(hass):  # without the built card, the schedules still run
+        await async_register_panel(hass, bool(entry.options.get(CONF_SHOW_SIDEBAR, DEFAULT_SHOW_SIDEBAR)))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await engine.async_start()
     yaml_sync.async_go_live()

@@ -69,9 +69,9 @@ and you choose which actions a program may use. Scenes are supported as well.
 
 ### Manually
 
-1. Download the [latest release](https://github.com/movrack/ha_weekly_planner/releases/latest).
-2. Copy its `custom_components/weekly_planner` folder into the `custom_components` folder of your
-   Home Assistant configuration.
+1. Download `weekly_planner.zip` from the [latest release](https://github.com/movrack/ha_weekly_planner/releases/latest).
+2. Unzip it into a new `custom_components/weekly_planner` folder of your Home Assistant configuration
+   (`manifest.json` directly in that folder).
 3. Restart Home Assistant.
 
 ### Add the integration

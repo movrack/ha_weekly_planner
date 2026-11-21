@@ -6,11 +6,15 @@ from hashlib import sha256
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
+from homeassistant.components import panel_custom
 from homeassistant.components.lovelace.const import LOVELACE_DATA, MODE_STORAGE, MODE_YAML
+from homeassistant.config_entries import ConfigEntryState
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.weekly_planner import async_remove_entry, frontend
 from custom_components.weekly_planner.const import DOMAIN
+
+from .helpers import Recorder, local, program, setup
 
 
 class FakeResources:
@@ -107,3 +111,25 @@ async def test_yaml_mode_leaves_resources_untouched(hass, tmp_path, monkeypatch)
     await frontend.async_unregister_card(hass)
     assert resources.items == [] and resources.loaded == 0
     assert hass.data["frontend_extra_module_url"] == {_url(b"v1")}
+
+
+async def test_missing_card_registers_nothing_and_warns(hass, tmp_path, monkeypatch, caplog):  # S33, #63
+    _, resources = _prepare(hass, tmp_path, monkeypatch)
+    monkeypatch.setattr(frontend, "CARD_FILE", tmp_path / "missing" / "weekly-planner-card.js")
+    hass.data[frontend.CARD_VERSION_KEY] = "stale"
+    assert await frontend.async_register_card(hass) is False
+    assert resources.items == [] and resources.loaded == 0
+    hass.http.async_register_static_paths.assert_not_awaited()
+    assert frontend.CARD_VERSION_KEY not in hass.data
+    assert "card not built" in caplog.text and "npm run build" in caplog.text
+
+
+async def test_integration_runs_its_schedules_without_the_card(hass, hass_storage, freezer, monkeypatch, caplog):  # #63
+    monkeypatch.setattr(frontend, "CARD_FILE", frontend.CARD_FILE.parent / "absent.js")
+    recorder = Recorder(hass)
+    hass.config.components.add("panel_custom")
+    await setup(hass, hass_storage, freezer, [program()], local(28, 9))
+    assert hass.config_entries.async_entries(DOMAIN)[0].state is ConfigEntryState.LOADED
+    assert ("climate.set_temperature", {"temperature": 21}) in recorder.calls  # the 08:00-12:00 slot applies
+    panel_custom.async_register_panel.assert_not_awaited()
+    assert "card not built" in caplog.text
