@@ -4,6 +4,7 @@ import { WpModeNotice } from "../components/mode-notice";
 import { WeeklyPlannerCard } from "../weekly-planner-card";
 import { chooseAction, confirmAction } from "../components/confirm";
 import { activeFollow, activeProfile, effectiveProfile } from "../planner";
+import { t } from "../i18n";
 import { flat, handlers, find } from "./helpers/tpl";
 import type { Program } from "../types";
 
@@ -89,7 +90,7 @@ describe("the schedules screen of a mode that follows", () => {
     expect(html).toContain("same schedules as Home");
     expect(html).toContain("Same schedules as:");
     expect(html).toContain("Home</option>");
-    expect(html).not.toContain("Reuse the schedules of another mode");
+    expect(html).toContain(t("en", "copy_follows"));
   });
   it("offers only valid sources: not itself, not a mode that follows, not a mode with no schedules, none for a followed mode", () => {
     const { view, program } = make();
@@ -101,11 +102,11 @@ describe("the schedules screen of a mode that follows", () => {
     view._viewMode = "Home";
     expect(view._followSources(program)).toEqual([]); // Holiday follows Home: Home cannot follow
     expect(flat(view.render())).toContain("Followed by: Holiday");
-    expect(flat(view.render())).not.toContain("Same schedules as:");
+    expect(flat(view.render())).not.toContain(t("en", "follow_no_source"));
   });
   it("shows nothing to choose when no mode can be followed, and only a note when read-only", () => {
     const only = mkProgram(); only.profiles = [only.profiles[0]];
-    expect(flat(make(mode({ active: "Home", options: ["Home"] }), only).view.render())).not.toContain("Same schedules as:");
+    expect(flat(make(mode({ active: "Home", options: ["Home"] }), only).view.render())).toContain(t("en", "follow_no_source"));
     const ro = make(); ro.view.data.read_only = true;
     const html = flat(ro.view.render());
     expect(html).not.toContain("class=\"follow\""); expect(html).toContain("Same schedules as Home.");

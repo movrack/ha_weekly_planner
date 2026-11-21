@@ -120,7 +120,11 @@ describe("the chosen setting's summary", () => {
   it("offers delete except in the read-only strip", () => {
     expect(flat(mk().render())).toContain("mdi:delete-outline");
     expect(flat(mk().render())).toContain(t("en", "lb_delete"));
-    expect(flat(mk({ readonlySettings: true }).render())).not.toContain("mdi:delete-outline");
+    // the read-only strip keeps the bin, greyed, with the reason
+    const ro = flat(mk({ readonlySettings: true }).render());
+    expect(ro).toContain("mdi:delete-outline");
+    expect(ro).toContain(t("en", "lb_manage_above"));
+    expect(flat(mk({ readonlySettings: true, compact: true }).render())).not.toContain("mdi:delete-outline");
   });
   it("shows the delete box under the chips once the bin is clicked, but never in the read-only strip", () => {
     const el = mk();

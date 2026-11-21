@@ -299,7 +299,7 @@ describe("deleting", () => {
   });
   it.each([
     ["asking", "", 1],
-    ["showing a refusal", "x", 0],
+    ["showing a refusal", "x", 1],
   ])("cancelling the delete box while %s clears the confirmation and the refusal", (_state, error, button) => {
     const el = mk();
     el._delError = error;
@@ -325,6 +325,30 @@ describe("choosing", () => {
     const el = mk();
     el._choose("l");
     expect(el.dispatchEvent.mock.calls[0][0]).toMatchObject({ type: "label-change", detail: "l", bubbles: true, composed: true });
+  });
+});
+
+describe("telling the window when the form opens and closes", () => {
+  it("emits label-form-change on open and on close, never for the first closed render", () => {
+    const el = mk();
+    const seen: boolean[] = [];
+    el.dispatchEvent = vi.fn((e: CustomEvent) => { seen.push(e.detail); return true; });
+    el.updated(new Map([["_form", undefined]]));
+    expect(seen).toEqual([]);
+    el._open(false);
+    el.updated(new Map([["_form", false]]));
+    el._close();
+    el.updated(new Map([["_form", true]]));
+    el.updated(new Map([["_name", ""]]));
+    expect(seen).toEqual([true, false]);
+  });
+  it("emits for a form that is already open on the first render (start-new)", () => {
+    const el = mk();
+    const seen: boolean[] = [];
+    el.dispatchEvent = vi.fn((e: CustomEvent) => { seen.push(e.detail); return true; });
+    el._open(false);
+    el.updated(new Map([["_form", undefined]]));
+    expect(seen).toEqual([true]);
   });
 });
 

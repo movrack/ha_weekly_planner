@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { describe, expect, it, vi } from "vitest";
 import { WpSchedule } from "../components/schedule-dialog";
 import type { Program } from "../types";
@@ -36,11 +37,12 @@ describe("schedule screen order", () => {
     expect(at.every((i) => i >= 0)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
   });
-  it("keeps hiding the switch, the rest row and Delete when only another mode is edited", () => {
+  it("keeps the switch, the rest row and Delete shown, greyed with the reason, when only another mode is edited", () => {
     const html = flat(screen("Away").render());
-    expect(html).not.toContain('class="switch"');
-    expect(html).not.toContain("[REST]");
-    expect(html).not.toContain("danger-line alone");
+    expect(html).toContain('class="switch"');
+    expect(html).toContain("[REST]");
+    expect(html).toContain("danger-line alone");
+    expect(html).toContain(t("en", "mode_off_why"));
     expect(html.indexOf("modebox")).toBeLessThan(html.indexOf("[WEEK]"));
     expect(html.indexOf("row add")).toBeLessThan(html.indexOf("[WEEK]"));
     expect(html.indexOf("[WEEK]")).toBeLessThan(html.indexOf("[CHART]"));
@@ -75,14 +77,23 @@ describe("schedule screen order", () => {
     view.data.programs = [];
     expect(flat(view.render())).not.toContain('class="switch"');
   });
-  it("hides the switch, chart and Delete while a slot is being edited", () => {
+  it("keeps the switch, chart, Delete and Add shown (greyed, with the reason) while a slot is being edited", () => {
     const view = screen();
     view._open = "new";
     const html = flat(view.render());
-    expect(html).not.toContain('class="switch"');
-    expect(html).not.toContain("[CHART]");
-    expect(html).not.toContain("danger-line alone");
-    expect(html).not.toContain("row add");
+    expect(html).toContain('class="switch"');
+    expect(html).toContain(t("en", "finish_schedule_first"));
+    expect(html).toContain("[CHART]");
+    expect(html).toContain("danger-line alone");
+    expect(html).toContain("row add");
+  });
+  it("keeps the switch shown, disabled and described by the read-only notice when nothing can be edited", () => {
+    const view = screen();
+    view.data.read_only = true;
+    const html = flat(view.render());
+    expect(html).toContain('class="switch"');
+    expect(html).toContain('id="why-ro"');
+    expect(html).not.toContain(t("en", "finish_schedule_first"));
   });
 });
 
@@ -90,7 +101,7 @@ it("places the options in the left desktop grid while preserving the phone DOM o
   const styles = WpSchedule.styles.map((style:any) => style.cssText).join("");
   expect(styles).toContain('"options chart"');
   expect(styles).toContain('.area-options { grid-area: options;');
-  const view=screen();view._open="new";expect(flat(view.render())).not.toContain("wp-chart-options");
+  const view=screen();view._open="new";expect(flat(view.render())).toContain("wp-chart-options");
   view._open=null;view.chart=false;expect(flat(view.render())).not.toContain("wp-chart-options");
   expect(flat(screen("Away").render())).not.toContain("wp-chart-options");
 });

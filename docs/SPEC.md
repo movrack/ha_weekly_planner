@@ -574,8 +574,20 @@ Vue de **lecture** de la journée d'aujourd'hui ; elle remplace la barre / le ca
   Toute la gestion (ajouter, modifier, supprimer, remplacer puis supprimer) est dans le cadre **Réglages**, entre **Mode** et
   **Horaires** (#75) : fermé par défaut, il ne liste que les réglages existants (une ligne de points colorés et de noms) ;
   « Modifier les réglages » (`mdi:chevron-down`, repli animé `collapse`) ouvre les contrôles ; ouvert d'office tant qu'aucun
-  réglage n'existe ; masqué (`hidden`, état conservé) pendant qu'un formulaire d'horaire est ouvert, pour ne jamais voir deux
-  paires Enregistrer / Annuler ; absent pour un mode seulement édité. Le formulaire d'horaire et « Reste du temps » ne
+  réglage n'existe ; toujours visible, au même endroit et replié par défaut, y compris pendant qu'un formulaire d'horaire est ouvert (règle « un élément ne disparaît jamais », 2026-11-21 : un élément inutilisable reste affiché, grisé, `disabled` +
+  `aria-disabled`, avec un message court lié par `aria-describedby` et affiché hors de la zone grisée, contraste ≥ 4,5:1 ;
+  helpers communs dans `reason.ts`). Un seul formulaire actif dans la fenêtre : horaire ouvert → un message en tête
+  « Terminez d'abord l'horaire. » ; grisés : contrôles du cadre Réglages, interrupteur « Programme actif », Ajouter,
+  Supprimer, graphique et ses options, jour férié, options du mode, « Toute la semaine », pastilles d'appareils ;
+  formulaire de réglage ouvert (événement `label-form-change`) → message en tête « Terminez d'abord le réglage. », section
+  Horaires, semaine, graphique, options du graphique, Supprimer et sélecteur de Mode `inert` et grisés, Échap sur l'horaire
+  ignoré, repli non refermable. Autres éléments toujours affichés : « Dupliquer » d'un nouvel horaire (« Enregistrez
+  d'abord l'horaire. »), « Reprendre les horaires d'un autre mode » et « Suivre un mode » sans choix possible, en lecture seule
+  ou si le mode en suit un autre ; mode non actif : interrupteur, cadre Réglages, « Le reste du temps » et Supprimer grisés
+  (« Ce n'est pas le mode actif. ») ; dans les sélecteurs de réglage du formulaire d'horaire, crayon, corbeille et « Nouveau
+  réglage » grisés (« Les réglages se gèrent dans le cadre Réglages. ») ; corbeille d'un réglage utilisé grisée avec la
+  raison. Lecture seule : l'interrupteur renvoie à l'avis de lecture seule. Rien de saisi n'est perdu et la fermeture
+  de la fenêtre demande confirmation si l'un des deux formulaires est modifié ; absent pour un mode seulement édité. Le formulaire d'horaire et « Reste du temps » ne
   font que choisir un réglage (`readonly-settings`). « + Nouveau réglage » ouvre un mini-formulaire en ligne (nom, couleur de la palette de 12, action par le sélecteur
   générique ou une scène) qui crée le réglage et le sélectionne ; pour le réglage choisi, « Valeur pour cet appareil »
   modifie la valeur propre de l'appareil (même sélecteur) avec « Revenir à la valeur commune ».

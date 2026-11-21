@@ -124,7 +124,10 @@ describe("schedule screen rendering", () => {
     view._viewMode = "Away";
     const html = flat(view.render());
     expect(html).toContain("This mode is not active");
-    expect(html).not.toContain("wp-chart"); expect(html).not.toContain("delete-outline\"></ha-icon>Delete");
+    expect(html).not.toContain("wp-chart");
+    // Delete stays, greyed, and points to the reason
+    expect(html).toContain("delete-outline\"></ha-icon>Delete");
+    expect(html).toContain(t("en", "mode_off_why"));
     expect(view._modeOnly).toBe(true);
   });
   it("navigates the chart days within bounds", () => {
@@ -232,7 +235,8 @@ describe("schedule screen editing", () => {
     expect(view._group.days).toEqual([0, 1, 2, 3, 4, 5, 6]);
     expect(view._group.slot).toMatchObject({ label: "comfort", entities: ["switch.demo"] });
     expect(view._group.slot.end).toBeUndefined();
-    expect(flat(view.render())).not.toContain(t("en", "duplicate"));
+    // a new schedule cannot be duplicated yet: the button stays, greyed, with its reason
+    expect(flat(view.render())).toContain(t("en", "dup_save_first"));
     view._group = { ...view._group, slot: { ...view._group.slot, start: { time: "09:00" }, end: { time: "11:00" } } };
     await view._saveRow();
     expect(view.hass.callWS).toHaveBeenCalled();
@@ -606,18 +610,83 @@ describe("schedule screen editing", () => {
       toggle(view).fn();
       expect(attr(view, 'class="row opts" aria-expanded=')).toEqual([true]);
     });
-    it("is hidden, not removed, while a slot form is open so only one Save / Cancel pair shows", () => {
+    it("stays shown, folded, while a slot form is open", () => {
       const { view } = make();
-      expect(attr(view, 'class="box setbox" ?hidden=')).toEqual([false]);
       view._add([0]);
-      expect(attr(view, 'class="box setbox" ?hidden=')).toEqual([true]);
+      const html = flat(view.render());
+      expect(html).not.toContain('class="box setbox" ?hidden=');
+      expect(html).toContain(t("en", "settings_legend"));
+      expect(html).toContain("<li><i");
+      expect(attr(view, 'class="row opts" aria-expanded=')).toEqual([false]);
     });
-    it("is not shown when the screen only edits an inactive mode", () => {
+    it("lets the fold open while a slot form is open and the schedule form keeps its changes", () => {
+      const { view } = make();
+      view._add([0]);
+      view._group = { ...view._group, slot: { ...view._group.slot, start: { time: "05:00" } } };
+      toggle(view).fn();
+      expect(attr(view, 'class="row opts" aria-expanded=')).toEqual([true]);
+      expect(view._group.slot.start).toEqual({ time: "05:00" });
+      expect(view._open).toBe("new");
+    });
+    it("opening a schedule greys and disables the settings controls, with the reason, without hiding the box", () => {
+      const { view } = make();
+      expect(flat(view.render())).not.toContain(t("en", "finish_schedule_first"));
+      view._add([0]);
+      const html = flat(view.render());
+      expect(html).toContain(t("en", "settings_legend"));
+      expect(html).toContain(t("en", "finish_schedule_first"));
+      expect(view._open).toBe("new");
+      // the fold stays usable to look at the settings: it is not claimed disabled, the reason sits on the picker
+      expect(valuesAfter(view.render(), 'class="row opts" aria-expanded=')).toEqual([false]);
+      expect(valuesAfter(view.render(), "aria-disabled=").length).toBeGreaterThan(0);
+    });
+    it("opening a setting form makes the schedules, week, chart and Delete inert with one reason, and keeps what was typed", () => {
+      const { view } = make();
+      view._add([0]);
+      view._group = { ...view._group, slot: { ...view._group.slot, start: { time: "05:00" } } };
+      const stop = vi.fn();
+      find(view.render(), "label-form-change", "wp-label-picker .hass").fn({ stopPropagation: stop, detail: true });
+      expect(stop).toHaveBeenCalledOnce();
+      expect(view._settingForm).toBe(true);
+      const html = flat(view.render());
+      expect(html).toContain(t("en", "finish_setting_first"));
+      expect(html).toContain("aria-disabled=");
+      expect(view._group.slot.start).toEqual({ time: "05:00" });
+      expect(view._open).toBe("new");
+      // the fold cannot hide the open setting form
+      expect(valuesAfter(view.render(), 'class="row opts" aria-expanded=')).toEqual([true]);
+      find(view.render(), "label-form-change", "wp-label-picker .hass").fn({ stopPropagation: stop, detail: false });
+      expect(view._settingForm).toBe(false);
+      expect(flat(view.render())).not.toContain(t("en", "finish_setting_first"));
+      expect(view._group.slot.start).toEqual({ time: "05:00" });
+    });
+    it("ignores Escape on the open schedule while the setting form is open", async () => {
+      const { view } = make();
+      view._add([0]);
+      view._settingForm = true;
+      const preventDefault = vi.fn();
+      view._onEscape({ preventDefault } as any);
+      expect(preventDefault).toHaveBeenCalled();
+      await Promise.resolve();
+      expect(view._open).toBe("new");
+    });
+    it("asks before closing when the schedule form or the setting form holds changes", async () => {
+      const { view } = make();
+      expect(await view._guardClose()).toBe(true);
+      view._add([0]);
+      view._group = { ...view._group, slot: { ...view._group.slot, start: { time: "05:00" } } };
+      view._settingForm = true;
+      vi.mocked(confirmAction).mockResolvedValue(false);
+      expect(await view._guardClose()).toBe(false);
+    });
+    it("stays shown, with its controls greyed and the reason, when the screen only edits an inactive mode", () => {
       const { view } = make();
       view._viewMode = "Away";
       view.data.mode = { selector: "input_select.mode", active: "Home", options: ["Home", "Away"] };
       expect(view._modeOnly).toBe(true);
-      expect(flat(view.render())).not.toContain(t("en", "settings_legend"));
+      const html = flat(view.render());
+      expect(html).toContain(t("en", "settings_legend"));
+      expect(html).toContain(t("en", "mode_off_why"));
     });
     it("follows the setting chosen in its picker, and lets every device give its own value", () => {
       const { view } = make();
