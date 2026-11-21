@@ -9,6 +9,7 @@ vi.mock("../planner", () => ({ subscribePlanner: (_h: unknown, fn: (d: unknown) 
 vi.mock("../time", () => ({ setTimeFormat: vi.fn() }));
 
 import { WpProgramsPanel } from "../programs-panel";
+import { t } from "../i18n";
 
 const program = (id: string, extra: Record<string, unknown> = {}) => ({ id, name: `Prog ${id}`, enabled: true, icon: null, entities: [{ entity_id: "a.b" }], profiles: [], ...extra });
 const data = (programs: unknown[], extra: Record<string, unknown> = {}) => ({ programs, can_edit: true, read_only: false, ...extra }) as never;
@@ -304,7 +305,7 @@ describe("programs panel: list sections", () => {
     const out = flat(make({ data: data([]) })._list([]));
     expect(out).toContain("Priority order");
     expect(out).toContain("New program");
-    expect(out).not.toContain("Duplicate a program");
+    expect(out).toMatch(/class="row act dup-open" \?disabled=\S* aria-disabled=true/); // shown, greyed
   });
 });
 
@@ -401,8 +402,35 @@ describe("programs panel: sort and filter", () => {
     expect(out).toContain('class="link sort-open"'); expect(out).toContain('class="link filter-open"');
     expect(out).toContain("mdi:sort"); expect(out).toContain("mdi:filter-variant");
     expect(out).not.toContain("Filter and sort");
+    expect(out).not.toContain("why-tools");
+  });
+
+  it("keeps Duplicate, Sort, Filter and Reset on screen when nothing can be done, disabled with their reason (an element never disappears)", () => {
     const none = flat(make({ data: data([]) })._list([]));
-    expect(none).not.toContain("sort-open"); expect(none).not.toContain("filter-open");
+    for (const cls of ["dup-open", "sort-open", "filter-open"]) expect(none).toMatch(new RegExp(`class="[^"]*${cls}"[^>]*aria-disabled=true`));
+    expect(none).toMatch(/class="link" \?disabled=\S* aria-disabled=true aria-describedby=why-reset/);
+    expect(none).toContain("aria-describedby=why-tools");
+    expect(none).toContain("aria-describedby=why-dup-open");
+    expect(none).toContain("aria-describedby=why-reset");
+    for (const id of ["why-tools", "why-dup-open"]) expect(none).toContain(`id=${id} role="status">Create a program first.</p>`);
+    expect(none).toContain('id=why-reset role="status">No filter set.</p>');
+    expect(t("fr", "panel_create_first")).toBe("Créez d’abord un programme.");
+    expect(t("fr", "panel_no_filter")).toBe("Aucun filtre défini.");
+    const ok = flat(make({ data: set() })._list(make({ data: set() })._data.programs));
+    expect(ok).not.toContain("why-dup-open"); expect(ok).not.toContain("why-tools"); expect(ok).toContain("id=why-reset"); // no filter set yet
+    expect(ok).toMatch(/aria-disabled=false/);
+  });
+
+  it("with a filter the Reset button is usable and the message is gone; the List/Summary toggle is greyed only when the list is empty", () => {
+    const p = make({ data: set() });
+    p._view = { ...p._view, types: ["cover"] };
+    const out = flat(p._list(p._data.programs));
+    expect(out).toContain("shown");
+    expect(out).not.toContain("why-reset");
+    p.narrow = true;
+    expect(flat(p._list(p._data.programs))).not.toContain("why-tools");
+    const empty = flat(make({ data: data([]), narrow: true })._list([]));
+    expect(empty.match(/role="radio"[^>]*\n?[^>]*aria-disabled=true aria-describedby=why-tools/g)).toHaveLength(2);
   });
 
   it("opens the sort and the filters in two separate windows", () => {
@@ -549,10 +577,10 @@ describe("programs panel: overview (Aperçu)", () => {
     expect(flat(fr._list(fr._data.programs))).toContain(">Aperçu<");
   });
 
-  it("has no toggle on a wide screen (the overview already fills the right column), nor without programs", () => {
+  it("has no toggle on a wide screen (the overview already fills the right column); without programs it stays on a narrow one, greyed", () => {
     const wide = make({ data: set() });
     expect(flat(wide._list(wide._data.programs))).not.toContain("radiogroup");
-    expect(flat(make({ narrow: true, data: data([]) })._list([]))).not.toContain("radiogroup");
+    expect(flat(make({ narrow: true, data: data([]) })._list([]))).toContain("radiogroup"); // kept, greyed (an element never disappears)
   });
 
   it("switching to Overview replaces the program rows by the card and keeps the actions, the sort and the filter", () => {

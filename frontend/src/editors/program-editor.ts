@@ -25,6 +25,7 @@ import type { Condition, HomeAssistant, PlannerData, Program, ProgramEntity, Slo
 import "./shared";
 import { editorStyles, langOf } from "./shared";
 import { callout, collapse } from "../styles";
+import { ariaDisabled, describedBy, whyNote, whyStyles } from "../reason";
 import type { K } from "./shared";
 
 const NEW_AREA = "__new_area__"; // the value of the "Another room…" choice: never stored
@@ -664,14 +665,15 @@ export class WpProgramEditor extends LitElement {
     const editable = this._canEdit();
     const content = html`
       <span class="sr" role="status" aria-live="polite">${this._compSaid}</span>
-      ${!editable ? html`${callout("error", "", this._tr("read_only"), { role: "alert" })}` : nothing}
+      ${!editable ? html`${callout("error", "", this._tr("read_only"), { role: "alert", id: "why-readonly" })}` : nothing}
       <fieldset ?disabled=${!editable || this._saving}>
         <div class="history" role="group" aria-label=${this._tr("pe_history")}>
-          <button class="btn" aria-label=${this._tr("pe_undo")} title=${this._tr("pe_undo")} ?disabled=${!this._history.canUndo} @click=${() => this._undoDraft()}>
+          <button class="btn" aria-label=${this._tr("pe_undo")} title=${this._tr("pe_undo")} ?disabled=${!this._history.canUndo} aria-disabled=${ariaDisabled(!this._history.canUndo)} aria-describedby=${describedBy(!this._history.canUndo, "why-history")} @click=${() => this._undoDraft()}>
             <ha-icon icon="mdi:undo"></ha-icon>${this._isNew ? nothing : this._tr("pe_undo")}</button>
-          <button class="btn" aria-label=${this._tr("pe_redo")} title=${this._tr("pe_redo")} ?disabled=${!this._history.canRedo} @click=${() => this._redoDraft()}>
+          <button class="btn" aria-label=${this._tr("pe_redo")} title=${this._tr("pe_redo")} ?disabled=${!this._history.canRedo} aria-disabled=${ariaDisabled(!this._history.canRedo)} aria-describedby=${describedBy(!this._history.canRedo, "why-history")} @click=${() => this._redoDraft()}>
             <ha-icon icon="mdi:redo"></ha-icon>${this._isNew ? nothing : this._tr("pe_redo")}</button>
         </div>
+        ${whyNote("why-history", this._tr(!this._history.canUndo && !this._history.canRedo ? "pe_nothing_both" : this._history.canUndo ? "pe_nothing_redo" : "pe_nothing_undo"), !this._history.canUndo || !this._history.canRedo)}
         ${this._isNew ? html`<p class="hint">${this._tr("pe_create_hint")}</p>
           ${this._nameField()}
           <h3>${this._tr("tab_entities")}</h3>${this._renderEntities()}${this._renderCompetition()}` : html`
@@ -684,15 +686,19 @@ export class WpProgramEditor extends LitElement {
         </div>`}
       </fieldset>`;
     const globalError = this._error ? callout("error", "", this._error, { role: "alert" }) : nothing;
+    const changed = Boolean(this._origin) && (JSON.stringify(this._p) !== JSON.stringify(this._origin) || this._order !== undefined);
+    const cantCancel = this._isNew || !changed || this._saving;
     const primaryActions = html`
-      <button class="btn primary" ?disabled=${!editable || this._saving} @click=${() => void this._save()}>
+      <button class="btn primary" ?disabled=${!editable || this._saving} aria-disabled=${ariaDisabled(!editable || this._saving)} aria-describedby=${describedBy(!editable, "why-readonly")} @click=${() => void this._save()}>
         ${this._tr(this._isNew ? "pe_create" : "save")}</button>
       ${!this.embedded ? html`<button class="btn" @click=${() => this._close()}>${this._tr("cancel")}</button>`
-        : !this._isNew && this._origin && (JSON.stringify(this._p) !== JSON.stringify(this._origin) || this._order !== undefined)
-          ? html`<button class="btn" ?disabled=${this._saving} @click=${() => this._revert()}>${this._tr("cancel")}</button>` : nothing}`;
+        : html`<button class="btn" ?disabled=${cantCancel} aria-disabled=${ariaDisabled(cantCancel)} aria-describedby=${describedBy(cantCancel && !this._saving, "why-cancel")} @click=${() => this._revert()}>${this._tr("cancel")}</button>
+          ${whyNote("why-cancel", this._tr("pe_no_changes"), cantCancel && !this._saving)}`}`;
     const secondaryActions = html`
-      ${!this._isNew ? html`<button class="btn danger" ?disabled=${!editable || this._saving}
-        @click=${() => void this._askDelete()}><ha-icon icon="mdi:delete"></ha-icon>${this._tr("delete")}</button>` : nothing}`;
+      <button class="btn danger" ?disabled=${this._isNew || !editable || this._saving} aria-disabled=${ariaDisabled(this._isNew || !editable || this._saving)}
+        aria-describedby=${describedBy(this._isNew || !editable, this._isNew ? "why-delete" : "why-readonly")}
+        @click=${() => void this._askDelete()}><ha-icon icon="mdi:delete"></ha-icon>${this._tr("delete")}</button>
+      ${whyNote("why-delete", this._tr("pe_save_first"), this._isNew)}`;
     const unapplied = (this._origin
       ? JSON.stringify(this._p) !== JSON.stringify(this._origin) || this._order !== undefined
       : Boolean(this._p.name || this._p.entities.length));
@@ -710,7 +716,10 @@ export class WpProgramEditor extends LitElement {
 
   static styles = [
     editorStyles,
+    whyStyles,
     css`
+      .actions .why { flex-basis: 100%; margin: 0; }
+      .actions .danger ~ .why { text-align: end; }
       :host { display: block; }
       fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
       .history { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }

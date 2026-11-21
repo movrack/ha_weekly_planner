@@ -29,11 +29,13 @@ describe("setting picker: choose versus configure", () => {
     expect(html).toContain("mdi:pencil");
     expect(html).toContain("mdi:plus");
   });
-  it("inline picker (readonly) can choose but has no pencil, no new, no form", () => {
+  it("compact bars strip (readonly) can choose; no pencil, bin or new chip at all (never usable there); no form", () => {
     const html = picker({ compact: true, readonlySettings: true });
     expect(html).toContain("Comfort");
     expect(html).not.toContain("mdi:pencil");
     expect(html).not.toContain("mdi:plus");
+    expect(html).not.toContain("mdi:delete-outline");
+    expect(html).not.toContain("why-manage");
     expect(html).not.toContain("class=\"form");
   });
   it("readonly closes a form that was open", () => {

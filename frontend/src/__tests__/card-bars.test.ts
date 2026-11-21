@@ -146,11 +146,15 @@ describe("device tabs and the switch", () => {
     p.enabled = false;
     expect(flat(c._programToggle(p))).toContain("mdi:toggle-switch-off-outline");
     expect(attrs(c._programToggle(p))["aria-checked"]).toBe(false);
+    expect(attrs(c._programToggle(p))["aria-disabled"]).toBe("false");
     c._data.read_only = true;
     expect(attrs(c._programToggle(p))["?disabled"]).toBe(true);
+    expect(attrs(c._programToggle(p))["aria-disabled"]).toBe("true");
+    expect(flat(c._programToggle(p))).toContain("why-readonly"); // linked to the read-only notice
     c._data.read_only = false;
     c._toggling = new Set(["p1"]);
     expect(attrs(c._programToggle(p))["?disabled"]).toBe(true);
+    expect(flat(c._programToggle(p))).not.toContain("why-readonly");
     c._toggling = new Set(["other"]);
     expect(attrs(c._programToggle(p))["?disabled"]).toBeFalsy();
     handlers(c._programToggle(p))[0].fn();

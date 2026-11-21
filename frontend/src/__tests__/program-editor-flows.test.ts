@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WpProgramEditor } from "../editors/program-editor";
 import { confirmAction } from "../components/confirm";
 import { flat, handlers, find } from "./helpers/tpl";
+import { t } from "../i18n";
 import type { Program } from "../types";
 
 vi.mock("../components/confirm", () => ({ confirmAction: vi.fn(async () => true) }));
@@ -447,5 +448,48 @@ describe("program editor: defaults of a new program", () => {
   ] as const)("starts from %s", (_name, defaults, expected) => {
     const { e } = make(null, { defaults: defaults as any });
     expect(e._p).toMatchObject(expected);
+  });
+});
+
+describe("program editor: an element never disappears", () => {
+  const shown = (e: any) => flat(e.render());
+  it("Delete of a new program stays, greyed, with 'Save the program first.'", () => {
+    const { e } = make(null, { embedded: true });
+    const out = shown(e);
+    expect(out).toMatch(/class="btn danger" \?disabled=\S* aria-disabled=true\s+aria-describedby=why-delete/);
+    expect(out).toContain('id=why-delete role="status">Save the program first.</p>');
+    expect(shown(make(prog(), { embedded: true }).e)).not.toContain("why-delete");
+  });
+  it("Cancel of an intact draft stays, greyed, with 'No changes.'; it is usable once the draft changed", () => {
+    const { e } = make(prog(), { embedded: true });
+    expect(shown(e)).toMatch(/class="btn" \?disabled=\S* aria-disabled=true aria-describedby=why-cancel/);
+    expect(shown(e)).toContain('id=why-cancel role="status">No changes.</p>');
+    e._p = { ...e._p, name: "Changed" };
+    const out = shown(e);
+    expect(out).not.toContain("why-cancel");
+    expect(out).toContain("aria-disabled=false aria-describedby=");
+    expect(shown(make(null, { embedded: true }).e)).toContain("why-cancel"); // a new program has nothing to cancel
+  });
+  it("Undo and Redo give their reason", () => {
+    const { e } = make(prog(), { embedded: true });
+    let out = shown(e);
+    expect(out).toContain('id=why-history role="status">Nothing to undo or redo.</p>');
+    expect(out).toContain("aria-describedby=why-history");
+    const before = e._snapshot();
+    e._p = { ...e._p, name: "Changed" };
+    e._history.record(before, e._snapshot(), "g");
+    out = shown(e);
+    expect(out).toContain("Nothing to redo.");
+    e._undoDraft();
+    expect(shown(e)).toContain("Nothing to undo.");
+    expect(t("fr", "pe_nothing_both")).toBe("Rien à annuler ni à rétablir.");
+    expect(t("fr", "pe_save_first")).toBe("Enregistrez d’abord le programme.");
+    expect(t("fr", "pe_no_changes")).toBe("Aucun changement.");
+  });
+  it("in read only, Save and Delete point to the read-only notice", () => {
+    const { e } = make(prog(), { embedded: true }); e.data.read_only = true;
+    const out = shown(e);
+    expect(out).toContain('id="why-readonly"');
+    expect(out.match(/aria-describedby=why-readonly/g)!.length).toBeGreaterThanOrEqual(2);
   });
 });

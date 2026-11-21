@@ -4,6 +4,7 @@ import { TIMELINE } from "./timeline-geometry";
 
 import { LitElement, css, html, nothing } from "lit";
 import { callout, calloutStyles } from "./styles";
+import { ariaDisabled, describedBy, whyNote, whyStyles } from "./reason";
 import { keyed } from "lit/directives/keyed.js";
 import { customElement, property, state } from "lit/decorators.js";
 import "./components/bar-editor";
@@ -583,7 +584,8 @@ export class WeeklyPlannerCard extends LitElement {
   private _programToggle(program: Program) {
     return html`<button class="hours" role="switch" aria-checked=${program.enabled} data-program=${program.id}
       aria-label=${program.name}
-      ?disabled=${this._data?.read_only || this._toggling.has(program.id)}
+      ?disabled=${this._data?.read_only || this._toggling.has(program.id)} aria-disabled=${ariaDisabled(Boolean(this._data?.read_only || this._toggling.has(program.id)))}
+      aria-describedby=${describedBy(Boolean(this._data?.read_only), "why-readonly")}
       @click=${() => void this._toggleProgram(program)}>
       <ha-icon icon=${program.enabled ? "mdi:toggle-switch" : "mdi:toggle-switch-off-outline"}></ha-icon></button>`;
   }
@@ -912,11 +914,14 @@ export class WeeklyPlannerCard extends LitElement {
         ${this._info ? html`<div class="info" @pointerenter=${() => this._holdInfo(true)} @pointerleave=${() => this._holdInfo(false)}
           @focusin=${() => this._holdInfo(true)} @focusout=${() => this._holdInfo(false)}>${callout("success", "", this._info, { role: "status" })}</div>` : nothing}
         ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
-        ${data?.read_only ? html`${callout("error", "", t(lang, "read_only"))}` : nothing}
+        ${data?.read_only ? html`${callout("error", "", t(lang, "read_only"), { id: "why-readonly" })}` : nothing}
         ${!data ? html`<div class="empty">…</div>` : nothing}
         ${data && !programs.length ? html`<div class="empty" role="status">${t(lang, data.programs.length && this._config.program === undefined ? "no_matching_program" : "no_program")}</div>` : nothing}
-        ${data && !programs.length && this.hass.user?.is_admin && data.can_edit && !data.read_only
-          ? html`<a class="manage-programs" href="/weekly-planner"><ha-icon icon="mdi:calendar-edit"></ha-icon>${t(lang, "ce_manage_programs")}</a>` : nothing}
+        ${data && !programs.length ? (this.hass.user?.is_admin && data.can_edit && !data.read_only
+          ? html`<a class="manage-programs" href="/weekly-planner"><ha-icon icon="mdi:calendar-edit"></ha-icon>${t(lang, "ce_manage_programs")}</a>`
+          // an anchor cannot be disabled: a greyed button with its reason keeps the entry on screen
+          : html`<button class="manage-programs" disabled aria-disabled="true" aria-describedby="why-manage"><ha-icon icon="mdi:calendar-edit"></ha-icon>${t(lang, "ce_manage_programs")}</button>
+            ${whyNote("why-manage", t(lang, data.read_only ? "read_only" : "manage_admins_only"))}`) : nothing}
         ${data ? this._list(programs) : nothing}
       </ha-card>
       ${this._snack ? html`<div class="snack" role="status"><span>${t(lang, "edited")} ·</span>
@@ -941,8 +946,10 @@ export class WeeklyPlannerCard extends LitElement {
     }
   }
 
-  static styles = [calloutStyles, css`
-    .manage-programs { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; margin: 0 16px 16px; color: var(--wp-primary-text); text-decoration: none; }
+  static styles = [calloutStyles, whyStyles, css`
+    button.manage-programs[disabled] { opacity: .5; cursor: default; margin-bottom: 0; }
+    .why { margin: 4px 16px 16px; text-align: center; }
+    .manage-programs { display: flex; font: inherit; background: none; border: 0; width: calc(100% - 32px); box-sizing: border-box; align-items: center; justify-content: center; gap: 8px; min-height: 48px; margin: 0 16px 16px; color: var(--wp-primary-text); text-decoration: none; }
     .compact-row { display: flex; align-items: center; gap: 8px; min-height: 52px; }
     .summary strong { display: flex; align-items: center; gap: 4px; }
     .compact-details { padding-bottom: 8px; }
