@@ -53,8 +53,8 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
   release). First step of each agent: `git log --oneline -1` in the worktree must show the expected `develop`
   commit and a known recent file must exist; otherwise stop and report. A worktree holds only committed work:
   commit first (when allowed) or hand over a patch. Parallel agents never edit the main tree. Each worktree
-  installs its own dependencies (`uv sync --group test`, `cd frontend && npm ci`) and dev-instance port; only
-  the integrating tree rebuilds the card bundle. The coordinator merges the branches one at a time (rebase on
+  installs its own dependencies (`uv sync --group test`, `cd frontend && npm ci`) and dev-instance port, and
+  builds its own card bundle (not committed). The coordinator merges the branches one at a time (rebase on
   `develop`, run all checks, resolve conflicts), then removes the worktrees and branches (`git worktree remove`,
   `git branch -d`). Stale or wrongly based worktrees and branches are removed first (`git worktree remove --force`,
   `git branch -D`) before any retry. Read-only agents may share the main tree. Never push from a worktree
@@ -84,8 +84,8 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
   task lists, `docs/quick_todo.md`, any list that tracks it). When a GitHub issue is done, comment on it
   that it is done and give the associated commit (hash); commit and push only within the commit rules.
 - **Versions**: SemVer, changed together in `custom_components/weekly_planner/manifest.json`,
-  `pyproject.toml`, `frontend/package.json` (and its lock file), with an entry in `CHANGELOG.md`
-  (Keep a Changelog).
+  `pyproject.toml`, `frontend/package.json` (and its lock file), `uv.lock` (`uv lock`), with an entry in
+  `CHANGELOG.md` (Keep a Changelog). A beta pre-release adds a suffix: `0.30.0-beta.1`.
 - **Branches**: work on `develop`; `main` only receives releases approved by the maintainer. Changes go
   through an issue (`bug` or `change request`) and a pull request that references it.
   When the owner approves a plan for implementation, save it in `docs/PLAN_<name>.md` and create or update its GitHub
@@ -125,8 +125,11 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
 ## Checks before a commit
 - Python: `uv run --group test pytest -q`.
 - Card: `cd frontend && npx tsc --noEmit && npx vitest run && npm run build`. The built bundle
-  `custom_components/weekly_planner/frontend/weekly-planner-card.js` is committed.
-- Try the change in a browser on a test instance: `scripts/dev_ha.sh` (port 8124) then
+  `custom_components/weekly_planner/frontend/weekly-planner-card.js` is **not committed** (git-ignored): the
+  `Release` workflow builds it into `weekly_planner.zip`, the file HACS installs. Without it the integration
+  starts with a warning and no card or panel. To have a change tested before a version, publish a beta
+  pre-release (see "Deploying to a real instance"), never a branch or a commit.
+- Try the change in a browser on a test instance: `scripts/dev_ha.sh` (port 8124, builds the card first) then
   `scripts/dev_onboard.py`; after a build, call the `weekly_planner.reload` service — the card reloads
   itself when its version changes.
 - Update the spec, the decisions and the CHANGELOG with the change.
@@ -239,7 +242,7 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
   a commit: the tested working tree is what gets deployed.
 - Card-only change: call the `weekly_planner.reload` service. Python change: back up Home Assistant, then
   restart it.
-- Release: once the maintainer has merged the release PR into `main`, the `Release` workflow (`.github/workflows/release.yml`) creates the tag and the GitHub release from the CHANGELOG section of the version on `main` (it fails if manifest, pyproject and package.json versions differ, and skips an existing tag). `scripts/release.sh` (dry run; `--apply`) is the manual fallback. Releases are never created from `develop`.
+- Release: once the maintainer has merged the release PR into `main`, the `Release` workflow (`.github/workflows/release.yml`) builds the card, packs and checks `weekly_planner.zip` (files of `custom_components/weekly_planner/` at the root of the archive, `manifest.json` and the card bundle present), then creates the tag and the GitHub release with the zip attached, from the CHANGELOG section of the version (it fails if manifest, pyproject and package.json versions differ, and skips an existing release). `scripts/release.sh` (dry run; `--apply`) is the manual fallback for a final version. **Final releases are created only from `main`, after the release PR. Beta pre-releases** (version with a suffix, `0.30.0-beta.1`, the same string in the three files; `uv.lock` records it as `0.30.0b1`) **may be dispatched by hand from any branch** (Actions, Release, "Run workflow"): marked pre-release, never latest; notes from their CHANGELOG section, or from `[Unreleased]` when they have none (owner, 2026-11-21). A push on `main` never publishes a pre-release. A deployment tool must build the card (`npm run build`) before copying the integration folder.
 - Reports and plans never give effort estimates in human days or weeks; list the steps, dependencies and risks instead.
 
 ## Verification before a deploy

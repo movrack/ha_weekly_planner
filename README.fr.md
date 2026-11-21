@@ -70,9 +70,9 @@ sont prises en charge aussi.
 
 ### À la main
 
-1. Télécharger la [dernière version](https://github.com/movrack/ha_weekly_planner/releases/latest).
-2. Copier son dossier `custom_components/weekly_planner` dans le dossier `custom_components` de votre
-   configuration Home Assistant.
+1. Télécharger `weekly_planner.zip` depuis la [dernière version](https://github.com/movrack/ha_weekly_planner/releases/latest).
+2. Le décompresser dans un nouveau dossier `custom_components/weekly_planner` de votre configuration
+   Home Assistant (`manifest.json` directement dans ce dossier).
 3. Redémarrer Home Assistant.
 
 ### Ajouter l’intégration

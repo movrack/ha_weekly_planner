@@ -635,7 +635,9 @@ seule) ; Échap ferme toujours la fenêtre ouverte la plus récente, même si le
 focus revient à l'élément qui l'avait ouverte ; boutons de jour ≥ 44 px.
 
 ### 10.6 Livraison du JS
-Lit + TypeScript, bundle `custom_components/weekly_planner/frontend/weekly-planner-card.js` (commité). Servi par
+Lit + TypeScript, bundle `custom_components/weekly_planner/frontend/weekly-planner-card.js` (non commité : construit à la
+release dans `weekly_planner.zip`, que HACS installe ; absent = avertissement au journal, ni ressource ni panneau, les
+programmes tournent, #63). Servi par
 `async_register_static_paths` ; **ressource Lovelace** (mode storage) avec `?v=<hash>` ; `add_extra_js_url` seulement
 en mode YAML ; garde `customElements.get()` avant `define`.
 
@@ -689,8 +691,9 @@ comme n'importe quelle autre ; les **pilotes concurrents** sont signalés (§ 9)
 - Python des tests aligné sur HA (3.14, via `uv`) ; `pytest-homeassistant-custom-component` aligné 2026.10 ; temps simulé.
 - `manifest.json` : `dependencies` = `http`, `websocket_api` ; `after_dependencies` = `frontend`, `logbook`, `lovelace`,
   `repairs` ; `single_config_entry: true`.
-- CI (`.github/workflows`) : `hacs/action`, `hassfest`, pytest, et pour la carte `tsc --noEmit`, vitest, build et
-  vérification que le bundle commité est à jour. Pas de test Playwright ni de lint de la carte en CI.
+- CI (`.github/workflows`) : `hacs/action`, `hassfest`, pytest, et pour la carte `tsc --noEmit`, vitest et build.
+  Release (`release.yml`) : construit la carte, emballe et contrôle `weekly_planner.zip` avant de créer la release ;
+  version finale depuis `main` (latest), pré-release bêta `X.Y.Z-beta.N` lancée à la main depuis toute branche. Pas de test Playwright ni de lint de la carte en CI.
 - `hacs.json`, `manifest.json` (`domain`, `name`, `version`, `documentation`, `issue_tracker`, `codeowners`,
   `config_flow`, `iot_class: calculated`, `integration_type: service`, `dependencies: [http, websocket_api]`).
 - Docs : README (en) + `README.fr.md`, captures, CHANGELOG ; releases GitHub. Dernière release GitHub : `v0.7.10` ;

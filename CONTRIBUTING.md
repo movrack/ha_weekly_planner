@@ -7,6 +7,16 @@ The project follows [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PAT
 `0.x` while the first version is being built, `1.0.0` once everything works. The version lives in
 `custom_components/weekly_planner/manifest.json`, `pyproject.toml` and `frontend/package.json`.
 
+## Releases and betas
+HACS installs `weekly_planner.zip`, attached to each GitHub release by the `Release` workflow
+(`.github/workflows/release.yml`); installing a branch or a commit gives no card. A final version is
+released from `main` after the release pull request. To have a change tested before a version, publish
+a **beta pre-release**: set the same version with a suffix (`0.30.0-beta.1`) in the three files, run
+`uv lock` and `cd frontend && npm install --package-lock-only`, push the branch, then run the
+`Release` workflow on it (Actions, "Run workflow"). Testers turn on the **Pre-release** switch of the
+Weekly Planner device of HACS (a diagnostic entity, disabled by default: enable it first), or pick the beta
+in HACS with **Redownload**, then restart Home Assistant.
+
 ## Commit messages
 [Conventional Commits](https://www.conventionalcommits.org/), in English:
 
@@ -28,6 +38,7 @@ through a pull request.
 uv run --group test pytest -q
 cd frontend && npx tsc --noEmit && npm run build
 ```
+The Python tests do not need the built card (they use a stand-in file).
 
 ## Development setup
 
@@ -44,8 +55,11 @@ npx vitest run
 npm run build
 ```
 
-The bundle under `custom_components/weekly_planner/frontend/` is versioned with
-its sources. Run `scripts/dev_ha.sh` for the local HA instance on port 8124, then
+The card bundle `custom_components/weekly_planner/frontend/weekly-planner-card.js` is
+**not committed**: `npm run build` writes it, and the `Release` workflow builds it into
+`weekly_planner.zip`, the file HACS installs. Without it the integration still starts (a warning
+in the log, no card and no panel). Run `scripts/dev_ha.sh` (it builds the card first) for the
+local HA instance on port 8124, then
 `scripts/dev_onboard.py` to initialize it. The onboarding helper prints a development
 token: keep its output and `dev/` runtime data out of Git and published logs.
 
