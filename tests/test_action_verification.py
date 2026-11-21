@@ -20,7 +20,9 @@ GAP = timedelta(seconds=VERIFY_MIN_INTERVAL_S + 1)
 
 def _labels() -> list[dict]:
     return labels() + [label("comfort", act("climate.set_preset_mode", preset_mode="comfort")),
-                       label("t19f", act("climate.set_temperature", temperature=19.0))]
+                       label("t19f", act("climate.set_temperature", temperature=19.0)),
+                       # a climate service whose data is not an attribute of the entity: nothing to read back
+                       label("hvac", act("climate.set_hvac_mode", hvac_mode="heat"))]
 
 
 class Virtual(Recorder):
@@ -139,7 +141,7 @@ async def test_numeric_tolerance(hass, hass_storage, freezer):
 
 async def test_action_without_checked_key_is_never_verified(hass, hass_storage, freezer):
     rec = Virtual(hass)
-    engine = await setup(hass, hass_storage, freezer, [_prog("close")], local(26, 7, 0), extra_labels=_labels())
+    engine = await setup(hass, hass_storage, freezer, [_prog("hvac")], local(26, 7, 0), extra_labels=_labels())
     await go_to(hass, freezer, local(26, 8, 45))
     sent = len(rec.calls)
     assert sent and "verify" not in engine.rt(CLIMATE)
