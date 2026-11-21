@@ -113,8 +113,10 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
   stale data.
 - Icons: standard Home Assistant `mdi:` icons through `<ha-icon>` only, no emoji.
 - **Consistency (owner rule, 2026-11-20):** every screen, view and gesture stays consistent with the rest of
-  the product (same gesture for the same action: opening an editor is a long press or the keyboard, never a
-  plain click; same wording, same layout, same rules). Any inconsistency found, in code, docs or between two
+  the product (same gesture for the same action: opening an editor from a graphic, a bar or a list row is a
+  long press or the keyboard, never a plain click; visible buttons of a form or dialog, such as an edit
+  pencil, a trash can or a "Modify" button, open by a plain click (owner, 2026-11-21); same wording, same
+  layout, same rules). Any inconsistency found, in code, docs or between two
   owner decisions, is **reported to the owner to be fixed**, never worked around silently, and a later
   decision does not silently override an earlier one: the document that loses is updated in the same change.
 - Bars are editable by touch and mouse (long press, never a plain click; 44 px handles, 15-minute steps, saved on
