@@ -66,10 +66,13 @@ describe("wp-dialog keyboard and focus", () => {
 });
 
 // The focus-trap tests build their own fake elements; `FakeSlot` stands in for HTMLSlotElement.
-class FakeSlot { children: any[] = []; constructor(public assigned: any[] = []) {} assignedElements() { return this.assigned; } }
-const fake = (children: any[] = [], over: Record<string, unknown> = {}): any => ({
-  children, matches: () => true, hasAttribute: () => false, getAttribute: () => null, focus: vi.fn(), tagName: "DIV", ...over,
-});
+class FakeSlot { children: any[] = []; constructor(public assigned: any[] = []) {} assignedElements() { return this.assigned; } hasAttribute() { return false; } }
+// focus() moves the document's focus to the element, as a real focusable control does
+const fake = (children: any[] = [], over: Record<string, unknown> = {}): any => {
+  const el: any = { children, matches: () => true, hasAttribute: () => false, getAttribute: () => null, tagName: "DIV", ...over };
+  el.focus ??= vi.fn(() => { doc.activeElement = el; });
+  return el;
+};
 describe("wp-dialog focus trap", () => {
   beforeEach(() => { vi.stubGlobal("HTMLSlotElement", FakeSlot); });
   it("the owner can cancel the escape event: a cancelled one keeps the dialog open", () => {
@@ -89,6 +92,30 @@ describe("wp-dialog focus trap", () => {
     const slot = new FakeSlot([b, off, skip]);
     const root: any = { children: [a, slot] };
     expect(collectFocusable(root)).toEqual([a, b]);
+  });
+
+  it("skips a stop under an inert or hidden ancestor, also across a shadow root", () => {
+    const a = fake();
+    const folded = fake([fake(), fake()], { hasAttribute: (n: string) => n === "inert" });
+    const hiddenBox = fake([fake()], { hasAttribute: (n: string) => n === "hidden" });
+    // a control inside the shadow root of a host that sits under an inert block
+    const inertBlock: any = fake([], { hasAttribute: (n: string) => n === "inert" });
+    const host: any = fake([], { parentElement: inertBlock });
+    const shadowed = fake([], { parentElement: null, getRootNode: () => ({ host }) });
+    const shadowWrap = fake([], { matches: () => false, shadowRoot: { children: [shadowed] } });
+    const b = fake();
+    const root: any = { children: [a, folded, hiddenBox, shadowWrap, b] };
+    expect(collectFocusable(root)).toEqual([a, b]);
+    // the same control reached directly (a sub-root inside the inert block) is not a stop either
+    expect(collectFocusable({ children: [shadowed] } as any)).toEqual([]);
+    const free = fake([], { parentElement: null, getRootNode: () => ({ host: fake([], { parentElement: null }) }) });
+    expect(collectFocusable({ children: [free] } as any)).toEqual([free]);
+  });
+  it("asks the browser for real visibility (a folded block is visibility: hidden)", () => {
+    const check = vi.fn(() => false);
+    const el = fake([], { checkVisibility: check });
+    expect(collectFocusable({ children: [el] } as any)).toEqual([]);
+    expect(check).toHaveBeenCalledWith({ visibilityProperty: true });
   });
 
   function trapped() {
@@ -119,6 +146,37 @@ describe("wp-dialog focus trap", () => {
     d._onDocKey(tab());
     expect(a.focus).toHaveBeenCalled();
     d.disconnectedCallback();
+  });
+
+  it("passes over a stop that refuses the focus, in both directions", () => {
+    const { d, a, b, c } = trapped();
+    b.focus = vi.fn();   // does not take the focus
+    d.updated(new Map([["open", false]]));
+    doc.activeElement = a;
+    const ev = tab(); d._onKey(ev);
+    expect(b.focus).toHaveBeenCalled(); expect(doc.activeElement).toBe(c); expect(ev.preventDefault).toHaveBeenCalled();
+    const back = tab(true); d._onKey(back);
+    expect(doc.activeElement).toBe(a); expect(back.preventDefault).toHaveBeenCalled();
+    d.disconnectedCallback();
+  });
+
+  it("lets the browser move the focus when no stop takes it (never stuck)", () => {
+    const { d, a, b, c } = trapped();
+    for (const el of [a, b, c]) el.focus = vi.fn();
+    d.updated(new Map([["open", false]]));
+    doc.activeElement = doc.body;
+    const ev = tab(); d._onKey(ev);
+    expect(c.focus).toHaveBeenCalled();
+    expect(ev.preventDefault).not.toHaveBeenCalled();
+    d.disconnectedCallback();
+  });
+
+  it("anchors the two-column window at the top so that it does not move when its height changes", () => {
+    const { d } = trapped();
+    d.columns = true;
+    expect(flat(d.render())).toMatch(/class="panel columns top"/);
+    d.columns = false;
+    expect(flat(d.render())).not.toContain(" top\"");
   });
 
   it("goes to the dialog itself when it holds no control", () => {

@@ -19,19 +19,33 @@ function deepActive(): HTMLElement | null {
 const FOCUSABLE = 'a[href], button, input:not([type="hidden"]), select, textarea, summary, [tabindex], [contenteditable="true"]';
 const SKIP_TAGS = new Set(["HEAD", "SCRIPT", "STYLE", "LINK", "META", "TEMPLATE"]);
 
-function isFocusable(el: HTMLElement): boolean {
-  if (!el.matches(FOCUSABLE) || el.hasAttribute("disabled") || el.hasAttribute("hidden") || el.hasAttribute("inert")) return false;
-  const tab = el.getAttribute("tabindex");
-  if (tab !== null && Number(tab) < 0) return false;
-  return typeof el.checkVisibility === "function" ? el.checkVisibility() : true;
+/** An element that takes nothing below it out of reach: `inert` or `hidden` covers its whole subtree. */
+const closed = (el: Element): boolean => el.hasAttribute("inert") || el.hasAttribute("hidden");
+
+/** The element or one of its composed ancestors (across shadow roots, through the host) is inert or hidden. */
+function underClosed(el: Element): boolean {
+  for (let node: Element | null | undefined = el; node; node = node.parentElement ?? (node.getRootNode?.() as ShadowRoot | undefined)?.host) {
+    if (closed(node)) return true;
+  }
+  return false;
 }
 
-/** Tab stops under `root` in document order, looking through shadow roots and slots (the flattened tree). */
+function isFocusable(el: HTMLElement): boolean {
+  if (!el.matches(FOCUSABLE) || el.hasAttribute("disabled") || underClosed(el)) return false;
+  const tab = el.getAttribute("tabindex");
+  if (tab !== null && Number(tab) < 0) return false;
+  // a folded `collapse` keeps its content drawn but `visibility: hidden`
+  return typeof el.checkVisibility === "function" ? el.checkVisibility({ visibilityProperty: true }) : true;
+}
+
+/** Tab stops under `root` in document order, looking through shadow roots and slots (the flattened tree); an inert or hidden subtree is skipped. */
 export function collectFocusable(root: ParentNode, out: HTMLElement[] = []): HTMLElement[] {
   for (const el of Array.from(root.children) as HTMLElement[]) {
+    if (closed(el)) continue;
     if (el instanceof HTMLSlotElement) {
       const assigned = el.assignedElements({ flatten: true }) as HTMLElement[];
       for (const a of assigned.length ? assigned : (Array.from(el.children) as HTMLElement[])) {
+        if (closed(a)) continue;
         if (isFocusable(a)) out.push(a);
         collectFocusable(a.shadowRoot ?? a, out);
       }
@@ -240,16 +254,23 @@ export class WpDialog extends LitElement {
     }
   }
 
-  /** Tab and Shift+Tab stay inside the dialog: wrap at both ends, and come back in when the focus fell out. */
+  /**
+   * Tab and Shift+Tab stay inside the dialog: wrap at both ends, and come back in when the focus fell out. A stop that
+   * does not take the focus is passed over; when none does, the browser moves the focus itself (never stuck).
+   */
   private _trap(ev: KeyboardEvent): void {
     const panel = this._panel();
     if (!panel) return;
     const list = collectFocusable(panel);
-    ev.preventDefault();
-    if (!list.length) { panel.focus(); return; }
+    if (!list.length) { ev.preventDefault(); panel.focus(); return; }
+    const n = list.length;
+    const step = ev.shiftKey ? -1 : 1;
     const at = list.indexOf(deepActive() as HTMLElement);
-    if (ev.shiftKey) list[at <= 0 ? list.length - 1 : at - 1].focus();
-    else list[at < 0 || at === list.length - 1 ? 0 : at + 1].focus();
+    let i = at < 0 ? (ev.shiftKey ? n - 1 : 0) : (at + step + n) % n;
+    for (let tries = 0; tries < n; tries++, i = (i + step + n) % n) {
+      list[i].focus();
+      if (deepActive() === list[i]) { ev.preventDefault(); return; }
+    }
   }
 
   /** The first control of the content (no text field on a phone: it would raise the keyboard), else the dialog itself. */
@@ -292,7 +313,7 @@ export class WpDialog extends LitElement {
     if (!this.open) return html``;
     return html`
       <div class="backdrop" @click=${() => void this.requestClose()}></div>
-      <div class="panel ${this._expanded ? "expanded" : this.wide ? "wide" : this.columns ? "columns" : ""}" role=${this.dialogRole} aria-modal="true"
+      <div class="panel ${this._expanded ? "expanded" : this.wide ? "wide" : this.columns ? "columns" : ""} ${this.columns ? "top" : ""}" role=${this.dialogRole} aria-modal="true"
         aria-label=${this.heading} aria-describedby=${this.description ? "wp-desc" : nothing} tabindex="-1">
         ${this.description ? html`<span id="wp-desc" class="sr-only">${this.description}</span>` : nothing}
         <header @pointerdown=${this._hdown} @pointermove=${this._hmove} @pointerup=${this._hup}
@@ -329,6 +350,8 @@ export class WpDialog extends LitElement {
     .panel.wide { width: min(880px, calc(100% - 32px)); }
     .panel.columns { width: min(960px, calc(100% - 32px)); }
     .panel.expanded { width: min(1400px, calc(100% - 32px)); }
+    /* the schedule window keeps its top edge when its height changes (a panel of its accordion opens): no jump */
+    .panel.top { top: 32px; transform: translateX(-50%); }
     .expand {
       position: absolute; top: 16px; right: 68px; width: 48px; height: 48px; border: none; background: none; color: inherit;
       --mdc-icon-size: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: 24px; cursor: pointer;

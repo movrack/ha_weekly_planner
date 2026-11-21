@@ -1539,7 +1539,7 @@ export class WpSchedule extends LitElement {
     .acc { border: 1px solid var(--divider-color); border-radius: 12px; margin: 0 0 12px; min-width: 0; }
     .acc-h { margin: 0; font-size: 0.9375rem; }
     .acc-btn {
-      display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 4px 12px; border: none; border-radius: 12px;
+      display: flex; align-items: center; gap: 8px; width: 100%; min-height: 56px; padding: 4px 12px; border: none; border-radius: 12px;
       background: none; color: var(--primary-text-color); font: inherit; font-weight: 600; cursor: pointer; text-align: left;
     }
     .acc.on .acc-btn { cursor: default; }
