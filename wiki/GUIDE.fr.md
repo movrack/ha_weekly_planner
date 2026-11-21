@@ -493,7 +493,9 @@ Le texte sous le graphique distingue **Aucun historique enregistré** et
 connu. Si son chargement échoue, les réglages prévus restent affichés.
 S’il manque des mesures, cela ne prouve pas que l’horaire n’a pas fonctionné.
 Un repère rouge peut indiquer un changement manuel ; le programme ne corrige pas
-automatiquement un réglage fait à la main.
+automatiquement un réglage fait à la main : il reste jusqu’à la prochaine frontière d’horaire,
+où le programme reprend la main. Exemple : 18 °C de 10:00 à 20:00, puis 17 °C de 20:00 à 21:00 ;
+un réglage à 20 °C à 12:00 reste jusqu’à 20:00, puis 17 °C est envoyé.
 
 Quand un changement est sauté (service `skip_next`), la carte l’indique : **Sauté :** suivi du
 réglage et de l’heure.

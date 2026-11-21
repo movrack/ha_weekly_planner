@@ -109,11 +109,12 @@ traité par la passe suivante, dans l'ordre d'arrivée (verrou du moteur, § 21.
   **jamais refaite** (ni au redémarrage, ni après modification). Elle est **sautée** si un programme plus prioritaire
   est dans un horaire pour cette entité.
 - Exemple de référence : volet, horaire 20:00 → 08:00 « Fermer » (`cover.close_cover`), défaut « Ouvrir »
-  (`cover.open_cover`). À 20:00 il ferme ; à 08:00 il s'ouvre ; ce qui arrive entre les deux n'est pas surveillé.
+  (`cover.open_cover`). À 20:00 il ferme ; à 08:00 il s'ouvre ; ce qui arrive entre les deux n'est pas surveillé (§ 5.3).
 
 ### 5.3 Changements manuels
 Le moteur ne détecte aucun changement fait à la main : pas de dérogation, pas de comparaison à une cible, pas de
 service `override` ni `resume`. Seul l'**affichage** du graphique montre les changements manuels (§ 10.4).
+Un changement extérieur (utilisateur, autre automatisation) reste donc en place **jusqu'à la prochaine frontière** de segment, où le moteur envoie l'action du nouveau segment sans lire l'état de l'appareil, même si sa valeur égale la précédente ; après la fin du dernier horaire, l'action par défaut est envoyée s'il y en a une, sinon rien. Exemple : 18 °C de 10:00 à 20:00, puis 17 °C de 20:00 à 21:00. Un réglage extérieur à 20 °C à 12:00 reste jusqu'à 20:00 ; alors le programme reprend la main et envoie 17 °C. Test : `test_external_change_stays_until_the_next_boundary` (#76).
 
 ### 5.4 bis Concurrence et rang de priorité (#60)
 - **Concurrents** = programmes qui partagent au moins un appareil, regroupés transitivement (A–B partagent un appareil, B–C un autre : un seul groupe). Horaires et modes sont ignorés : ils sont en concurrence avant même tout horaire.

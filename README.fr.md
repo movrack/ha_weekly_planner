@@ -270,7 +270,7 @@ repos, quand son fichier a changé.
 
 ## Limites connues
 
-- Un changement fait à la main sur un appareil n’est ni détecté ni annulé ; il peut apparaître sur le graphique.
+- Un changement fait à la main sur un appareil n’est ni détecté ni annulé ; il peut apparaître sur le graphique. Il reste jusqu’à la prochaine frontière d’horaire, où le programme reprend la main. Exemple : 18 °C de 10:00 à 20:00, puis 17 °C de 20:00 à 21:00 ; un réglage à 20 °C à 12:00 reste jusqu’à 20:00, puis 17 °C est envoyé.
 - Un horaire sans fin est envoyé une fois et n’est pas rejoué une fois son heure passée.
 - Le filtre Pièce de la carte vise la pièce donnée au programme, pas les pièces Home Assistant de ses appareils.
 - Le formulaire ne propose pas de conditions par horaire ; les conditions se règlent pour tout le programme.

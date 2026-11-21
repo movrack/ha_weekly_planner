@@ -266,7 +266,7 @@ restart Home Assistant. An open card reloads by itself once idle when its bundle
 
 ## Known limitations
 
-- A manual change on a device is not detected or undone; it may be shown on the chart.
+- A manual change on a device is not detected or undone; it may be shown on the chart. It stays until the next schedule boundary, where the planner takes control back. Example: 18 °C from 10:00 to 20:00, then 17 °C from 20:00 to 21:00; a change to 20 °C at 12:00 stays until 20:00, then 17 °C is sent.
 - A schedule that has no end is sent once and is not replayed after its time has passed.
 - The room filter of the card matches the room given to a program, not the Home Assistant rooms of its devices.
 - Schedules cannot have their own conditions in the form; conditions are set for the whole program.

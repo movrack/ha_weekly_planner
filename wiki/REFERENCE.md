@@ -155,6 +155,12 @@ The engine recalculates desired segments and acts on transitions. It does not
 continuously enforce observed device state or detect manual overrides. Manual
 changes may be shown in the chart; that display does not change engine behavior.
 
+So an outside change (user, another automation) stays until the next segment boundary, where the
+engine sends the new segment's action without reading the device state, even if its value is the
+same; after the last schedule, the default is sent if there is one, otherwise nothing. Example:
+18 °C from 10:00 to 20:00, then 17 °C from 20:00 to 21:00; a change to 20 °C at 12:00 stays until
+20:00, then 17 °C is sent.
+
 - **Bounded slot:** apply its setting at the start. At its end, apply the eligible
   default or the action of another program taking ownership.
 - **One-shot slot:** no end, no end/default event, and no replay after its time has
