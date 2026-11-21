@@ -83,10 +83,16 @@ describe("strip controls", () => {
     el.data.labels = []; el.program.entities[0].default_label = null;
     expect(attributes(el._strip(), "?disabled")[1]).toBe(true);
     expect(flat(el._strip())).toContain('content-copy'); // kept, greyed (no schedule here)
-    expect(attributes(el._strip(), "?disabled")).toEqual([true, true, true]);
+    expect(attributes(el._strip(), "?disabled").slice(0, 3)).toEqual([true, true, true]);
     expect(flat(el._strip())).toContain('id=why-strip role="status">No schedule here.</p>');
-    el._selected = null;
-    expect(flat(el._strip())).toBe("");
+  });
+  it("stays on screen with nothing chosen on the bar, every action greyed with the reason (EN and FR)", () => {
+    const el = editor(); el._selected = null;
+    const out = flat(el._strip());
+    expect(out).toContain(`id=why-strip role="status">${t("en", "strip_no_sel")}</p>`);
+    expect(attributes(el._strip(), "?disabled")).toEqual([true, true, true, true]);
+    expect(out.match(/aria-describedby=why-strip/g)).toHaveLength(3);
+    expect(t("fr", "strip_no_sel")).not.toBe(t("en", "strip_no_sel"));
   });
   it("Clear and Copy to are usable on a schedule and stay on screen, greyed with their reason, on a gap", () => {
     const el = editor(); el._selected = { kind: "slot", id: "a" };
@@ -118,12 +124,16 @@ describe("strip controls", () => {
     handlers(el._strip()).find(h => h.event === "label-change")!.fn({ detail: "l", stopPropagation });
     expect(stopPropagation).toHaveBeenCalledOnce(); expect(el._pickLabel).toHaveBeenCalledWith("l");
   });
-  it("suppresses the strip while moving or asking about shared devices", () => {
+  it("hides the strip only while a slot is dragged, and greys it with a reason while the shared-devices question is open", () => {
     const el = editor(); el._selected = { kind: "slot", id: "a" };
     expect(flat(el.render())).toContain('class="strip"');
     el._moving = true; expect(flat(el.render())).not.toContain('class="strip"');
     el._moving = false; el._ask = { count: 1, others: [] };
-    expect(flat(el.render())).not.toContain('class="strip"');
+    const asking = flat(el.render());
+    expect(asking).toContain('class="strip"');
+    expect(asking).toContain(`id=why-strip role="status">${t("en", "strip_ask_first")}</p>`);
+    expect(attributes(el._strip(), "?disabled")).toEqual([true, true, true, true]);
+    expect(t("fr", "strip_ask_first")).not.toBe(t("en", "strip_ask_first"));
     el._ask = null; el.editing = false;
     expect(flat(el.render())).not.toContain('class="strip"');
   });

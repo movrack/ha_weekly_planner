@@ -1060,28 +1060,34 @@ export class WpBarEditor extends LitElement {
     </div>`;
   }
 
+  /** The strip under the bar. It stays on screen whenever the bar is being edited (owner rule: an element never disappears): without a
+   *  selection, or while the "This device / All" question is open, its buttons are greyed with the reason. Only the drag of a slot
+   *  hides it (see `render`: the other day bars, the drop targets, must stay within reach). */
   private _strip() {
     const sel = this._sel;
-    if (!sel) return nothing;
     const lang = this.lang;
     const ctx = this._ctx();
-    const canCut = sel.end !== null && (sel.slot ? Boolean(sel.slot.end) : Boolean(ctx.defaultLabel)) && middle(sel.start, sel.end) !== null;
+    // why nothing can be done now: nothing chosen on the bar, or a question to answer first
+    const why = !sel ? t(lang, "strip_no_sel") : this._ask ? t(lang, "strip_ask_first") : !sel.slot ? t(lang, "strip_no_slot") : null;
+    const idle = !sel || Boolean(this._ask);
+    const noSlot = !sel?.slot || idle;
+    const canCut = !idle && sel.end !== null && (sel.slot ? Boolean(sel.slot.end) : Boolean(ctx.defaultLabel)) && middle(sel.start, sel.end) !== null;
     const days = strings(lang).days_short;
     return html`<div class="strip" role="group">
       <div class="acts">
-        <button class="act" ?disabled=${!sel.slot} aria-disabled=${ariaDisabled(!sel.slot)} aria-describedby=${describedBy(!sel.slot, "why-strip")} @click=${() => void this._nothing()}><ha-icon icon="mdi:close-circle-outline"></ha-icon>${t(lang, "strip_erase")}</button>
+        <button class="act" ?disabled=${noSlot} aria-disabled=${ariaDisabled(noSlot)} aria-describedby=${describedBy(noSlot, "why-strip")} @click=${() => void this._nothing()}><ha-icon icon="mdi:close-circle-outline"></ha-icon>${t(lang, "strip_erase")}</button>
         <div class="grp" role="group" aria-label=${t(lang, "grp_time")}>
-          <button class="act" ?disabled=${!canCut} aria-label=${`${t(lang, "cut")}. ${t(lang, "cut_hint")}`} title=${t(lang, "cut_hint")} @click=${() => this._cut()}>
+          <button class="act" ?disabled=${!canCut} aria-label=${`${t(lang, "cut")}. ${t(lang, "cut_hint")}`} title=${t(lang, "cut_hint")} aria-describedby=${describedBy(idle, "why-strip")} @click=${() => this._cut()}>
             <ha-icon icon="mdi:arrow-split-vertical"></ha-icon>${t(lang, "cut")}</button>
         </div>
         <div class="grp" role="group" aria-label=${t(lang, "grp_days")}>
-          <button class="act ${this._copyOpen && sel.slot ? "on" : ""}" aria-expanded=${this._copyOpen && Boolean(sel.slot)} ?disabled=${!sel.slot} aria-disabled=${ariaDisabled(!sel.slot)} aria-describedby=${describedBy(!sel.slot, "why-strip")}
+          <button class="act ${this._copyOpen && !noSlot ? "on" : ""}" aria-expanded=${this._copyOpen && !noSlot} ?disabled=${noSlot} aria-disabled=${ariaDisabled(noSlot)} aria-describedby=${describedBy(noSlot, "why-strip")}
             aria-label=${`${t(lang, "copy_to")} ${t(lang, "copy_hint")}`} title=${t(lang, "copy_hint")}
             @click=${() => { this._copyOpen = !this._copyOpen; this._copyDays = []; }}><ha-icon icon="mdi:content-copy"></ha-icon>${t(lang, "copy_to")}</button>
         </div>
       </div>
-      ${whyNote("why-strip", t(lang, "strip_no_slot"), !sel.slot)}
-      ${this._copyOpen && sel.slot ? html`<div class="copy wp-appear">
+      ${whyNote("why-strip", why ?? "", why !== null)}
+      ${this._copyOpen && !noSlot ? html`<div class="copy wp-appear">
         ${days.map((name, d) => d === this.weekday ? nothing : html`<button class="dchip ${this._copyDays.includes(d) ? "on" : ""}"
           role="checkbox" aria-checked=${this._copyDays.includes(d)} @click=${() => this._toggleDay(d)}>${name}</button>`)}
         <button class="act go" ?disabled=${!this._copyDays.length} aria-label=${t(lang, "copy_go")} title=${t(lang, "copy_go")}
@@ -1089,8 +1095,8 @@ export class WpBarEditor extends LitElement {
         ${this._copyDays.length ? nothing : html`<span class="copy-hint" role="status">${t(lang, "copy_pick_days")}</span>`}
       </div>` : nothing}
       <div class="pick">
-        <wp-label-picker compact readonly-settings .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${[this.entityId]}
-          .value=${sel.slot?.label ?? null} @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._pickLabel(e.detail); }}></wp-label-picker>
+        <wp-label-picker compact readonly-settings ?disabled=${idle} .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${[this.entityId]}
+          .value=${sel?.slot?.label ?? null} @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._pickLabel(e.detail); }}></wp-label-picker>
       </div>
     </div>`;
   }
@@ -1169,7 +1175,7 @@ export class WpBarEditor extends LitElement {
         <div class="hold-hint" role="status">${this._hint ? t(this.lang, "hold_hint") : nothing}</div>
       </div>
       ${this.hours && !this._radial ? this._hoursAxis() : nothing}
-      ${this.editing && !this._moving && !this._ask ? this._strip() : nothing}
+      ${this.editing && !this._moving ? this._strip() : nothing}
       ${this._askBox()}
       ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
       ${this._conflictDialog()}`;
