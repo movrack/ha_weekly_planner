@@ -85,9 +85,10 @@ Prenons cet exemple pour le chauffage du salon :
 Toucher le **calendrier avec un crayon**, à droite de Chauffage du salon.
 Les horaires déjà créés apparaissent sous les sept barres de la semaine.
 Si rien n'est encore réglé pour un appareil, la carte affiche sur sa ligne un bouton **Créer un réglage** à la place des barres : il ouvre directement le formulaire d'un premier horaire pour cet appareil.
-En haut de l’écran, l’interrupteur **Programme actif** arrête ou remet en marche le programme ; viennent ensuite,
-dans le cadre **Mode** (si un sélecteur de mode est réglé), le choix du mode, puis le cadre **Horaires** ; à la fin de ce cadre, la section repliable **Jour férié**
-(visible seulement si une entité jour férié est réglée).
+En haut de l’écran, l’interrupteur **Programme actif** arrête ou remet en marche le programme ; viennent ensuite
+trois panneaux qui s’ouvrent un à la fois : **Mode** (si un sélecteur de mode est réglé ; son titre rappelle toujours
+le mode affiché et s’il est actif), **Réglages** et **Horaires**, ouvert à l’arrivée ; à la fin de **Horaires**, la section
+repliable **Jour férié** (visible seulement si une entité jour férié est réglée).
 
 <a href="images/guide/s06-schedules.png"><img src="images/guide/s06-schedules.png" width="320" alt="Les horaires du chauffage : Confort le matin et le soir, Éco le reste du temps." /></a>
 
@@ -136,7 +137,7 @@ Cela ne veut dire ni éteindre ni retrouver le réglage précédent.
 
 ## Je ne trouve pas Confort ou Éco
 
-Dans l’écran d’horaires, sous **Mode**, toucher le titre **Réglages** pour ouvrir ce panneau (le panneau **Horaires** se replie : un seul est ouvert à la fois), puis toucher **Nouveau réglage** :
+Dans l’écran d’horaires, toucher le titre **Réglages** pour ouvrir ce panneau (le panneau **Horaires** se replie : un seul est ouvert à la fois), puis toucher **Nouveau réglage** :
 
 1. Donner le nom **Confort**.
 2. Choisir une couleur.
@@ -321,8 +322,10 @@ indisponible, le dernier mode valide reste actif. Des
 
 <a href="images/guide/s48-mode-select.png"><img src="images/guide/s48-mode-select.png" width="320" alt="La liste Mode des horaires, un mode qui suit un autre et la notice Ce mode n’est pas actif." /></a>
 
-Toucher le calendrier avec un crayon ouvre les horaires. En haut, dans le cadre **Mode**, une
-liste **Mode** propose chaque mode ; le mode actif porte « (Actif) » et l’écran s’ouvre dessus.
+Toucher le calendrier avec un crayon ouvre les horaires. En haut, le titre **Mode** rappelle le mode
+affiché, par exemple « Présent (Actif) » ou « Absent · pas actif ». Le toucher ouvre ce panneau : une
+liste **Mode** propose chaque mode ; le mode actif porte « (Actif) » et l’écran s’ouvre dessus. Choisir
+un mode rouvre **Horaires** sur les horaires de ce mode.
 Un mode qui n’est plus une option du sélecteur est marqué « (n’existe plus) », et un mode qui suit
 un autre « (mêmes horaires que X) ».
 

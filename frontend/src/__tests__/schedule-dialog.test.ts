@@ -720,6 +720,93 @@ describe("schedule screen editing", () => {
       expect(valuesAfter(view.render(), ".value=${this._settingId} ?disabled=").length).toBe(0);
       expect(bindings(view.render(), "?disabled").length).toBeGreaterThan(0);
     });
+    describe("the Mode panel (owner, 2026-11-21)", () => {
+      const withMode = () => {
+        const made = make(undefined, undefined, { mode: { selector: "input_select.mode", active: "Home", options: ["Home", "Away"] } });
+        made.view.firstUpdated();
+        return made;
+      };
+      const label = (view: any, panel: string) => valuesAfter(view._panelHeader(panel, "T", "", "", "full"), "aria-label=")[0];
+      it("is the first of three panels, folded at opening, its header always telling the mode and whether it is active", () => {
+        const { view } = withMode();
+        expect(view._panel).toBe("schedules");
+        expect(expanded(view, "mode")).toBe(false);
+        const html = flat(view.render());
+        const at = ["acc-mode-btn", "acc-settings-btn", "acc-schedules-btn"].map((id) => html.indexOf(`id=${id}`));
+        expect(at.every((i, k) => i > 0 && (k === 0 || i > at[k - 1]))).toBe(true);
+        expect(html).toContain("aria-controls=acc-mode");
+        expect(html).toContain('class="wp-collapse " id=acc-mode');
+        expect(html).toContain('<span class="acc-sum">Home (Active)</span>');
+        expect(html).toContain("aria-label=Mode: Home (Active)");
+        view._panel = "mode";   // open, the summary stays
+        expect(flat(view.render())).toContain('<span class="acc-sum">Home (Active)</span>');
+        expect(flat(view.render())).toContain('class="wp-collapse open" id=acc-mode');
+        view._viewMode = "Away";   // another mode than the active one
+        expect(flat(view.render())).toContain(`<span class="acc-sum">Away · ${t("en", "mode_inactive_short")}</span>`);
+      });
+      it("names the full summary only while it is shown, never the title twice", () => {
+        const { view } = withMode();
+        expect(label(view, "mode")).toBe("T: full");
+        expect(label(view, "schedules")).toBe("T");   // open: no summary
+        expect(valuesAfter(view._panelHeader("mode", "T", "", "", "", true), "aria-label=")[0]).toBe("T");
+        const html = flat(view.render());
+        expect(html).toContain("aria-label=Settings: Comfort");
+        expect(html).not.toContain(" title=");
+      });
+      it("asks before leaving a changed schedule form for the Mode panel", async () => {
+        const { view } = withMode();
+        view._add([0]);
+        view._group = { ...view._group, slot: { ...view._group.slot, start: { time: "05:00" } } };
+        vi.mocked(confirmAction).mockResolvedValue(false);
+        await header(view, "mode");
+        expect(confirmAction).toHaveBeenCalledOnce();
+        expect(view._panel).toBe("schedules");
+        vi.mocked(confirmAction).mockResolvedValue(true);
+        await header(view, "mode");
+        expect(view._panel).toBe("mode");
+        expect(view._open).toBeNull();
+      });
+      it("picking a mode in it shows that mode's schedules and opens Schedules again, without a question", async () => {
+        const { view } = withMode();
+        await view._showPanel("mode");
+        withPicker(view, false);
+        await view._pickMode("Away");
+        expect(confirmAction).not.toHaveBeenCalled();
+        expect(view._openMode).toBe("Away");
+        expect(view._panel).toBe("schedules");
+        expect(view._modeOnly).toBe(true);
+        // leaving the Mode panel never asks: its choices apply at once
+        view._panel = "mode";
+        expect(view._leaveQuestion()).toBeNull();
+      });
+      it("moves the focus to the header of the panel that folds when it was inside it", async () => {
+        const { view } = withMode();
+        const select = {};
+        const btn = { focus: vi.fn() };
+        const region = { contains: (el: unknown) => el === select };
+        view.renderRoot = { activeElement: select, querySelector: (q: string) => (q === "#acc-mode" ? region : q === "#acc-mode-btn" ? btn : null) };
+        Object.defineProperty(view, "updateComplete", { value: Promise.resolve(true) });
+        view._panel = "mode";
+        await view._pickMode("Away");
+        await Promise.resolve();
+        expect(btn.focus).toHaveBeenCalledOnce();
+        // the focus elsewhere (the header just clicked) stays where it is
+        view.renderRoot.activeElement = btn;
+        view._setPanel("mode");
+        view._setPanel("settings");
+        await Promise.resolve();
+        expect(btn.focus).toHaveBeenCalledOnce();
+        view.renderRoot.activeElement = null;
+        view._setPanel("schedules");
+        expect(view._panel).toBe("schedules");
+      });
+      it("keeps no Mode panel without a mode selector", () => {
+        const { view } = make();
+        const html = flat(view.render());
+        expect(html).not.toContain("acc-mode-btn");
+        expect(html).toContain("<wp-mode-notice");
+      });
+    });
     it("follows the setting chosen in its picker, and lets every device give its own value", () => {
       const { view } = make();
       const stop = vi.fn();

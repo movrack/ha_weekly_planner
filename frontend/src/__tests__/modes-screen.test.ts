@@ -56,11 +56,12 @@ describe("mode choice in the schedules screen", () => {
     expect(view._modes()).toEqual([
       { name: "Home", orphan: false }, { name: "Winter", orphan: false }, { name: "Away", orphan: false }, { name: "Old", orphan: true }]);
     const html = flat(view.render());
-    expect(html).toContain("<fieldset");
+    expect(html).toContain('class="acc modebox');   // the first panel of the accordion
     expect(html.slice(0, html.indexOf('class="row opts"')).match(/<option /g)).toHaveLength(4);   // the mode tabs, before the folded advanced options
     expect(html).not.toContain("mdi:check");
     expect(html).toContain("Winter (Active)");   // only the active mode carries the mark
-    expect(html.match(/\(Active/g)).toHaveLength(1);
+    const options = html.slice(html.indexOf('class="modesel"'), html.indexOf("</select>"));
+    expect(options.match(/\(Active/g)).toHaveLength(1);
     expect(html).toContain("Old (no longer exists)");
     expect(html).toContain("Schedules");          // the schedules sit in their own fieldset
   });

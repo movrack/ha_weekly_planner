@@ -128,7 +128,7 @@ Le bouton Semaine affiche les sept jours. Le nom d’un jour ouvre ses horaires.
 
 ## S06 — Tous les horaires
 
-La fenêtre des horaires rassemble l’interrupteur **Programme actif**, le cadre **Mode** (avec un sélecteur de mode), le cadre **Horaires** (la ligne **Le reste du temps** au-dessus de la liste des horaires, puis la section repliable **Jour férié** quand une entité jour férié est réglée) et le schéma de la semaine ; quand le jour férié du mode est activé, une ligne **Férié** y montre ses horaires sous le dimanche.
+La fenêtre des horaires rassemble l’interrupteur **Programme actif**, le panneau **Mode** (avec un sélecteur de mode ; replié, son titre montre le mode et s’il est actif), le panneau **Horaires** (la ligne **Le reste du temps** au-dessus de la liste des horaires, puis la section repliable **Jour férié** quand une entité jour férié est réglée) et le schéma de la semaine ; quand le jour férié du mode est activé, une ligne **Férié** y montre ses horaires sous le dimanche.
 
 <a href="images/guide/s06-schedules.png"><img src="images/guide/s06-schedules.png" width="320" alt="S06 — Tous les horaires" /></a>
 
@@ -172,7 +172,7 @@ Ponctuelle crée une action lancée une seule fois : elle est lancée au début,
 
 ## S11 — Créer un réglage
 
-Sous **Mode**, **Réglages** et **Horaires** forment un accordéon : un seul panneau est ouvert, et seul lui se modifie. **Horaires** est ouvert à l’arrivée ; toucher le titre **Réglages** l’ouvre (le titre fermé garde un résumé). **Nouveau réglage** y définit le nom, la couleur et l’action, avec son propre **Enregistrer** / **Annuler**.
+**Mode**, **Réglages** et **Horaires** forment un accordéon : un seul panneau est ouvert, et seul lui se modifie. **Horaires** est ouvert à l’arrivée ; toucher le titre **Réglages** l’ouvre (un titre fermé garde un résumé d’une ligne). **Nouveau réglage** y définit le nom, la couleur et l’action, avec son propre **Enregistrer** / **Annuler**.
 
 <a href="images/guide/s11-new-label.png"><img src="images/guide/s11-new-label.png" width="320" alt="S11 — Créer un réglage" /></a>
 

@@ -571,23 +571,32 @@ Vue de **lecture** de la journée d'aujourd'hui ; elle remplace la barre / le ca
   « Rien » ; interrupteur de pause, dupliquer, supprimer (§ 18, confirmé, bouton rouge isolé) ; fermeture par glissement
   vers le bas sur téléphone.
 - **Réglages** : modifiés uniquement par programme, dans la fenêtre d'horaires (pas de fenêtre globale sur la carte).
-  Toute la gestion (ajouter, modifier, supprimer, remplacer puis supprimer) est dans le panneau **Réglages**. Sous la
-  section **Mode**, **Réglages** et **Horaires** sont les deux panneaux d'un **accordéon** (propriétaire, 2026-11-21) :
-  un seul est ouvert à la fois, en ouvrir un referme l'autre, et seul le panneau ouvert est modifiable. À l'ouverture de la
-  fenêtre, **Horaires** est ouvert et **Réglages** replié (la configuration des horaires reste l'essentiel) ; exceptions :
+  Toute la gestion (ajouter, modifier, supprimer, remplacer puis supprimer) est dans le panneau **Réglages**. Sous
+  l'interrupteur « Programme actif », **Mode** (seulement avec un sélecteur de mode), **Réglages** et **Horaires** sont
+  les trois panneaux d'un **accordéon** (propriétaire, 2026-11-21 ; Mode ajouté le même jour) : un seul est ouvert à la
+  fois, en ouvrir un referme les autres, et seul le panneau ouvert est modifiable. Le panneau **Mode** contient le choix
+  du mode, l'avis « Ce mode n'est pas actif » et les options avancées du mode (suivre un mode, reprendre les horaires d'un
+  autre) ; son en-tête montre toujours, ouvert ou replié, le mode ouvert et s'il est actif (« Présent (Actif) »,
+  « Absent · pas actif »). L'avis d'un mode qui n'existe plus (`wp-mode-notice`) reste au-dessus de l'accordéon. À
+  l'ouverture de la fenêtre, **Horaires** est ouvert, **Mode** et **Réglages** repliés (la configuration des horaires reste l'essentiel) ; exceptions :
   « Créer un réglage » de l'écran vide, ou aucun réglage encore (modification permise et fenêtre non ouverte depuis un
   jour), ouvrent **Réglages**. Le panneau **Horaires** comprend les appareils, « Le reste du temps », la liste des horaires
   et le jour férié ; la semaine, le graphique et ses options lui appartiennent aussi et se replient avec lui (dans leurs
   propres cases de la grille sur grand écran). Un panneau fermé garde son en-tête (il ne disparaît jamais) : titre,
-  chevron (`mdi:chevron-down` / `mdi:chevron-up`) et un court résumé (Réglages : points colorés et noms des réglages, ou
-  « Aucun réglage » ; Horaires : « N horaires », ou « Aucun horaire. ») ; l'en-tête est un bouton (Entrée / Espace,
+  chevron (`mdi:chevron-down` / `mdi:chevron-up`) et un court résumé (Mode : voir plus haut, aussi quand il est ouvert ;
+  Réglages : points colorés et noms des réglages, ou « Aucun réglage » ; Horaires : « N horaires », ou « Aucun
+  horaire. ») sur une seule ligne, coupé par des points de suspension, le texte complet formant le nom accessible de
+  l'en-tête ; tous les en-têtes, ouverts ou fermés, gardent la même hauteur (56 px au moins) ; l'en-tête est un bouton (Entrée / Espace,
   `aria-expanded`, `aria-controls`), le contenu un repli animé `collapse` (sans animation si l'utilisateur la réduit) ;
-  l'en-tête du panneau ouvert ne fait rien. Ouvrir l'autre panneau quand le formulaire ouvert (réglage, horaire ou
+  l'en-tête du panneau ouvert ne fait rien. Un panneau qui se replie alors que le focus est dans son contenu (mode choisi
+  dans sa liste, formulaire fermé) renvoie le focus sur son en-tête. Ordre de tabulation : interrupteur, en-têtes Mode,
+  Réglages, Horaires (les contrôles du panneau ouvert après son en-tête), puis Supprimer et Fermer. Ouvrir un autre panneau quand le formulaire ouvert (réglage, horaire ou
   « Le reste du temps ») a des changements non enregistrés demande d'abord, une seule question, avec le composant de
   confirmation existant (« Abandonner les changements… ? », « Oui, les abandonner » / « Non, continuer ») : « Non » garde
-  le panneau et la saisie, « Oui » abandonne les changements (non enregistrés) et ouvre l'autre ; sans changement, la
-  bascule est immédiate et ferme le formulaire ouvert. Jamais deux paires Enregistrer / Annuler actives. Choisir un autre
-  mode pose la même question si besoin, puis ouvre **Horaires**. Mode non actif : **Horaires** ouvert ; **Réglages** peut
+  le panneau et la saisie, « Oui » abandonne les changements (non enregistrés) et ouvre le panneau demandé ; sans changement, la
+  bascule est immédiate et ferme le formulaire ouvert. Le panneau Mode n'a rien à abandonner : ses choix s'appliquent
+  aussitôt. Jamais deux paires Enregistrer / Annuler actives. Choisir un autre mode pose la même question si besoin, puis
+  rouvre **Horaires**. Mode non actif : **Horaires** ouvert ; **Réglages** peut
   être ouvert pour consulter, ses contrôles grisés (« Ce n'est pas le mode actif. »). Lecture seule : **Horaires** ouvert ;
   **Réglages** consultable, contrôles désactivés, avis de lecture seule. Cet accordéon remplace le verrou à deux sens du
   2026-11-21 (« Terminez d'abord le réglage. », section Horaires `inert` pendant un réglage, contrôles des Réglages grisés

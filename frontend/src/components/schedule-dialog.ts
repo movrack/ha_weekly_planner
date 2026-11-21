@@ -44,8 +44,8 @@ export type Scope = { kind: "device"; entityId: string } | { kind: "program"; pr
 
 export const scopeKey = (scope: Scope): string => (scope.kind === "device" ? `d:${scope.entityId}` : `p:${scope.programId}`);
 
-/** The two panels of the accordion under the Mode section. */
-type Panel = "settings" | "schedules";
+/** The panels of the window's accordion, in their order (Mode only with a mode selector). */
+type Panel = "mode" | "settings" | "schedules";
 
 const BACK = 14;
 const AHEAD = 7;
@@ -61,8 +61,8 @@ export class WpSchedule extends LitElement {
   @state() private _copyOpen = false;
   @state() private _optsOpen = false;
   /**
-   * The open panel of the Settings / Schedules accordion (owner, 2026-11-21): exactly one is open and only the open one
-   * is editable; Schedules is open when the window opens.
+   * The open panel of the Mode / Settings / Schedules accordion (owner, 2026-11-21): exactly one is open and only the
+   * open one is editable; Schedules is open when the window opens.
    */
   @state() private _panel: Panel = "schedules";
   /** The setting the Settings panel shows the details of. */
@@ -334,7 +334,7 @@ export class WpSchedule extends LitElement {
   ): void {
     this._editMode = this._openMode;
     this._editProfileId = this._modeProfile(program)?.id ?? newId();
-    this._panel = "schedules";  // a schedule form lives in the Schedules panel
+    this._setPanel("schedules");  // a schedule form lives in the Schedules panel
     this._open = key;
     this._programId = program.id;
     this._group = group ? structuredClone(group) : null;
@@ -848,6 +848,7 @@ export class WpSchedule extends LitElement {
   /** The question asked before the open panel's form is left (null: it holds no unsaved change). */
   private _leaveQuestion(): "edit_discard" | "setting_discard" | null {
     if (this._panel === "schedules") return this._editDirty ? "edit_discard" : null;
+    if (this._panel === "mode") return null;   // its choices apply at once: nothing is left unsaved
     return this._settingsPicker()?.dirty ? "setting_discard" : null;
   }
 
@@ -874,7 +875,25 @@ export class WpSchedule extends LitElement {
   private async _showPanel(panel: Panel): Promise<void> {
     if (panel === this._panel) return;
     const left = this._leavePanel();
-    if (left === true || (await left)) this._panel = panel;
+    if (left === true || (await left)) this._setPanel(panel);
+  }
+
+  /** What a panel opens and folds (Schedules also holds the week, the chart and its sources, in their own grid cells). */
+  private _panelParts(panel: Panel): string[] {
+    return panel === "schedules" ? ["acc-schedules", "acc-week", "acc-chart", "acc-options"] : [`acc-${panel}`];
+  }
+
+  /**
+   * Opens a panel and folds the open one. When the focus is inside the panel that folds (a mode just picked in its
+   * select, a form closed under the cursor), it moves to that panel's header instead of falling to the page.
+   */
+  private _setPanel(panel: Panel): void {
+    const from = this._panel;
+    if (panel === from) return;
+    const active = (this.renderRoot as ShadowRoot).activeElement;
+    const inside = Boolean(active) && this._panelParts(from).some((id) => this.renderRoot.querySelector(`#${id}`)?.contains(active));
+    this._panel = panel;
+    if (inside) void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(`#acc-${from}-btn`)?.focus());
   }
 
   /**
@@ -1128,14 +1147,35 @@ export class WpSchedule extends LitElement {
 
   /**
    * Header of a panel of the accordion: a button (Enter / Space) with the title, the chevron and, while the panel is
-   * closed, a short summary; never hidden. `controls`: the ids of what the panel opens.
+   * closed (`always`: also open), a short summary on one line, cut with an ellipsis; its full text (`text`) is in the
+   * accessible name. Never hidden, same height open or closed. `controls`: the ids of what the panel opens.
    */
-  private _panelHeader(panel: Panel, title: string, summary: unknown, controls: string) {
+  private _panelHeader(panel: Panel, title: string, summary: unknown, controls: string, text = "", always = false) {
     const open = this._panel === panel;
+    const shown = !open || always;
     return html`<h3 class="acc-h"><button class="acc-btn" id=${`acc-${panel}-btn`} aria-expanded=${open} aria-controls=${controls}
-        @click=${() => void this._showPanel(panel)}>
-        <span class="acc-t"><span>${title}</span>${open ? nothing : html`<span class="acc-sum">${summary}</span>`}</span>
+        aria-label=${shown && text ? `${title}: ${text}` : title} @click=${() => void this._showPanel(panel)}>
+        <span class="acc-t"><span>${title}</span>${shown ? html`<span class="acc-sum">${summary}</span>` : nothing}</span>
         <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button></h3>`;
+  }
+
+  /**
+   * Mode panel of the accordion (only with a mode selector): the mode choice, the inactive-mode warning and the mode's
+   * own options. Its header always tells the opened mode and whether it is the active one: the context of the schedules
+   * stays in sight while the panel is folded.
+   */
+  private _renderModePanel() {
+    const lang = this._lang;
+    const open = this._panel === "mode";
+    const name = this._openMode ?? "";
+    const summary = this._modeOnly ? `${name} · ${t(lang, "mode_inactive_short")}` : `${name} (${t(lang, "mode_active_badge")})`;
+    return html`<section class="acc modebox ${open ? "on" : ""}">
+      ${this._panelHeader("mode", t(lang, "profile"), summary, "acc-mode", summary, true)}
+      ${collapse(open, html`<div class="acc-body" role="region" aria-labelledby="acc-mode-btn">
+        ${this._renderModes()}
+        ${this._modeOnly ? this._renderInactive() : nothing}
+        ${this._renderModeOptions()}</div>`, "acc-mode")}
+    </section>`;
   }
 
   /**
@@ -1150,11 +1190,12 @@ export class WpSchedule extends LitElement {
       .sort((a, b) => labelName(this.hass, a).localeCompare(labelName(this.hass, b), lang, { numeric: true, sensitivity: "base" }));
     const open = this._panel === "settings";
     const locked = this._modeOnly;
+    const names = labels.map((l) => labelName(this.hass, l, this._eid));
     const summary = labels.length
-      ? html`<span class="tags">${labels.map((l) => html`<span class="tag"><i class="dot" style="background:${l.color}"></i>${labelName(this.hass, l, this._eid)}</span>`)}</span>`
+      ? html`<span class="tags">${labels.map((l, i) => html`<span class="tag"><i class="dot" style="background:${l.color}"></i>${names[i]}</span>`)}</span>`
       : t(lang, "settings_none");
     return html`<section class="acc ${open ? "on" : ""}">
-      ${this._panelHeader("settings", t(lang, "settings_legend"), summary, "acc-settings")}
+      ${this._panelHeader("settings", t(lang, "settings_legend"), summary, "acc-settings", labels.length ? names.join(", ") : t(lang, "settings_none"))}
       ${collapse(open, html`<div class="acc-body" role="region" aria-labelledby="acc-settings-btn">
         <wp-label-picker .hass=${this.hass} .data=${this.data} .program=${program} .entityIds=${this._entities}
         ?start-new=${this.create && !this.day && !this._rows().length && this._canEdit}
@@ -1173,7 +1214,7 @@ export class WpSchedule extends LitElement {
       ? t(lang, rows.length === 1 ? "sched_count_one" : "sched_count", { n: String(rows.length) })
       : t(lang, "w_none");
     return html`<section class="acc ${open ? "on" : ""}">
-      ${this._panelHeader("schedules", t(lang, "schedules_legend"), summary, controls)}
+      ${this._panelHeader("schedules", t(lang, "schedules_legend"), summary, controls, summary)}
       ${collapse(open, html`<div class="acc-body" role="region" aria-labelledby="acc-schedules-btn">
         ${this._renderDevices()}
         <div class="rests">${this._renderRest()}</div>
@@ -1213,7 +1254,7 @@ export class WpSchedule extends LitElement {
 
   /**
    * Picking another mode abandons the open form (asked first when it holds unsaved changes; on "No" the select goes
-   * back) and shows the Schedules panel: the mode is about its schedules.
+   * back) and opens the Schedules panel again: the mode is about its schedules.
    */
   private async _pickMode(name: string, select?: HTMLSelectElement): Promise<void> {
     if (name === this._openMode) return;
@@ -1222,7 +1263,7 @@ export class WpSchedule extends LitElement {
       if (select) select.value = this._openMode ?? "";
       return;
     }
-    this._panel = "schedules";
+    this._setPanel("schedules");
     this._viewMode = name;
     this._copyOpen = false;
     this._resp = null;
@@ -1231,7 +1272,7 @@ export class WpSchedule extends LitElement {
     this._focus = null;
   }
 
-  /** "Mode" fieldset with a select of the modes (the active one marked), opening on the active mode; only with a selector. */
+  /** Select of the modes (the active one marked) in the Mode panel, opening on the active mode; only with a selector. */
   private _renderModes() {
     const modes = this._modes();
     if (!modes.length) return nothing;
@@ -1452,9 +1493,8 @@ export class WpSchedule extends LitElement {
     const chart = this._renderChart();
     const options = this._renderChartOptions();
     const controls = ["acc-schedules", "acc-week", chart === nothing ? "" : "acc-chart", options === nothing ? "" : "acc-options"].filter(Boolean).join(" ");
-    // With a mode selector, everything about the mode sits in a fieldset.
-    const boxed = this._modes().length > 0;
-    const box = (cls: string, legend: string, body: unknown) => boxed ? html`<fieldset class="box ${cls}"><legend>${legend}</legend>${body}</fieldset>` : body;
+    // With a mode selector, everything about the mode is the first panel of the accordion.
+    const modes = this._modes().length > 0;
     return html`
       <wp-dialog open columns heading=${this._title} .beforeClose=${this._guardClose} @escape=${(e: Event) => this._onEscape(e)}>
         <div class="cols">
@@ -1469,13 +1509,11 @@ export class WpSchedule extends LitElement {
             @change=${(e: Event) => void this._setEnabled((e.target as HTMLInputElement).checked, e.target as HTMLInputElement)} />
           <span class="track"></span>
         </label>
-        ${box("modebox", t(lang, "profile"), html`${this._renderModes()}
-          ${this._modeOnly ? this._renderInactive() : nothing}
-          ${this._renderModeOptions()}
-          <wp-mode-notice .hass=${this.hass} .data=${this.data}></wp-mode-notice>`)}
+        <wp-mode-notice .hass=${this.hass} .data=${this.data}></wp-mode-notice>
         ${!this._canEdit ? html`<div id="why-ro">${callout("error", "", t(lang, "read_only"), { role: "alert" })}</div>` : nothing}
         ${this._error && !this._open ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
         <div class="accordion">
+          ${modes ? this._renderModePanel() : nothing}
           ${this._renderSettings()}
           ${this._renderSchedules(rows, controls)}
         </div>
@@ -1528,14 +1566,12 @@ export class WpSchedule extends LitElement {
       font-size: 0.9375rem; cursor: pointer; --mdc-icon-size: 20px;
     }
     .who button.on { border: 2px solid var(--wp-primary-text); font-weight: 600; }
-    fieldset.box { border: 1px solid var(--divider-color); border-radius: 12px; padding: 4px 12px 12px; margin: 0 0 12px; min-width: 0; }
-    fieldset.box legend { padding: 0 6px; font-size: 0.875rem; font-weight: 600; color: var(--secondary-text-color); }
     .modesel { display: block; margin: 0 0 10px; width: 100%; min-height: 48px; box-sizing: border-box; padding: 0 12px; border-radius: 24px; border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 1rem; }
     .copy-from { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
     .row.opts { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; margin: 0 0 8px; padding: 0 12px; border-radius: 12px;
       border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem; cursor: pointer; text-align: left; }
     .row.opts .txt { flex: 1; }
-    /* The Settings / Schedules accordion: one panel open at a time, the closed one keeps its header and a summary. */
+    /* The Mode / Settings / Schedules accordion: one panel open at a time, a closed one keeps its header and a summary. */
     .acc { border: 1px solid var(--divider-color); border-radius: 12px; margin: 0 0 12px; min-width: 0; }
     .acc-h { margin: 0; font-size: 0.9375rem; }
     .acc-btn {
@@ -1545,11 +1581,12 @@ export class WpSchedule extends LitElement {
     .acc.on .acc-btn { cursor: default; }
     .acc-btn:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
     .acc-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-    .acc-sum { font-weight: normal; font-size: 0.875rem; color: var(--secondary-text-color); overflow-wrap: anywhere; }
+    /* one line, cut with an ellipsis: every header keeps the same height (the full text is the button's accessible name) */
+    .acc-sum { font-weight: normal; font-size: 0.875rem; color: var(--secondary-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .acc-body { padding: 4px 12px 12px; }
-    .tags { display: flex; flex-wrap: wrap; gap: 2px 12px; }
-    .tag { display: inline-flex; align-items: center; gap: 6px; }
-    .tags .dot { width: 10px; height: 10px; border-radius: 5px; flex: none; }
+    .tags, .tag { display: inline; }
+    .tag + .tag { margin-inline-start: 12px; }
+    .tags .dot { display: inline-block; width: 10px; height: 10px; border-radius: 5px; margin-inline-end: 6px; vertical-align: -1px; }
     .row.opts small { color: var(--secondary-text-color); font-size: 0.75rem; }
     .opts-body { margin: 0 0 12px; padding: 8px 0 0 12px; border-left: 3px solid var(--divider-color); }
     .modechip {
