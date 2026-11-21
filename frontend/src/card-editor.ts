@@ -13,7 +13,7 @@ import { t } from "./i18n";
 import { ariaDisabled, describedBy, whyNote, whyStyles } from "./reason";
 import { moveId, sortItems, sortMode, SORTS } from "./list-order";
 import { setTimeFormat } from "./time";
-import { usesScheduleList } from "./view-choice";
+import { defaultViewFor, usesScheduleList, viewAllowed, viewsFor, type View } from "./view-choice";
 import type { CardConfig, HomeAssistant, PlannerData } from "./types";
 import { editorStyles, langOf } from "./editors/shared";
 import type { K } from "./editors/shared";
@@ -145,6 +145,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
   }
 
   private _set(key: keyof CardConfig, value: unknown): void {
+    if (key === "schedule_view") this._viewChanged = undefined;
     const next = { ...this._config } as Record<string, unknown>;
     if (value === undefined || value === "" || value === null) delete next[key];
     else next[key] = value;
@@ -156,12 +157,26 @@ export class WeeklyPlannerCardEditor extends LitElement {
     return this._data ? filterPrograms(this._data, { ...this._config, filter: this._filter, program: undefined }, this.hass).length : undefined;
   }
 
+  /** The display that was replaced by the last change of the selection (the card showed a view that no longer fits). */
+  @state() private _viewChanged?: { from: View; to: View };
+
+  private _viewLabel(view: View): string {
+    return this._tr(({ bars: "ce_bars", radial: "ce_radial", radial_12h: "ce_radial_12h", list: "ce_list", times: "ce_times", compare: "ce_compare" } as const)[view]);
+  }
+
   private _setFilter(patch: { types?: string[]; area?: string | string[]; programs?: string[] }): void {
     const filter = { ...this._filter, ...patch };
     for (const k of ["types", "programs"] as const) if (filter[k] === undefined) delete filter[k];
     if (!filter.types?.length) delete filter.types;
     if (!areaList(filter.area).length) delete filter.area;
     const next = { ...this._config, filter } as CardConfig;
+    // the views depend on how many programs are shown: a view that no longer fits is replaced, and the user is told
+    const count = this._data ? filterPrograms(this._data, { ...next, program: undefined }, this.hass).length : undefined;
+    const from = next.schedule_view ?? "bars";
+    if (!viewAllowed(from, count)) {
+      next.schedule_view = defaultViewFor(count);
+      this._viewChanged = { from, to: next.schedule_view };
+    } else this._viewChanged = undefined;
     delete next.program; // a saved `program` becomes its filter only when the selection changes; other edits leave it as it is
     this._emit(next);
   }
@@ -323,6 +338,21 @@ export class WeeklyPlannerCardEditor extends LitElement {
       </ol><p id="ce-order-hint" class="hint">${this._tr("ce_sort_custom_hint")}</p><p class="sr-only" role="status">${this._announce}</p>` : nothing}`;
   }
 
+  /** The display choice: only the views that fit the number of shown programs; a saved view that does not fit stays, with a note. */
+  private _viewField() {
+    const saved = this._config.schedule_view ?? "bars";
+    const offered = viewsFor(this._shown);
+    const options = viewAllowed(saved, this._shown) ? offered : [...offered, saved];
+    const note = this._viewChanged
+      ? this._tr("ce_view_changed", { from: this._viewLabel(this._viewChanged.from), to: this._viewLabel(this._viewChanged.to) })
+      : viewAllowed(saved, this._shown) ? "" : this._tr("ce_view_unavailable", { view: this._viewLabel(saved) });
+    return html`<div class="field"><label for="ce-view">${this._tr("ce_schedule_view")}</label>
+        <select id="ce-view" data-value=${saved} aria-describedby=${note ? "ce-view-note" : nothing} @change=${(e: Event) => this._set("schedule_view", (e.target as HTMLSelectElement).value)}>
+          ${options.map((v) => html`<option value=${v} ?selected=${v === saved}>${this._viewLabel(v)}</option>`)}
+        </select></div>
+      ${whyNote("ce-view-note", note, note !== "")}`;
+  }
+
   render() {
     const c = this._config;
     const listUsed = usesScheduleList(c.schedule_view);
@@ -336,16 +366,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
       ${this._displayPrograms()}
 
       ${this._sortField()}
-      <div class="field"><label for="ce-view">${this._tr("ce_schedule_view")}</label>
-        <select id="ce-view" data-value=${c.schedule_view ?? "bars"} @change=${(e: Event) => this._set("schedule_view", (e.target as HTMLSelectElement).value)}>
-          <option value="bars">${this._tr("ce_bars")}</option>
-          <option value="radial">${this._tr("ce_radial")}</option>
-          <option value="radial_12h">${this._tr("ce_radial_12h")}</option>
-          <option value="list">${this._tr("ce_list")}</option>
-          <option value="times">${this._tr("ce_times")}</option>
-          <option value="compare">${this._tr("ce_compare")}</option>
-        </select>
-      </div>
+      ${this._viewField()}
       <div class="switch-row"><span class="grow">${this._tr("ce_show_schedule_list")}</span>
         ${this._switch(c.show_schedule_list === true, this._tr("ce_show_schedule_list"), (on) => this._set("show_schedule_list", on), false, !listUsed, listUsed ? "" : "why-schedule-list")}</div>
       ${whyNote("why-schedule-list", this._tr("ce_show_schedule_list_why"), !listUsed)}

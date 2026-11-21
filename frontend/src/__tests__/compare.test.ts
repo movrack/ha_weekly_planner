@@ -32,7 +32,7 @@ describe("compare: config and editor", () => {
     e._data = { programs: [], can_edit: true };
     e._config = { type: "x", filter: {}, schedule_view: "compare" };
     const html = flat(e.render());
-    expect(html).toContain('<option value="compare">');
+    expect(html).toContain("<option value=compare");
     expect(html).toContain(t("en", "ce_compare"));
   });
 });

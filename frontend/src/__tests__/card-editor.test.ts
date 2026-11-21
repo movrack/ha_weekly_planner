@@ -483,6 +483,53 @@ describe("List order needs at least two programs", () => {
   });
 });
 
+describe("the display views follow the number of selected programs", () => {
+  const offered = (el: any) => [...flat(el.render()).matchAll(/<option value=(\w+) \?selected=/g)].map((m) => m[1]).filter((v) => v !== "type" && v !== "area" && v !== "name" && v !== "custom");
+  it.each([
+    ["several programs", { filter: {} }, ["list", "compare"]],
+    ["exactly one", { filter: { programs: ["a"] } }, ["bars", "radial", "radial_12h", "times"]],
+    ["none", { filter: { programs: [] } }, ["bars", "radial", "radial_12h", "list", "times", "compare"]],
+  ])("%s: the offered views", (_name, config, views) => {
+    expect(offered(mk({ ...config, schedule_view: views[0] }))).toEqual(views);
+  });
+  it("a saved view that does not fit stays selected, with a visible note, and nothing is rewritten", () => {
+    const el = mk({ filter: {}, schedule_view: "bars" });
+    expect(offered(el)).toEqual(["list", "compare", "bars"]);
+    expect(flat(el.render())).toContain(t("en", "ce_view_unavailable", { view: t("en", "ce_bars") }));
+    expect(sent(el)).toEqual([]);
+  });
+  it("selecting down to one program replaces a comparison view by the first view offered, and says so", () => {
+    const el = mk({ filter: {}, schedule_view: "compare" });
+    el._treeChange({ programs: ["a"] });
+    expect(sent(el)[0].schedule_view).toBe("bars");
+    expect(flat(el.render())).toContain(t("en", "ce_view_changed", { from: t("en", "ce_compare"), to: t("en", "ce_bars") }));
+  });
+  it("selecting several programs replaces bars by the compact list, and says so", () => {
+    const el = mk({ filter: { programs: ["a"] }, schedule_view: "bars" });
+    el._treeChange({ programs: ["a", "b"] });
+    expect(sent(el)[0].schedule_view).toBe("list");
+    expect(flat(el.render())).toContain(t("en", "ce_view_changed", { from: t("en", "ce_bars"), to: t("en", "ce_list") }));
+  });
+  it("a view that still fits is kept and no note is shown; choosing a view by hand clears the note", () => {
+    const el = mk({ filter: {}, schedule_view: "list" });
+    el._treeChange({ programs: ["a", "b"] });
+    expect(sent(el)[0].schedule_view).toBe("list");
+    expect(el._viewChanged).toBeUndefined();
+    el._treeChange({ programs: ["a"] });
+    expect(el._viewChanged).toEqual({ from: "list", to: "bars" });
+    el._set("schedule_view", "times");
+    expect(el._viewChanged).toBeUndefined();
+  });
+  it("emptying the selection keeps the view: nothing is drawn, and the pick is not lost while choosing", () => {
+    const el = mk({ filter: {}, schedule_view: "list" });
+    el._treeChange({ programs: [] });
+    expect(sent(el)[0].schedule_view).toBe("list");
+  });
+  it("a saved single program counts as one program", () => {
+    expect(offered(mk({ program: "a", schedule_view: "times" }))).toEqual(["bars", "radial", "radial_12h", "times"]);
+  });
+});
+
 describe("card editor: touch targets", () => {
   // Layout at 360 px (UI review 2026-02-10): touch targets, wrapping, no word cut in a program name.
   it("fits a 360 px screen: 44 px type chips that wrap, program names not cut mid-word, notice button inside its box", () => {

@@ -46,7 +46,7 @@ Choisir la pièce dans la liste de Général (« Pièce du programme » : pièce
 
 ### S41 — Filtres et présentation
 
-Choisir les programmes à afficher (dont la pièce) et l’affichage. L’interrupteur « Afficher les horaires » ajoute la liste « Horaires » sous les barres ou le cadran (pas en liste compacte). Les interrupteurs « Bouton Graphique » et « Graphique ouvert par défaut » règlent le graphique.
+Choisir les programmes à afficher (dont la pièce) et l’affichage. L’interrupteur « Afficher les horaires » ajoute la liste « Horaires » sous les barres ou le cadran ; il est grisé sur les autres affichages. Les interrupteurs « Bouton Graphique » et « Graphique ouvert par défaut » règlent le graphique.
 
 <a href="images/guide/s41-card-filter.png"><img src="images/guide/s41-card-filter.png" width="320" alt="Filtres et présentation" /></a>
 
@@ -260,7 +260,7 @@ Après l’enregistrement au relâcher, le bandeau Enregistré · Annuler permet
 
 ## S24 — Affichage : liste filtrée
 
-Choix des programmes à afficher (dont la pièce), de l’affichage et réglages du graphique pour « Plusieurs programmes ».
+Choix des programmes à afficher (dont la pièce), de l’affichage (liste compacte ou comparateur dès 2 programmes, les autres vues pour un seul) et réglages du graphique.
 
 <a href="images/guide/s24-card-filter-settings.png"><img src="images/guide/s24-card-filter-settings.png" width="320" alt="S24 — Affichage : liste filtrée" /></a>
 
