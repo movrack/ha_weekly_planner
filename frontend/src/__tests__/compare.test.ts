@@ -64,7 +64,7 @@ describe("compare: structure", () => {
     const days = strings("en").days;
     expect([...h.matchAll(/class="cday[^"]*" role="group" aria-label=([^>]*)>/g)].map((m) => m[1])).toEqual(["Monday"]); // today, alone
     expect([...flat(week(c)).matchAll(/class="cday[^"]*" role="group" aria-label=([^>]*)>/g)].map((m) => m[1])).toEqual(days);
-    expect([...h.matchAll(/class="cdchip[^"]*" role="radio" aria-checked=\s+aria-disabled=([^ ]*)\s+tabindex=-?\d aria-label=([\w, ]+) title=/g)].map((m) => m[2])).toEqual([...days, `Day off, ${t("en", "compare_day_off_none")}`]);
+    expect([...h.matchAll(/class="cdchip[^"]*" role="radio" aria-checked=\s+aria-disabled=([^ ]*)(?: aria-describedby=\w*)?\s+tabindex=-?\d aria-label=([\w ]+)\s+@click=/g)].map((m) => m[2])).toEqual([...days, "Day off"]);
     expect(h).toContain('role="radiogroup"');
     expect(selectedOf(render(c))).toEqual([true, ...Array(7).fill(false)]); // a single choice, today by default
     for (const d of strings("en").days_short) expect(h).toContain(`>${d}</button>`);
@@ -378,9 +378,13 @@ describe("compare: day chips", () => {
     const none = flat(render(card([A()])));
     expect(none).toContain("cdchip off");
     expect(none).toContain(`aria-disabled=true`);
-    expect(none).toContain(`aria-label=Day off, ${t("en", "compare_day_off_none")}`);
+    expect(none).toContain("aria-label=Day off");
+    expect(none).toContain("aria-describedby=cdnote"); // the reason is on screen under the chips, linked to the greyed chip
+    expect(none).toContain(`<p class="cdnote" id="cdnote">${t("en", "compare_day_off_none")}</p>`);
+    expect(none).not.toMatch(/cdchip[^>]*title=/); // no title or description that only repeats the name
     const c = card([withOff()], {}, dayOff);
     expect(flat(render(c))).not.toContain("cdchip off");
+    expect(flat(render(c))).not.toContain("cdnote\" id");
     chipFns(c)[7].fn();
     expect(flat(render(c))).toContain("cday cday-off");
     const idle = card([A()]);
@@ -414,8 +418,8 @@ describe("compare: day chips", () => {
   it("the texts exist in EN and FR", () => {
     expect(t("en", "compare_day")).toBe("Day shown");
     expect(t("fr", "compare_day")).toBe("Jour affiché");
-    expect(t("en", "compare_day_off_none")).toBe("no day off set");
-    expect(t("fr", "compare_day_off_none")).toBe("aucun jour férié réglé");
+    expect(t("en", "compare_day_off_none")).toBe("No day off set.");
+    expect(t("fr", "compare_day_off_none")).toBe("Aucun jour férié réglé.");
   });
 });
 

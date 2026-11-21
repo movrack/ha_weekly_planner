@@ -377,9 +377,9 @@ export class WeeklyPlannerCard extends LitElement {
     const chips = html`<div class="cdays" role="radiogroup" aria-label=${t(lang, "compare_day")} @keydown=${dayKey}>
       ${ids.map((d) => { const ok = usable(d); const label = d === 7 ? t(lang, "holiday_title") : days[d];
         return html`<button class="cdchip${d === todayDay ? " is-today" : ""}${ok ? "" : " off"}" role="radio" aria-checked=${d === shown}
-          aria-disabled=${ok ? nothing : "true"} tabindex=${d === shown ? 0 : -1} aria-label=${ok ? label : `${label}, ${none}`} title=${ok ? label : `${label}, ${none}`}
+          aria-disabled=${ok ? nothing : "true"} aria-describedby=${ok ? nothing : "cdnote"} tabindex=${d === shown ? 0 : -1} aria-label=${label}
           @click=${() => pickDay(d)}>${d === 7 ? label : short[d]}</button>`; })}
-    </div>`;
+    </div>${holidayOn ? nothing : html`<p class="cdnote" id="cdnote">${none}</p>`}`;
     const week = shown === 7 ? nothing : dayView(shown);
     const holidayShown = shown === 7 ? holiday() : nothing;
     return html`<div class="compare">
@@ -1123,6 +1123,7 @@ export class WeeklyPlannerCard extends LitElement {
     }
     .cdchip.is-today { font-weight: 700; }
     .cdchip[aria-checked="true"] { background: var(--wp-primary-fill); border-color: var(--wp-primary-fill); color: #fff; font-weight: 600; }
+    .cdnote { margin: 0; padding: 0 0 4px; font-size: 0.875rem; color: var(--primary-text-color); }
     .cdchip.off { opacity: 0.5; cursor: default; }
     .cdchip:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
     .cedit { display: flex; justify-content: flex-end; margin-bottom: -8px; }
