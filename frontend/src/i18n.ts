@@ -66,7 +66,7 @@ const en = {
   settings_none: "No setting yet",
   finish_setting_first: "Finish the setting first.",
   finish_schedule_first: "Finish the schedule first.",
-  mode_off_why: "Not the active mode.",
+  mode_off_why: "This is not the active mode.",
   dup_save_first: "Save the schedule first.",
   follow_no_source: "No other mode to follow.",
   copy_no_source: "No other mode has schedules.",

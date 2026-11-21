@@ -127,7 +127,7 @@ describe("schedule screen rendering", () => {
     expect(html).not.toContain("wp-chart");
     // Delete stays, greyed, and points to the reason
     expect(html).toContain("delete-outline\"></ha-icon>Delete");
-    expect(html).toContain('id="why-mode"');
+    expect(html).toContain(t("en", "mode_off_why"));
     expect(view._modeOnly).toBe(true);
   });
   it("navigates the chart days within bounds", () => {
@@ -636,6 +636,9 @@ describe("schedule screen editing", () => {
       expect(html).toContain(t("en", "settings_legend"));
       expect(html).toContain(t("en", "finish_schedule_first"));
       expect(view._open).toBe("new");
+      // the fold stays usable to look at the settings: it is not claimed disabled, the reason sits on the picker
+      expect(valuesAfter(view.render(), 'class="row opts" aria-expanded=')).toEqual([false]);
+      expect(valuesAfter(view.render(), "aria-disabled=").length).toBeGreaterThan(0);
     });
     it("opening a setting form makes the schedules, week, chart and Delete inert with one reason, and keeps what was typed", () => {
       const { view } = make();
@@ -683,7 +686,7 @@ describe("schedule screen editing", () => {
       expect(view._modeOnly).toBe(true);
       const html = flat(view.render());
       expect(html).toContain(t("en", "settings_legend"));
-      expect(html).toContain('id="why-mode"');
+      expect(html).toContain(t("en", "mode_off_why"));
     });
     it("follows the setting chosen in its picker, and lets every device give its own value", () => {
       const { view } = make();

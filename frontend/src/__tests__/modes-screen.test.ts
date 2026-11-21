@@ -84,7 +84,7 @@ describe("mode choice in the schedules screen", () => {
     expect(view._rows()[0].group.slot.id).toBe("c");
     // the switch stays, greyed, and points to the reason
     expect(html).toContain('class="switch"');
-    expect(html).toContain('id="why-mode"');
+    expect(html).toContain(t("en", "mode_off_why"));
   });
   it("shows an empty week for a mode with no schedules yet", () => {
     const { view } = make();

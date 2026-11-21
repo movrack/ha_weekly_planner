@@ -113,7 +113,8 @@ describe("slot editor open in two columns", () => {
     const html = flat(view.render());
     expect(html).toContain("[CHART]");
     expect(html).toContain("danger-line alone");
-    expect(html).toContain('class="area-chart" ?inert=');
+    expect(html).toContain('class="area-chart" aria-disabled=');
+    expect(html).toContain('class="dim" ?inert=');
     expect(html).toContain('class="area-week"');
   });
 });

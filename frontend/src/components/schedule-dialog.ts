@@ -836,8 +836,13 @@ export class WpSchedule extends LitElement {
    */
   private get _lockId(): string | null {
     if (this._settingForm || this._open !== null) return "why-top";
-    if (this._modeOnly) return "why-mode";
+    if (this._modeOnly) return "why-top";
     return null;
+  }
+
+  /** Content shown but inert and greyed (nothing when there is none, so that an empty grid cell stays collapsed). */
+  private _dim(off: boolean, content: unknown) {
+    return content === nothing ? nothing : html`<div class="dim" ?inert=${off}>${content}</div>`;
   }
 
   private _closeDialog(): void {
@@ -933,7 +938,7 @@ export class WpSchedule extends LitElement {
           </div></div>`;
       }
       const label = labelOf(this.data, entity.default_label);
-      return html`<button class="row rest" data-key=${key} aria-expanded="false" ?disabled=${this._modeOnly} aria-disabled=${ariaDisabled(this._modeOnly)} aria-describedby=${describedBy(this._modeOnly, "why-mode")} @click=${() => this._expand(key, program, null, { restLabel: entity.default_label ?? null })}>
+      return html`<button class="row rest" data-key=${key} aria-expanded="false" ?disabled=${this._modeOnly} aria-disabled=${ariaDisabled(this._modeOnly)} aria-describedby=${describedBy(this._modeOnly, "why-top")} @click=${() => this._expand(key, program, null, { restLabel: entity.default_label ?? null })}>
         ${label ? html`<span class="dot" style="background:${label.color}"></span>` : html`<ha-icon icon="mdi:update"></ha-icon>`}
         <span class="txt">${title}${t(lang, "colon")}<b>${label ? labelName(this.hass, label) : t(lang, "rest_untouched")}</b></span><ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
     });
@@ -1095,12 +1100,12 @@ export class WpSchedule extends LitElement {
       ${open ? nothing : html`<ul class="tags">${labels.length
         ? labels.map((l) => html`<li><i class="dot" style="background:${l.color}"></i>${labelName(this.hass, l, this._eid)}</li>`)
         : html`<li class="muted">${t(lang, "settings_none")}</li>`}</ul>`}
-      <button class="row opts" aria-expanded=${open} aria-describedby=${describedBy(locked, this._lockId ?? "")} ?disabled=${this._settingForm} @click=${() => { this._settingsOpen = !open; }}>
+      <button class="row opts" aria-expanded=${open} ?disabled=${this._settingForm} @click=${() => { this._settingsOpen = !open; }}>
         <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
         <span class="txt">${t(lang, "settings_edit")}</span></button>
       ${collapse(open, html`<wp-label-picker .hass=${this.hass} .data=${this.data} .program=${program} .entityIds=${this._entities}
         ?start-new=${this.create && !this.day && !this._rows().length && this._canEdit}
-        .value=${this._settingId} ?disabled=${!this._canEdit || locked} aria-disabled=${locked ? "true" : "false"}
+        .value=${this._settingId} ?disabled=${!this._canEdit || locked} aria-disabled=${ariaDisabled(locked)} aria-describedby=${describedBy(locked, "why-top")}
         @label-form-change=${(e: CustomEvent<boolean>) => { e.stopPropagation(); this._settingForm = e.detail; }}
         @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._settingId = e.detail; }}></wp-label-picker>`)}
     </fieldset>`;
@@ -1367,7 +1372,7 @@ export class WpSchedule extends LitElement {
       <wp-dialog open columns heading=${this._title} .beforeClose=${this._guardClose} @escape=${(e: Event) => this._onEscape(e)}>
         <div class="cols">
         <div class="params">
-        ${whyNote("why-top", t(lang, sf ? "finish_setting_first" : "finish_schedule_first"), sf || editing)}
+        ${whyNote("why-top", t(lang, sf ? "finish_setting_first" : editing ? "finish_schedule_first" : "mode_off_why"), sf || editing || this._modeOnly)}
         <label class="switch">
           <span class="grow">${t(lang, "schedule_on")}</span>
           <span class="state">${this._stateText()}</span>
@@ -1378,14 +1383,15 @@ export class WpSchedule extends LitElement {
           <span class="track"></span>
         </label>
         ${box("modebox", t(lang, "profile"), html`${this._renderModes()}
-          ${this._modeOnly ? html`<div id="why-mode">${this._renderInactive()}</div>` : nothing}
+          ${this._modeOnly ? this._renderInactive() : nothing}
           ${this._renderModeOptions()}
           <wp-mode-notice .hass=${this.hass} .data=${this.data}></wp-mode-notice>`)}
         ${this._renderSettings()}
         ${!this._canEdit ? html`<div id="why-ro">${callout("error", "", t(lang, "read_only"), { role: "alert" })}</div>` : nothing}
         ${this._error && !this._open ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
         ${box("schedbox", t(lang, "schedules_legend"), html`
-        <div class="gate ${sf ? "off" : ""}" ?inert=${sf} aria-disabled=${ariaDisabled(sf)} aria-describedby=${describedBy(sf, "why-top")}>
+        <div class="gate-wrap" aria-disabled=${ariaDisabled(sf)} aria-describedby=${describedBy(sf, "why-top")}>
+        <div class="gate ${sf ? "off" : ""}" ?inert=${sf}>
         ${this._renderDevices()}
         <div class="rests">${this._renderRest()}</div>
         ${this._focus !== null ? html`<div class="focus">
@@ -1399,14 +1405,15 @@ export class WpSchedule extends LitElement {
           <button class="row add ${first ? "first" : ""}" ?disabled=${!this._canEdit || editing} aria-disabled=${ariaDisabled(editing)} aria-describedby=${describedBy(editing, "why-top")} @click=${() => this._add()}>
             <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${this._focus === null ? t(lang, "w_add") : t(lang, "w_add_day", { day: strings(lang).days[this._focus].toLocaleLowerCase(lang) })}</span></button>
         </div>
-        <div class="holiday-gate" ?inert=${editing} aria-disabled=${ariaDisabled(editing)} aria-describedby=${describedBy(editing, "why-top")}>${this._renderHoliday()}</div>
+        <div class="holiday-wrap" aria-disabled=${ariaDisabled(editing)} aria-describedby=${describedBy(editing, "why-top")}><div class="holiday-gate" ?inert=${editing}>${this._renderHoliday()}</div></div>
+        </div>
         </div>`)}
         </div>
-        <div class="area-week" ?inert=${sf}>${this._renderWeek()}${this._renderWeekNote()}</div>
-        <div class="area-chart" ?inert=${sf || editing}>${this._renderChart()}</div>
-        <div class="area-options" ?inert=${sf || editing}>${this._renderChartOptions()}</div>
-        <div class="area-delete" ?inert=${sf}><button class="btn danger-line alone" ?disabled=${!this._canEdit || editing || this._modeOnly} aria-disabled=${ariaDisabled(editing || this._modeOnly)} aria-describedby=${describedBy(editing || this._modeOnly, this._lockId ?? "")} @click=${() => void this._deleteAll()}>
-          <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete_schedule")}</button></div>
+        <div class="area-week" aria-disabled=${ariaDisabled(sf)} aria-describedby=${describedBy(sf, "why-top")}><div class="dim" ?inert=${sf}>${this._renderWeek()}${this._renderWeekNote()}</div></div>
+        <div class="area-chart" aria-disabled=${ariaDisabled(sf || editing)} aria-describedby=${describedBy(sf || editing, "why-top")}>${this._dim(sf || editing, this._renderChart())}</div>
+        <div class="area-options" aria-disabled=${ariaDisabled(sf || editing)} aria-describedby=${describedBy(sf || editing, "why-top")}>${this._dim(sf || editing, this._renderChartOptions())}</div>
+        <div class="area-delete"><div class="dim" ?inert=${sf}><button class="btn danger-line alone" ?disabled=${!this._canEdit || editing || this._modeOnly} aria-disabled=${ariaDisabled(editing || this._modeOnly)} aria-describedby=${describedBy(editing || this._modeOnly, this._lockId ?? "")} @click=${() => void this._deleteAll()}>
+          <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete_schedule")}</button></div></div>
         </div>
       </wp-dialog>`;
   }
@@ -1514,7 +1521,7 @@ export class WpSchedule extends LitElement {
     .btn.danger-line { color: var(--wp-danger-text); border-color: var(--wp-danger-text); }
     .btn.danger { background: var(--wp-danger-fill); border-color: var(--wp-danger-border); color: #fff; }
     .muted { color: var(--secondary-text-color); }
-    .gate.off, .area-week[inert], .area-chart[inert], .area-options[inert], .area-delete[inert], .holiday-gate[inert] { opacity: 0.5; pointer-events: none; }
+    .gate.off, .dim[inert], .holiday-gate[inert] { opacity: 0.5; pointer-events: none; }
     .switch:has(input:disabled) { opacity: 0.6; cursor: default; flex-wrap: wrap; }
     .note { margin: 0 0 8px; font-size: 0.875rem; }
     .focus { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }

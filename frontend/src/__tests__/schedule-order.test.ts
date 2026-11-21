@@ -42,7 +42,7 @@ describe("schedule screen order", () => {
     expect(html).toContain('class="switch"');
     expect(html).toContain("[REST]");
     expect(html).toContain("danger-line alone");
-    expect(html).toContain('id="why-mode"');
+    expect(html).toContain(t("en", "mode_off_why"));
     expect(html.indexOf("modebox")).toBeLessThan(html.indexOf("[WEEK]"));
     expect(html.indexOf("row add")).toBeLessThan(html.indexOf("[WEEK]"));
     expect(html.indexOf("[WEEK]")).toBeLessThan(html.indexOf("[CHART]"));
