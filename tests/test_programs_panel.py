@@ -1,4 +1,4 @@
-"""The administrators' "Weekly Planner" sidebar panel (programs are managed there, not in a card)."""
+"""The "Weekly Planner" sidebar panel (programs are managed there, not in a card)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from homeassistant.components import frontend as ha_frontend
 from custom_components.weekly_planner import frontend
 
 
-async def test_panel_is_registered_for_administrators(hass) -> None:
+async def test_panel_is_registered_for_everyone(hass) -> None:
     hass.config.components.add("panel_custom")
     hass.data[frontend.CARD_VERSION_KEY] = "abc123"
     with patch("homeassistant.components.panel_custom.async_register_panel", new=AsyncMock()) as register:
@@ -17,7 +17,7 @@ async def test_panel_is_registered_for_administrators(hass) -> None:
     kwargs = register.await_args.kwargs
     assert kwargs["frontend_url_path"] == "weekly-planner"
     assert kwargs["webcomponent_name"] == "wp-programs-panel"
-    assert kwargs["require_admin"] is True
+    assert kwargs["require_admin"] is False
     assert kwargs["module_url"] == f"{frontend.CARD_URL}?v=abc123"
     assert kwargs["sidebar_icon"] == "mdi:calendar-clock"
 

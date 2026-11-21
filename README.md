@@ -90,7 +90,7 @@ loads the module through Home Assistant’s extra-JavaScript mechanism.
 
 ## First program
 
-1. Open **Weekly Planner** in the sidebar (administrators only).
+1. Open **Weekly Planner** in the sidebar.
 2. Choose **New program**.
 3. Name the program, add its devices and choose the actions offered for each device.
 4. **Create program** saves it at once, for every card that shows this program.

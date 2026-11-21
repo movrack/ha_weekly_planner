@@ -945,11 +945,11 @@ export class WeeklyPlannerCard extends LitElement {
         ${data?.read_only ? html`${callout("error", "", t(lang, "read_only"), { id: "why-readonly" })}` : nothing}
         ${!data ? html`<div class="empty">…</div>` : nothing}
         ${data && !programs.length ? html`<div class="empty" role="status">${t(lang, data.programs.length && this._config.program === undefined ? "no_matching_program" : "no_program")}</div>` : nothing}
-        ${data && !programs.length ? (this.hass.user?.is_admin && data.can_edit && !data.read_only
+        ${data && !programs.length ? (data.can_edit && !data.read_only
           ? html`<a class="manage-programs" href="/weekly-planner"><ha-icon icon="mdi:calendar-edit"></ha-icon>${t(lang, "ce_manage_programs")}</a>`
           // an anchor cannot be disabled: a greyed button with its reason keeps the entry on screen
           : html`<button class="manage-programs" disabled aria-disabled="true" aria-describedby="why-manage"><ha-icon icon="mdi:calendar-edit"></ha-icon>${t(lang, "ce_manage_programs")}</button>
-            ${whyNote("why-manage", t(lang, data.read_only ? "read_only" : "manage_admins_only"))}`) : nothing}
+            ${whyNote("why-manage", t(lang, "read_only"))}`) : nothing}
         ${data ? this._list(programs) : nothing}
       </ha-card>
       ${this._snack ? html`<div class="snack" role="status"><span>${t(lang, "edited")} ·</span>

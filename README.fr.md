@@ -92,7 +92,7 @@ Home Assistant.
 
 ## Premier programme
 
-1. Ouvrir **Weekly Planner** dans la barre latérale (administrateurs seulement).
+1. Ouvrir **Weekly Planner** dans la barre latérale.
 2. Choisir **Nouveau programme**.
 3. Nommer le programme, ajouter ses appareils et choisir les actions proposées pour chaque appareil.
 4. **Créer le programme** enregistre tout de suite, pour toutes les cartes qui montrent ce programme.

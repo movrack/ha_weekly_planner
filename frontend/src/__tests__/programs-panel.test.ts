@@ -22,10 +22,11 @@ const make = (opts: { admin?: boolean; narrow?: boolean; data?: unknown } = {}) 
 };
 
 describe("programs panel", () => {
-  it("tells a non-administrator that only administrators manage programs", () => {
+  it("gives a non-administrator the same screen as an administrator (nothing is reserved to administrators)", () => {
     const out = flat(make({ admin: false, data: data([program("1")]) }).render());
-    expect(out).toContain("Only administrators");
-    expect(out).not.toContain("Prog 1");
+    expect(out).not.toContain("administrators");
+    expect(out).toContain("Prog 1");
+    expect(out).toBe(flat(make({ admin: true, data: data([program("1")]) }).render()));
   });
 
   it("waits for the data, and says read only when it cannot edit", () => {

@@ -14,7 +14,7 @@ The visual editor has two sections:
   view, and chart visibility. Save these changes with the Lovelace editor.
 - **Program settings** changes integration data shared by every card displaying
   that program. **Apply to program** persists immediately. Cancelling the outer
-  Lovelace editor does not roll it back. This section lives in the **Programs** sidebar panel, administrator-only.
+  Lovelace editor does not roll it back. This section lives in the **Programs** sidebar panel, open to everyone who may edit.
 
 Program-setting drafts and their local undo/redo history survive navigation
 between tabs and programs within the editor. Closing the editor discards unapplied
@@ -265,7 +265,7 @@ is saved.
 
 Sensitive-action authorization is enforced server-side independently of
 `admin_only`; see [actions.py](../custom_components/weekly_planner/actions.py).
-Shared program settings are only shown to HA administrators. Schedule editing and
+Shared program settings are shown to everyone who may edit. Schedule editing and
 contextual setting editing also depend on `can_edit` and storage state. The reload
 action requires administrator permission for user-originated calls.
 

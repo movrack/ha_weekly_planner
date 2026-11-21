@@ -11,7 +11,7 @@ entités créées, les actions et la désinstallation sont dans le [README](../R
 L’éditeur distingue deux portées :
 
 - **Affichage de la carte** : titre, programme ou filtres, vue et visibilité du graphique. Le bouton Enregistrer de Lovelace conserve ces choix pour cette carte.
-- **Réglages des programmes** : données partagées par toutes les cartes. **Appliquer au programme** enregistre immédiatement dans l’intégration. Annuler ensuite l’éditeur Lovelace ne revient pas sur cet enregistrement. Elle se trouve dans le panneau **Programmes** de la barre latérale, réservé aux administrateurs.
+- **Réglages des programmes** : données partagées par toutes les cartes. **Appliquer au programme** enregistre immédiatement dans l’intégration. Annuler ensuite l’éditeur Lovelace ne revient pas sur cet enregistrement. Elle se trouve dans le panneau **Programmes** de la barre latérale, ouvert à toute personne qui peut modifier.
 
 Les brouillons et leur historique Annuler/Rétablir sont conservés entre les onglets
 et les programmes pendant l’édition. Fermer l’éditeur abandonne les modifications
@@ -261,7 +261,7 @@ sont refusées, aussi lors de l’enregistrement d’un programme ou d’un rég
 
 Les actions sensibles sont protégées côté serveur indépendamment de `admin_only`
 (voir [actions.py](../custom_components/weekly_planner/actions.py)). Les réglages
-partagés sont affichés aux administrateurs. Horaires et réglages dépendent aussi
+partagés sont affichés à toute personne qui peut modifier. Horaires et réglages dépendent aussi
 de `can_edit` et de l’état du stockage. Le rechargement demandé par un utilisateur
 nécessite les droits administrateur.
 
