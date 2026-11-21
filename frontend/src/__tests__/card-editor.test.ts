@@ -455,11 +455,31 @@ describe("Show the schedules switch follows the display view", () => {
     ["bars", false], [undefined, false], ["radial", false], ["radial_12h", false],
     ["times", true], ["list", true], ["compare", true],
   ])("view %s: the switch is greyed = %s, with its reason", (view, greyed) => {
-    const out = flat(mk({ program: "a", ...(view ? { schedule_view: view } : {}) }).render());
+    const out = flat(mk({ ...(view ? { schedule_view: view } : {}) }).render());
     expect(out.includes(t("en", "ce_show_schedule_list_why"))).toBe(greyed);
     expect(out.includes("aria-describedby=why-schedule-list")).toBe(greyed);
     expect(out.includes("aria-disabled=true")).toBe(greyed);
     expect(out.includes(t("en", "ce_show_schedule_list"))).toBe(true); // never removed
+  });
+});
+
+describe("List order needs at least two programs", () => {
+  it.each([
+    ["all programs", {}, false],
+    ["two selected", { filter: { programs: ["a", "b"] } }, false],
+    ["one selected", { filter: { programs: ["a"] } }, true],
+    ["none selected", { filter: { programs: [] } }, true],
+    ["a saved single program", { program: "a" }, true],
+  ])("%s: the list order is greyed = %s, with its reason", (_name, config, greyed) => {
+    const out = flat(mk(config).render());
+    expect(out.includes(t("en", "ce_sort_why"))).toBe(greyed);
+    expect(out.includes("aria-describedby=why-sort")).toBe(greyed);
+    expect(out.includes(t("en", "ce_sort"))).toBe(true); // never removed
+  });
+  it("before the data arrives nothing is greyed", () => {
+    const el = mk({ filter: { programs: ["a"] } });
+    el._data = undefined;
+    expect(flat(el.render()).includes(t("en", "ce_sort_why"))).toBe(false);
   });
 });
 

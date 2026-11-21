@@ -10,7 +10,7 @@ import { domainIcon, programDomains, type DomainLocalize } from "./domains";
 import { normalizeConfig, withDefaults } from "./config";
 import { allPrograms, isOn, toggleAllOff, toggleProgram, programRows, toggleType, typeGroups, typeState, type FilterPatch } from "./filter-editor";
 import { t } from "./i18n";
-import { ariaDisabled, whyNote, whyStyles } from "./reason";
+import { ariaDisabled, describedBy, whyNote, whyStyles } from "./reason";
 import { moveId, sortItems, sortMode, SORTS } from "./list-order";
 import { setTimeFormat } from "./time";
 import { usesScheduleList } from "./view-choice";
@@ -149,6 +149,11 @@ export class WeeklyPlannerCardEditor extends LitElement {
     if (value === undefined || value === "" || value === null) delete next[key];
     else next[key] = value;
     this._emit(next as unknown as CardConfig);
+  }
+
+  /** How many programs the card shows with this configuration (what the selection gives); unknown before the data arrives. */
+  private get _shown(): number | undefined {
+    return this._data ? filterPrograms(this._data, { ...this._config, filter: this._filter, program: undefined }, this.hass).length : undefined;
   }
 
   private _setFilter(patch: { types?: string[]; area?: string | string[]; programs?: string[] }): void {
@@ -301,10 +306,13 @@ export class WeeklyPlannerCardEditor extends LitElement {
     const sort = sortMode(this._config.sort);
     const rows = sort === "custom" ? this._customRows() : [];
     const ids = rows.map((r) => r.id);
+    // an order needs at least two programs to mean anything
+    const alone = (this._shown ?? 2) < 2;
     return html`<div class="field"><label for="ce-sort">${this._tr("ce_sort")}</label>
-        <select id="ce-sort" data-value=${sort} @change=${(e: Event) => this._set("sort", (e.target as HTMLSelectElement).value)}>
+        <select id="ce-sort" data-value=${sort} ?disabled=${alone} aria-disabled=${ariaDisabled(alone)} aria-describedby=${describedBy(alone, "why-sort")} @change=${(e: Event) => this._set("sort", (e.target as HTMLSelectElement).value)}>
           ${SORTS.map((v) => html`<option value=${v} ?selected=${v === sort}>${this._tr(`ce_sort_${v}`)}</option>`)}
         </select></div>
+      ${whyNote("why-sort", this._tr("ce_sort_why"), alone)}
       ${sort === "custom" ? html`<ol class="order-list" aria-label=${this._tr("ce_order_list")} aria-describedby="ce-order-hint">
         ${repeat(rows, (r) => r.id, (r, i) => html`<li class="order-row ${r.id === this._moved ? "moved" : ""}" data-order=${r.id}>
           <button class="handle" tabindex="-1" aria-hidden="true" aria-label=${this._tr("ce_drag", { name: r.name })} @pointerdown=${(e: PointerEvent) => this._drag(e, ids, i)}><ha-icon icon="mdi:drag"></ha-icon></button>
