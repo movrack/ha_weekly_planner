@@ -1,5 +1,6 @@
 # Local Home Assistant instance for development and manual testing.
 # Usage: docker compose -f dev/docker-compose.yml up -d  →  http://localhost:8124
+# Build the card first (it is not committed): cd frontend && npm ci && npm run build
 services:
   homeassistant:
     image: ghcr.io/home-assistant/home-assistant:2026.10.2
