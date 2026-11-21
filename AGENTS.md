@@ -124,7 +124,23 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
   stays on screen, **greyed and disabled** (`disabled` and `aria-disabled`), with a **short visible message**
   that says why, linked by `aria-describedby` (EN and FR, shortest clear wording). Never hide it with `nothing`,
   `hidden`, `display: none` or a removed branch. Exceptions: purely decorative elements and loading states.
-  Existing code that hides an element is an inconsistency to report and fix.
+  Existing code that hides an element is an inconsistency to report and fix. The rule covers an element that is
+  usable in **other states**; an element that is never offered in a given context (for example the setting
+  editing buttons inside the compact bars strip, where settings can only be chosen) is not "disappearing": do not
+  add it greyed.
+- **A finding is verified before it is acted on, and before the owner is asked (owner rule, 2026-11-21, after the
+  "several programs on one line" mistake: an audit said an element disappeared when the case cannot happen, the
+  owner was asked to decide on it and unused code was written and deployed).** Every finding of an audit, a review
+  or an agent report (accessibility, performance, dead code, tests, "missing" feature) is checked **in the real
+  code and, for a screen, on the real screen** before work starts: who calls this code, with which values, can the
+  state happen at all (a call chain, a test or a capture of the real card; a forced or simulated state does not
+  prove it). A report states each point as **verified** (with the evidence) or **not verified**; a not verified
+  point is not presented to the owner as a fact and does not start work. Only a verified finding is submitted to
+  the owner for a decision, with the evidence. A briefing sent to an agent asks for this evidence (the caller, the
+  condition, whether the state is reachable) and says which points the agent must not guess.
+- **A visible feature is shown on the real screen before it is closed or delivered (owner rule, 2026-11-21):** a
+  capture of the real card in a real browser (`parker`, real data, not a state forced with DevTools), shown to the
+  owner when it changes what they see. Tests alone do not prove that a feature appears.
 - Bars are editable by touch and mouse (long press, never a plain click; 44 px handles, 15-minute steps, saved on
   release with an undo); typed times accept any minute.
 
