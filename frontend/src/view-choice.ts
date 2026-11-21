@@ -12,7 +12,7 @@ export const usesScheduleList = (view: View | undefined): boolean => SCHEDULE_LI
 const ONE: readonly View[] = ["bars", "radial", "radial_12h", "times"];
 const MANY: readonly View[] = ["list", "compare"];
 /** Every view, in the order of the selector. */
-export const VIEWS: readonly View[] = ["bars", "radial", "radial_12h", "list", "times", "compare"];
+const VIEWS: readonly View[] = ["bars", "radial", "radial_12h", "list", "times", "compare"];
 
 /**
  * The views offered for `count` shown programs: several programs get the compact list and the comparison, exactly one
