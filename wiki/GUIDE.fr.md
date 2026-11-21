@@ -397,7 +397,7 @@ un **Type** (**Tous les types**, puis les pastilles Climatisation, Ouverture… 
 puis la liste **Programmes** : **Tous les programmes** (activé, la carte montre aussi les programmes créés plus tard),
 puis un interrupteur par programme, avec ses appareils dessous. La pièce et le type limitent la liste. Sous **Affichage**, les choix dépendent du nombre de programmes choisis : avec **2 programmes ou plus**, **Liste compacte** ou **Comparateur** ;
 avec **un seul**, **Barres**, **Cadran 24 heures**, **Double cadran 12 heures** ou **Horaires du jour**. Si l’affichage enregistré ne convient plus
-après un changement de sélection, il est remplacé par le premier choix proposé et une note le dit. **Ordre de la liste** n’est proposé qu’à partir de 2 programmes (grisé sinon, avec sa raison). L’interrupteur **Afficher les horaires** ajoute, sous les barres ou le cadran de chaque programme et
+après un changement de sélection, il est remplacé par le premier choix proposé et une note le dit. **Ordre de la liste** n’apparaît (replié sinon) qu’à partir de 2 programmes. L’interrupteur **Afficher les horaires** ajoute, sous les barres ou le cadran de chaque programme et
 au-dessus des boutons **Semaine** et **Graphique du jour**, la liste **Horaires** d’aujourd’hui (une ligne par période,
 avec son réglage) ; un appui long sur une ligne (souris aussi), ou Entrée ou Espace, ouvre cet horaire quand la modification est permise ; un simple clic ne l’ouvre pas (clé `show_schedule_list`).
 Cette liste n’existe ni en liste compacte, ni en **Comparateur**, ni en **Horaires du jour**, qui est déjà cette liste.

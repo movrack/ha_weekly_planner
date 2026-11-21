@@ -463,23 +463,29 @@ describe("Show the schedules switch follows the display view", () => {
   });
 });
 
-describe("List order needs at least two programs", () => {
+describe("List order folds under two programs", () => {
   it.each([
-    ["all programs", {}, false],
-    ["two selected", { filter: { programs: ["a", "b"] } }, false],
-    ["one selected", { filter: { programs: ["a"] } }, true],
-    ["none selected", { filter: { programs: [] } }, true],
-    ["a saved single program", { program: "a" }, true],
-  ])("%s: the list order is greyed = %s, with its reason", (_name, config, greyed) => {
+    ["all programs", {}, true],
+    ["two selected", { filter: { programs: ["a", "b"] } }, true],
+    ["one selected", { filter: { programs: ["a"] } }, false],
+    ["none selected", { filter: { programs: [] } }, false],
+    ["a saved single program", { program: "a" }, false],
+  ])("%s: the list order is unfolded = %s", (_name, config, open) => {
     const out = flat(mk(config).render());
-    expect(out.includes(t("en", "ce_sort_why"))).toBe(greyed);
-    expect(out.includes("aria-describedby=why-sort")).toBe(greyed);
-    expect(out.includes(t("en", "ce_sort"))).toBe(true); // never removed
+    expect(out.includes('class="wp-collapse open" id=ce-sort-fold')).toBe(open);
+    expect(out.includes('class="wp-collapse " id=ce-sort-fold')).toBe(!open);
+    expect(out.includes(t("en", "ce_sort"))).toBe(true); // drawn but folded (inert), not removed or greyed
+    expect(out.includes("why-sort")).toBe(false);
   });
-  it("before the data arrives nothing is greyed", () => {
+  it("the custom order list folds with its field", () => {
+    const folded = flat(mk({ sort: "custom", filter: { programs: ["a"] } }).render());
+    expect(folded.indexOf('id=ce-sort-fold')).toBeLessThan(folded.indexOf('class="order-list"'));
+    expect(folded).toContain('class="wp-collapse " id=ce-sort-fold');
+  });
+  it("before the data arrives the field is unfolded", () => {
     const el = mk({ filter: { programs: ["a"] } });
     el._data = undefined;
-    expect(flat(el.render()).includes(t("en", "ce_sort_why"))).toBe(false);
+    expect(flat(el.render())).toContain('class="wp-collapse open" id=ce-sort-fold');
   });
 });
 

@@ -11,7 +11,7 @@ import { normalizeConfig, withDefaults } from "./config";
 import { allPrograms, isOn, toggleAllOff, toggleProgram, programRows, toggleType, typeGroups, typeState, type FilterPatch } from "./filter-editor";
 import { t } from "./i18n";
 import { collapse, collapseStyles } from "./styles";
-import { ariaDisabled, describedBy, whyNote, whyStyles } from "./reason";
+import { ariaDisabled, whyNote, whyStyles } from "./reason";
 import { moveId, sortItems, sortMode, SORTS } from "./list-order";
 import { setTimeFormat } from "./time";
 import { defaultViewFor, usesScheduleList, viewAllowed, viewsFor, type View } from "./view-choice";
@@ -328,13 +328,12 @@ export class WeeklyPlannerCardEditor extends LitElement {
     const sort = sortMode(this._config.sort);
     const rows = sort === "custom" ? this._customRows() : [];
     const ids = rows.map((r) => r.id);
-    // an order needs at least two programs to mean anything
-    const alone = (this._shown ?? 2) < 2;
-    return html`<div class="field"><label for="ce-sort">${this._tr("ce_sort")}</label>
-        <select id="ce-sort" data-value=${sort} ?disabled=${alone} aria-disabled=${ariaDisabled(alone)} aria-describedby=${describedBy(alone, "why-sort")} @change=${(e: Event) => this._set("sort", (e.target as HTMLSelectElement).value)}>
+    // an order needs at least two programs to mean anything: with fewer the field folds (owner: a collapse is not a disappearance)
+    const open = (this._shown ?? 2) >= 2;
+    return collapse(open, html`<div class="field"><label for="ce-sort">${this._tr("ce_sort")}</label>
+        <select id="ce-sort" data-value=${sort} @change=${(e: Event) => this._set("sort", (e.target as HTMLSelectElement).value)}>
           ${SORTS.map((v) => html`<option value=${v} ?selected=${v === sort}>${this._tr(`ce_sort_${v}`)}</option>`)}
         </select></div>
-      ${whyNote("why-sort", this._tr("ce_sort_why"), alone)}
       ${sort === "custom" ? html`<ol class="order-list" aria-label=${this._tr("ce_order_list")} aria-describedby="ce-order-hint">
         ${repeat(rows, (r) => r.id, (r, i) => html`<li class="order-row ${r.id === this._moved ? "moved" : ""}" data-order=${r.id}>
           <button class="handle" tabindex="-1" aria-hidden="true" aria-label=${this._tr("ce_drag", { name: r.name })} @pointerdown=${(e: PointerEvent) => this._drag(e, ids, i)}><ha-icon icon="mdi:drag"></ha-icon></button>
@@ -342,7 +341,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
             <span class="type-names"><ha-icon class="mini" icon=${this._typeIcons.get(r.type) ?? "mdi:shape-outline"}></ha-icon>${r.type ? this._typeLabel(r.type) : this._tr("sort_other")}</span></span>
           <button class="move up" aria-label=${this._tr("ce_move_up", { name: r.name })} ?disabled=${i === 0} @click=${() => this._move(ids, i, i - 1)}><ha-icon icon="mdi:arrow-up"></ha-icon></button>
           <button class="move down" aria-label=${this._tr("ce_move_down", { name: r.name })} ?disabled=${i === ids.length - 1} @click=${() => this._move(ids, i, i + 1)}><ha-icon icon="mdi:arrow-down"></ha-icon></button></li>`)}
-      </ol><p id="ce-order-hint" class="hint">${this._tr("ce_sort_custom_hint")}</p><p class="sr-only" role="status">${this._announce}</p>` : nothing}`;
+      </ol><p id="ce-order-hint" class="hint">${this._tr("ce_sort_custom_hint")}</p><p class="sr-only" role="status">${this._announce}</p>` : nothing}`, "ce-sort-fold");
   }
 
   /** The display choice: only the views that fit the number of shown programs; a saved view that does not fit stays, with a note. */
