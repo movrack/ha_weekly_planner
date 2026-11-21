@@ -3,7 +3,7 @@ import { WpSchedule, scopeKey } from "../components/schedule-dialog";
 import { chooseAction, confirmAction, pauseChoice } from "../components/confirm";
 import { fetchPreviewResponse } from "../preview-cache";
 import { t } from "../i18n";
-import { flat, handlers, find, valuesAfter } from "./helpers/tpl";
+import { bindings, flat, handlers, find, valuesAfter } from "./helpers/tpl";
 import type { Program } from "../types";
 
 vi.mock("../components/confirm", () => ({ confirmAction: vi.fn(async () => true), pauseChoice: vi.fn(async () => "none"), chooseAction: vi.fn(async () => "source") }));
@@ -584,117 +584,149 @@ describe("schedule screen editing", () => {
     expect(saved.entities[0].default_label).toBe("away");
     expect(saved.entities[1].default_label).toBeNull();
   });
-  describe("the settings box between Mode and Schedules", () => {
-    const toggle = (view: any) => find(view.render(), "click", 'class="box setbox"');
-    const attr = (view: any, name: string) => valuesAfter(view.render(), name);
-    it("is closed by default and only lists the settings that exist", () => {
+  describe("the Settings / Schedules accordion", () => {
+    const expanded = (view: any, panel: string) => valuesAfter(view._panelHeader(panel, "", "", ""), "aria-expanded=")[0];
+    // the header's click starts the switch; a question (if any) is answered on the next turn
+    const header = async (view: any, panel: string) => { find(view.render(), "click", `acc-${panel}-btn`).fn(); await new Promise((r) => setTimeout(r, 0)); };
+    const withPicker = (view: any, dirty: boolean) => {
+      const picker = { dirty, discard: vi.fn() };
+      view.renderRoot = { querySelector: () => picker };
+      return picker;
+    };
+    it("opens on Schedules, Settings folded with its header, chevron and the settings that exist", () => {
       const { view } = make();
+      view.firstUpdated();
+      expect(view._panel).toBe("schedules");
+      expect(expanded(view, "schedules")).toBe(true);
+      expect(expanded(view, "settings")).toBe(false);
       const html = flat(view.render());
       expect(html).toContain(t("en", "settings_legend"));
-      expect(html).toContain("<li><i");
-      expect(html).toContain(">Comfort</li>");
+      expect(html).toContain('<span class="tag"><i class="dot" style="background:#f00"></i>Comfort</span>');
+      expect(html).toContain("aria-controls=acc-settings");
+      // the week, the chart and its sources belong to the Schedules panel
+      expect(html).toContain("aria-controls=acc-schedules acc-week acc-chart acc-options");
+      expect(html).toContain('class="wp-collapse open" id=acc-week');
       expect(html).not.toContain(t("en", "settings_none"));
-      expect(attr(view, 'class="row opts" aria-expanded=')).toEqual([false]);
     });
-    it("opens the controls with its fold, and closes them again", () => {
+    it("summarises the closed Schedules panel with the number of schedules", () => {
       const { view } = make();
-      toggle(view).fn();
-      expect(attr(view, 'class="row opts" aria-expanded=')).toEqual([true]);
-      expect(flat(view.render())).not.toContain("<li><i");
-      toggle(view).fn();
-      expect(attr(view, 'class="row opts" aria-expanded=')).toEqual([false]);
+      view._panel = "settings";
+      expect(flat(view.render())).toContain(t("en", "sched_count_one"));
+      expect(flat(view.render())).toContain('class="wp-collapse " id=acc-week');
+      view._focus = 3;   // no schedule that day
+      expect(flat(view.render())).toContain(t("en", "w_none"));
+      view._focus = null;
+      view.data.programs[0].profiles[0].days[2] = [slot("w", "12:00", "13:00")];
+      expect(flat(view.render())).toContain(t("en", "sched_count", { n: "2" }));
     });
-    it("stays open while there is no setting to create a slot with", () => {
+    it("opens on Settings while there is no setting yet, unless opened from a day", () => {
       const { view } = make(undefined, undefined, { labels: [] });
-      expect(attr(view, 'class="row opts" aria-expanded=')).toEqual([true]);
-      toggle(view).fn();
-      expect(attr(view, 'class="row opts" aria-expanded=')).toEqual([true]);
+      view.firstUpdated();
+      expect(view._panel).toBe("settings");
+      view._panel = "schedules";   // the closed panel says there is none
+      expect(flat(view.render())).toContain(t("en", "settings_none"));
+      const ro = make(undefined, undefined, { labels: [], read_only: true }).view;
+      ro.firstUpdated();
+      expect(ro._panel).toBe("schedules");
     });
-    it("stays shown, folded, while a slot form is open", () => {
+    it("switches at once without a change: opening one closes the other; the open header does nothing", async () => {
+      const { view } = make();
+      const picker = withPicker(view, false);
+      await header(view, "settings");
+      expect(view._panel).toBe("settings");
+      expect(expanded(view, "settings")).toBe(true);
+      expect(expanded(view, "schedules")).toBe(false);
+      await header(view, "settings");
+      expect(view._panel).toBe("settings");
+      await header(view, "schedules");
+      expect(view._panel).toBe("schedules");
+      expect(picker.discard).toHaveBeenCalledTimes(2);   // every switch closes the forms (only the open panel can hold one)
+      expect(confirmAction).not.toHaveBeenCalled();
+    });
+    it("closes an unchanged schedule form without asking when Settings opens", async () => {
       const { view } = make();
       view._add([0]);
-      const html = flat(view.render());
-      expect(html).not.toContain('class="box setbox" ?hidden=');
-      expect(html).toContain(t("en", "settings_legend"));
-      expect(html).toContain("<li><i");
-      expect(attr(view, 'class="row opts" aria-expanded=')).toEqual([false]);
+      await view._showPanel("settings");
+      expect(confirmAction).not.toHaveBeenCalled();
+      expect(view._open).toBeNull();
+      expect(view._panel).toBe("settings");
     });
-    it("lets the fold open while a slot form is open and the schedule form keeps its changes", () => {
-      const { view } = make();
-      view._add([0]);
-      view._group = { ...view._group, slot: { ...view._group.slot, start: { time: "05:00" } } };
-      toggle(view).fn();
-      expect(attr(view, 'class="row opts" aria-expanded=')).toEqual([true]);
-      expect(view._group.slot.start).toEqual({ time: "05:00" });
-      expect(view._open).toBe("new");
-    });
-    it("opening a schedule greys and disables the settings controls, with the reason, without hiding the box", () => {
-      const { view } = make();
-      expect(flat(view.render())).not.toContain(t("en", "finish_schedule_first"));
-      view._add([0]);
-      const html = flat(view.render());
-      expect(html).toContain(t("en", "settings_legend"));
-      expect(html).toContain(t("en", "finish_schedule_first"));
-      expect(view._open).toBe("new");
-      // the fold stays usable to look at the settings: it is not claimed disabled, the reason sits on the picker
-      expect(valuesAfter(view.render(), 'class="row opts" aria-expanded=')).toEqual([false]);
-      expect(valuesAfter(view.render(), "aria-disabled=").length).toBeGreaterThan(0);
-    });
-    it("opening a setting form makes the schedules, week, chart and Delete inert with one reason, and keeps what was typed", () => {
+    it("asks before leaving a changed schedule form: No keeps it, Yes discards it unsaved", async () => {
       const { view } = make();
       view._add([0]);
       view._group = { ...view._group, slot: { ...view._group.slot, start: { time: "05:00" } } };
-      const stop = vi.fn();
-      find(view.render(), "label-form-change", "wp-label-picker .hass").fn({ stopPropagation: stop, detail: true });
-      expect(stop).toHaveBeenCalledOnce();
-      expect(view._settingForm).toBe(true);
-      const html = flat(view.render());
-      expect(html).toContain(t("en", "finish_setting_first"));
-      expect(html).toContain("aria-disabled=");
-      expect(view._group.slot.start).toEqual({ time: "05:00" });
+      vi.mocked(confirmAction).mockResolvedValue(false);
+      await header(view, "settings");
+      expect(confirmAction).toHaveBeenCalledWith(view, t("en", "edit_discard"), t("en", "edit_discard_yes"), t("en", "edit_discard_no"));
+      expect(view._panel).toBe("schedules");
       expect(view._open).toBe("new");
-      // the fold cannot hide the open setting form
-      expect(valuesAfter(view.render(), 'class="row opts" aria-expanded=')).toEqual([true]);
-      find(view.render(), "label-form-change", "wp-label-picker .hass").fn({ stopPropagation: stop, detail: false });
-      expect(view._settingForm).toBe(false);
-      expect(flat(view.render())).not.toContain(t("en", "finish_setting_first"));
       expect(view._group.slot.start).toEqual({ time: "05:00" });
+      vi.mocked(confirmAction).mockResolvedValue(true);
+      await header(view, "settings");
+      expect(view._panel).toBe("settings");
+      expect(view._open).toBeNull();
+      expect(view.hass.callWS).not.toHaveBeenCalled();
     });
-    it("ignores Escape on the open schedule while the setting form is open", async () => {
+    it("asks before leaving a changed rest-of-the-time form", async () => {
       const { view } = make();
-      view._add([0]);
-      view._settingForm = true;
-      const preventDefault = vi.fn();
-      view._onEscape({ preventDefault } as any);
-      expect(preventDefault).toHaveBeenCalled();
-      await Promise.resolve();
-      expect(view._open).toBe("new");
+      find(view.render(), "click", "row rest").fn();
+      expect(view._editDirty).toBe(false);
+      view._restLabel = null;
+      expect(view._editDirty).toBe(true);
+      vi.mocked(confirmAction).mockResolvedValue(false);
+      await view._showPanel("settings");
+      expect(view._open).toBe("rest:switch.demo");
+      expect(view._panel).toBe("schedules");
     });
-    it("asks before closing when the schedule form or the setting form holds changes", async () => {
+    it("asks before leaving a changed setting form: No keeps it, Yes discards it unsaved", async () => {
+      const { view } = make();
+      view._panel = "settings";
+      const picker = withPicker(view, true);
+      vi.mocked(confirmAction).mockResolvedValue(false);
+      await header(view, "schedules");
+      expect(confirmAction).toHaveBeenCalledWith(view, t("en", "setting_discard"), t("en", "edit_discard_yes"), t("en", "edit_discard_no"));
+      expect(view._panel).toBe("settings");
+      expect(picker.discard).not.toHaveBeenCalled();
+      vi.mocked(confirmAction).mockResolvedValue(true);
+      await header(view, "schedules");
+      expect(picker.discard).toHaveBeenCalledOnce();
+      expect(view._panel).toBe("schedules");
+    });
+    it("a schedule form always opens in the Schedules panel", () => {
+      const { view } = make();
+      view._panel = "settings";
+      view._add([0]);
+      expect(view._panel).toBe("schedules");
+    });
+    it("asks once before closing when the open form holds changes", async () => {
       const { view } = make();
       expect(await view._guardClose()).toBe(true);
       view._add([0]);
       view._group = { ...view._group, slot: { ...view._group.slot, start: { time: "05:00" } } };
-      view._settingForm = true;
       vi.mocked(confirmAction).mockResolvedValue(false);
       expect(await view._guardClose()).toBe(false);
+      expect(confirmAction).toHaveBeenCalledTimes(1);
     });
-    it("stays shown, with its controls greyed and the reason, when the screen only edits an inactive mode", () => {
+    it("in an inactive mode the Settings panel can be opened, its controls greyed with the reason", async () => {
       const { view } = make();
       view._viewMode = "Away";
       view.data.mode = { selector: "input_select.mode", active: "Home", options: ["Home", "Away"] };
       expect(view._modeOnly).toBe(true);
+      expect(view._panel).toBe("schedules");
+      await view._showPanel("settings");
       const html = flat(view.render());
       expect(html).toContain(t("en", "settings_legend"));
       expect(html).toContain(t("en", "mode_off_why"));
+      expect(valuesAfter(view.render(), ".value=${this._settingId} ?disabled=").length).toBe(0);
+      expect(bindings(view.render(), "?disabled").length).toBeGreaterThan(0);
     });
     it("follows the setting chosen in its picker, and lets every device give its own value", () => {
       const { view } = make();
       const stop = vi.fn();
       find(view.render(), "label-change", "wp-label-picker .hass").fn({ stopPropagation: stop, detail: "comfort" });
       expect(stop).toHaveBeenCalledOnce();
-      expect(attr(view, ".value=")).toContain("comfort");
-      expect(attr(view, ".entityIds=")).toEqual([["switch.demo", "switch.two"]]);
+      expect(valuesAfter(view.render(), ".value=")).toContain("comfort");
+      expect(valuesAfter(view.render(), ".entityIds=")).toEqual([["switch.demo", "switch.two"]]);
     });
   });
   it("keeps the rest editor open when saving fails", async () => {

@@ -98,14 +98,25 @@ describe("mode choice in the schedules screen", () => {
     view._open = "new";
     const html = flat(view._renderModes());
     expect(html).toContain('class="modesel"');
-    expect(valuesAfter(view._renderModes(), "?disabled=")[0]).toBe(false);
-    expect(view._settingForm).toBe(false);
+    expect(html).not.toContain("?disabled=");
   });
-  it("greys the mode select, with its reason, while a setting form is open", () => {
+  it("picking a mode from the Settings panel asks about a changed setting form, then shows the Schedules panel", async () => {
     const { view } = make();
-    view._settingForm = true;
-    expect(valuesAfter(view._renderModes(), "?disabled=")[0]).toBe(true);
-    expect(flat(view.render())).toContain(t("en", "finish_setting_first"));
+    const picker = { dirty: true, discard: vi.fn() };
+    view.renderRoot = { querySelector: () => picker };
+    view._panel = "settings";
+    vi.mocked(confirmAction).mockResolvedValue(false);
+    const select = { value: "Winter" } as HTMLSelectElement;
+    await view._pickMode("Winter", select);
+    expect(vi.mocked(confirmAction).mock.calls[0][1]).toBe(t("en", "setting_discard"));
+    expect(select.value).toBe("Home");
+    expect(view._panel).toBe("settings");
+    expect(picker.discard).not.toHaveBeenCalled();
+    vi.mocked(confirmAction).mockResolvedValue(true);
+    await view._pickMode("Winter", select);
+    expect(picker.discard).toHaveBeenCalled();
+    expect(view._panel).toBe("schedules");
+    expect(view._openMode).toBe("Winter");
   });
   it("switches mode and abandons the edit without asking when nothing changed", async () => {
     const { view } = make();
@@ -170,12 +181,13 @@ describe("mode options fold", () => {
     view._optsOpen = false;
     const out = flat(view.render());
     expect(out).toContain("Advanced options");
-    expect(out).toContain('class="wp-collapse "'); expect(out).not.toContain("wp-collapse open");   // folded: drawn but closed
+    const opts = flat(view._renderModeOptions());
+    expect(opts).toContain('class="wp-collapse "'); expect(opts).not.toContain("wp-collapse open");   // folded: drawn but closed
     const toggle = handlers(view.render()).find((h: any) => h.event === "click" && String(h.fn).includes("_optsOpen"));
     expect(toggle).toBeTruthy();
     toggle!.fn();
     expect(view._optsOpen).toBe(true);
-    expect(flat(view.render())).toContain("wp-collapse open");
+    expect(flat(view._renderModeOptions())).toContain("wp-collapse open");
     expect(flat(view.render())).toContain("Reuse the schedules of another mode");
   });
 });

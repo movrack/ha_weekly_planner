@@ -136,33 +136,35 @@ Cela ne veut dire ni éteindre ni retrouver le réglage précédent.
 
 ## Je ne trouve pas Confort ou Éco
 
-Dans l’écran d’horaires, ouvrir le cadre **Réglages** (entre **Mode** et **Horaires**) avec **Modifier les réglages**, puis toucher **Nouveau réglage** :
+Dans l’écran d’horaires, sous **Mode**, toucher le titre **Réglages** pour ouvrir ce panneau (le panneau **Horaires** se replie : un seul est ouvert à la fois), puis toucher **Nouveau réglage** :
 
 1. Donner le nom **Confort**.
 2. Choisir une couleur.
 3. Dans la liste **Réglage** (« Que doit faire ce réglage ? »), choisir l’action
    proposée par Home Assistant pour régler la température de cet appareil. Son nom
    dépend de votre installation.
-4. Saisir **20** dans la température, puis enregistrer l’horaire.
+4. Saisir **20** dans la température, puis **Enregistrer**.
 
-Pour créer **Éco**, ouvrir plutôt **Le reste du temps**, puis **Nouveau
-réglage**. Donner le nom Éco, choisir la température **16**, puis enregistrer.
+Pour créer **Éco**, toucher à nouveau **Nouveau réglage** : nom Éco, température **16**, puis **Enregistrer**.
+Pour l’utiliser hors des horaires, ouvrir le panneau **Horaires**, puis **Le reste du temps**.
+Si un formulaire a des changements non enregistrés, ouvrir l’autre panneau demande d’abord :
+**Oui, les abandonner** les perd, **Non, continuer** les garde.
 Si aucune action de température n’apparaît, demander à la personne qui a installé
 le chauffage de vérifier **Appareils → Actions proposées** dans les réglages
 du programme. Les commandes doivent d’abord y être cochées.
 
 Un réglage peut servir à plusieurs programmes. **Changer Confort de 20 à
-21 °C peut donc changer leurs horaires aussi.** Dans le cadre **Réglages**, le crayon ouvre son réglage ; la
+21 °C peut donc changer leurs horaires aussi.** Dans le panneau **Réglages**, le crayon ouvre son réglage ; la
 mention **Aussi utilisé par :** nomme les autres programmes qui s’en servent.
 
 <a href="images/guide/s50-setting-editor.png"><img src="images/guide/s50-setting-editor.png" width="320" alt="Un réglage avec ses Options avancées ouvertes." /></a>
 
-Pour une exception, ouvrir un réglage existant avec le crayon (cadre **Réglages**), puis **Options avancées** :
+Pour une exception, ouvrir un réglage existant avec le crayon (panneau **Réglages**), puis **Options avancées** :
 **Valeur pour cet appareil** permet une autre valeur pour cet appareil seulement
 ([S13](SCREENS.fr.md#s13)). **Revenir à la valeur commune** enlève cette exception. Ces deux
 choix n’existent que pour la modification d’un réglage déjà créé.
 
-Pour supprimer un réglage, ouvrir le cadre **Réglages**, le choisir puis toucher la corbeille à côté du crayon. Une phrase demande
+Pour supprimer un réglage, ouvrir le panneau **Réglages**, le choisir puis toucher la corbeille à côté du crayon. Une phrase demande
 confirmation : **la suppression vaut pour tous les appareils**. Un réglage encore utilisé par un horaire ou un
 programme ne peut pas être supprimé ; la phrase donne les noms des programmes à modifier d’abord.
 

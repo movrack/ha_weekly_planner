@@ -59,9 +59,7 @@ export class WpLabelPicker extends LitElement {
     this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
   }
 
-  /** Tells the window when the setting form opens or closes (its own Save / Cancel pair is then the active one). */
-  updated(changed?: Map<PropertyKey, unknown>): void {
-    if (changed?.has("_form") && (changed.get("_form") !== undefined || this._form)) this._emit("label-form-change", this._form);
+  updated(): void {
     const action = labelOf(this.data, this.value)?.action;
     const key = action?.kind === "service" ? action.service.split(".")[0] : "";
     if (!this.hass || !key || this._loaded === key) return;
@@ -101,6 +99,13 @@ export class WpLabelPicker extends LitElement {
   private _close(): void {
     this._form = false;
     this._error = "";
+  }
+
+  /** Closes the form and the delete question without saving (the window leaves the Settings panel). */
+  discard(): void {
+    this._close();
+    this._confirmDel = false;
+    this._delError = "";
   }
 
   private get _formProblem(): string {

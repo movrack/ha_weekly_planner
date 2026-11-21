@@ -172,7 +172,7 @@ Ponctuelle crée une action lancée une seule fois : elle est lancée au début,
 
 ## S11 — Créer un réglage
 
-Le cadre **Réglages**, entre **Mode** et **Horaires**, s’ouvre avec **Modifier les réglages**. **Nouveau réglage** y définit le nom, la couleur et l’action, avec son propre **Enregistrer** / **Annuler**.
+Sous **Mode**, **Réglages** et **Horaires** forment un accordéon : un seul panneau est ouvert, et seul lui se modifie. **Horaires** est ouvert à l’arrivée ; toucher le titre **Réglages** l’ouvre (le titre fermé garde un résumé). **Nouveau réglage** y définit le nom, la couleur et l’action, avec son propre **Enregistrer** / **Annuler**.
 
 <a href="images/guide/s11-new-label.png"><img src="images/guide/s11-new-label.png" width="320" alt="S11 — Créer un réglage" /></a>
 
@@ -180,7 +180,7 @@ Le cadre **Réglages**, entre **Mode** et **Horaires**, s’ouvre avec **Modifie
 
 ## S12 — Modifier un réglage partagé
 
-Dans le cadre **Réglages** ouvert, le crayon ouvre le réglage sélectionné. La mention « Aussi utilisé par : » nomme les autres programmes qu’une modification concernerait. La corbeille voisine supprime le réglage pour tous les appareils après confirmation ; elle est refusée, avec les noms des programmes concernés, tant que le réglage sert.
+Dans le panneau **Réglages** ouvert, le crayon ouvre le réglage sélectionné. La mention « Aussi utilisé par : » nomme les autres programmes qu’une modification concernerait. La corbeille voisine supprime le réglage pour tous les appareils après confirmation ; elle est refusée, avec les noms des programmes concernés, tant que le réglage sert.
 
 <a href="images/guide/s12-edit-shared-label.png"><img src="images/guide/s12-edit-shared-label.png" width="320" alt="S12 — Modifier un réglage partagé" /></a>
 
