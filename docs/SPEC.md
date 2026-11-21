@@ -304,7 +304,7 @@ Un changement extérieur (utilisateur, autre automatisation) reste donc en place
   (défaut des nouveaux appareils), une liste vide signifie **aucune** commande ; sans ce drapeau
   (configurations existantes), une liste vide ou absente garde **toutes** les commandes. Une
   réglage dont le service n'est pas autorisé pour un appareil est incompatible pour lui (ignorée, avertissement).
-- Cadre du réglage choisi (dans le cadre Réglages ouvert) : lecture seule ; un crayon ouvre un seul formulaire (nom, couleur, action, valeur pour
+- Cadre du réglage choisi (dans le panneau Réglages ouvert) : lecture seule ; un crayon ouvre un seul formulaire (nom, couleur, action, valeur pour
   cet appareil). Jamais plus d'une paire Enregistrer / Annuler visible.
 - Exemples : chauffage `climate.set_temperature {temperature: 18}` ; volet `cover.set_cover_position {position: 30}` ;
   lampe `light.turn_on {brightness_pct: 60}` ; prise `switch.turn_off` ; aspirateur `vacuum.start`.
@@ -571,11 +571,47 @@ Vue de **lecture** de la journée d'aujourd'hui ; elle remplace la barre / le ca
   « Rien » ; interrupteur de pause, dupliquer, supprimer (§ 18, confirmé, bouton rouge isolé) ; fermeture par glissement
   vers le bas sur téléphone.
 - **Réglages** : modifiés uniquement par programme, dans la fenêtre d'horaires (pas de fenêtre globale sur la carte).
-  Toute la gestion (ajouter, modifier, supprimer, remplacer puis supprimer) est dans le cadre **Réglages**, entre **Mode** et
-  **Horaires** (#75) : fermé par défaut, il ne liste que les réglages existants (une ligne de points colorés et de noms) ;
-  « Modifier les réglages » (`mdi:chevron-down`, repli animé `collapse`) ouvre les contrôles ; ouvert d'office tant qu'aucun
-  réglage n'existe ; masqué (`hidden`, état conservé) pendant qu'un formulaire d'horaire est ouvert, pour ne jamais voir deux
-  paires Enregistrer / Annuler ; absent pour un mode seulement édité. Le formulaire d'horaire et « Reste du temps » ne
+  Toute la gestion (ajouter, modifier, supprimer, remplacer puis supprimer) est dans le panneau **Réglages**. Sous
+  l'interrupteur « Programme actif », **Mode** (seulement avec un sélecteur de mode), **Réglages** et **Horaires** sont
+  les trois panneaux d'un **accordéon** (propriétaire, 2026-11-21 ; Mode ajouté le même jour) : un seul est ouvert à la
+  fois, en ouvrir un referme les autres, et seul le panneau ouvert est modifiable. Le panneau **Mode** contient le choix
+  du mode, l'avis « Ce mode n'est pas actif » et les options avancées du mode (suivre un mode, reprendre les horaires d'un
+  autre) ; son en-tête montre toujours, ouvert ou replié, le mode ouvert et s'il est actif (« Présent (Actif) »,
+  « Absent · pas actif »). L'avis d'un mode qui n'existe plus (`wp-mode-notice`) reste au-dessus de l'accordéon. À
+  l'ouverture de la fenêtre, **Horaires** est ouvert, **Mode** et **Réglages** repliés (la configuration des horaires reste l'essentiel) ; exceptions :
+  « Créer un réglage » de l'écran vide, ou aucun réglage encore (modification permise et fenêtre non ouverte depuis un
+  jour), ouvrent **Réglages**. Le panneau **Horaires** comprend les appareils, « Le reste du temps », la liste des horaires
+  et le jour férié ; la semaine, le graphique et ses options lui appartiennent aussi et se replient avec lui (dans leurs
+  propres cases de la grille sur grand écran). Un panneau fermé garde son en-tête (il ne disparaît jamais) : titre,
+  chevron (`mdi:chevron-down` / `mdi:chevron-up`) et un court résumé (Mode : voir plus haut, aussi quand il est ouvert ;
+  Réglages : points colorés et noms des réglages, ou « Aucun réglage » ; Horaires : « N horaires », ou « Aucun
+  horaire. ») sur une seule ligne, coupé par des points de suspension, le texte complet formant le nom accessible de
+  l'en-tête ; tous les en-têtes, ouverts ou fermés, gardent la même hauteur (56 px au moins) ; l'en-tête est un bouton (Entrée / Espace,
+  `aria-expanded`, `aria-controls`), le contenu un repli animé `collapse` (sans animation si l'utilisateur la réduit) ;
+  l'en-tête du panneau ouvert ne fait rien. Un panneau qui se replie alors que le focus est dans son contenu (mode choisi
+  dans sa liste, formulaire fermé) renvoie le focus sur son en-tête. Ordre de tabulation : interrupteur, en-têtes Mode,
+  Réglages, Horaires (les contrôles du panneau ouvert après son en-tête), puis Supprimer et Fermer. Ouvrir un autre panneau quand le formulaire ouvert (réglage, horaire ou
+  « Le reste du temps ») a des changements non enregistrés demande d'abord, une seule question, avec le composant de
+  confirmation existant (« Abandonner les changements… ? », « Oui, les abandonner » / « Non, continuer ») : « Non » garde
+  le panneau et la saisie, « Oui » abandonne les changements (non enregistrés) et ouvre le panneau demandé ; sans changement, la
+  bascule est immédiate et ferme le formulaire ouvert. Le panneau Mode n'a rien à abandonner : ses choix s'appliquent
+  aussitôt. Jamais deux paires Enregistrer / Annuler actives. Choisir un autre mode pose la même question si besoin, puis
+  rouvre **Horaires**. Mode non actif : **Horaires** ouvert ; **Réglages** peut
+  être ouvert pour consulter, ses contrôles grisés (« Ce n'est pas le mode actif. »). Lecture seule : **Horaires** ouvert ;
+  **Réglages** consultable, contrôles désactivés, avis de lecture seule. Cet accordéon remplace le verrou à deux sens du
+  2026-11-21 (« Terminez d'abord le réglage. », section Horaires `inert` pendant un réglage, contrôles des Réglages grisés
+  pendant un horaire). Règle « un élément ne disparaît jamais » (2026-11-21) : un élément inutilisable reste affiché,
+  grisé, `disabled` + `aria-disabled`, avec un message court lié par `aria-describedby` et affiché hors de la zone grisée,
+  contraste ≥ 4,5:1 ; helpers communs dans `reason.ts`. Horaire ouvert → un message en tête « Terminez d'abord
+  l'horaire. » ; grisés : interrupteur « Programme actif », Ajouter, Supprimer, graphique et ses options, jour férié,
+  options du mode, « Toute la semaine », pastilles d'appareils. Autres éléments toujours affichés : « Dupliquer » d'un
+  nouvel horaire (« Enregistrez d'abord l'horaire. »), « Reprendre les horaires d'un autre mode » et « Suivre un mode »
+  sans choix possible, en lecture seule ou si le mode en suit un autre ; mode non actif : interrupteur, contrôles des
+  Réglages, « Le reste du temps » et Supprimer grisés (« Ce n'est pas le mode actif. ») ; dans les sélecteurs de réglage
+  du formulaire d'horaire, crayon, corbeille et « Nouveau réglage » grisés (« Les réglages se gèrent dans la section
+  Réglages. ») ; corbeille d'un réglage utilisé grisée avec la raison. Lecture seule : l'interrupteur renvoie à l'avis
+  de lecture seule. La fermeture de la fenêtre (Échap, fond, croix, glissement) demande confirmation, une seule fois, si
+  le formulaire ouvert est modifié. Le formulaire d'horaire et « Reste du temps » ne
   font que choisir un réglage (`readonly-settings`). « + Nouveau réglage » ouvre un mini-formulaire en ligne (nom, couleur de la palette de 12, action par le sélecteur
   générique ou une scène) qui crée le réglage et le sélectionne ; pour le réglage choisi, « Valeur pour cet appareil »
   modifie la valeur propre de l'appareil (même sélecteur) avec « Revenir à la valeur commune ».
@@ -669,7 +705,7 @@ Barre « Auj. » et sept barres de la semaine, doigt et souris (événements poi
 - **Logique pure** (`edits.ts`, tests vitest) : `moveBoundary`, `splitAt`, `setLabel`, `removeSlot`, `copyConflicts` / `copyToDays`, `mergeAdjacent`.
 - **Icônes solaires** : `mdi:weather-sunset-up` / `-down` à la position de toute frontière ou repère dépendant du soleil.
 - **Trait « maintenant »** : icône `mdi:clock-outline` (12–14 px) centrée au-dessus, hors de la barre, `aria-label` « Maintenant » ; aussi sur le graphique.
-- **Renommer un réglage sur place** (cadre Réglages de l'écran d'horaires) : crayon `mdi:pencil`, nom + couleur + action, `weekly_planner/label/save`, « Partagé » si utilisée ailleurs.
+- **Renommer un réglage sur place** (panneau Réglages de l'écran d'horaires) : crayon `mdi:pencil`, nom + couleur + action, `weekly_planner/label/save`, « Partagé » si utilisée ailleurs.
 - **Mise à jour automatique de la carte** : `card_version` dans `get` / `subscribe` ; différent de celui du bundle chargé et page au repos → rechargement
   unique (mémorisé dans `sessionStorage`) ; `get` interrogé aussi toutes les 5 min et au retour de la page visible.
 - Les éditions sur barre, les reprises de conflit et « Annuler » restent attachées au mode d'origine (§ 17) ; la

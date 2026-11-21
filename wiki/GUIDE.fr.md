@@ -85,9 +85,10 @@ Prenons cet exemple pour le chauffage du salon :
 Toucher le **calendrier avec un crayon**, à droite de Chauffage du salon.
 Les horaires déjà créés apparaissent sous les sept barres de la semaine.
 Si rien n'est encore réglé pour un appareil, la carte affiche sur sa ligne un bouton **Créer un réglage** à la place des barres : il ouvre directement le formulaire d'un premier horaire pour cet appareil.
-En haut de l’écran, l’interrupteur **Programme actif** arrête ou remet en marche le programme ; viennent ensuite,
-dans le cadre **Mode** (si un sélecteur de mode est réglé), le choix du mode, puis le cadre **Horaires** ; à la fin de ce cadre, la section repliable **Jour férié**
-(visible seulement si une entité jour férié est réglée).
+En haut de l’écran, l’interrupteur **Programme actif** arrête ou remet en marche le programme ; viennent ensuite
+trois panneaux qui s’ouvrent un à la fois : **Mode** (si un sélecteur de mode est réglé ; son titre rappelle toujours
+le mode affiché et s’il est actif), **Réglages** et **Horaires**, ouvert à l’arrivée ; à la fin de **Horaires**, la section
+repliable **Jour férié** (visible seulement si une entité jour férié est réglée).
 
 <a href="images/guide/s06-schedules.png"><img src="images/guide/s06-schedules.png" width="320" alt="Les horaires du chauffage : Confort le matin et le soir, Éco le reste du temps." /></a>
 
@@ -136,33 +137,35 @@ Cela ne veut dire ni éteindre ni retrouver le réglage précédent.
 
 ## Je ne trouve pas Confort ou Éco
 
-Dans l’écran d’horaires, ouvrir le cadre **Réglages** (entre **Mode** et **Horaires**) avec **Modifier les réglages**, puis toucher **Nouveau réglage** :
+Dans l’écran d’horaires, toucher le titre **Réglages** pour ouvrir ce panneau (le panneau **Horaires** se replie : un seul est ouvert à la fois), puis toucher **Nouveau réglage** :
 
 1. Donner le nom **Confort**.
 2. Choisir une couleur.
 3. Dans la liste **Réglage** (« Que doit faire ce réglage ? »), choisir l’action
    proposée par Home Assistant pour régler la température de cet appareil. Son nom
    dépend de votre installation.
-4. Saisir **20** dans la température, puis enregistrer l’horaire.
+4. Saisir **20** dans la température, puis **Enregistrer**.
 
-Pour créer **Éco**, ouvrir plutôt **Le reste du temps**, puis **Nouveau
-réglage**. Donner le nom Éco, choisir la température **16**, puis enregistrer.
+Pour créer **Éco**, toucher à nouveau **Nouveau réglage** : nom Éco, température **16**, puis **Enregistrer**.
+Pour l’utiliser hors des horaires, ouvrir le panneau **Horaires**, puis **Le reste du temps**.
+Si un formulaire a des changements non enregistrés, ouvrir l’autre panneau demande d’abord :
+**Oui, les abandonner** les perd, **Non, continuer** les garde.
 Si aucune action de température n’apparaît, demander à la personne qui a installé
 le chauffage de vérifier **Appareils → Actions proposées** dans les réglages
 du programme. Les commandes doivent d’abord y être cochées.
 
 Un réglage peut servir à plusieurs programmes. **Changer Confort de 20 à
-21 °C peut donc changer leurs horaires aussi.** Dans le cadre **Réglages**, le crayon ouvre son réglage ; la
+21 °C peut donc changer leurs horaires aussi.** Dans le panneau **Réglages**, le crayon ouvre son réglage ; la
 mention **Aussi utilisé par :** nomme les autres programmes qui s’en servent.
 
 <a href="images/guide/s50-setting-editor.png"><img src="images/guide/s50-setting-editor.png" width="320" alt="Un réglage avec ses Options avancées ouvertes." /></a>
 
-Pour une exception, ouvrir un réglage existant avec le crayon (cadre **Réglages**), puis **Options avancées** :
+Pour une exception, ouvrir un réglage existant avec le crayon (panneau **Réglages**), puis **Options avancées** :
 **Valeur pour cet appareil** permet une autre valeur pour cet appareil seulement
 ([S13](SCREENS.fr.md#s13)). **Revenir à la valeur commune** enlève cette exception. Ces deux
 choix n’existent que pour la modification d’un réglage déjà créé.
 
-Pour supprimer un réglage, ouvrir le cadre **Réglages**, le choisir puis toucher la corbeille à côté du crayon. Une phrase demande
+Pour supprimer un réglage, ouvrir le panneau **Réglages**, le choisir puis toucher la corbeille à côté du crayon. Une phrase demande
 confirmation : **la suppression vaut pour tous les appareils**. Un réglage encore utilisé par un horaire ou un
 programme ne peut pas être supprimé ; la phrase donne les noms des programmes à modifier d’abord.
 
@@ -319,8 +322,10 @@ indisponible, le dernier mode valide reste actif. Des
 
 <a href="images/guide/s48-mode-select.png"><img src="images/guide/s48-mode-select.png" width="320" alt="La liste Mode des horaires, un mode qui suit un autre et la notice Ce mode n’est pas actif." /></a>
 
-Toucher le calendrier avec un crayon ouvre les horaires. En haut, dans le cadre **Mode**, une
-liste **Mode** propose chaque mode ; le mode actif porte « (Actif) » et l’écran s’ouvre dessus.
+Toucher le calendrier avec un crayon ouvre les horaires. En haut, le titre **Mode** rappelle le mode
+affiché, par exemple « Présent (Actif) » ou « Absent · pas actif ». Le toucher ouvre ce panneau : une
+liste **Mode** propose chaque mode ; le mode actif porte « (Actif) » et l’écran s’ouvre dessus. Choisir
+un mode rouvre **Horaires** sur les horaires de ce mode.
 Un mode qui n’est plus une option du sélecteur est marqué « (n’existe plus) », et un mode qui suit
 un autre « (mêmes horaires que X) ».
 

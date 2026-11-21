@@ -1,6 +1,7 @@
 // Choice of a label for a slot (or for "the rest of the time"): the labels that suit the devices, as coloured
 // chips; "+ New label" opens a small inline form; the value of the chosen label can be set for one device.
 
+import { ariaDisabled, describedBy, whyNote, whyStyles } from "../reason";
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "./action-picker";
@@ -98,6 +99,13 @@ export class WpLabelPicker extends LitElement {
   private _close(): void {
     this._form = false;
     this._error = "";
+  }
+
+  /** Closes the form and the delete question without saving (the window leaves the Settings panel). */
+  discard(): void {
+    this._close();
+    this._confirmDel = false;
+    this._delError = "";
   }
 
   private get _formProblem(): string {
@@ -248,10 +256,11 @@ export class WpLabelPicker extends LitElement {
     const msg = this._delError
       || (users.length ? t(lang, "lb_delete_used", { name, programs: users.join(", ") }) : t(lang, "lb_delete_ask", { name }));
     return html`<div class="delbox" role="alert">
-      ${used ? callout("error", "", msg) : html`<p>${msg}</p>`}
+      ${used ? html`<div id="why-del">${callout("error", "", msg)}</div>` : html`<p>${msg}</p>`}
       <div class="btns">
-        ${used ? nothing : html`<button class="btn danger-line" ?disabled=${this._saving || this.disabled} @click=${() => void this._delete(chosen)}>
-          <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete")}</button>`}
+        <button class="btn danger-line" ?disabled=${this._saving || this.disabled || used} aria-disabled=${ariaDisabled(used)}
+          aria-describedby=${describedBy(used, "why-del")} @click=${() => void this._delete(chosen)}>
+          <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete")}</button>
         <button class="btn" @click=${() => { this._confirmDel = false; this._delError = ""; }}>${t(lang, used ? "close" : "cancel")}</button>
       </div>
     </div>`;
@@ -345,11 +354,13 @@ export class WpLabelPicker extends LitElement {
       <div class="details" style="--lc:${chosen.color}">
         <div class="dhead">
           <i class="dot" style="background:${chosen.color}"></i><b>${labelName(this.hass, this._form && this._editId === chosen.id && this._action ? { ...chosen, action: this._action, show_value: this._canShowValue && this._showValue } : chosen, this.entityIds[0])}</b>
-          ${this.readonlySettings ? nothing : html`<button class="pen ${this._form ? "on" : ""}" aria-label=${t(lang, "rename_label")} title=${t(lang, "rename_label")}
-            aria-pressed=${this._form} ?disabled=${this.disabled}
+          ${this.compact ? nothing : html`<button class="pen ${this._form ? "on" : ""}" aria-label=${t(lang, "rename_label")} title=${t(lang, "rename_label")}
+            aria-pressed=${this._form} ?disabled=${this.disabled || this.readonlySettings} aria-disabled=${ariaDisabled(this.readonlySettings)}
+            aria-describedby=${describedBy(this.readonlySettings, "why-manage")}
             @click=${() => (this._form && this._editId ? this._close() : this._open(true))}><ha-icon icon="mdi:pencil"></ha-icon></button>
           <button class="pen ${this._confirmDel ? "on" : ""}" aria-label=${t(lang, "lb_delete")} title=${t(lang, "lb_delete")}
-            aria-expanded=${this._confirmDel} ?disabled=${this.disabled}
+            aria-expanded=${this._confirmDel} ?disabled=${this.disabled || this.readonlySettings} aria-disabled=${ariaDisabled(this.readonlySettings)}
+            aria-describedby=${describedBy(this.readonlySettings, "why-manage")}
             @click=${() => { this._confirmDel = !this._confirmDel; this._delError = ""; }}><ha-icon icon="mdi:delete-outline"></ha-icon></button>`}
         </div>
         ${(() => {
@@ -378,39 +389,41 @@ export class WpLabelPicker extends LitElement {
       .sort((a, b) => labelName(this.hass, a).localeCompare(labelName(this.hass, b), lang, { numeric: true, sensitivity: "base" }));
     const chosen = labelOf(this.data, this.value);
     const chip = (name: string, on: boolean, click: () => void, color?: string) => html`
-      <button class="chip ${on ? "on" : ""}" role="radio" aria-checked=${on} ?disabled=${this.disabled} @click=${click}>
+      <button class="chip ${on ? "on" : ""}" role="radio" aria-checked=${on} aria-label=${name} ?disabled=${this.disabled} @click=${click}>
         ${color ? html`<i class="dot" style="background:${color}"></i>` : nothing}<span>${name}</span></button>`;
     return html`
       <div class="chips" role="radiogroup" aria-label=${t(lang, "action")}>
         ${this.allowNone ? chip(t(lang, "rest_none"), this.value === null, () => this._choose(null)) : nothing}
         ${labels.map((l) => chip(labelName(this.hass, l, this.entityIds[0]), l.id === this.value, () => this._choose(l.id), l.color))}
         ${this.value && !chosen ? chip("?", true, () => undefined) : nothing}
-        ${this.compact || this.readonlySettings ? nothing : html`<button class="chip add ${this._form && !this._editId ? "on" : ""}" ?disabled=${this.disabled}
+        ${this.compact ? nothing : html`<button class="chip add ${this._form && !this._editId ? "on" : ""}" ?disabled=${this.disabled || this.readonlySettings}
+          aria-disabled=${ariaDisabled(this.readonlySettings)} aria-describedby=${describedBy(this.readonlySettings, "why-manage")}
           @click=${() => (this._form && !this._editId ? this._close() : this._open(false))}>
           <ha-icon icon="mdi:plus"></ha-icon><span>${t(lang, "lb_new")}</span></button>`}
       </div>
+      ${whyNote("why-manage", t(lang, "lb_manage_above"), this.readonlySettings && !this.compact)}
       ${this._form && !this._editId && !this.readonlySettings ? this._renderForm() : nothing}
       ${chosen && !(this._form && !this._editId && !this.readonlySettings) ? this._renderDetails(chosen) : nothing}`;
   }
 
-  static styles = [editorStyles, css`
+  static styles = [editorStyles, whyStyles, css`
     :host { display: block; }
     .check { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 0.9em; font-weight: normal; cursor: pointer; }
     .check input { width: auto; min-height: 0; margin: 0; }
-    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; max-width: 100%; }
     .details {
       margin-top: 10px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--lc);
       border-left-width: 4px; background: color-mix(in srgb, var(--lc) 10%, transparent);
     }
     .dhead { display: flex; align-items: center; gap: 8px; min-height: 40px; }
-    .dhead b { flex: 1; min-width: 0; }
+    .dhead b { flex: 1; min-width: 0; overflow-wrap: anywhere; }
     .details .k { color: var(--secondary-text-color); }
     .chip {
       display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 16px; border-radius: 24px;
       border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem;
-      cursor: pointer; --mdc-icon-size: 20px; max-width: 100%;
+      cursor: pointer; --mdc-icon-size: 20px; max-width: 100%; min-width: 0; box-sizing: border-box;
     }
-    .chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chip span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .chip.on { border: 2px solid var(--wp-primary-text); font-weight: 600; }
     .chip.add { border-style: dashed; color: var(--wp-primary-text); }
     .chip:disabled { opacity: 0.5; cursor: default; }

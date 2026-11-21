@@ -299,7 +299,7 @@ describe("deleting", () => {
   });
   it.each([
     ["asking", "", 1],
-    ["showing a refusal", "x", 0],
+    ["showing a refusal", "x", 1],
   ])("cancelling the delete box while %s clears the confirmation and the refusal", (_state, error, button) => {
     const el = mk();
     el._delError = error;
@@ -325,6 +325,22 @@ describe("choosing", () => {
     const el = mk();
     el._choose("l");
     expect(el.dispatchEvent.mock.calls[0][0]).toMatchObject({ type: "label-change", detail: "l", bubbles: true, composed: true });
+  });
+});
+
+describe("leaving the Settings panel", () => {
+  it("discard closes the form and the delete question without saving", () => {
+    const el = mk();
+    el._open(false);
+    el._name = "Typed";
+    el._confirmDel = true;
+    el._delError = "x";
+    expect(el.dirty).toBe(true);
+    el.discard();
+    expect(el._form).toBe(false);
+    expect(el._confirmDel).toBe(false);
+    expect(el._delError).toBe("");
+    expect(el.dirty).toBe(false);
   });
 });
 

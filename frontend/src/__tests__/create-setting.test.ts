@@ -76,11 +76,11 @@ describe("Create a setting (dialog)", () => {
     expect(flat(dialog(false, false).render())).not.toContain("Create a setting");
     expect(flat(dialog(true, false).render())).toContain("Add a schedule");
   });
-  it("opens the Settings box on a new setting when created from the card", () => {
+  it("opens the Settings panel on a new setting when created from the card", () => {
     const v = dialog(false, true);
     v.firstUpdated();
     expect(v._open).toBeNull();
-    expect(v._settingsOpen).toBe(true);
+    expect(v._panel).toBe("settings");
     expect(flat(v.render())).toContain("start-new");
   });
   it("asks before closing while the setting form holds changes", async () => {

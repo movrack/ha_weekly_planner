@@ -3,6 +3,7 @@ import { TIMELINE } from "../timeline-geometry";
 // the time, the chart of the day, the pause switch and the delete button.
 
 import { LitElement, css, html, nothing } from "lit";
+import { ariaDisabled, describedBy, whyNote, whyStyles } from "../reason";
 import { customElement, property, state } from "lit/decorators.js";
 import "./chart";
 import "./chart-options";
@@ -43,6 +44,9 @@ export type Scope = { kind: "device"; entityId: string } | { kind: "program"; pr
 
 export const scopeKey = (scope: Scope): string => (scope.kind === "device" ? `d:${scope.entityId}` : `p:${scope.programId}`);
 
+/** The panels of the window's accordion, in their order (Mode only with a mode selector). */
+type Panel = "mode" | "settings" | "schedules";
+
 const BACK = 14;
 const AHEAD = 7;
 
@@ -56,8 +60,12 @@ export class WpSchedule extends LitElement {
   @state() private _viewMode: string | null = null;
   @state() private _copyOpen = false;
   @state() private _optsOpen = false;
-  /** The settings box is unfolded (its controls shown), and the setting it shows the details of. */
-  @state() private _settingsOpen = false;
+  /**
+   * The open panel of the Mode / Settings / Schedules accordion (owner, 2026-11-21): exactly one is open and only the
+   * open one is editable; Schedules is open when the window opens.
+   */
+  @state() private _panel: Panel = "schedules";
+  /** The setting the Settings panel shows the details of. */
   @state() private _settingId: string | null = null;
   private _editProfileId: string | null = null;
   /** Mode of the row being edited (null: no mode, the first schedules). */
@@ -77,7 +85,7 @@ export class WpSchedule extends LitElement {
   }
   private _renderChartOptions() {
     const owner = this._chartOwner();
-    if (!this.chart || !owner || !this._eid || this._modeOnly || this._open !== null) return nothing;
+    if (!this.chart || !owner || !this._eid || this._modeOnly) return nothing;
     const context = this._chartContext?.programId === owner.id && this._chartContext.entityId === this._eid ? this._chartContext : null;
     return html`<wp-chart-options .hass=${this.hass} .data=${this.data} .program=${owner} .entityId=${this._eid}
       .mainUnit=${context?.mainUnit ?? null} .histories=${context?.histories ?? {}}
@@ -103,6 +111,8 @@ export class WpSchedule extends LitElement {
   private _origin: SlotGroup | null = null;
   /** The form's group as opened (JSON), to tell unsaved changes from none. */
   private _initialGroup = "";
+  /** The setting of "the rest of the time" as its form opened, to tell unsaved changes from none. */
+  private _initialRest: string | null = null;
   /** Last program saved from here: newer than the pushed data until the push arrives. */
   private _saved: Record<string, Program> = {};
   @state() private _restLabel: string | null = null;
@@ -258,10 +268,12 @@ export class WpSchedule extends LitElement {
   firstUpdated(): void {
     this._loadNames();
     if (this.create && !this.day) {
-      // the empty screen's button leads to the Settings box, open on the creation of a setting
-      if (!this._rows().length && this._canEdit) this._settingsOpen = true;
+      // the empty screen's button leads to the Settings panel, open on the creation of a setting
+      if (!this._rows().length && this._canEdit) this._panel = "settings";
       return;
     }
+    // no setting yet: the first one has to be created in the Settings panel
+    if (!this.day && this._canEdit && !labelsFor(this.hass, this.data, this._entities, this._programs[0]).length) this._panel = "settings";
     if (!this.day) return;
     const { weekday, offset } = this.day;
     if (offset >= -BACK && offset <= AHEAD) this._offset = offset;
@@ -322,11 +334,13 @@ export class WpSchedule extends LitElement {
   ): void {
     this._editMode = this._openMode;
     this._editProfileId = this._modeProfile(program)?.id ?? newId();
+    this._setPanel("schedules");  // a schedule form lives in the Schedules panel
     this._open = key;
     this._programId = program.id;
     this._group = group ? structuredClone(group) : null;
     this._initialGroup = JSON.stringify(this._group);
     this._restLabel = opts.restLabel ?? null;
+    this._initialRest = this._restLabel;
     this._rest = opts.rest ?? null;
     this._dayOnly = opts.dayOnly ?? null;
     this._openId = opts.openId ?? null;
@@ -393,9 +407,10 @@ export class WpSchedule extends LitElement {
     void this._guardClose().then((ok) => { if (ok) this._cancel(); });
   }
 
-  private _cancel(): void {
+  /** Closes the open schedule form without saving; `refocus`: the focus goes back to its row. */
+  private _cancel(refocus = true): void {
     const closed = this._open;
-    if (closed !== null) this._focusRow(closed);
+    if (closed !== null && refocus) this._focusRow(closed);
     this._editProfileId = null;
     this._editMode = null;
     this._open = null;
@@ -820,11 +835,79 @@ export class WpSchedule extends LitElement {
    */
   private readonly _guardClose = async (): Promise<boolean> => {
     const lang = this._lang;
-    const picker = this.renderRoot.querySelector<HTMLElement & { dirty: boolean }>("wp-label-picker:not([readonly-settings])");
     const slot = this._editDirty;
-    if (!slot && !picker?.dirty) return true;
+    if (!slot && !this._settingsPicker()?.dirty) return true;
     return confirmAction(this, t(lang, slot ? "edit_discard" : "setting_discard"), t(lang, "edit_discard_yes"), t(lang, "edit_discard_no"));
   };
+
+  /** The picker of the Settings panel (the one that manages the settings; "the rest of the time" only chooses one). */
+  private _settingsPicker(): (HTMLElement & { dirty: boolean; discard(): void }) | null {
+    return this.renderRoot.querySelector("wp-label-picker:not([readonly-settings])");
+  }
+
+  /** The question asked before the open panel's form is left (null: it holds no unsaved change). */
+  private _leaveQuestion(): "edit_discard" | "setting_discard" | null {
+    if (this._panel === "schedules") return this._editDirty ? "edit_discard" : null;
+    if (this._panel === "mode") return null;   // its choices apply at once: nothing is left unsaved
+    return this._settingsPicker()?.dirty ? "setting_discard" : null;
+  }
+
+  /** Closes the forms of the window without saving (the schedule form, the setting form and its delete question). */
+  private _closeForms(): void {
+    if (this._open !== null) this._cancel(false);
+    this._settingsPicker()?.discard();
+  }
+
+  /**
+   * Leaves the open panel: its form with unsaved changes asks first (one question, same buttons as when the window
+   * closes); "No" keeps the panel and what was typed (false), "Yes" or no change closes its form without saving (true).
+   * Without a change nothing is awaited: the switch is immediate.
+   */
+  private _leavePanel(): boolean | Promise<boolean> {
+    const question = this._leaveQuestion();
+    if (question === null) { this._closeForms(); return true; }
+    const lang = this._lang;
+    return confirmAction(this, t(lang, question), t(lang, "edit_discard_yes"), t(lang, "edit_discard_no"))
+      .then((yes) => { if (yes) this._closeForms(); return yes; });
+  }
+
+  /** Opens a panel of the accordion (the other one closes); the open panel's header does nothing. */
+  private async _showPanel(panel: Panel): Promise<void> {
+    if (panel === this._panel) return;
+    const left = this._leavePanel();
+    if (left === true || (await left)) this._setPanel(panel);
+  }
+
+  /** What a panel opens and folds (Schedules also holds the week, the chart and its sources, in their own grid cells). */
+  private _panelParts(panel: Panel): string[] {
+    return panel === "schedules" ? ["acc-schedules", "acc-week", "acc-chart", "acc-options"] : [`acc-${panel}`];
+  }
+
+  /**
+   * Opens a panel and folds the open one. When the focus is inside the panel that folds (a mode just picked in its
+   * select, a form closed under the cursor), it moves to that panel's header instead of falling to the page.
+   */
+  private _setPanel(panel: Panel): void {
+    const from = this._panel;
+    if (panel === from) return;
+    const active = (this.renderRoot as ShadowRoot).activeElement;
+    const inside = Boolean(active) && this._panelParts(from).some((id) => this.renderRoot.querySelector(`#${id}`)?.contains(active));
+    this._panel = panel;
+    if (inside) void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(`#acc-${from}-btn`)?.focus());
+  }
+
+  /**
+   * Id of the reason shown for what is not usable right now (null: everything is usable): a schedule form is open, or
+   * the opened mode is not the active one.
+   */
+  private get _lockId(): string | null {
+    return this._open !== null || this._modeOnly ? "why-top" : null;
+  }
+
+  /** Content shown but inert and greyed while a schedule form is open. */
+  private _dim(off: boolean, content: unknown) {
+    return html`<div class="dim" ?inert=${off}>${content}</div>`;
+  }
 
   private _closeDialog(): void {
     this.renderRoot.querySelector<HTMLElement & { close(): void }>("wp-dialog")?.close();
@@ -892,8 +975,9 @@ export class WpSchedule extends LitElement {
         <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRow()}>${t(lang, "save")}</button>
         <button class="btn" @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
       </div>
-      ${isNew ? nothing : html`<button class="btn dup" ?disabled=${!this._canEdit} @click=${() => this._duplicate()}>
-        <ha-icon icon="mdi:content-copy"></ha-icon>${t(lang, "duplicate")}</button>`}
+      <button class="btn dup" ?disabled=${!this._canEdit || isNew} aria-disabled=${ariaDisabled(isNew)} aria-describedby=${describedBy(isNew, "why-dup")} @click=${() => this._duplicate()}>
+        <ha-icon icon="mdi:content-copy"></ha-icon>${t(lang, "duplicate")}</button>
+      ${whyNote("why-dup", t(lang, "dup_save_first"), isNew)}
       <button class="btn danger-line alone" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._deleteRow()}>
         <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete")}</button>
     </div>`;
@@ -918,7 +1002,7 @@ export class WpSchedule extends LitElement {
           </div></div>`;
       }
       const label = labelOf(this.data, entity.default_label);
-      return html`<button class="row rest" data-key=${key} aria-expanded="false" @click=${() => this._expand(key, program, null, { restLabel: entity.default_label ?? null })}>
+      return html`<button class="row rest" data-key=${key} aria-expanded="false" ?disabled=${this._modeOnly} aria-disabled=${ariaDisabled(this._modeOnly)} aria-describedby=${describedBy(this._modeOnly, "why-top")} @click=${() => this._expand(key, program, null, { restLabel: entity.default_label ?? null })}>
         ${label ? html`<span class="dot" style="background:${label.color}"></span>` : html`<ha-icon icon="mdi:update"></ha-icon>`}
         <span class="txt">${title}${t(lang, "colon")}<b>${label ? labelName(this.hass, label) : t(lang, "rest_untouched")}</b></span><ha-icon icon="mdi:chevron-down"></ha-icon></button>`;
     });
@@ -930,7 +1014,7 @@ export class WpSchedule extends LitElement {
     return html`<div class="label" id="devices-label">${t(this._lang, "device_label")}</div><div class="devices" role="radiogroup" aria-labelledby="devices-label">
       ${this._entities.map((eid) => {
         const on = eid === this._eid;
-        return html`<button class="devchip ${on ? "on" : ""}" role="radio" aria-checked=${on} ?disabled=${this._open !== null}
+        return html`<button class="devchip ${on ? "on" : ""}" role="radio" aria-checked=${on} ?disabled=${this._open !== null} aria-disabled=${ariaDisabled(this._open !== null)} aria-describedby=${describedBy(this._open !== null, "why-top")}
           @click=${() => { this._pick = eid; this._error = ""; this._note = ""; }}>
           <ha-state-icon .hass=${this.hass} .stateObj=${this.hass.states[eid]}></ha-state-icon><span>${friendlyName(this.hass, eid)}</span></button>`;
       })}
@@ -1022,7 +1106,7 @@ export class WpSchedule extends LitElement {
   /** "This mode follows: (none / a mode)" for each program of the screen; the list of followers when others follow this mode. */
   private _renderFollow() {
     const open = this._openMode;
-    if (open === null || this._open !== null) return nothing;
+    if (open === null) return nothing;
     const lang = this._lang;
     const many = this._programs.length > 1;
     return this._programs.map((program) => {
@@ -1030,9 +1114,14 @@ export class WpSchedule extends LitElement {
       const followers = program.profiles.filter((p) => p.follows === open).map((p) => p.name);
       const name = many ? ` (${program.name})` : "";
       if (followers.length) return html`<p class="muted note">${t(lang, "mode_followed_by", { modes: followers.join(", ") })}${name}</p>`;
-      if (!this._canEdit) return current ? html`<p class="muted note">${t(lang, "mode_follows_info", { source: current })}${name}</p>` : nothing;
       const sources = this._followSources(program);
-      if (!sources.length && !current) return nothing;
+      if (!this._canEdit && current) return html`<p class="muted note">${t(lang, "mode_follows_info", { source: current })}${name}</p>`;
+      if (!this._canEdit || (!sources.length && !current)) {
+        // nothing to choose: the select stays, disabled, with the reason
+        return html`<label class="follow"><span>${t(lang, "mode_follows_label")}${name}</span>
+          <select disabled aria-disabled="true" aria-describedby="why-follow"><option>${t(lang, "mode_follows_none")}</option></select></label>
+          ${whyNote("why-follow", t(lang, this._canEdit ? "follow_no_source" : "read_only"))}`;
+      }
       const list = current && !sources.includes(current) ? [current, ...sources] : sources;
       return html`<label class="follow"><span>${t(lang, "mode_follows_label")}${name}</span>
         <select ?disabled=${this._saving} @change=${(e: Event) => void this._onFollowChange(program, e)}>
@@ -1044,40 +1133,104 @@ export class WpSchedule extends LitElement {
 
   /** "Mode options": what belongs to the opened mode only (the mode it follows, copying from another one), folded by default. */
   private _renderModeOptions() {
-    if (!this._modes().length || this._open !== null || this._openMode === null) return nothing;
+    if (!this._modes().length || this._openMode === null) return nothing;
     const lang = this._lang;
+    const busy = this._open !== null;
     const follow = this._programs.map((p) => this._followOf(p)).find(Boolean);
-    return html`<button class="row opts" aria-expanded=${this._optsOpen} @click=${() => { this._optsOpen = !this._optsOpen; }}>
-        <ha-icon icon=${this._optsOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
+    return html`<button class="row opts" aria-expanded=${this._optsOpen && !busy} ?disabled=${busy} aria-disabled=${ariaDisabled(busy)} aria-describedby=${describedBy(busy, "why-top")}
+        @click=${() => { this._optsOpen = !this._optsOpen; }}>
+        <ha-icon icon=${this._optsOpen && !busy ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
         <span class="txt">${t(lang, "advanced_options")}</span>
         ${follow ? html`<small>${t(lang, "mode_follows_short", { source: follow })}</small>` : nothing}</button>
-      ${collapse(this._optsOpen, html`<div class="opts-body">${this._renderFollow()}${this._renderCopy()}</div>`)}`;
+      ${collapse(this._optsOpen && !busy, html`<div class="opts-body">${this._renderFollow()}${this._renderCopy()}</div>`)}`;
   }
 
   /**
-   * All management of the settings (add, edit, delete, replace and delete) between Mode and Schedules: closed by default
-   * it only lists the settings that exist; the fold opens the controls. Hidden (not removed) while a slot form is open,
-   * so that only one Save / Cancel pair is visible.
+   * Header of a panel of the accordion (the same for all three): a button (Enter / Space) with the title, the chevron and
+   * a short summary on one line, cut with an ellipsis, open or folded; its full text (`text`) is in the accessible name.
+   * Never hidden, same height open or closed. `controls`: the ids of what the panel opens.
+   */
+  private _panelHeader(panel: Panel, title: string, summary: unknown, controls: string, text = "") {
+    const open = this._panel === panel;
+    return html`<h3 class="acc-h"><button class="acc-btn" id=${`acc-${panel}-btn`} aria-expanded=${open} aria-controls=${controls}
+        aria-label=${text ? `${title}: ${text}` : title} @click=${() => void this._showPanel(panel)}>
+        <span class="acc-t"><span>${title}</span><span class="acc-sum">${summary}</span></span>
+        <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button></h3>`;
+  }
+
+  /**
+   * Mode panel of the accordion (only with a mode selector): the mode choice, the inactive-mode warning and the mode's
+   * own options. Its header always tells the opened mode and whether it is the active one: the context of the schedules
+   * stays in sight while the panel is folded.
+   */
+  private _renderModePanel() {
+    const lang = this._lang;
+    const open = this._panel === "mode";
+    const name = this._openMode ?? "";
+    const summary = this._modeOnly ? `${name} · ${t(lang, "mode_inactive_short")}` : `${name} (${t(lang, "mode_active_badge")})`;
+    return html`<section class="acc modebox ${open ? "on" : ""}">
+      ${this._panelHeader("mode", t(lang, "profile"), summary, "acc-mode", summary)}
+      ${collapse(open, html`<div class="acc-body" role="region" aria-labelledby="acc-mode-btn">
+        ${this._renderModes()}
+        ${this._modeOnly ? this._renderInactive() : nothing}
+        ${this._renderModeOptions()}</div>`, "acc-mode")}
+    </section>`;
+  }
+
+  /**
+   * Settings panel of the accordion (all management of the settings: add, edit, delete, replace and delete). Closed, its
+   * header lists the settings that exist; open, the picker and its own Save / Cancel. In an inactive mode or read-only
+   * the controls stay shown, greyed, with the reason.
    */
   private _renderSettings() {
     const lang = this._lang;
     const program = this._programs[0];
     const labels = labelsFor(this.hass, this.data, this._entities, program)
       .sort((a, b) => labelName(this.hass, a).localeCompare(labelName(this.hass, b), lang, { numeric: true, sensitivity: "base" }));
-    // no setting yet: the controls are open, the first one has to be created here
-    const open = this._settingsOpen || !labels.length;
-    return html`<fieldset class="box setbox" ?hidden=${this._open !== null}><legend>${t(lang, "settings_legend")}</legend>
-      ${open ? nothing : html`<ul class="tags">${labels.length
-        ? labels.map((l) => html`<li><i class="dot" style="background:${l.color}"></i>${labelName(this.hass, l, this._eid)}</li>`)
-        : html`<li class="muted">${t(lang, "settings_none")}</li>`}</ul>`}
-      <button class="row opts" aria-expanded=${open} @click=${() => { this._settingsOpen = !open; }}>
-        <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
-        <span class="txt">${t(lang, "settings_edit")}</span></button>
-      ${collapse(open, html`<wp-label-picker .hass=${this.hass} .data=${this.data} .program=${program} .entityIds=${this._entities}
+    const open = this._panel === "settings";
+    const locked = this._modeOnly;
+    const names = labels.map((l) => labelName(this.hass, l, this._eid));
+    const summary = labels.length
+      ? html`<span class="tags">${labels.map((l, i) => html`<span class="tag"><i class="dot" style="background:${l.color}"></i>${names[i]}</span>`)}</span>`
+      : t(lang, "settings_none");
+    return html`<section class="acc ${open ? "on" : ""}">
+      ${this._panelHeader("settings", t(lang, "settings_legend"), summary, "acc-settings", labels.length ? names.join(", ") : t(lang, "settings_none"))}
+      ${collapse(open, html`<div class="acc-body" role="region" aria-labelledby="acc-settings-btn">
+        <wp-label-picker .hass=${this.hass} .data=${this.data} .program=${program} .entityIds=${this._entities}
         ?start-new=${this.create && !this.day && !this._rows().length && this._canEdit}
-        .value=${this._settingId} ?disabled=${!this._canEdit}
-        @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._settingId = e.detail; }}></wp-label-picker>`)}
-    </fieldset>`;
+        .value=${this._settingId} ?disabled=${!this._canEdit || locked} aria-disabled=${ariaDisabled(locked)} aria-describedby=${describedBy(locked, "why-top")}
+        @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._settingId = e.detail; }}></wp-label-picker></div>`, "acc-settings")}
+    </section>`;
+  }
+
+  /** Schedules panel of the accordion: devices, the rest of the time, the list of schedules and the day off. */
+  private _renderSchedules(rows: { program: Program; group: SlotGroup; key: string }[], controls: string) {
+    const lang = this._lang;
+    const open = this._panel === "schedules";
+    const editing = this._open !== null;
+    const first = !rows.length && this._focus === null && !this._modeOnly;
+    const summary = rows.length
+      ? t(lang, rows.length === 1 ? "sched_count_one" : "sched_count", { n: String(rows.length) })
+      : t(lang, "w_none");
+    return html`<section class="acc ${open ? "on" : ""}">
+      ${this._panelHeader("schedules", t(lang, "schedules_legend"), summary, controls, summary)}
+      ${collapse(open, html`<div class="acc-body" role="region" aria-labelledby="acc-schedules-btn">
+        ${this._renderDevices()}
+        <div class="rests">${this._renderRest()}</div>
+        ${this._focus !== null ? html`<div class="focus">
+          <button class="chip back" ?disabled=${editing} aria-disabled=${ariaDisabled(editing)} aria-describedby=${describedBy(editing, "why-top")} @click=${() => { this._focus = null; this._note = ""; }}>
+            <ha-icon icon="mdi:arrow-left"></ha-icon>${t(lang, "w_whole_week")}</button>
+          <h3>${strings(lang).days[this._focus]}</h3></div>` : nothing}
+        ${this._note ? html`<p class="muted note">${this._note}</p>` : nothing}
+        <div class="list">
+          ${rows.length ? rows.map((r) => this._renderRow(r)) : (this._open === "new" ? nothing : html`<p class="muted">${t(lang, "w_none")}</p>`)}
+          ${this._group && (this._open === "new" || (this._open !== null && !rows.some((r) => r.key === this._open))) ? this._renderEditor(this._programs.find((p) => p.id === this._programId) ?? this._programs[0], this._open!) : nothing}
+          <button class="row add ${first ? "first" : ""}" ?disabled=${!this._canEdit || editing} aria-disabled=${ariaDisabled(editing)} aria-describedby=${describedBy(editing, "why-top")} @click=${() => this._add()}>
+            <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${this._focus === null ? t(lang, "w_add") : t(lang, "w_add_day", { day: strings(lang).days[this._focus].toLocaleLowerCase(lang) })}</span></button>
+        </div>
+        <div class="holiday-wrap" aria-disabled=${ariaDisabled(editing)} aria-describedby=${describedBy(editing, "why-top")}><div class="holiday-gate" ?inert=${editing}>${this._renderHoliday()}</div></div>
+      </div>`, "acc-schedules")}
+    </section>`;
   }
 
   /** Warning shown when the opened mode is not the active one: what it means and when it will apply. */
@@ -1091,21 +1244,25 @@ export class WpSchedule extends LitElement {
     return callout("info", t(lang, "mode_not_active"), why, { role: "status" });
   }
 
-  /** True when the open slot form differs from what it was opened with (or a new setting is being drafted). */
+  /** True when the open schedule form (or the rest-of-the-time form) differs from what it was opened with. */
   private get _editDirty(): boolean {
-    return this._open !== null && JSON.stringify(this._group) !== this._initialGroup;
+    if (this._open === null) return false;
+    if (this._open.startsWith("rest:")) return this._restLabel !== this._initialRest;
+    return JSON.stringify(this._group) !== this._initialGroup;
   }
 
+  /**
+   * Picking another mode abandons the open form (asked first when it holds unsaved changes; on "No" the select goes
+   * back) and opens the Schedules panel again: the mode is about its schedules.
+   */
   private async _pickMode(name: string, select?: HTMLSelectElement): Promise<void> {
     if (name === this._openMode) return;
-    if (this._open !== null) {
-      // Picking another mode abandons the open edit: ask first when it holds unsaved changes, put the select back on "No".
-      if (this._editDirty && !(await confirmAction(this, t(this._lang, "edit_discard"), t(this._lang, "edit_discard_yes"), t(this._lang, "edit_discard_no")))) {
-        if (select) select.value = this._openMode ?? "";
-        return;
-      }
-      this._cancel();
+    const left = this._leavePanel();
+    if (!(left === true || (await left))) {
+      if (select) select.value = this._openMode ?? "";
+      return;
     }
+    this._setPanel("schedules");
     this._viewMode = name;
     this._copyOpen = false;
     this._resp = null;
@@ -1114,7 +1271,7 @@ export class WpSchedule extends LitElement {
     this._focus = null;
   }
 
-  /** "Mode" fieldset with a select of the modes (the active one marked), opening on the active mode; only with a selector. */
+  /** Select of the modes (the active one marked) in the Mode panel, opening on the active mode; only with a selector. */
   private _renderModes() {
     const modes = this._modes();
     if (!modes.length) return nothing;
@@ -1142,8 +1299,15 @@ export class WpSchedule extends LitElement {
 
   private _renderCopy() {
     const sources = this._copySources();
-    if (this._open !== null || !sources.length || !this._canEdit || this._programs.some((p) => this._followOf(p))) return nothing;
     const lang = this._lang;
+    const follows = this._programs.some((p) => this._followOf(p));
+    // not usable: the button stays, disabled, with the reason
+    const why = !this._canEdit ? "read_only" : follows ? "copy_follows" : !sources.length ? "copy_no_source" : "";
+    if (why) {
+      return html`<button class="row copy" aria-expanded="false" disabled aria-disabled="true" aria-describedby="why-copy">
+        <ha-icon icon="mdi:content-copy"></ha-icon><span class="txt">${t(lang, "mode_copy_from")}</span></button>
+        ${whyNote("why-copy", t(lang, why))}`;
+    }
     return html`<button class="row copy" aria-expanded=${this._copyOpen} ?disabled=${this._saving}
         @click=${() => { this._copyOpen = !this._copyOpen; }}>
         <ha-icon icon="mdi:content-copy"></ha-icon><span class="txt">${t(lang, "mode_copy_from")}</span></button>
@@ -1322,54 +1486,47 @@ export class WpSchedule extends LitElement {
       return html`<wp-dialog open heading=${this._title}><p class="muted">${t(lang, "no_program")}</p></wp-dialog>`;
     }
     const rows = this._rows();
-    const first = !rows.length && this._focus === null && !this._modeOnly;
-    // With a mode selector, everything about the mode and everything about the schedule each sit in a fieldset.
-    const boxed = this._modes().length > 0;
-    const box = (cls: string, legend: string, body: unknown) => boxed ? html`<fieldset class="box ${cls}"><legend>${legend}</legend>${body}</fieldset>` : body;
+    const editing = this._open !== null;
+    // the week, the chart and its sources belong to the Schedules panel: they fold with it (in their own grid cells)
+    const scheduled = this._panel === "schedules";
+    const chart = this._renderChart();
+    const options = this._renderChartOptions();
+    const controls = ["acc-schedules", "acc-week", chart === nothing ? "" : "acc-chart", options === nothing ? "" : "acc-options"].filter(Boolean).join(" ");
+    // With a mode selector, everything about the mode is the first panel of the accordion.
+    const modes = this._modes().length > 0;
     return html`
       <wp-dialog open columns heading=${this._title} .beforeClose=${this._guardClose} @escape=${(e: Event) => this._onEscape(e)}>
         <div class="cols">
         <div class="params">
-        ${this._open !== null || this._modeOnly ? nothing : html`<label class="switch">
+        ${whyNote("why-top", t(lang, editing ? "finish_schedule_first" : "mode_off_why"), editing || this._modeOnly)}
+        <label class="switch">
           <span class="grow">${t(lang, "schedule_on")}</span>
           <span class="state">${this._stateText()}</span>
-          <input type="checkbox" .checked=${this._enabled} ?disabled=${!this._canEdit || this._toggling}
+          <input type="checkbox" .checked=${this._enabled} ?disabled=${!this._canEdit || this._toggling || editing || this._modeOnly}
+            aria-disabled=${ariaDisabled(!this._canEdit || editing || this._modeOnly)}
+            aria-describedby=${describedBy(!this._canEdit || editing || this._modeOnly, this._lockId ?? "why-ro")}
             @change=${(e: Event) => void this._setEnabled((e.target as HTMLInputElement).checked, e.target as HTMLInputElement)} />
           <span class="track"></span>
-        </label>`}
-        ${box("modebox", t(lang, "profile"), html`${this._renderModes()}
-          ${this._modeOnly ? this._renderInactive() : nothing}
-          ${this._renderModeOptions()}
-          <wp-mode-notice .hass=${this.hass} .data=${this.data}></wp-mode-notice>`)}
-        ${this._modeOnly ? nothing : this._renderSettings()}
-        ${!this._canEdit ? html`${callout("error", "", t(lang, "read_only"), { role: "alert" })}` : nothing}
+        </label>
+        <wp-mode-notice .hass=${this.hass} .data=${this.data}></wp-mode-notice>
+        ${!this._canEdit ? html`<div id="why-ro">${callout("error", "", t(lang, "read_only"), { role: "alert" })}</div>` : nothing}
         ${this._error && !this._open ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
-        ${box("schedbox", t(lang, "schedules_legend"), html`
-        ${this._renderDevices()}
-        ${this._modeOnly ? nothing : html`<div class="rests">${this._renderRest()}</div>`}
-        ${this._focus !== null && this._open === null ? html`<div class="focus">
-          <button class="chip back" @click=${() => { this._focus = null; this._note = ""; }}>
-            <ha-icon icon="mdi:arrow-left"></ha-icon>${t(lang, "w_whole_week")}</button>
-          <h3>${strings(lang).days[this._focus]}</h3></div>` : nothing}
-        ${this._note && this._open === null ? html`<p class="muted note">${this._note}</p>` : nothing}
-        <div class="list">
-          ${rows.length ? rows.map((r) => this._renderRow(r)) : (this._open === "new" ? nothing : html`<p class="muted">${t(lang, "w_none")}</p>`)}
-          ${this._group && (this._open === "new" || (this._open !== null && !rows.some((r) => r.key === this._open))) ? this._renderEditor(this._programs.find((p) => p.id === this._programId) ?? this._programs[0], this._open!) : nothing}
-          ${this._open === null ? html`<button class="row add ${first ? "first" : ""}" ?disabled=${!this._canEdit} @click=${() => this._add()}>
-            <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${this._focus === null ? t(lang, "w_add") : t(lang, "w_add_day", { day: strings(lang).days[this._focus].toLocaleLowerCase(lang) })}</span></button>` : nothing}
+        <div class="accordion">
+          ${modes ? this._renderModePanel() : nothing}
+          ${this._renderSettings()}
+          ${this._renderSchedules(rows, controls)}
         </div>
-        ${this._open === null ? this._renderHoliday() : nothing}`)}
         </div>
-        <div class="area-week">${this._renderWeek()}${this._renderWeekNote()}</div>
-        <div class="area-chart">${this._open !== null ? nothing : this._renderChart()}</div>
-        <div class="area-options">${this._renderChartOptions()}</div>
-        <div class="area-delete">${this._open !== null || this._modeOnly ? nothing : html`<button class="btn danger-line alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteAll()}>
-          <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete_schedule")}</button>`}</div>
+        <div class="area-week">${collapse(scheduled, html`${this._renderWeek()}${this._renderWeekNote()}`, "acc-week")}</div>
+        <div class="area-chart" aria-disabled=${ariaDisabled(editing)} aria-describedby=${describedBy(editing, "why-top")}>${chart === nothing ? nothing : collapse(scheduled, this._dim(editing, chart), "acc-chart")}</div>
+        <div class="area-options" aria-disabled=${ariaDisabled(editing)} aria-describedby=${describedBy(editing, "why-top")}>${options === nothing ? nothing : collapse(scheduled, this._dim(editing, options), "acc-options")}</div>
+        <div class="area-delete"><button class="btn danger-line alone" ?disabled=${!this._canEdit || editing || this._modeOnly} aria-disabled=${ariaDisabled(editing || this._modeOnly)} aria-describedby=${describedBy(editing || this._modeOnly, this._lockId ?? "")} @click=${() => void this._deleteAll()}>
+          <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete_schedule")}</button></div>
         </div>
       </wp-dialog>`;
   }
 
-  static styles = [editorStyles, css`
+  static styles = [editorStyles, whyStyles, css`
     :host { display: contents; }
     /* One DOM order (the phone order of section 24.2 = keyboard order). From 768 px the same order is laid out in two
        columns by the grid alone: parameters (and Delete) on the left, the 7-day schematic then the day chart on the right. */
@@ -1386,7 +1543,7 @@ export class WpSchedule extends LitElement {
       .area-options { grid-area: options; min-width: 0; }
       .area-delete { grid-area: delete; min-width: 0; }
       .area-delete .btn.alone { margin-top: 0; }
-      /* Hidden while a slot editor is open (nothing rendered): no empty grid cell. */
+      /* Nothing rendered (no chart, an inactive mode): no empty grid cell. */
       .area-chart:empty, .area-options:empty, .area-delete:empty { display: none; }
     }
     .devices { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
@@ -1408,17 +1565,27 @@ export class WpSchedule extends LitElement {
       font-size: 0.9375rem; cursor: pointer; --mdc-icon-size: 20px;
     }
     .who button.on { border: 2px solid var(--wp-primary-text); font-weight: 600; }
-    fieldset.box { border: 1px solid var(--divider-color); border-radius: 12px; padding: 4px 12px 12px; margin: 0 0 12px; min-width: 0; }
-    fieldset.box legend { padding: 0 6px; font-size: 0.875rem; font-weight: 600; color: var(--secondary-text-color); }
     .modesel { display: block; margin: 0 0 10px; width: 100%; min-height: 48px; box-sizing: border-box; padding: 0 12px; border-radius: 24px; border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 1rem; }
     .copy-from { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
     .row.opts { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; margin: 0 0 8px; padding: 0 12px; border-radius: 12px;
       border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem; cursor: pointer; text-align: left; }
     .row.opts .txt { flex: 1; }
-    .tags { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 4px; padding: 0; list-style: none; font-size: 0.875rem; }
-    .tags li { display: inline-flex; align-items: center; gap: 6px; }
-    .tags .dot { width: 10px; height: 10px; border-radius: 5px; flex: none; }
-    fieldset.box[hidden] { display: none; }
+    /* The Mode / Settings / Schedules accordion: one panel open at a time, a closed one keeps its header and a summary. */
+    .acc { border: 1px solid var(--divider-color); border-radius: 12px; margin: 0 0 12px; min-width: 0; }
+    .acc-h { margin: 0; font-size: 0.9375rem; }
+    .acc-btn {
+      display: flex; align-items: center; gap: 8px; width: 100%; min-height: 56px; padding: 4px 12px; border: none; border-radius: 12px;
+      background: none; color: var(--primary-text-color); font: inherit; font-weight: 600; cursor: pointer; text-align: left;
+    }
+    .acc.on .acc-btn { cursor: default; }
+    .acc-btn:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
+    .acc-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    /* one line, cut with an ellipsis: every header keeps the same height (the full text is the button's accessible name) */
+    .acc-sum { font-weight: normal; font-size: 0.875rem; color: var(--secondary-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .acc-body { padding: 4px 12px 12px; min-width: 0; overflow-wrap: anywhere; }
+    .tags, .tag { display: inline; }
+    .tag + .tag { margin-inline-start: 12px; }
+    .tags .dot { display: inline-block; width: 10px; height: 10px; border-radius: 5px; margin-inline-end: 6px; vertical-align: -1px; }
     .row.opts small { color: var(--secondary-text-color); font-size: 0.75rem; }
     .opts-body { margin: 0 0 12px; padding: 8px 0 0 12px; border-left: 3px solid var(--divider-color); }
     .modechip {
@@ -1472,6 +1639,8 @@ export class WpSchedule extends LitElement {
     .btn.danger-line { color: var(--wp-danger-text); border-color: var(--wp-danger-text); }
     .btn.danger { background: var(--wp-danger-fill); border-color: var(--wp-danger-border); color: #fff; }
     .muted { color: var(--secondary-text-color); }
+    .dim[inert], .holiday-gate[inert] { opacity: 0.5; pointer-events: none; }
+    .switch:has(input:disabled) { opacity: 0.6; cursor: default; flex-wrap: wrap; }
     .note { margin: 0 0 8px; font-size: 0.875rem; }
     .focus { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
     .focus h3 { margin: 0; font-size: 1.25rem; font-weight: 600; }
