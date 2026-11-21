@@ -157,3 +157,25 @@ describe("wp-dialog focus trap", () => {
     expect(html).toContain("mdi:arrow-expand-horizontal");
   });
 });
+
+describe("wp-dialog close guard", () => {
+  it("closes at once without a guard, and when the guard agrees", async () => {
+    const a = open();
+    await a.requestClose();
+    expect(a.open).toBe(false);
+    const b = open();
+    b.beforeClose = vi.fn(async () => true);
+    await b.requestClose();
+    expect(b.beforeClose).toHaveBeenCalled();
+    expect(b.open).toBe(false);
+  });
+  it("stays open when the guard refuses, for Escape as well as for the close button", async () => {
+    const d = open();
+    d.beforeClose = vi.fn(async () => false);
+    doc.activeElement = doc.body;
+    esc();
+    await d.requestClose();
+    expect(d.beforeClose).toHaveBeenCalledTimes(2);
+    expect(d.open).toBe(true);
+  });
+});

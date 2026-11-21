@@ -351,3 +351,45 @@ describe("loading the names of the services", () => {
     expect(loadServiceNames).not.toHaveBeenCalled();
   });
 });
+
+describe("unsaved changes and start-new", () => {
+  it("is not dirty with the form closed, nor straight after it opens", () => {
+    const el = mk();
+    expect(el.dirty).toBe(false);
+    el._open(true);
+    expect(el.dirty).toBe(false);
+    el._open(false);
+    expect(el.dirty).toBe(false);
+  });
+  it("turns dirty when a field of the form changes, and clean again once the form closes", () => {
+    const el = mk();
+    el._open(false);
+    el._set({ name: "Night" });
+    expect(el.dirty).toBe(true);
+    el._close();
+    expect(el.dirty).toBe(false);
+  });
+  it("a device value or an action change also counts", () => {
+    const el = mk();
+    el._open(true);
+    el._ov = { "cover.a": null };
+    expect(el.dirty).toBe(true);
+    el._open(true);
+    el._set({ showValue: true });
+    expect(el.dirty).toBe(true);
+  });
+  it("start-new opens the form for a new setting once, only when it can be edited", () => {
+    const a = mk({ startNew: true });
+    a.firstUpdated();
+    expect([a._form, a._editId]).toEqual([true, null]);
+    const b = mk();
+    b.firstUpdated();
+    expect(b._form).toBe(false);
+    const c = mk({ startNew: true, readonlySettings: true });
+    c.firstUpdated();
+    expect(c._form).toBe(false);
+    const d = mk({ startNew: true, disabled: true });
+    d.firstUpdated();
+    expect(d._form).toBe(false);
+  });
+});

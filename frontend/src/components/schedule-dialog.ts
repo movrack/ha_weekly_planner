@@ -258,7 +258,8 @@ export class WpSchedule extends LitElement {
   firstUpdated(): void {
     this._loadNames();
     if (this.create && !this.day) {
-      if (!this._rows().length && this._canEdit) this._add();
+      // the empty screen's button leads to the Settings box, open on the creation of a setting
+      if (!this._rows().length && this._canEdit) this._settingsOpen = true;
       return;
     }
     if (!this.day) return;
@@ -813,6 +814,13 @@ export class WpSchedule extends LitElement {
     window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
   }
 
+  /** Closing with a setting form holding changes asks first (same question and buttons as abandoning a schedule edit). */
+  private readonly _guardClose = async (): Promise<boolean> => {
+    const picker = this.renderRoot.querySelector<HTMLElement & { dirty: boolean }>("wp-label-picker:not([readonly-settings])");
+    if (!picker?.dirty) return true;
+    return confirmAction(this, t(this._lang, "setting_discard"), t(this._lang, "edit_discard_yes"), t(this._lang, "edit_discard_no"));
+  };
+
   private _closeDialog(): void {
     this.renderRoot.querySelector<HTMLElement & { close(): void }>("wp-dialog")?.close();
   }
@@ -1061,6 +1069,7 @@ export class WpSchedule extends LitElement {
         <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
         <span class="txt">${t(lang, "settings_edit")}</span></button>
       ${collapse(open, html`<wp-label-picker .hass=${this.hass} .data=${this.data} .program=${program} .entityIds=${this._entities}
+        ?start-new=${this.create && !this.day && !this._rows().length && this._canEdit}
         .value=${this._settingId} ?disabled=${!this._canEdit}
         @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._settingId = e.detail; }}></wp-label-picker>`)}
     </fieldset>`;
@@ -1313,7 +1322,7 @@ export class WpSchedule extends LitElement {
     const boxed = this._modes().length > 0;
     const box = (cls: string, legend: string, body: unknown) => boxed ? html`<fieldset class="box ${cls}"><legend>${legend}</legend>${body}</fieldset>` : body;
     return html`
-      <wp-dialog open columns heading=${this._title} @escape=${(e: Event) => this._onEscape(e)}>
+      <wp-dialog open columns heading=${this._title} .beforeClose=${this._guardClose} @escape=${(e: Event) => this._onEscape(e)}>
         <div class="cols">
         <div class="params">
         ${this._open !== null || this._modeOnly ? nothing : html`<label class="switch">
@@ -1342,7 +1351,7 @@ export class WpSchedule extends LitElement {
           ${rows.length ? rows.map((r) => this._renderRow(r)) : (this._open === "new" ? nothing : html`<p class="muted">${t(lang, "w_none")}</p>`)}
           ${this._group && (this._open === "new" || (this._open !== null && !rows.some((r) => r.key === this._open))) ? this._renderEditor(this._programs.find((p) => p.id === this._programId) ?? this._programs[0], this._open!) : nothing}
           ${this._open === null ? html`<button class="row add ${first ? "first" : ""}" ?disabled=${!this._canEdit} @click=${() => this._add()}>
-            <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${first ? t(lang, "create_setting") : this._focus === null ? t(lang, "w_add") : t(lang, "w_add_day", { day: strings(lang).days[this._focus].toLocaleLowerCase(lang) })}</span></button>` : nothing}
+            <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${this._focus === null ? t(lang, "w_add") : t(lang, "w_add_day", { day: strings(lang).days[this._focus].toLocaleLowerCase(lang) })}</span></button>` : nothing}
         </div>
         ${this._open === null ? this._renderHoliday() : nothing}`)}
         </div>
