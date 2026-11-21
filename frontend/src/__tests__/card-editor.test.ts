@@ -556,6 +556,30 @@ describe("the Chart fieldset", () => {
   });
 });
 
+describe("the All types chip, like All rooms", () => {
+  const types = (el: any) => flat(el.render()).split('id="ce-types-label"')[1].split('id="ce-types-hint"')[0];
+  it("it comes first among the type chips and is on while no type or program restricts the card", () => {
+    const el = mk({ filter: {} }, [prog("a", "Alpha", ["cover.a"]), prog("b", "Beta", ["light.b"])]);
+    expect(types(el).indexOf(t("en", "ce_all_types"))).toBeLessThan(types(el).indexOf("data-type=cover"));
+    expect(types(el)).toMatch(/chip on" aria-pressed=true\s+@click=>.*All types/);
+    expect(t("en", "ce_all_types")).toBe("All types");
+    expect(t("fr", "ce_all_types")).toBe("Tous les types");
+  });
+  it.each([["a type kept", { types: ["cover"] }], ["programs picked", { programs: ["a"] }]])("%s: the chip is off", (_n, filter) => {
+    const el = mk({ filter }, [prog("a", "Alpha", ["cover.a"]), prog("b", "Beta", ["light.b"])]);
+    expect(types(el)).toMatch(/chip off" aria-pressed=false\s+@click=>All types/);
+  });
+  it("a click clears the types and the programs, and keeps the room", () => {
+    const el = mk({ filter: { types: ["cover"], programs: ["a"], area: "k" } });
+    const all = handlers(el.render()).find((h) => h.event === "click" && h.before.includes('id="ce-types-label"'))!;
+    all.fn();
+    expect(sent(el)[0].filter).toEqual({ area: "k" });
+  });
+  it("it stays when no program has a type yet", () => {
+    expect(types(mk({ filter: {} }, []))).toContain(t("en", "ce_all_types"));
+  });
+});
+
 describe("card editor: touch targets", () => {
   // Layout at 360 px (UI review 2026-02-10): touch targets, wrapping, no word cut in a program name.
   it("fits a 360 px screen: 44 px type chips that wrap, program names not cut mid-word, notice button inside its box", () => {

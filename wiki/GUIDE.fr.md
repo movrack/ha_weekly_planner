@@ -393,7 +393,7 @@ Si les boutons manquent, demander à cette personne de les ouvrir.
 Les intitulés de Home Assistant peuvent varier légèrement selon sa version.
 
 Dans **Programmes à afficher** (on peut n’en choisir qu’un), on réduit la liste puis on affine : une **Pièce** (une pastille, ou **Toutes les pièces**),
-un **Type** (les pastilles Climatisation, Ouverture… cochent d’un coup tous les programmes qui ont un appareil de ce type),
+un **Type** (**Tous les types**, puis les pastilles Climatisation, Ouverture… cochent d’un coup tous les programmes qui ont un appareil de ce type),
 puis la liste **Programmes** : **Tous les programmes** (activé, la carte montre aussi les programmes créés plus tard),
 puis un interrupteur par programme, avec ses appareils dessous. La pièce et le type limitent la liste. Sous **Affichage**, les choix dépendent du nombre de programmes choisis : avec **2 programmes ou plus**, **Liste compacte** ou **Comparateur** ;
 avec **un seul**, **Barres**, **Cadran 24 heures**, **Double cadran 12 heures** ou **Horaires du jour**. Si l’affichage enregistré ne convient plus

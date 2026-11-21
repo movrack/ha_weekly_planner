@@ -197,6 +197,12 @@ export class WeeklyPlannerCardEditor extends LitElement {
     this._setFilter(patch);
   }
 
+  /** The "All <category>" chip of a filter category: on while the category restricts nothing; the same everywhere. */
+  private _allChip(text: string, on: boolean, click: () => void) {
+    return html`<button class="chip ${on ? "on" : "off"}" aria-pressed=${on ? "true" : "false"}
+      @click=${click}>${on ? html`<ha-icon class="check-on" icon="mdi:check"></ha-icon>` : nothing}${text}</button>`;
+  }
+
   /** The room filter as single-choice chips, like the types (owner, 2026-11-14): "All rooms" first, one chip per room. */
   private _roomField() {
     const areas = roomOptions(this.hass, this._data?.programs ?? [], this._filter.area);
@@ -207,8 +213,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
       const values = chosen.has(key) ? kept : [...kept, areas.find((a) => a.key === key)!];
       this._setFilter({ area: areaValue(values.map((a) => a.value)) });
     };
-    const chip = (text: string, on: boolean, click: () => void) => html`<button class="chip ${on ? "on" : "off"}" aria-pressed=${on ? "true" : "false"}
-      @click=${click}>${on ? html`<ha-icon class="check-on" icon="mdi:check"></ha-icon>` : nothing}${text}</button>`;
+    const chip = (text: string, on: boolean, click: () => void) => this._allChip(text, on, click);
     return html`<div class="quick" role="group" aria-labelledby="ce-area-label" aria-describedby="ce-area-help">
       <div class="label" id="ce-area-label">${this._tr("ce_area")}</div>
       <div class="chips">${chip(this._tr("ce_all_areas"), chosen.size === 0, () => this._setFilter({ area: undefined }))}${areas.map((a) => chip(a.label, chosen.has(a.key), () => toggle(a.key)))}</div>
@@ -234,9 +239,9 @@ export class WeeklyPlannerCardEditor extends LitElement {
       <p class="hint">${this._tr("ce_display_programs_hint")}</p>
       ${this._roomField()}
       ${!rows.length && !orphans.length ? html`<p class="hint">${this._tr(room !== null && programs.length ? "ce_room_empty" : "ce_no_types")}</p>` : nothing}
-      ${groups.length ? html`<div class="quick" role="group" aria-labelledby="ce-types-label" aria-describedby="ce-types-hint">
+      <div class="quick" role="group" aria-labelledby="ce-types-label" aria-describedby="ce-types-hint">
         <div class="label" id="ce-types-label">${this._tr("ce_quick_types")}</div>
-        <div class="chips">${groups.map((g) => {
+        <div class="chips">${this._allChip(this._tr("ce_all_types"), all, () => this._treeChange(allPrograms()))}${groups.map((g) => {
           const state = typeState(g, programs, filter);
           const on = g.programs.filter((x) => isOn(byId.get(x.id)!, filter, programs)).length;
           const counter = g.programs.length ? String(this._tr("ce_type_count", { on: String(on), total: String(g.programs.length) })) : "";
@@ -248,7 +253,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
             <ha-icon icon=${this._typeIcons.get(g.type) ?? "mdi:shape-outline"}></ha-icon>${g.label}${counter ? html` <span class="count">${counter}</span>` : nothing}</button>`;
         })}</div>
         <p id="ce-types-hint" class="hint">${this._tr("ce_quick_types_hint")}</p>
-      </div>` : nothing}
+      </div>
       <div class="label" id="ce-programs-label">${this._tr("ce_programs_list")}</div>
       <div class="program-list" role="group" aria-labelledby="ce-programs-label">
         <div class="switch-row"><span class="grow">${this._tr("ce_all_programs")}</span>
