@@ -13,6 +13,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Settings, **Show the value after the name**: when an action reads a value from an entity (a field set to “Value of an entity”, for example a favourite shutter position in %), an option under the name adds that value with its unit to the name shown, for example “Favourite (40 %)”. For a setting that sets a thermostat's preset mode, it adds the preset's temperature (“Comfort (19 °C)”, read from `preset_temperatures` or the preset's number entity). It is a display only (the stored name does not change), follows the value when it changes, and is off by default. EN and FR.
 
 ### Changed
+- Bars strip (compact setting picker): the pencil, bin and "+" buttons are no longer shown greyed for ever, since settings are managed in the Settings box and they can never be used there (owner, 2026-11-21).
 - Schedule window, accordion: the headers of Mode, Settings and Schedules now behave the same, open or folded (the summary stays on one line with an ellipsis, same height, full text in the accessible name). Read only: the mode selector stays active to browse the other modes; the advanced options of the Mode panel stay greyed with “Read only”.
 
 ### Fixed
