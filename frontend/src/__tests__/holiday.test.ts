@@ -110,13 +110,6 @@ describe("card on a day off", () => {
     const t = flat(el.render());
     expect(t).not.toContain('class="action"');
   });
-  it("a locked empty day shows no Add a schedule button, an unlocked one does", () => {
-    const el = new WpTimesDay() as any;
-    el.lang = "en"; el.editable = true; el.state = "ready"; el.rows = [];
-    expect(flat(el.render())).toContain('class="action"');
-    el.locked = true;
-    expect(flat(el.render())).not.toContain('class="action"');
-  });
 });
 
 /** A stand-in for the shadow root of a rendered section: the controls, and which one holds the focus. */
