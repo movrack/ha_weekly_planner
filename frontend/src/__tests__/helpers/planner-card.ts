@@ -55,12 +55,23 @@ export const attrOf = (tpl: any, re: RegExp): any[] => {
 export const spansOf = (tpl: any): any[][] => attrOf(tpl, /\.spans=$/);
 export const nowsOf = (tpl: any): any[] => attrOf(tpl, /\.now=$/);
 export const noClocksOf = (tpl: any): any[] => attrOf(tpl, /\?no-clock=$/);
-export const selectedOf = (tpl: any): boolean[] => attrOf(tpl, /aria-selected=$/);
+export const selectedOf = (tpl: any): boolean[] => attrOf(tpl, /aria-checked=$/);
 
-/** The comparison of the card's programs: the whole week in one render. */
-export const week = (c: any): any => c._list(c._data.programs);
-/** The comparison of explicit groups. */
-export const weekOf = (c: any, groups: any[][], grouped: boolean): any => c._compare(groups, grouped);
+/** One render per day the comparison can show: Monday to Sunday, then the day off when the card has one. */
+export const everyDay = (c: any, render: () => any): any[] => {
+  const out: any[] = [];
+  for (let d = 0; d < 8; d++) {
+    c._cmpDay = d;
+    const tpl = render();
+    if (d < 7 || flat(tpl).includes("cday-off")) out.push(tpl);
+  }
+  c._cmpDay = null;
+  return out;
+};
+/** The comparison of the card's programs, every day. */
+export const week = (c: any): any[] => everyDay(c, () => c._list(c._data.programs));
+/** The comparison of explicit groups, every day. */
+export const weekOf = (c: any, groups: any[][], grouped: boolean): any[] => everyDay(c, () => c._compare(groups, grouped));
 
 /** The device names shown in the rows of rendered text. */
 export const names = (html: string): string[] => [...html.matchAll(/class="cn">([^<]*)</g)].map((m) => m[1]);

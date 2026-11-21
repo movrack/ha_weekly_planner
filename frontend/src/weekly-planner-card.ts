@@ -75,6 +75,8 @@ export class WeeklyPlannerCard extends LitElement {
   @state() private _preview: Record<string, Record<string, PreviewResponse>> = {};
   @state() private _now = new Date();
   @state() private _week = new Set<string>();
+  /** Day shown by the comparison: 0 to 6 (Monday to Sunday), 7 for the day off, null for today. */
+  @state() private _cmpDay: number | null = null;
   /** Long press, keyboard and hint of the rows of the comparison. */
   private readonly _hold = new HoldPress(this);
   @state() private _expandedProgram: string | null = null;
@@ -283,14 +285,14 @@ export class WeeklyPlannerCard extends LitElement {
     void this._loadPreviews();
   }
 
-  /* ---- comparison view (`schedule_view: compare`): the whole week, every device; a long press or the keyboard opens a day ---- */
+  /* ---- comparison view (`schedule_view: compare`): one day at a time (a row of day chips), every device; a long press or the keyboard opens the day ---- */
 
   /** A program that does not run: switched off or paused (same test as the "Paused" badge), or all programs suspended. */
   private _notRunning(program: Program): boolean {
     return !program.enabled || Boolean(this._data?.vacation);
   }
 
-  /** One comparison for the whole card: a group per day (Monday to Sunday), a bar per device, then the day-off group. */
+  /** One comparison for the whole card: a chip per day (and the day off), a bar per device for the chosen day. */
   private _compare(groups: Program[][], grouped: boolean) {
     const lang = this._lang;
     const rows = groups.flatMap((ps, gi) => ps.flatMap((program) => program.entities.map((e, ei) => ({
@@ -339,7 +341,7 @@ export class WeeklyPlannerCard extends LitElement {
       </div>`;
     };
     const off = rows.map((r) => ({ r, spans: this._holidaySpans(r.entityId, r.program), copy: this._holidayCopy(r.program) }));
-    const holiday = this._data?.holiday_entity && off.some((x) => x.spans) ? html`<div class="cday cday-off" role="group" aria-label=${t(lang, "holiday_title")}>
+    const holiday = () => html`<div class="cday cday-off" role="group" aria-label=${t(lang, "holiday_title")}>
       ${press("ctitle", t(lang, "holiday_title"), reach(opener(off[0].r)), t(lang, "holiday_title"), true)}
       ${off.map(({ r, spans, copy }) => {
         // a copied weekday: its bar and "like <day>"; an own day: the bar alone; no day off: "not configured"
@@ -351,15 +353,41 @@ export class WeeklyPlannerCard extends LitElement {
             ${spans ? nothing : html`<span class="cnone">${t(lang, "compare_not_set")}</span>`}
             ${note ? html`<span class="ccopy">${note}</span>` : nothing}`)}</div>`;
       })}
-    </div>` : nothing;
+    </div>`;
     const programs = groups.flat();
-    // the whole week, Monday to Sunday, then the day off; the groups are built first so that the hint knows whether any row opens
-    const week = [0, 1, 2, 3, 4, 5, 6].map(dayView);
+    // one day at a time: a chip per day and one for the day off (greyed with its reason when there is none), a single choice
+    const holidayOn = Boolean(this._data?.holiday_entity && off.some((x) => x.spans));
+    const ids = [0, 1, 2, 3, 4, 5, 6, 7];
+    const usable = (d: number) => d !== 7 || holidayOn;
+    const shown = this._cmpDay !== null && usable(this._cmpDay) ? this._cmpDay : todayDay;
+    const pickDay = (d: number) => { if (usable(d)) this._cmpDay = d; };
+    const dayKey = (e: KeyboardEvent) => {
+      const open = ids.filter(usable);
+      const at = open.indexOf(shown);
+      const next = e.key === "ArrowRight" || e.key === "ArrowDown" ? (at + 1) % open.length
+        : e.key === "ArrowLeft" || e.key === "ArrowUp" ? (at + open.length - 1) % open.length
+        : e.key === "Home" ? 0 : e.key === "End" ? open.length - 1 : -1;
+      if (next < 0) return;
+      e.preventDefault();
+      pickDay(open[next]);
+      void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>('.cdchip[aria-checked="true"]')?.focus());
+    };
+    const short = strings(lang).days_short;
+    const none = t(lang, "compare_day_off_none");
+    const chips = html`<div class="cdays" role="radiogroup" aria-label=${t(lang, "compare_day")} @keydown=${dayKey}>
+      ${ids.map((d) => { const ok = usable(d); const label = d === 7 ? t(lang, "holiday_title") : days[d];
+        return html`<button class="cdchip${d === todayDay ? " is-today" : ""}${ok ? "" : " off"}" role="radio" aria-checked=${d === shown}
+          aria-disabled=${ok ? nothing : "true"} aria-describedby=${ok ? nothing : "cdnote"} tabindex=${d === shown ? 0 : -1} aria-label=${label}
+          @click=${() => pickDay(d)}>${d === 7 ? label : short[d]}</button>`; })}
+    </div>${holidayOn ? nothing : html`<p class="cdnote" id="cdnote">${none}</p>`}`;
+    const week = shown === 7 ? nothing : dayView(shown);
+    const holidayShown = shown === 7 ? holiday() : nothing;
     return html`<div class="compare">
       <div class="cedit"><button class="hours" aria-label=${t(lang, "compare_edit")} title=${t(lang, "compare_edit")}
         @click=${() => { this._dialog = programs.length === 1 ? { kind: "schedule", scope: { kind: "program", programId: programs[0].id } } : { kind: "pick", programs }; }}><ha-icon icon="mdi:calendar-edit"></ha-icon><span class="hl">${t(lang, "compare_edit")}</span></button></div>
+      ${chips}
       ${anyHold ? html`<p class="chint" role="status">${hold.hint ? t(lang, "hold_hint") : nothing}</p>` : nothing}
-      ${week}${holiday}
+      ${week}${holidayShown}
       <div class="caxis" aria-hidden="true">${[0, 6, 12, 18, 24].map((h) => html`<span class="h${h}" style="left:${(h / 24) * 100}%">${h === 24 ? fmtDayEnd(lang) : fmtClock(lang, h * 60)}</span>`)}</div>
     </div>`;
   }
@@ -917,11 +945,11 @@ export class WeeklyPlannerCard extends LitElement {
         ${data?.read_only ? html`${callout("error", "", t(lang, "read_only"), { id: "why-readonly" })}` : nothing}
         ${!data ? html`<div class="empty">…</div>` : nothing}
         ${data && !programs.length ? html`<div class="empty" role="status">${t(lang, data.programs.length && this._config.program === undefined ? "no_matching_program" : "no_program")}</div>` : nothing}
-        ${data && !programs.length ? (this.hass.user?.is_admin && data.can_edit && !data.read_only
+        ${data && !programs.length ? (data.can_edit && !data.read_only
           ? html`<a class="manage-programs" href="/weekly-planner"><ha-icon icon="mdi:calendar-edit"></ha-icon>${t(lang, "ce_manage_programs")}</a>`
           // an anchor cannot be disabled: a greyed button with its reason keeps the entry on screen
           : html`<button class="manage-programs" disabled aria-disabled="true" aria-describedby="why-manage"><ha-icon icon="mdi:calendar-edit"></ha-icon>${t(lang, "ce_manage_programs")}</button>
-            ${whyNote("why-manage", t(lang, data.read_only ? "read_only" : "manage_admins_only"))}`) : nothing}
+            ${whyNote("why-manage", t(lang, "read_only"))}`) : nothing}
         ${data ? this._list(programs) : nothing}
       </ha-card>
       ${this._snack ? html`<div class="snack" role="status"><span>${t(lang, "edited")} ·</span>
@@ -1088,6 +1116,16 @@ export class WeeklyPlannerCard extends LitElement {
       background: var(--primary-text-color); color: var(--card-background-color, #fff);
     }
     .chint { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .cdays { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0; }
+    .cdchip {
+      display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 10px; border-radius: 22px;
+      border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem; cursor: pointer;
+    }
+    .cdchip.is-today { font-weight: 700; }
+    .cdchip[aria-checked="true"] { background: var(--wp-primary-fill); border-color: var(--wp-primary-fill); color: #fff; font-weight: 600; }
+    .cdnote { margin: 0; padding: 0 0 4px; font-size: 0.875rem; color: var(--primary-text-color); }
+    .cdchip.off { opacity: 0.5; cursor: default; }
+    .cdchip:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
     .cedit { display: flex; justify-content: flex-end; margin-bottom: -8px; }
     /* the mode line and the edit button share one row: the line on the left, the button on the right (no empty band between them) */
     .mode-line + .compare .cedit { margin-top: -26px; }

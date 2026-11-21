@@ -432,16 +432,17 @@ describe("snapshot subscription", () => {
 
 describe("manage programs entry", () => {
   const shown = (mutate: (el: any) => void) => { const el = mk(); mutate(el); return flat(el.render()); };
-  it("is a link for an administrator who can edit", () => {
-    const html = shown(() => {});
-    expect(html).toContain('<a class="btn manage-programs" href="/weekly-planner">');
-    expect(html).not.toContain("why-manage");
+  it("is a link for everyone who can edit, administrator or not", () => {
+    for (const html of [shown(() => {}), shown((e) => { e.hass.user.is_admin = false; })]) {
+      expect(html).toContain('<a class="btn manage-programs" href="/weekly-planner">');
+      expect(html).not.toContain("why-manage");
+    }
   });
-  it("stays on screen, disabled with its reason, for the others (an element never disappears)", () => {
-    for (const html of [shown((e) => { e.hass.user.is_admin = false; }), shown((e) => { e._data.can_edit = false; })]) {
+  it("stays on screen, disabled with its reason, when editing is impossible (an element never disappears)", () => {
+    for (const html of [shown((e) => { e._data.can_edit = false; })]) {
       expect(html).not.toContain("<a class=\"btn manage-programs\"");
       expect(html).toContain('disabled aria-disabled="true" aria-describedby="why-manage"');
-      expect(html).toContain(`id=why-manage role="status">${t("en", "manage_admins_only")}</p>`);
+      expect(html).toContain(`id=why-manage role="status">${t("en", "read_only")}</p>`);
     }
     expect(shown((e) => { e._data.read_only = true; })).toContain(`id=why-manage role="status">${t("en", "read_only")}</p>`);
   });

@@ -53,8 +53,8 @@ montrent le lever et le coucher.
 [Double cadran S44](SCREENS.fr.md#s44).
 
 Deux autres affichages existent. **Horaires du jour** montre aujourd’hui sous forme de liste simple : une ligne par horaire, avec son
-réglage, jusqu’à quand il dure et un repère « Maintenant ». Le **Comparateur** montre toute la semaine pour toute la carte : un groupe par jour, de lundi à dimanche, avec le nom du jour en
-titre (aujourd’hui en gras, avec le repère « Maintenant »), puis un groupe **Jour férié** quand il est activé pour un programme de la carte.
+réglage, jusqu’à quand il dure et un repère « Maintenant ». Le **Comparateur** montre un jour à la fois pour toute la carte : une rangée de puces (lundi à dimanche, puis **Jour férié**, grisée avec sa raison quand aucun programme n’en a), aujourd’hui choisi par défaut, avec le nom du jour en
+titre (aujourd’hui en gras, avec le repère « Maintenant »).
 Chaque appareil y a sa barre, tous les programmes mélangés. Pour modifier un jour, gardez le doigt (ou le bouton de la souris) appuyé sur une barre
 ou sur le nom du jour, ou utilisez Entrée ou Espace : la fenêtre des horaires s’ouvre sur ce jour. Un simple clic ne l’ouvre pas, il rappelle seulement
 comment faire. Une icône en haut à droite ouvre le choix du programme à modifier, et la barre d’un programme en pause est grisée avec la mention
@@ -127,7 +127,7 @@ Refaire les mêmes gestes avec **17:00**, **22:00** et **Confort**, puis
 
 ### 4. Choisir Éco entre ces horaires
 
-Dans le cadre **Horaires**, toucher la ligne **Le reste du temps** (elle est
+Dans le panneau **Horaires**, toucher la ligne **Le reste du temps** (elle est
 au-dessus de la liste des horaires), choisir **Éco**, puis **Enregistrer**. À 8 h 30 et à 22 h, le chauffage reçoit ainsi la demande de 16 °C.
 
 <a href="images/guide/s14-rest-of-time.png"><img src="images/guide/s14-rest-of-time.png" width="320" alt="Choisir le réglage à utiliser le reste du temps." /></a>
@@ -365,7 +365,7 @@ programmes**. La carte l’affiche seulement (voir plus bas). Voir le [détail d
 Un jour férié ou de congé, la maison peut suivre d’autres horaires que ceux du jour de la semaine. Ce
 réglage se fait pour chaque mode : le jour férié de « Maison » peut être différent de celui de « Vacances ».
 
-1. Ouvrir les horaires du programme. À la fin du cadre **Horaires**, ouvrir **Jour férié**.
+1. Ouvrir les horaires du programme. À la fin du panneau **Horaires**, ouvrir **Jour férié**.
 2. Activer **Horaires différents les jours fériés**.
 3. Choisir **Mêmes horaires que :** puis un jour de la semaine (dimanche au départ), ou **Mes propres
    horaires** pour régler une journée à part.
@@ -410,7 +410,7 @@ Voir [la création S37](SCREENS.fr.md#s37), [la pièce S40](SCREENS.fr.md#s40) e
 Le panneau **Programmes** a deux rubriques. **Actions** : **Nouveau programme**, **Dupliquer un programme** (choisir le programme à copier, puis **Dupliquer** : la copie s’appelle **Copie** suivi du nom, avec un numéro si ce nom existe déjà, garde les appareils, les réglages et les horaires, et apparaît tout en bas de la liste) **Ordre des priorités** (voir [Priorités](PRIORITES.fr.md)). **Liste des programmes** : sur téléphone, une bascule **Liste | Aperçu** remplace les lignes par la carte Weekly Planner en liste compacte, sans quitter l’écran (les Actions, **Trier** et **Filtrer** restent là) ; l’aperçu montre les mêmes programmes dans le même ordre que la liste, filtres et tri compris, et on peut y modifier les horaires. Sur grand écran, l’aperçu occupe la partie de droite tant qu’aucun programme n’est ouvert. La **Liste des programmes** : le bouton **Trier** ouvre une fenêtre pour trier par **Ordre de création** (par défaut), **Nom** ou **Priorité**. Le bouton **Filtrer** ouvre une fenêtre pour filtrer par **Type**, **Pièce** (avec **Sans pièce**) et **Appareil** ; chacun est une section d’un accordéon, ouvrir l’une referme les autres, et le titre indique combien de filtres y sont actifs : un programme est affiché s’il correspond à l’une des valeurs choisies dans chaque filtre. **Réinitialiser** efface les filtres et garde le tri choisi.
 
 Les programmes se gèrent **uniquement** dans ce panneau, plus dans l’éditeur de la carte : celui-ci ne garde que l’affichage
-(titre, programmes montrés, vue, couleurs). Une carte sans programme montre, aux administrateurs, un lien **Gérer les programmes**.
+(titre, programmes montrés, vue, couleurs). Une carte sans programme montre, à toute personne qui peut modifier, un lien **Gérer les programmes**.
 
 Pour commencer, toucher **Nouveau programme**, donner un nom et ajouter un
 appareil. **Aucune commande n’est cochée au départ** : choisir celles que l’on veut

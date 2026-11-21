@@ -191,7 +191,7 @@ describe("replace and delete in the picker", () => {
     expect(el._saving).toBe(false);
     el.hass.callWS = reject("unauthorized");
     await el._replaceAndDelete(el.data.labels[0]);
-    expect(el._delError).toContain("administrator");
+    expect(el._delError).toContain("Home Assistant rights");
     el.hass.callWS = reject("x");
     await el._replaceAndDelete(el.data.labels[0]);
     expect(el._delError).toBeTruthy();

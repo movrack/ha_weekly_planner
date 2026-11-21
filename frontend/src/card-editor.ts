@@ -119,7 +119,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
   }
 
   private get _canManage(): boolean {
-    return Boolean(this.hass?.user?.is_admin && this._data?.can_edit && !this._data?.read_only);
+    return Boolean(this._data?.can_edit && !this._data?.read_only);
   }
 
   private _emit(input: CardConfig): void {
@@ -325,7 +325,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
     return html`
       ${this._canManage ? html`<a class="btn manage-programs" href="/weekly-planner"><ha-icon icon="mdi:calendar-edit"></ha-icon>${this._tr("ce_manage_programs")}</a>`
         : !this._data ? nothing : html`<button type="button" class="btn manage-programs" disabled aria-disabled="true" aria-describedby="why-manage"><ha-icon icon="mdi:calendar-edit"></ha-icon>${this._tr("ce_manage_programs")}</button>
-          ${whyNote("why-manage", this._tr(this._data?.read_only ? "read_only" : "manage_admins_only"))}`}
+          ${whyNote("why-manage", this._tr("read_only"))}`}
       <div class="field"><label for="ce-title">${this._tr("ce_title")}</label>
         <input id="ce-title" type="text" .value=${c.title ?? ""} @input=${(e: Event) => this._set("title", (e.target as HTMLInputElement).value)} /></div>
 

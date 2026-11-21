@@ -1,4 +1,4 @@
-// "Weekly Planner" sidebar panel (administrators): the programs are managed here, the card only displays them.
+// "Weekly Planner" sidebar panel (open to everyone): the programs are managed here, the card only displays them.
 
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
@@ -58,8 +58,7 @@ export class WpProgramsPanel extends LitElement {
   private _unsub?: () => void;
 
   get _lang(): string { return langOf(this.hass); }
-  get _isAdmin(): boolean { return Boolean(this.hass?.user?.is_admin); }
-  get _canManage(): boolean { return this._isAdmin && Boolean(this._data?.can_edit) && !this._data?.read_only; }
+  get _canManage(): boolean { return Boolean(this._data?.can_edit) && !this._data?.read_only; }
 
   willUpdate(): void {
     setTimeFormat(this.hass);
@@ -398,8 +397,7 @@ export class WpProgramsPanel extends LitElement {
         <h1>${t(lang, this._screen === "priorities" ? "prio_title" : this._screen === "duplicate" ? "panel_dup_open" : "panel_title")}</h1>
       </header>
       <span class="sr" role="status" aria-live="polite">${this._said}</span>
-      ${!this._isAdmin ? html`<p class="hint" role="alert">${t(lang, "panel_admin_only")}</p>`
-        : !data ? html`<p class="hint">…</p>`
+      ${!data ? html`<p class="hint">…</p>`
         : !this._canManage ? html`<p class="hint" role="status">${t(lang, "read_only")}</p>`
         : html`${this._notice ? html`<p class="notice" role="status">${this._notice}</p>` : nothing}
           ${this._screen === "priorities" ? html`<main class="narrow">${this._priorities(data)}</main>`

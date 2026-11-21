@@ -14,7 +14,7 @@ The visual editor has two sections:
   view, and chart visibility. Save these changes with the Lovelace editor.
 - **Program settings** changes integration data shared by every card displaying
   that program. **Apply to program** persists immediately. Cancelling the outer
-  Lovelace editor does not roll it back. This section lives in the **Programs** sidebar panel, administrator-only.
+  Lovelace editor does not roll it back. This section lives in the **Programs** sidebar panel, open to everyone who may edit.
 
 Program-setting drafts and their local undo/redo history survive navigation
 between tabs and programs within the editor. Closing the editor discards unapplied
@@ -31,7 +31,7 @@ Card examples are in the [README](../README.md#examples).
 | `filter.area` | One room (a text) or several rooms (a list of texts); a program is shown when its `area` matches any of them. The room of a program is assigned in General settings. Spellings of the same room are merged (case, accents, `_` and `-` are ignored), and a text that is the id or the name of a Home Assistant area shows that area’s name: `bureau`, `Bureau` and `chambre_celine_manu` appear as **Bureau** and **Chambre Céline Manu**. Choosing such a room stores the area id, otherwise the text; an older value still selects the right room. The editor retains missing selections. Nothing stored in the programs changes, and device rooms are not inferred. |
 | `filter.programs` | Optional list of program IDs or names (see below), intersected with type/area filters. Missing means all programs, including future ones; `[]` means none. |
 | `title` | Optional card title. |
-| `schedule_view` | `bars` (default), `list`, `radial` (24-hour dial), `radial_12h` (concentric 12-hour dials), `compare` (**Comparison**: the whole week for the whole card, one group per day Monday to Sunday (today in bold), one bar per device, every program mixed in the order of `sort` and `order`; a bar or a day title opens that day in the schedule window by a long press (mouse too) or Enter or Space, never by a plain click; an icon at the top right opens the choice of the program to edit; the bars of a paused program are greyed and say “paused”; a **Day off** group follows Sunday when a day off is switched on for a program of the card), or `times` (**Daily times**: today as a plain list, one row per stretch with its setting, until when, and a “Now” mark; the calendar icon in the header opens today in the schedule window). All work with single-program and filtered cards. |
+| `schedule_view` | `bars` (default), `list`, `radial` (24-hour dial), `radial_12h` (concentric 12-hour dials), `compare` (**Comparison**: one day at a time for the whole card (a row of day chips, today by default, one choice only), one bar per device, every program mixed in the order of `sort` and `order`; a bar or a day title opens that day in the schedule window by a long press (mouse too) or Enter or Space, never by a plain click; an icon at the top right opens the choice of the program to edit; the bars of a paused program are greyed and say “paused”; a **Day off** chip after Sunday, greyed when no program of the card has a day off), or `times` (**Daily times**: today as a plain list, one row per stretch with its setting, until when, and a “Now” mark; the calendar icon in the header opens today in the schedule window). All work with single-program and filtered cards. |
 | `sort` | Order of the list: `type` (default: by type A→Z, then name; types are named by Home Assistant, with a small heading each), `area` (by room A→Z with headings, programs without a room under “Others”), `name` (A→Z) or `custom` (the `order` list). The first device of a program gives its type. |
 | `order` | With `sort: custom`: program IDs in the wanted order. Set in the editor (drag handle or up/down buttons). A program missing from the list goes last (by type, then name); an unknown ID is ignored. |
 | Time format | No option: the card follows the 12 h or 24 h setting of your Home Assistant profile (12 h shows am/pm, “midnight” and “noon”; the time fields of the slot editor show the chosen time, such as “= 10:30 pm”, under them). |
@@ -263,9 +263,10 @@ is saved.
 | `notify_delay_min` | `30` | Unavailable-entity notification delay, 1–1440 minutes. |
 | `debounce_min` | `2` | Condition stability delay, 0–60 minutes. |
 
-Sensitive-action authorization is enforced server-side independently of
-`admin_only`; see [actions.py](../custom_components/weekly_planner/actions.py).
-Shared program settings are only shown to HA administrators. Schedule editing and
+Independently of `admin_only`, a user can save an action only if their own Home Assistant
+rights allow that call (entity control, administrator-only services); see
+[rights.py](../custom_components/weekly_planner/rights.py).
+Shared program settings are shown to everyone who may edit. Schedule editing and
 contextual setting editing also depend on `can_edit` and storage state. The reload
 action requires administrator permission for user-originated calls.
 

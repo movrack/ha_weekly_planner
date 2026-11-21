@@ -486,22 +486,6 @@ def test_program_runs_the_overlap_check_for_each_profile():
 # -- admin and users --------------------------------------------------------------
 
 
-def test_admin_required():
-    safe = _lbl()
-    assert not v.admin_required(program(), safe)
-    admin_action = {"kind": "service", "service": "shell_command.run", "data": {}}
-    from custom_components.weekly_planner.actions import needs_admin
-    assert needs_admin(admin_action)
-    dangerous = {**safe, "t15": {**safe["t15"], "action": admin_action}}
-    assert v.admin_required(program(), dangerous)  # default label
-    assert v.admin_required(program(default=None, slots=[slot("s", "08:00", "09:00", "t15")]), dangerous)  # slot label
-    override = program()
-    override["entities"][0]["label_overrides"] = {"t21": admin_action}
-    assert v.admin_required(override, safe)
-    assert not v.admin_required(program(default=None, slots=[]), dangerous)  # unused
-    assert not v.admin_required(program(default="ghost"), safe)  # unknown label
-
-
 def test_label_users():
     first = program("a", slots=[slot("s", "08:00", "09:00", "t19")])
     second = program("b", slots=[])

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { t } from "../i18n";
 import { flat, handlers } from "./helpers/tpl";
-import { attrs, spansOf, listCard as card, simpleProgram as program, slot, stubBrowser, unstubBrowser } from "./helpers/planner-card";
+import { attrs, spansOf, listCard as card, simpleProgram as program, slot, stubBrowser, unstubBrowser, weekOf } from "./helpers/planner-card";
 
 beforeEach(stubBrowser);
 afterEach(unstubBrowser);
@@ -140,8 +140,8 @@ describe("spans of a day: guards", () => {
     const c = card([], { schedule_view: "compare" });
     const p = program("p", "P", ["cover.a"]);
     c._spans = vi.fn(() => []); c._holidaySpans = vi.fn(() => null);
-    flat(c._compare([[p]], false)); // the whole week in one render
-    expect(c._spans.mock.calls.map((x: any[]) => x[2])).toEqual([5, 6, 0, 1, 2, 3, 4]);
+    weekOf(c, [[p]], false); // one render per day chosen
+    expect(c._spans.mock.calls.slice(0, 7).map((x: any[]) => x[2])).toEqual([5, 6, 0, 1, 2, 3, 4]); // the 8th render is the greyed day-off chip, which shows today
   });
 });
 

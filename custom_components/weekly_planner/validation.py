@@ -9,7 +9,6 @@ from zoneinfo import ZoneInfo
 import voluptuous as vol
 from homeassistant.helpers import config_validation as cv
 
-from .actions import needs_admin
 from .const import (
     DEFAULT_PRIORITY,
     DEFAULT_REAPPLY,
@@ -515,15 +514,6 @@ def _check_week_overlaps_scoped(days: list[list[dict]], entity_ids: list[str]) -
                 shared = _shared_device(ids, other_ids, entity_ids)
                 if shared:
                     raise ProgramError(f"overlapping_slots:{shared}")
-
-
-def admin_required(program: dict, labels: dict[str, dict]) -> bool:
-    """Does the program use actions only an administrator may schedule (through a label or an override)?"""
-    if any(needs_admin(a) for e in program["entities"] for a in e["label_overrides"].values()):
-        return True
-    used = {e["default_label"] for e in program["entities"]}
-    used |= {s["label"] for p in program["profiles"] for s in profile_slots(p)}
-    return any(needs_admin((labels.get(label_id) or {}).get("action")) for label_id in used)
 
 
 def label_users(programs: list[dict], label_id: str) -> list[str]:

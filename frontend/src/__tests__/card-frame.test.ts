@@ -153,13 +153,14 @@ describe("card frame", () => {
     const filled = frame({}, {}, (c) => { c._data.programs = [program("p1", "A", ["cover.a"])]; });
     expect(flat(filled.render())).not.toContain('class="empty"');
   });
-  it("an empty card links to the programs panel for an administrator who can edit, outside read only mode", () => {
+  it("an empty card links to the programs panel for everyone who can edit (administrator or not), outside read only mode", () => {
     const link = `<a class="manage-programs" href="/weekly-planner">`;
     const shown = (admin: boolean | undefined, data: any = {}, programs: any[] = []) => flat(frame({}, data, (c) => {
       c.hass = { ...c.hass, user: admin === undefined ? undefined : { is_admin: admin } };
       c._data.programs = programs;
     }).render());
     const html = shown(true);
+    for (const who of [false, undefined]) expect(shown(who)).toContain(link);
     expect(html).toContain(link);
     expect(html).toContain(t("en", "ce_manage_programs"));
     expect(html).not.toContain("why-manage");
@@ -167,18 +168,17 @@ describe("card frame", () => {
     const loading = frame({}, {}, (c) => { c.hass = { ...c.hass, user: { is_admin: true } }; c._data = undefined; });
     expect(flat(loading.render())).not.toContain("manage-programs");
   });
-  it("for the others the manage button stays on screen, disabled, with its reason (an element never disappears)", () => {
+  it("when editing is impossible the manage button stays on screen, disabled, with its reason (an element never disappears)", () => {
     const shown = (admin: boolean | undefined, data: any = {}) => flat(frame({}, data, (c) => {
       c.hass = { ...c.hass, user: admin === undefined ? undefined : { is_admin: admin } };
       c._data.programs = [];
     }).render());
-    for (const html of [shown(false), shown(undefined), shown(true, { can_edit: false })]) {
+    for (const html of [shown(false, { can_edit: false }), shown(true, { can_edit: false })]) {
       expect(html).not.toContain("<a class=\"manage-programs\"");
       expect(html).toContain('<button class="manage-programs" disabled aria-disabled="true" aria-describedby="why-manage">');
-      expect(html).toContain(`<p class="why" id=why-manage role="status">${t("en", "manage_admins_only")}</p>`);
+      expect(html).toContain(`<p class="why" id=why-manage role="status">${t("en", "read_only")}</p>`);
     }
     expect(shown(true, { read_only: true })).toContain(`id=why-manage role="status">${t("en", "read_only")}</p>`);
-    expect(t("fr", "manage_admins_only")).toBe("Réservé aux administrateurs");
   });
   it("the undo snackbar", () => {
     const c = frame({}, {}, (x) => { x._snack = true; x._undo = vi.fn(); });

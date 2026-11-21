@@ -4,14 +4,14 @@ import { strings, t } from "../i18n";
 import { WeeklyPlannerCard, commonWordPrefix } from "../weekly-planner-card";
 import { WeeklyPlannerCardEditor } from "../card-editor";
 import { flat, handlers } from "./helpers/tpl";
-import { attrOf, card, hass, names, noClocksOf, nowsOf, program, slot, uniformProgram, wednesdayCard, week, weekOf } from "./helpers/planner-card";
+import { attrOf, card, hass, names, noClocksOf, nowsOf, program, selectedOf, slot, uniformProgram, wednesdayCard, week, weekOf } from "./helpers/planner-card";
 
 const A = () => program("pa", "Zeta", ["light.z"]);
 const B = () => program("pb", "Alpha", ["cover.a"]);
 const C = () => program("pc", "Beta", ["cover.b"]);
-/** The device names of the first group (Monday); the other days list the same names. */
-const firstDay = (h: string) => names(h.split('class="cday').slice(1)[0]);
-const every = (h: string) => h.split('class="cday').slice(1).map(names);
+/** The device names of the day shown (today); the other days list the same names. */
+const firstDay = (h: string) => names(h);
+const every = (c: any) => week(c).map((d) => names(flat(d)));
 const render = (c: any) => c._list(c._data.programs);
 const clicks = (c: any) => handlers(render(c)).filter((h) => h.event === "click");
 
@@ -57,20 +57,24 @@ describe("short device names (words every name starts with are left out)", () =>
 });
 
 describe("compare: structure", () => {
-  it("one comparison for the whole card: a titled group per day Monday to Sunday, no day chips", () => {
+  it("one comparison for the whole card, one day at a time, a chip per day Monday to Sunday and one for the day off", () => {
     const c = card([A(), B()]);
     const h = flat(render(c));
     expect(h.match(/class="compare"/g)).toHaveLength(1);
     const days = strings("en").days;
-    expect([...h.matchAll(/class="cday[^"]*" role="group" aria-label=([^>]*)>/g)].map((m) => m[1])).toEqual(days);
-    expect([...h.matchAll(/class="ctitle[^"]*"[^>]*>(\w+)<\/div>/g)].map((m) => m[1])).toEqual(days);
-    for (const bad of ["cdchip", "cdays", "role=\"tab", "wp-bar-editor", "class=\"phead\"", "role=\"switch\"", "weekbtn", "wp-chart", "class=\"create\"", "class=\"next\"", "<h2"]) expect(h).not.toContain(bad);
+    expect([...h.matchAll(/class="cday[^"]*" role="group" aria-label=([^>]*)>/g)].map((m) => m[1])).toEqual(["Monday"]); // today, alone
+    expect([...flat(week(c)).matchAll(/class="cday[^"]*" role="group" aria-label=([^>]*)>/g)].map((m) => m[1])).toEqual(days);
+    expect([...h.matchAll(/class="cdchip[^"]*" role="radio" aria-checked=\s+aria-disabled=([^ ]*)(?: aria-describedby=\w*)?\s+tabindex=-?\d aria-label=([\w ]+)\s+@click=/g)].map((m) => m[2])).toEqual([...days, "Day off"]);
+    expect(h).toContain('role="radiogroup"');
+    expect(selectedOf(render(c))).toEqual([true, ...Array(7).fill(false)]); // a single choice, today by default
+    for (const d of strings("en").days_short) expect(h).toContain(`>${d}</button>`);
+    for (const bad of ["role=\"tab", "wp-bar-editor", "class=\"phead\"", "role=\"switch\"", "weekbtn", "wp-chart", "class=\"create\"", "class=\"next\"", "<h2"]) expect(h).not.toContain(bad);
   });
   it("one row per device, default order type then name, same in every day", () => {
     const c = card([A(), B(), C()]);
     const h = flat(render(c));
     expect(firstDay(h)).toEqual(["Alpha", "Beta", "Zeta"]);
-    expect(every(h)).toEqual(Array(7).fill(["Alpha", "Beta", "Zeta"]));
+    expect(every(c)).toEqual(Array(7).fill(["Alpha", "Beta", "Zeta"]));
   });
   it("sort name and custom order", () => {
     expect(firstDay(flat(render(card([A(), B(), C()], { sort: "name" }))))).toEqual(["Alpha", "Beta", "Zeta"]);
@@ -110,9 +114,9 @@ describe("compare rows", () => {
   it("only the first device of the first program of a later group carries the gap, only when grouped", () => {
     const c = wednesdayCard([]);
     const [a, b, g] = two();
-    const day = flat(c._compare([[a], [b, g]], true));
-    expect(day.match(/class=crow gap>/g)).toHaveLength(7); // one per day
-    expect(day.match(/class=crow>/g)).toHaveLength(21); // every row, the gap one included, takes the plain class too
+    const day = flat(c._compare([[a], [b, g]], true)); // one day only
+    expect(day.match(/class=crow gap>/g)).toHaveLength(1);
+    expect(day.match(/class=crow>/g)).toHaveLength(3); // every row, the gap one included, takes the plain class too
     expect(flat(c._compare([[a], [b, g]], false))).not.toContain("gap");
     expect(flat(c._compare([[a, g]], true))).not.toContain("gap");
   });
@@ -194,7 +198,8 @@ describe("compare: today, touch and names", () => {
     const h = flat(render(c));
     expect(h).toMatch(/class="cday is-today" role="group" aria-label=Wednesday/);
     expect(h.match(/cday is-today/g)).toHaveLength(1);
-    expect(nowsOf(render(c))).toEqual([null, null, 540, null, null, null, null]); // only Wednesday's bar carries the now line
+    expect(selectedOf(render(c))).toEqual([false, false, true, false, false, false, false, false]); // Wednesday is the chip chosen
+    expect(nowsOf(week(c))).toEqual([null, null, 540, null, null, null, null]); // only Wednesday's bar carries the now line
   });
   it("the icon at the top right opens the choice of the program to edit", () => {
     const multi = program("pm", "Multi", ["light.y", "light.x"]);
@@ -271,7 +276,8 @@ describe("compare: opening a day by long press or keyboard", () => {
     expect(c._open).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
     expect(c._open).toHaveBeenCalledWith({ kind: "program", programId: "pb", entityId: "cover.a" }, { weekday: 0, offset: 0 });
-    down(c)[(1 + 2) * 2 + 1].fn(ev()); // Wednesday: its title, then the first bar after Monday's and Tuesday's three elements
+    c._cmpDay = 2; // Wednesday, chosen by its chip
+    down(c)[1].fn(ev());
     vi.advanceTimersByTime(450);
     expect(c._open).toHaveBeenLastCalledWith({ kind: "program", programId: "pb", entityId: "cover.a" }, { weekday: 2, offset: 2 });
   });
@@ -293,7 +299,7 @@ describe("compare: opening a day by long press or keyboard", () => {
   });
   it("a click without a pointer (screen reader) opens the day, a mouse click does not", () => {
     const c = card([A()]);
-    const click = handlers(render(c)).filter((h) => h.event === "click")[2].fn; // after the icon and Monday's title
+    const click = handlers(render(c)).filter((h) => h.event === "click")[10].fn; // after the icon, the eight chips and Monday's title
     click({ detail: 1 });
     expect(c._open).not.toHaveBeenCalled();
     click({ detail: 0 });
@@ -308,6 +314,7 @@ describe("compare: opening a day by long press or keyboard", () => {
   it("a bar of the day-off group opens its program without a day", () => {
     const own = program("po", "Own", ["cover.o"], {}, { copy: 6 });
     const c = card([own], {}, { holiday_entity: "binary_sensor.off" });
+    c._cmpDay = 7; // the day-off chip
     const presses = down(c);
     presses[presses.length - 1].fn(ev());
     vi.advanceTimersByTime(450);
@@ -315,8 +322,8 @@ describe("compare: opening a day by long press or keyboard", () => {
   });
   it("rows are focusable buttons named from the device and the day, only when editing is allowed", () => {
     const h = flat(render(card([A()])));
-    expect(h.match(/class="cbar press" role="button" tabindex="0" aria-label=Zeta, \w+/g)).toHaveLength(7);
-    expect(h.match(/class="ctitle press" role="button" tabindex="0" aria-label=\w+/g)).toHaveLength(7);
+    expect(h.match(/class="cbar press" role="button" tabindex="0" aria-label=Zeta, \w+/g)).toHaveLength(1);
+    expect(h.match(/class="ctitle press" role="button" tabindex="0" aria-label=\w+/g)).toHaveLength(1);
     expect(h).toContain(`aria-description=${t("en", "compare_row_action")}`);
     expect(h).toContain('<p class="chint"');
   });
@@ -327,15 +334,16 @@ describe("compare: opening a day by long press or keyboard", () => {
     const c = card([A()], {}, data);
     const h = flat(render(c));
     expect(h).not.toContain("role=\"button\"");
-    expect(h).not.toContain("tabindex");
+    expect(h).not.toContain("press"); // the chips keep their tabindex: they only choose the day shown
     expect(h).not.toContain("chint");
     expect(down(c)).toHaveLength(0);
-    expect(h.match(/class="cbar" role="img"/g)).toHaveLength(7);
+    expect(h.match(/class="cbar" role="img"/g)).toHaveLength(1);
+    expect(h).toContain("cdchip"); // the chips stay, they only choose what is shown
   });
   it("today's bar is inert while a day off replaces today, the other days still open", () => {
     const p = program("pb", "Alpha", ["cover.a"], {}, { day: [slot("h", "12:00", "13:00")] });
     const c = card([p], {}, { holiday_entity: "binary_sensor.off", holiday_today: true, status: { pb: { holiday: { own: true } } } });
-    const h = flat(render(c));
+    const h = flat(week(c));
     expect(h.match(/class="cbar press"/g)).toHaveLength(7); // six days and the day off
     expect(h.match(/class="cbar" role="img"/g)).toHaveLength(1); // today's
   });
@@ -347,6 +355,71 @@ describe("compare: opening a day by long press or keyboard", () => {
   it("the texts exist in EN and FR", () => {
     expect(t("en", "compare_row_action")).toBe("Opens this day for editing");
     expect(t("fr", "compare_row_action")).toBe("Ouvre ce jour pour le modifier");
+  });
+});
+
+describe("compare: day chips", () => {
+  const dayOff = { holiday_entity: "binary_sensor.off" };
+  const withOff = () => program("po", "Own", ["cover.o"], {}, { copy: 6 });
+  const chipFns = (c: any) => handlers(render(c)).filter((h) => h.event === "click").slice(1, 9); // after the edit icon
+  const key = (c: any) => handlers(render(c)).find((h) => h.event === "keydown")!.fn;
+  const press = (c: any, k: string) => { const e = { key: k, preventDefault: vi.fn() }; key(c)(e); return e; };
+  it("today is chosen by default, one choice only, and picking a day shows that day alone", () => {
+    const c = wednesdayCard([A(), B()]);
+    expect(selectedOf(render(c))).toEqual([false, false, true, false, false, false, false, false]);
+    chipFns(c)[4].fn(); // Friday
+    expect(c._cmpDay).toBe(4);
+    const h = flat(render(c));
+    expect(h.match(/class="cday[ "]/g)).toHaveLength(1);
+    expect(h).toContain("role=\"group\" aria-label=Friday");
+    expect(selectedOf(render(c))).toEqual([false, false, false, false, true, false, false, false]);
+  });
+  it("the day-off chip is always there: usable with a day off, greyed with its reason without", () => {
+    const none = flat(render(card([A()])));
+    expect(none).toContain("cdchip off");
+    expect(none).toContain(`aria-disabled=true`);
+    expect(none).toContain("aria-label=Day off");
+    expect(none).toContain("aria-describedby=cdnote"); // the reason is on screen under the chips, linked to the greyed chip
+    expect(none).toContain(`<p class="cdnote" id="cdnote">${t("en", "compare_day_off_none")}</p>`);
+    expect(none).not.toMatch(/cdchip[^>]*title=/); // no title or description that only repeats the name
+    const c = card([withOff()], {}, dayOff);
+    expect(flat(render(c))).not.toContain("cdchip off");
+    expect(flat(render(c))).not.toContain("cdnote\" id");
+    chipFns(c)[7].fn();
+    expect(flat(render(c))).toContain("cday cday-off");
+    const idle = card([A()]);
+    chipFns(idle)[7].fn(); // a greyed chip chooses nothing
+    expect(idle._cmpDay).toBeNull();
+    idle._cmpDay = 7; // the day off vanished while chosen: back to today
+    expect(selectedOf(render(idle))).toEqual([true, false, false, false, false, false, false, false]);
+  });
+  it("arrows, Home and End move the choice and skip a greyed chip; other keys do nothing", () => {
+    const c = card([A()]);
+    expect(press(c, "ArrowRight").preventDefault).toHaveBeenCalled();
+    expect(c._cmpDay).toBe(1);
+    press(c, "ArrowLeft"); press(c, "ArrowLeft");
+    expect(c._cmpDay).toBe(6); // wraps over the greyed day-off chip
+    press(c, "Home");
+    expect(c._cmpDay).toBe(0);
+    press(c, "End");
+    expect(c._cmpDay).toBe(6);
+    c._cmpDay = 3;
+    expect(press(c, "x").preventDefault).not.toHaveBeenCalled();
+    expect(c._cmpDay).toBe(3);
+    const o = card([withOff()], {}, dayOff);
+    press(o, "End");
+    expect(o._cmpDay).toBe(7);
+  });
+  it("chips are 44 px high and wrap", () => {
+    const css = (WeeklyPlannerCard as any).styles.map((x: any) => x.cssText ?? "").join("");
+    expect(css).toContain(".cdays { display: flex; flex-wrap: wrap;");
+    expect(css).toContain("min-width: 44px; min-height: 44px;");
+  });
+  it("the texts exist in EN and FR", () => {
+    expect(t("en", "compare_day")).toBe("Day shown");
+    expect(t("fr", "compare_day")).toBe("Jour affiché");
+    expect(t("en", "compare_day_off_none")).toBe("No day off set.");
+    expect(t("fr", "compare_day_off_none")).toBe("Aucun jour férié réglé.");
   });
 });
 

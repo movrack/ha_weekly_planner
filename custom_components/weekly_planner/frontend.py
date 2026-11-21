@@ -102,7 +102,7 @@ async def async_unregister_card(hass: HomeAssistant) -> None:
 
 
 async def async_register_panel(hass: HomeAssistant, in_sidebar: bool = True) -> None:
-    """Add the administrators' "Weekly Planner" panel (programs are managed there, not in a card).
+    """Add the "Weekly Planner" panel (open to everyone) (programs are managed there, not in a card).
 
     ``in_sidebar`` False keeps the panel at its address but hides its sidebar link.
     """
@@ -120,7 +120,7 @@ async def async_register_panel(hass: HomeAssistant, in_sidebar: bool = True) -> 
         sidebar_title="Weekly Planner" if in_sidebar else None,
         sidebar_icon="mdi:calendar-clock" if in_sidebar else None,
         module_url=f"{CARD_URL}?v={version}",
-        require_admin=True,
+        require_admin=False,
     )
 
 
