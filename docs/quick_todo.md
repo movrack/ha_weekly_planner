@@ -21,10 +21,8 @@ les détails et questions ouvertes sont dans `docs/SPEC.md` § 37 et le travail 
 
 ## Suivi dans les issues GitHub (2026-11-20)
 
-Les demandes du propriétaire sont des issues ; ce fichier ne garde que ce qui n'en a pas.
+Les demandes du propriétaire pour le planner sont des issues ; ce fichier ne garde que ce qui n'en a pas. Ce qui concerne la maison (Versatile Thermostat, Evohome, tableaux de bord) est suivi dans `movrack/ha-home`, pas ici.
 
-- Priorité 1 : Versatile Thermostat prend la main, Evohome n'applique plus de programme : #73.
-- Supprimer « Qui pilote le chauffage » (Thermostat / réglages) : #74.
 - Gestion des réglages dans un fieldset repliable entre Mode et Horaires : #75.
 - Le planner reprend-il la main après un changement extérieur ? À vérifier et documenter : #76.
 - Journal de bord des mutants dans une issue : #77.
