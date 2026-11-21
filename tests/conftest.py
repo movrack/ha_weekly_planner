@@ -28,3 +28,14 @@ def home_assistant_panel_stack(monkeypatch):
 
     monkeypatch.setattr(frontend, "async_setup", AsyncMock(return_value=True))
     monkeypatch.setattr(panel_custom, "async_register_panel", AsyncMock())
+
+
+@pytest.fixture(autouse=True)
+def built_card(monkeypatch, tmp_path_factory):
+    """A stand-in for the card bundle: it is built at release time and is not in the repository."""
+    from custom_components.weekly_planner import frontend
+
+    card = tmp_path_factory.mktemp("card") / "weekly-planner-card.js"
+    card.write_bytes(b"customElements.define('weekly-planner-card', class extends HTMLElement {});\n")
+    monkeypatch.setattr(frontend, "CARD_FILE", card)
+    return card
