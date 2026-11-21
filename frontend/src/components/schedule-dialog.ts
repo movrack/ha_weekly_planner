@@ -1153,7 +1153,7 @@ export class WpSchedule extends LitElement {
   private _panelHeader(panel: Panel, title: string, summary: unknown, controls: string, text = "") {
     const open = this._panel === panel;
     return html`<h3 class="acc-h"><button class="acc-btn" id=${`acc-${panel}-btn`} aria-expanded=${open} aria-controls=${controls}
-        aria-label=${text ? `${title}: ${text}` : title} @click=${() => void this._showPanel(panel)}>
+        aria-label=${text ? `${title}${this._lang === "fr" ? " :" : ":"} ${text}` : title} @click=${() => void this._showPanel(panel)}>
         <span class="acc-t"><span>${title}</span><span class="acc-sum">${summary}</span></span>
         <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button></h3>`;
   }

@@ -127,7 +127,7 @@ Refaire les mêmes gestes avec **17:00**, **22:00** et **Confort**, puis
 
 ### 4. Choisir Éco entre ces horaires
 
-Dans le cadre **Horaires**, toucher la ligne **Le reste du temps** (elle est
+Dans le panneau **Horaires**, toucher la ligne **Le reste du temps** (elle est
 au-dessus de la liste des horaires), choisir **Éco**, puis **Enregistrer**. À 8 h 30 et à 22 h, le chauffage reçoit ainsi la demande de 16 °C.
 
 <a href="images/guide/s14-rest-of-time.png"><img src="images/guide/s14-rest-of-time.png" width="320" alt="Choisir le réglage à utiliser le reste du temps." /></a>
@@ -365,7 +365,7 @@ programmes**. La carte l’affiche seulement (voir plus bas). Voir le [détail d
 Un jour férié ou de congé, la maison peut suivre d’autres horaires que ceux du jour de la semaine. Ce
 réglage se fait pour chaque mode : le jour férié de « Maison » peut être différent de celui de « Vacances ».
 
-1. Ouvrir les horaires du programme. À la fin du cadre **Horaires**, ouvrir **Jour férié**.
+1. Ouvrir les horaires du programme. À la fin du panneau **Horaires**, ouvrir **Jour férié**.
 2. Activer **Horaires différents les jours fériés**.
 3. Choisir **Mêmes horaires que :** puis un jour de la semaine (dimanche au départ), ou **Mes propres
    horaires** pour régler une journée à part.
