@@ -29,7 +29,6 @@ const configKey = (c: CardConfig): string => JSON.stringify(c, (_k, v: unknown) 
 export class WeeklyPlannerCardEditor extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @state() private _config: CardConfig = { type: "custom:weekly-planner-card" };
-  @state() private _programs: { id: string; name: string }[] = [];
   @state() private _data?: PlannerData;
   /** Icon Home Assistant gives each domain (a type header shows it). */
   @state() private _typeIcons = new Map<string, string>();
@@ -82,7 +81,6 @@ export class WeeklyPlannerCardEditor extends LitElement {
 
   private _setData(data: PlannerData): void {
     this._data = data;
-    this._programs = data.programs.map((p) => ({ id: p.id, name: p.name }));
   }
 
   /** HA owns domain names and their translations, including domains unknown to this card. */
@@ -123,6 +121,17 @@ export class WeeklyPlannerCardEditor extends LitElement {
     return Boolean(this._data?.can_edit && !this._data?.read_only);
   }
 
+  /**
+   * The filter the editor shows. A saved `program: <id or name>` (the former "one program" choice) is read as the
+   * selection of that single program: the card gives the same programs for `program: x` and `filter: {programs: [x]}`.
+   * `program: ""` meant no restriction (the card falls back to its filter, which is empty).
+   */
+  private get _filter(): NonNullable<CardConfig["filter"]> {
+    const c = this._config;
+    if (c.program !== undefined) return c.program ? { programs: [c.program] } : {};
+    return c.filter ?? {};
+  }
+
   private _emit(input: CardConfig): void {
     // First user change writes the full effective configuration, so the YAML matches what the editor shows.
     const config = withDefaults(input);
@@ -142,28 +151,13 @@ export class WeeklyPlannerCardEditor extends LitElement {
     this._emit(next as unknown as CardConfig);
   }
 
-  private get _isProgram(): boolean {
-    return this._config.program !== undefined;
-  }
-
-  private _setMode(program: boolean): void {
-    const next = { ...this._config } as CardConfig;
-    if (program) {
-      delete next.filter;
-      next.program = this._programs[0]?.id ?? "";
-    } else {
-      delete next.program;
-      next.filter = { ...next.filter, types: next.filter?.types ?? [] };
-    }
-    this._emit(next);
-  }
-
   private _setFilter(patch: { types?: string[]; area?: string | string[]; programs?: string[] }): void {
-    const filter = { ...(this._config.filter ?? {}), ...patch };
+    const filter = { ...this._filter, ...patch };
     for (const k of ["types", "programs"] as const) if (filter[k] === undefined) delete filter[k];
     if (!filter.types?.length) delete filter.types;
     if (!areaList(filter.area).length) delete filter.area;
     const next = { ...this._config, filter } as CardConfig;
+    delete next.program; // a saved `program` becomes its filter only when the selection changes; other edits leave it as it is
     this._emit(next);
   }
 
@@ -183,8 +177,8 @@ export class WeeklyPlannerCardEditor extends LitElement {
 
   /** The room filter as single-choice chips, like the types (owner, 2026-11-14): "All rooms" first, one chip per room. */
   private _roomField() {
-    const areas = roomOptions(this.hass, this._data?.programs ?? [], this._config.filter?.area);
-    const chosen = roomKeys(this.hass, this._config.filter?.area);
+    const areas = roomOptions(this.hass, this._data?.programs ?? [], this._filter.area);
+    const chosen = roomKeys(this.hass, this._filter.area);
     // several rooms can be chosen: a chip adds or removes its room; "All rooms" (no room chosen) clears them
     const toggle = (key: string) => {
       const kept = areas.filter((a) => chosen.has(a.key) && a.key !== key);
@@ -200,7 +194,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
   }
 
   private _displayPrograms() {
-    const filter = this._config.filter;
+    const filter = this._filter;
     const programs = this._data?.programs ?? [];
     const all = filter?.programs === undefined && !filter?.types?.length;
     // a room is chosen: the list below only offers the programs of that room (the others keep their state)
@@ -331,22 +325,9 @@ export class WeeklyPlannerCardEditor extends LitElement {
       <div class="field"><label for="ce-title">${this._tr("ce_title")}</label>
         <input id="ce-title" type="text" .value=${c.title ?? ""} @input=${(e: Event) => this._set("title", (e.target as HTMLInputElement).value)} /></div>
 
-      <fieldset class="group"><legend>${this._tr("ce_mode")}</legend><div class="row">
-        <label class="check"><input type="radio" name="ce-mode" .checked=${this._isProgram} @change=${() => this._setMode(true)} /> ${this._tr("ce_one_program")}</label>
-        <label class="check"><input type="radio" name="ce-mode" .checked=${!this._isProgram} @change=${() => this._setMode(false)} /> ${this._tr("ce_filtered")}</label>
-      </div></fieldset>
+      ${this._displayPrograms()}
 
-      ${this._isProgram
-        ? html`<div class="field"><label for="ce-program">${this._tr("ce_program")}</label>
-            <select id="ce-program" data-value=${c.program ?? ""} @change=${(e: Event) => this._set("program", (e.target as HTMLSelectElement).value)}>
-              ${this._programs.length === 0 ? html`<option value="">${this._tr("no_program")}</option>` : nothing}
-              ${!this._programs.some((p) => p.id === c.program) && c.program ? html`<option value=${c.program} selected>${c.program}</option>` : nothing}
-              ${this._programs.map((p) => html`<option value=${p.id} ?selected=${p.id === c.program}>${p.name}</option>`)}
-            </select>
-          </div>`
-        : this._displayPrograms()}
-
-      ${this._isProgram ? nothing : this._sortField()}
+      ${this._sortField()}
       <div class="field"><label for="ce-view">${this._tr("ce_schedule_view")}</label>
         <select id="ce-view" data-value=${c.schedule_view ?? "bars"} @change=${(e: Event) => this._set("schedule_view", (e.target as HTMLSelectElement).value)}>
           <option value="bars">${this._tr("ce_bars")}</option>

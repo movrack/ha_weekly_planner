@@ -22,8 +22,6 @@ describe("error texts", () => {
 describe("plain vocabulary", () => {
   it("the card editor and chart use plain words (reviewed by a novice, 2026-02-10)", () => {
     const fr = strings("fr"), en = strings("en");
-    expect(fr.ce_filtered).toBe("Plusieurs programmes");
-    expect(fr.ce_one_program).toBe("Un seul programme");
     expect(fr.ce_area).toBe("Pièce");
     expect(fr.ce_schedule_view).toBe("Affichage");
     expect(fr.ce_area_hint).toBe("Montre seulement les programmes rangés dans les pièces choisies. Pour ranger un programme dans une pièce : Réglages des programmes → Général → Pièce du programme.");

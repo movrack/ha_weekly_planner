@@ -166,10 +166,10 @@ describe("editor order list", () => {
     e._move(["b", "a", "c"], 2, 1);
     expect(sent[sent.length - 1].order).toEqual(["b", "c", "a", "ghost"]);
   });
-  it("the two content radios sit in a fieldset with a visible legend, and the hints are tied to their switch", () => {
+  it("the hints are tied to their switch and the removed one/several question is gone", () => {
     const { e } = editor();
     const t = flat(e.render());
-    expect(t).toMatch(/<fieldset class="group"><legend>What the card shows<\/legend>/);
+    expect(t).not.toContain("What the card shows");
     expect(t).not.toContain("radiogroup");
     expect(t).toContain('id="ce-show-chart-hint"');
     expect(t).toContain('id="ce-chart-open-hint"');

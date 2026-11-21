@@ -16,7 +16,6 @@ const mk = (config: any = {}, programs: any[] = [prog("a", "Alpha"), prog("b", "
   el.hass = { language: "en", states: {}, areas: {}, user: { is_admin: true }, loadBackendTranslation: vi.fn(async () => () => "") };
   el._config = { type: "custom:weekly-planner-card", ...config };
   el._data = { programs, labels: [], status: {}, can_edit: true, read_only: false };
-  el._programs = programs.map((p: any) => ({ id: p.id, name: p.name }));
   el.dispatchEvent = vi.fn();
   return el;
 };
@@ -106,12 +105,6 @@ describe("edits of the config", () => {
     expect(sent(el)[0]).toEqual({ type: CARD, title: "A", program: "a", schedule_view: "bars", show_chart: false, chart_collapsed: true });
     expect(el._config).toEqual(sent(el)[0]);
   });
-  it("choosing a program keeps the other keys and fills in the defaults", () => {
-    const el = mk({ title: "A", program: "a" });
-    el._set("title", "B");
-    el._set("program", "b");
-    expect(sent(el)[1]).toMatchObject({ program: "b", schedule_view: "bars", show_chart: true, chart_collapsed: true });
-  });
   it("config events bubble through the dashboard shadow root", () => {
     const el = mk();
     el._set("title", "Kitchen");
@@ -121,27 +114,43 @@ describe("edits of the config", () => {
     expect(event.composed).toBe(true);
     expect(event.detail.config.title).toBe("Kitchen");
   });
-  it("switching to one program picks the first one and drops the filter", () => {
-    const el = mk({ filter: { types: ["cover"] } });
-    el._setMode(true);
-    expect(sent(el)[0].program).toBe("a");
+  it("a saved single program is shown as the selection of that program and nothing is rewritten before a change", () => {
+    const el = mk({ program: "b" });
+    expect(el._filter).toEqual({ programs: ["b"] });
+    expect(sent(el)).toEqual([]);
+    expect(mk({ program: "" })._filter).toEqual({}); // the card shows every program for an empty `program`
+    expect(mk({})._filter).toEqual({});
+    expect(mk({ filter: { types: ["light"] } })._filter).toEqual({ types: ["light"] });
+  });
+  it("a change that is not a selection leaves a saved single program as it is", () => {
+    const el = mk({ title: "A", program: "b" });
+    el._set("title", "B");
+    expect(sent(el)[0]).toMatchObject({ title: "B", program: "b" });
     expect("filter" in sent(el)[0]).toBe(false);
   });
-  it("switching to one program with no program leaves the choice empty, and an empty choice still is the one-program mode", () => {
-    const none = mk({}, []);
-    none._setMode(true);
-    expect(sent(none)[0].program).toBe("");
-    expect(mk({ program: "" })._isProgram).toBe(true);
-    expect(mk({})._isProgram).toBe(false);
-  });
-  it("back to a list: with no types the list is empty, with types they are kept", () => {
-    const el = mk({ program: "a" });
-    el._setMode(false);
+  it("the first change of the selection moves a saved single program to the filter, leaving any old filter aside", () => {
+    const el = mk({ program: "b", filter: { types: ["light"] } });
+    el._setFilter({ area: "k" });
+    expect(sent(el)[0].filter).toEqual({ programs: ["b"], area: "k" });
     expect("program" in sent(el)[0]).toBe(false);
-    expect(sent(el)[0].filter).toEqual({ types: [] });
-    const typed = mk({ program: "b", filter: { types: ["light"], area: "k" } });
-    typed._setMode(false);
-    expect(sent(typed)[0].filter).toEqual({ types: ["light"], area: "k" });
+    const empty = mk({ program: "" });
+    empty._setFilter({ area: "k" });
+    expect(sent(empty)[0].filter).toEqual({ area: "k" });
+  });
+  it("a saved single program, once migrated, still shows exactly the programs the card showed", async () => {
+    const { filterPrograms } = await import("../planner");
+    const data: any = { programs: [prog("a", "Alpha"), prog("b", "Beta")] };
+    for (const ref of ["b", "beta", "Béta", "nobody"]) {
+      const el = mk({ program: ref });
+      el._setFilter({});
+      expect(filterPrograms(data, sent(el)[0]).map((p) => p.id)).toEqual(filterPrograms(data, { program: ref }).map((p) => p.id));
+    }
+  });
+  it("a program chosen in the tree of a saved single program replaces it in the filter", () => {
+    const el = mk({ program: "a" });
+    el._treeChange({ programs: ["a", "c"] });
+    expect(sent(el)[0].filter).toEqual({ programs: ["a", "c"] });
+    expect("program" in sent(el)[0]).toBe(false);
   });
   it.each([
     ["no types", { types: ["cover"], area: "k", programs: ["a"] }, { types: [] }, { area: "k", programs: ["a"] }],
@@ -165,21 +174,12 @@ describe("edits of the config", () => {
 describe("form fields of the display tab", () => {
   it.each([
     ["ce-title", "input", "Living room", "title"],
-    ["ce-program", "change", "b", "program"],
     ["ce-view", "change", "compare", "schedule_view"],
   ])("the field %s sets %s of the config", (id, event, value, key) => {
-    const el = mk({ program: "a" });
+    const el = mk({ filter: { programs: ["a"] } });
     el._set = vi.fn();
     eventNear(el.render(), event, `id="${id}"`)({ target: { value } });
     expect(el._set).toHaveBeenCalledExactlyOnceWith(key, value);
-  });
-  it("the two mode choices switch to one program and back to a list", () => {
-    const el = mk({ program: "a" });
-    el._setMode = vi.fn();
-    const changes = handlers(el.render()).filter((h) => h.event === "change" && h.before.slice(-200).includes('name="ce-mode"'));
-    expect(changes).toHaveLength(2);
-    changes[0].fn(); expect(el._setMode).toHaveBeenLastCalledWith(true);
-    changes[1].fn(); expect(el._setMode).toHaveBeenLastCalledWith(false);
   });
 });
 
@@ -412,7 +412,6 @@ describe("snapshot subscription", () => {
     const snapshot = { programs: [{ id: "a", name: "Alpha" }] };
     subscription.subscribe.mock.calls[0][1](snapshot);
     expect(el._data).toBe(snapshot);
-    expect(el._programs).toEqual([{ id: "a", name: "Alpha" }]);
     el.updated();
     expect(subscription.subscribe).toHaveBeenCalledTimes(1);
     expect(el._loadDomainNames).toHaveBeenCalledTimes(2);
