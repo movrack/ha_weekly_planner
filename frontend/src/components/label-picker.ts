@@ -354,14 +354,14 @@ export class WpLabelPicker extends LitElement {
       <div class="details" style="--lc:${chosen.color}">
         <div class="dhead">
           <i class="dot" style="background:${chosen.color}"></i><b>${labelName(this.hass, this._form && this._editId === chosen.id && this._action ? { ...chosen, action: this._action, show_value: this._canShowValue && this._showValue } : chosen, this.entityIds[0])}</b>
-          ${this.compact ? nothing : html`<button class="pen ${this._form ? "on" : ""}" aria-label=${t(lang, "rename_label")} title=${t(lang, "rename_label")}
+          <button class="pen ${this._form ? "on" : ""}" aria-label=${t(lang, "rename_label")} title=${t(lang, "rename_label")}
             aria-pressed=${this._form} ?disabled=${this.disabled || this.readonlySettings} aria-disabled=${ariaDisabled(this.readonlySettings)}
             aria-describedby=${describedBy(this.readonlySettings, "why-manage")}
             @click=${() => (this._form && this._editId ? this._close() : this._open(true))}><ha-icon icon="mdi:pencil"></ha-icon></button>
           <button class="pen ${this._confirmDel ? "on" : ""}" aria-label=${t(lang, "lb_delete")} title=${t(lang, "lb_delete")}
             aria-expanded=${this._confirmDel} ?disabled=${this.disabled || this.readonlySettings} aria-disabled=${ariaDisabled(this.readonlySettings)}
             aria-describedby=${describedBy(this.readonlySettings, "why-manage")}
-            @click=${() => { this._confirmDel = !this._confirmDel; this._delError = ""; }}><ha-icon icon="mdi:delete-outline"></ha-icon></button>`}
+            @click=${() => { this._confirmDel = !this._confirmDel; this._delError = ""; }}><ha-icon icon="mdi:delete-outline"></ha-icon></button>
         </div>
         ${(() => {
           // the other programs that use this setting too (a change here changes them as well), on its own line
@@ -396,12 +396,12 @@ export class WpLabelPicker extends LitElement {
         ${this.allowNone ? chip(t(lang, "rest_none"), this.value === null, () => this._choose(null)) : nothing}
         ${labels.map((l) => chip(labelName(this.hass, l, this.entityIds[0]), l.id === this.value, () => this._choose(l.id), l.color))}
         ${this.value && !chosen ? chip("?", true, () => undefined) : nothing}
-        ${this.compact ? nothing : html`<button class="chip add ${this._form && !this._editId ? "on" : ""}" ?disabled=${this.disabled || this.readonlySettings}
+        <button class="chip add ${this._form && !this._editId ? "on" : ""}" ?disabled=${this.disabled || this.readonlySettings}
           aria-disabled=${ariaDisabled(this.readonlySettings)} aria-describedby=${describedBy(this.readonlySettings, "why-manage")}
           @click=${() => (this._form && !this._editId ? this._close() : this._open(false))}>
-          <ha-icon icon="mdi:plus"></ha-icon><span>${t(lang, "lb_new")}</span></button>`}
+          <ha-icon icon="mdi:plus"></ha-icon><span>${t(lang, "lb_new")}</span></button>
       </div>
-      ${whyNote("why-manage", t(lang, "lb_manage_above"), this.readonlySettings && !this.compact)}
+      ${whyNote("why-manage", t(lang, "lb_manage_above"), this.readonlySettings)}
       ${this._form && !this._editId && !this.readonlySettings ? this._renderForm() : nothing}
       ${chosen && !(this._form && !this._editId && !this.readonlySettings) ? this._renderDetails(chosen) : nothing}`;
   }

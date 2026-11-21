@@ -104,6 +104,11 @@ const en = {
   pe_history: "Draft history",
   pe_undo: "Undo change",
   pe_redo: "Redo",
+  pe_nothing_undo: "Nothing to undo.",
+  pe_nothing_redo: "Nothing to redo.",
+  pe_nothing_both: "Nothing to undo or redo.",
+  pe_no_changes: "No changes.",
+  pe_save_first: "Save the program first.",
   pe_unapplied: "Changes not applied yet",
   pe_shared_save_hint: "Updates this program on every card. Cancelling the dashboard editor will not undo applied changes.",
 
@@ -642,6 +647,11 @@ const fr: typeof en = {
   pe_history: "Historique du brouillon",
   pe_undo: "Annuler la modification",
   pe_redo: "Rétablir",
+  pe_nothing_undo: "Rien à annuler.",
+  pe_nothing_redo: "Rien à rétablir.",
+  pe_nothing_both: "Rien à annuler ni à rétablir.",
+  pe_no_changes: "Aucun changement.",
+  pe_save_first: "Enregistrez d’abord le programme.",
   pe_unapplied: "Modifications non appliquées",
   pe_shared_save_hint: "Met à jour ce programme sur toutes les cartes. Annuler l’éditeur du tableau de bord n’annule pas les changements appliqués.",
 

@@ -114,17 +114,20 @@ describe("the chosen setting's summary", () => {
     el.readonlySettings = false;
     expect(flat(el.render())).toContain('class="form"'); expect(flat(el.render())).not.toContain('class="details"');
   });
-  it("hides the new-setting chip when compact", () => {
-    expect(flat(mk({ compact: true }).render())).not.toContain('class="chip add');
+  it("keeps the new-setting chip when compact, greyed with its reason in the read-only strip", () => {
+    const out = flat(mk({ compact: true, readonlySettings: true }).render());
+    expect(out).toContain('class="chip add');
+    expect(out).toContain("aria-describedby=why-manage");
+    expect(out).toContain(t("en", "lb_manage_above"));
   });
-  it("offers delete except in the read-only strip", () => {
+  it("offers delete, greyed in the read-only strip (also when compact)", () => {
     expect(flat(mk().render())).toContain("mdi:delete-outline");
     expect(flat(mk().render())).toContain(t("en", "lb_delete"));
     // the read-only strip keeps the bin, greyed, with the reason
     const ro = flat(mk({ readonlySettings: true }).render());
     expect(ro).toContain("mdi:delete-outline");
     expect(ro).toContain(t("en", "lb_manage_above"));
-    expect(flat(mk({ readonlySettings: true, compact: true }).render())).not.toContain("mdi:delete-outline");
+    expect(flat(mk({ readonlySettings: true, compact: true }).render())).toContain("mdi:delete-outline");
   });
   it("shows the delete box under the chips once the bin is clicked, but never in the read-only strip", () => {
     const el = mk();
