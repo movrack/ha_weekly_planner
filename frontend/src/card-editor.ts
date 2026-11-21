@@ -10,6 +10,7 @@ import { domainIcon, programDomains, type DomainLocalize } from "./domains";
 import { normalizeConfig, withDefaults } from "./config";
 import { allPrograms, isOn, toggleAllOff, toggleProgram, programRows, toggleType, typeGroups, typeState, type FilterPatch } from "./filter-editor";
 import { t } from "./i18n";
+import { collapse, collapseStyles } from "./styles";
 import { ariaDisabled, describedBy, whyNote, whyStyles } from "./reason";
 import { moveId, sortItems, sortMode, SORTS } from "./list-order";
 import { setTimeFormat } from "./time";
@@ -185,8 +186,9 @@ export class WeeklyPlannerCardEditor extends LitElement {
     return this.hass?.localize?.(`component.${type}.title`) || this._domainLocalize?.(`component.${type}.title`) || type;
   }
 
-  private _switch(checked: boolean, label: string, onChange: (on: boolean) => void, partial = false, disabled = false, describing = "") {
+  private _switch(checked: boolean, label: string, onChange: (on: boolean) => void, partial = false, disabled = false, describing = "", fold?: { expanded: boolean; controls: string }) {
     return html`<ha-switch class=${partial ? "partial" : ""} .checked=${checked} .disabled=${disabled} aria-disabled=${ariaDisabled(disabled)} aria-label=${label} aria-describedby=${describing || nothing}
+      aria-expanded=${fold ? String(fold.expanded) : nothing} aria-controls=${fold?.controls ?? nothing}
       @change=${(e: Event) => onChange((e.target as HTMLInputElement).checked)}></ha-switch>`;
   }
 
@@ -356,6 +358,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
   render() {
     const c = this._config;
     const listUsed = usesScheduleList(c.schedule_view);
+    const chartOn = c.show_chart !== false;
     return html`
       ${this._canManage ? html`<a class="btn manage-programs" href="/weekly-planner"><ha-icon icon="mdi:calendar-edit"></ha-icon>${this._tr("ce_manage_programs")}</a>`
         : !this._data ? nothing : html`<button type="button" class="btn manage-programs" disabled aria-disabled="true" aria-describedby="why-manage"><ha-icon icon="mdi:calendar-edit"></ha-icon>${this._tr("ce_manage_programs")}</button>
@@ -370,17 +373,19 @@ export class WeeklyPlannerCardEditor extends LitElement {
       <div class="switch-row"><span class="grow">${this._tr("ce_show_schedule_list")}</span>
         ${this._switch(c.show_schedule_list === true, this._tr("ce_show_schedule_list"), (on) => this._set("show_schedule_list", on), false, !listUsed, listUsed ? "" : "why-schedule-list")}</div>
       ${whyNote("why-schedule-list", this._tr("ce_show_schedule_list_why"), !listUsed)}
-      <div class="switch-row"><span class="grow">${this._tr("ce_show_chart")}</span>
-        ${this._switch(c.show_chart !== false, this._tr("ce_show_chart"), (on) => this._set("show_chart", on), false, false, "ce-show-chart-hint")}</div>
-      <p id="ce-show-chart-hint" class="hint">${this._tr("ce_show_chart_hint")}</p>
-      <div class="switch-row"><span class="grow">${this._tr("ce_chart_open")}</span>
-        ${this._switch(c.chart_collapsed === false, this._tr("ce_chart_open"), (on) => this._set("chart_collapsed", !on), false, c.show_chart === false, "ce-chart-open-hint")}</div>
-      <p id="ce-chart-open-hint" class="hint">${this._tr("ce_chart_open_hint")}</p>
+      <fieldset class="group"><legend>${this._tr("ce_chart_group")}</legend>
+        <div class="switch-row"><span class="grow">${this._tr("ce_show_chart")}</span>
+          ${this._switch(chartOn, this._tr("ce_show_chart"), (on) => this._set("show_chart", on), false, false, "ce-show-chart-hint", { expanded: chartOn, controls: "ce-chart-more" })}</div>
+        <p id="ce-show-chart-hint" class="hint">${this._tr("ce_show_chart_hint")}</p>
+        ${collapse(chartOn, html`<div class="switch-row"><span class="grow">${this._tr("ce_chart_open")}</span>
+          ${this._switch(c.chart_collapsed === false, this._tr("ce_chart_open"), (on) => this._set("chart_collapsed", !on), false, false, "ce-chart-open-hint")}</div>
+        <p id="ce-chart-open-hint" class="hint">${this._tr("ce_chart_open_hint")}</p>`, "ce-chart-more")}
+      </fieldset>
     `;
 
   }
 
-  static styles = [editorStyles, whyStyles, css`:host { display: block; padding: 4px 0; } .hint { line-height: 1.5; } .display-programs { margin: 12px 0; border: 1px solid var(--wp-field-border); border-radius: 8px; padding: 8px 12px; } summary { min-height: 44px; align-content: center; cursor: pointer; } .display-programs .check { min-height: 44px; overflow-wrap: anywhere; } .switch-row { display: flex; align-items: center; gap: 8px; min-height: 48px; overflow-wrap: anywhere; } .type-head { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; min-height: 48px; border: 0; background: none; color: inherit; text-align: start; cursor: pointer; } .type-body[hidden] { display: none; } ha-switch { padding: 12px 8px; margin: -12px -8px; flex: none; } ha-switch.partial { --mdc-theme-secondary: var(--warning-color, #ffa600); } .type-icon { flex: none; color: var(--secondary-text-color); } .titles { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; } .type-title { font-size: 1rem; overflow-wrap: normal; word-break: keep-all; } .type-names { font-size: 0.875rem; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .mini { --mdc-icon-size: 16px; vertical-align: -3px; margin-inline-end: 4px; } .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; } .chip { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 12px; border: 1px solid var(--wp-field-border); border-radius: 22px; background: none; color: var(--primary-text-color); font: inherit; cursor: pointer; } .chip.on { background: var(--wp-primary-fill); border-color: var(--wp-primary-fill); color: #fff; } .chip.partial { border: 2px dashed var(--wp-primary-text); } .chip .count { font-size: 0.8125rem; opacity: .85; color: inherit; } .chip.on .count { opacity: 1; color: #fff; } .quick .hint { margin: 4px 0 0; } .count { font-size: 0.875rem; color: var(--secondary-text-color); } .count b { color: var(--primary-text-color); } .type-head.static { cursor: default; } .chev-space { flex: none; width: 24px; } .order-list { list-style: none; margin: 0 0 12px; padding: 0; } .order-row { display: flex; align-items: center; gap: 4px; min-height: 56px; border-bottom: 1px solid var(--divider-color); } .order-row.target { border-top: 2px solid var(--wp-primary-text); } .order-row.moved { background: var(--wp-field-border); box-shadow: inset 4px 0 0 var(--wp-primary-text); } .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } .order-row button.move { width: 48px; height: 48px; } .order-row button { flex: none; width: 44px; height: 48px; display: inline-flex; align-items: center; justify-content: center; border: 0; background: none; color: var(--primary-text-color); cursor: pointer; } .order-row button[disabled] { opacity: .35; cursor: default; } .order-row .handle { touch-action: none; cursor: grab; } .order-row .grow { flex: 1 1 0; min-width: 0; } .manage-programs { margin-bottom: 12px; text-decoration: none; } button.manage-programs[disabled] { opacity: .5; cursor: default; margin-bottom: 0; }`];
+  static styles = [editorStyles, whyStyles, collapseStyles, css`:host { display: block; padding: 4px 0; } .hint { line-height: 1.5; } .display-programs { margin: 12px 0; border: 1px solid var(--wp-field-border); border-radius: 8px; padding: 8px 12px; } summary { min-height: 44px; align-content: center; cursor: pointer; } .display-programs .check { min-height: 44px; overflow-wrap: anywhere; } .switch-row { display: flex; align-items: center; gap: 8px; min-height: 48px; overflow-wrap: anywhere; } .type-head { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; min-height: 48px; border: 0; background: none; color: inherit; text-align: start; cursor: pointer; } .type-body[hidden] { display: none; } ha-switch { padding: 12px 8px; margin: -12px -8px; flex: none; } ha-switch.partial { --mdc-theme-secondary: var(--warning-color, #ffa600); } .type-icon { flex: none; color: var(--secondary-text-color); } .titles { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; } .type-title { font-size: 1rem; overflow-wrap: normal; word-break: keep-all; } .type-names { font-size: 0.875rem; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .mini { --mdc-icon-size: 16px; vertical-align: -3px; margin-inline-end: 4px; } .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; } .chip { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 12px; border: 1px solid var(--wp-field-border); border-radius: 22px; background: none; color: var(--primary-text-color); font: inherit; cursor: pointer; } .chip.on { background: var(--wp-primary-fill); border-color: var(--wp-primary-fill); color: #fff; } .chip.partial { border: 2px dashed var(--wp-primary-text); } .chip .count { font-size: 0.8125rem; opacity: .85; color: inherit; } .chip.on .count { opacity: 1; color: #fff; } .quick .hint { margin: 4px 0 0; } .count { font-size: 0.875rem; color: var(--secondary-text-color); } .count b { color: var(--primary-text-color); } .type-head.static { cursor: default; } .chev-space { flex: none; width: 24px; } .order-list { list-style: none; margin: 0 0 12px; padding: 0; } .order-row { display: flex; align-items: center; gap: 4px; min-height: 56px; border-bottom: 1px solid var(--divider-color); } .order-row.target { border-top: 2px solid var(--wp-primary-text); } .order-row.moved { background: var(--wp-field-border); box-shadow: inset 4px 0 0 var(--wp-primary-text); } .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } .order-row button.move { width: 48px; height: 48px; } .order-row button { flex: none; width: 44px; height: 48px; display: inline-flex; align-items: center; justify-content: center; border: 0; background: none; color: var(--primary-text-color); cursor: pointer; } .order-row button[disabled] { opacity: .35; cursor: default; } .order-row .handle { touch-action: none; cursor: grab; } .order-row .grow { flex: 1 1 0; min-width: 0; } .manage-programs { margin-bottom: 12px; text-decoration: none; } button.manage-programs[disabled] { opacity: .5; cursor: default; margin-bottom: 0; }`];
 }
 
 declare global {

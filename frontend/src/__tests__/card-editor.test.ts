@@ -530,6 +530,32 @@ describe("the display views follow the number of selected programs", () => {
   });
 });
 
+describe("the Chart fieldset", () => {
+  it("the two chart switches sit in a fieldset with a visible legend, the parent switch first", () => {
+    const out = flat(mk({}).render());
+    const set = out.slice(out.indexOf(`<legend>${t("en", "ce_chart_group")}</legend>`));
+    expect(out).toMatch(/<fieldset class="group"><legend>Chart<\/legend>/);
+    expect(set.indexOf(t("en", "ce_show_chart"))).toBeLessThan(set.indexOf(t("en", "ce_chart_open")));
+    expect(out.match(/<\/fieldset>/g)).toHaveLength(1);
+  });
+  it.each([[{}, "true", true], [{ show_chart: true }, "true", true], [{ show_chart: false }, "false", false]])(
+    "%j: the parent switch says aria-expanded=%s and the sub-option folds under it (open = %s)", (config, expanded, open) => {
+      const out = flat(mk(config).render());
+      expect(out).toContain(`aria-expanded=${expanded} aria-controls=ce-chart-more`);
+      expect(out.includes('class="wp-collapse open" id=ce-chart-more')).toBe(open);
+      expect(out.includes('class="wp-collapse " id=ce-chart-more')).toBe(!open);
+      expect(out).toContain(t("en", "ce_show_chart")); // the parent switch never goes away
+      expect(out).toContain(t("en", "ce_chart_open")); // the folded sub-option stays in the page, only inert
+    });
+  it("the sub-option writes chart_collapsed (its opposite) and is no longer greyed", () => {
+    const el = mk({ show_chart: false });
+    el._set = vi.fn();
+    eventNear(el.render(), "change", `aria-label=${t("en", "ce_chart_open")}`)({ target: { checked: true } });
+    expect(el._set).toHaveBeenCalledExactlyOnceWith("chart_collapsed", false);
+    expect(flat(el.render())).not.toContain("aria-disabled=true aria-label=Chart open by default");
+  });
+});
+
 describe("card editor: touch targets", () => {
   // Layout at 360 px (UI review 2026-02-10): touch targets, wrapping, no word cut in a program name.
   it("fits a 360 px screen: 44 px type chips that wrap, program names not cut mid-word, notice button inside its box", () => {
