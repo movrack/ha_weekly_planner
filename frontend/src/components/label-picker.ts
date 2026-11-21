@@ -389,7 +389,7 @@ export class WpLabelPicker extends LitElement {
       .sort((a, b) => labelName(this.hass, a).localeCompare(labelName(this.hass, b), lang, { numeric: true, sensitivity: "base" }));
     const chosen = labelOf(this.data, this.value);
     const chip = (name: string, on: boolean, click: () => void, color?: string) => html`
-      <button class="chip ${on ? "on" : ""}" role="radio" aria-checked=${on} ?disabled=${this.disabled} @click=${click}>
+      <button class="chip ${on ? "on" : ""}" role="radio" aria-checked=${on} aria-label=${name} ?disabled=${this.disabled} @click=${click}>
         ${color ? html`<i class="dot" style="background:${color}"></i>` : nothing}<span>${name}</span></button>`;
     return html`
       <div class="chips" role="radiogroup" aria-label=${t(lang, "action")}>
@@ -410,20 +410,20 @@ export class WpLabelPicker extends LitElement {
     :host { display: block; }
     .check { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 0.9em; font-weight: normal; cursor: pointer; }
     .check input { width: auto; min-height: 0; margin: 0; }
-    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; max-width: 100%; }
     .details {
       margin-top: 10px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--lc);
       border-left-width: 4px; background: color-mix(in srgb, var(--lc) 10%, transparent);
     }
     .dhead { display: flex; align-items: center; gap: 8px; min-height: 40px; }
-    .dhead b { flex: 1; min-width: 0; }
+    .dhead b { flex: 1; min-width: 0; overflow-wrap: anywhere; }
     .details .k { color: var(--secondary-text-color); }
     .chip {
       display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 16px; border-radius: 24px;
       border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem;
-      cursor: pointer; --mdc-icon-size: 20px; max-width: 100%;
+      cursor: pointer; --mdc-icon-size: 20px; max-width: 100%; min-width: 0; box-sizing: border-box;
     }
-    .chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chip span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .chip.on { border: 2px solid var(--wp-primary-text); font-weight: 600; }
     .chip.add { border-style: dashed; color: var(--wp-primary-text); }
     .chip:disabled { opacity: 0.5; cursor: default; }

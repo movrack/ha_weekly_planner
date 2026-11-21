@@ -740,18 +740,35 @@ describe("schedule screen editing", () => {
         expect(html).toContain("aria-label=Mode: Home (Active)");
         view._panel = "mode";   // open, the summary stays
         expect(flat(view.render())).toContain('<span class="acc-sum">Home (Active)</span>');
+        expect(flat(view.render())).toContain("aria-label=Mode: Home (Active)");
         expect(flat(view.render())).toContain('class="wp-collapse open" id=acc-mode');
         view._viewMode = "Away";   // another mode than the active one
         expect(flat(view.render())).toContain(`<span class="acc-sum">Away · ${t("en", "mode_inactive_short")}</span>`);
       });
-      it("names the full summary only while it is shown, never the title twice", () => {
+      it("the three headers behave the same, open or folded: summary always shown, full text in the name, never the title twice", () => {
         const { view } = withMode();
         expect(label(view, "mode")).toBe("T: full");
-        expect(label(view, "schedules")).toBe("T");   // open: no summary
-        expect(valuesAfter(view._panelHeader("mode", "T", "", "", "", true), "aria-label=")[0]).toBe("T");
+        expect(label(view, "schedules")).toBe("T: full");   // open: the summary stays
+        expect(valuesAfter(view._panelHeader("mode", "T", "", "", ""), "aria-label=")[0]).toBe("T");
+        const open = flat(view._panelHeader("schedules", "T", "sum", "c", "full"));
+        expect(open).toContain('<span class="acc-sum">sum</span>');
         const html = flat(view.render());
         expect(html).toContain("aria-label=Settings: Comfort");
         expect(html).not.toContain(" title=");
+      });
+      it("read only: the mode selector stays active to browse, the advanced options are greyed with the visible reason", () => {
+        const { view } = make(undefined, undefined, { read_only: true, can_edit: false, mode: { selector: "input_select.mode", active: "Home", options: ["Home", "Away"] } });
+        view.firstUpdated();
+        view._panel = "mode";
+        view._optsOpen = true;
+        const modes = flat(view._renderModes());
+        expect(modes).toContain("modesel");
+        expect(modes).not.toContain("disabled");
+        const opts = flat(view._renderModeOptions());
+        expect(opts).toContain('aria-describedby="why-follow"');
+        expect(opts).toContain('aria-describedby="why-copy"');
+        expect(opts.match(/disabled aria-disabled="true"/g)).toHaveLength(2);
+        expect(opts.match(new RegExp(`id=why-(follow|copy) role="status">${t("en", "read_only")}`, "g"))).toHaveLength(2);
       });
       it("asks before leaving a changed schedule form for the Mode panel", async () => {
         const { view } = withMode();

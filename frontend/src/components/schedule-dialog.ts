@@ -1146,16 +1146,15 @@ export class WpSchedule extends LitElement {
   }
 
   /**
-   * Header of a panel of the accordion: a button (Enter / Space) with the title, the chevron and, while the panel is
-   * closed (`always`: also open), a short summary on one line, cut with an ellipsis; its full text (`text`) is in the
-   * accessible name. Never hidden, same height open or closed. `controls`: the ids of what the panel opens.
+   * Header of a panel of the accordion (the same for all three): a button (Enter / Space) with the title, the chevron and
+   * a short summary on one line, cut with an ellipsis, open or folded; its full text (`text`) is in the accessible name.
+   * Never hidden, same height open or closed. `controls`: the ids of what the panel opens.
    */
-  private _panelHeader(panel: Panel, title: string, summary: unknown, controls: string, text = "", always = false) {
+  private _panelHeader(panel: Panel, title: string, summary: unknown, controls: string, text = "") {
     const open = this._panel === panel;
-    const shown = !open || always;
     return html`<h3 class="acc-h"><button class="acc-btn" id=${`acc-${panel}-btn`} aria-expanded=${open} aria-controls=${controls}
-        aria-label=${shown && text ? `${title}: ${text}` : title} @click=${() => void this._showPanel(panel)}>
-        <span class="acc-t"><span>${title}</span>${shown ? html`<span class="acc-sum">${summary}</span>` : nothing}</span>
+        aria-label=${text ? `${title}: ${text}` : title} @click=${() => void this._showPanel(panel)}>
+        <span class="acc-t"><span>${title}</span><span class="acc-sum">${summary}</span></span>
         <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button></h3>`;
   }
 
@@ -1170,7 +1169,7 @@ export class WpSchedule extends LitElement {
     const name = this._openMode ?? "";
     const summary = this._modeOnly ? `${name} · ${t(lang, "mode_inactive_short")}` : `${name} (${t(lang, "mode_active_badge")})`;
     return html`<section class="acc modebox ${open ? "on" : ""}">
-      ${this._panelHeader("mode", t(lang, "profile"), summary, "acc-mode", summary, true)}
+      ${this._panelHeader("mode", t(lang, "profile"), summary, "acc-mode", summary)}
       ${collapse(open, html`<div class="acc-body" role="region" aria-labelledby="acc-mode-btn">
         ${this._renderModes()}
         ${this._modeOnly ? this._renderInactive() : nothing}
@@ -1583,7 +1582,7 @@ export class WpSchedule extends LitElement {
     .acc-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
     /* one line, cut with an ellipsis: every header keeps the same height (the full text is the button's accessible name) */
     .acc-sum { font-weight: normal; font-size: 0.875rem; color: var(--secondary-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .acc-body { padding: 4px 12px 12px; }
+    .acc-body { padding: 4px 12px 12px; min-width: 0; overflow-wrap: anywhere; }
     .tags, .tag { display: inline; }
     .tag + .tag { margin-inline-start: 12px; }
     .tags .dot { display: inline-block; width: 10px; height: 10px; border-radius: 5px; margin-inline-end: 6px; vertical-align: -1px; }
