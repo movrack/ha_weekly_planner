@@ -96,7 +96,7 @@ describe("label form option", () => {
     el._open(true);
     expect([el._canShowValue, el._showValue]).toEqual([true, true]);
     el._set({ showValue: false });
-    expect(el._draft().showValue).toBe(false);
+    expect(el._showValue).toBe(false);
     el._set({ showValue: true });
     await el._save();
     expect(el.hass.callWS.mock.calls[0][0].label.show_value).toBe(true);
@@ -115,15 +115,10 @@ describe("label form option", () => {
     el._set({ showValue: true });
     expect(text()).toContain("Comfort (19 °C)");
   });
-  it("an embedded form has its own save and cancel: save asks the parent to save the setting", () => {
+  it("the form has its own save and cancel: cancel closes it", () => {
     const el = picker();
-    el.embedded = true;
     el._open(true);
-    const tpl = el._renderForm();
-    expect(flat(tpl)).toContain("Save the setting");
-    const clicks = handlers(tpl).filter((h) => h.event === "click");
-    clicks[clicks.length - 2].fn();
-    expect(el.dispatchEvent.mock.calls.at(-1)[0].type).toBe("label-commit");
+    const clicks = handlers(el._renderForm()).filter((h) => h.event === "click");
     clicks[clicks.length - 1].fn();
     expect(el._form).toBe(false);
   });
@@ -173,7 +168,7 @@ describe("replace and delete in the picker", () => {
     el.dispatchEvent = vi.fn();
     return el;
   };
-  it("saves every program that uses it with the replacement, then deletes it, then tells the window", async () => {
+  it("saves every program that uses it with the replacement, then deletes it, then tells the parent", async () => {
     const callWS = vi.fn(async (m: any) => (m.type === "weekly_planner/program/save" ? { program: { ...m.program, revision: 4 } } : undefined));
     const el = make([program()], callWS);
     el._confirmDel = true;
@@ -184,7 +179,6 @@ describe("replace and delete in the picker", () => {
     expect(callWS.mock.calls.map((c: any[]) => c[0].type)).toEqual(["weekly_planner/program/save", "weekly_planner/label/delete"]);
     expect(callWS.mock.calls[0][0].program.profiles[0].days[0][0].label).toBe("new");
     const events = el.dispatchEvent.mock.calls.map(([e]: any[]) => [e.type, e.detail]);
-    expect(events).toContainEqual(["label-replaced", { from: "old", to: "new", revisions: { p: 4 } }]);
     expect(events).toContainEqual(["label-change", "new"]);
     expect([el._confirmDel, el._replaceBy, el._saving]).toEqual([false, null, false]);
   });
@@ -208,30 +202,5 @@ describe("replace and delete in the picker", () => {
     expect(flat(tpl)).toContain("New");
     handlers(tpl).filter((h: any) => h.event === "click")[0].fn();
     expect(el._replaceBy).toBe("new");
-  });
-});
-
-import { WpSchedule } from "../components/schedule-dialog";
-
-describe("the schedule window follows a setting replaced and deleted", () => {
-  it("replaces it in its draft (with the new revision), the rest-of-time choice, the open row and the picker", () => {
-    const view: any = new WpSchedule();
-    view._draft = program();
-    view._restLabel = "old";
-    view._group = { slot: slot("old") };
-    const key = view._pickerKey;
-    view._onLabelReplaced({ from: "old", to: "new", revisions: { p: 9 } });
-    expect(view._draft.revision).toBe(9);
-    expect(view._draft.profiles[0].days[0][0].label).toBe("new");
-    expect([view._restLabel, view._group.slot.label, view._pickerKey]).toEqual(["new", "new", key + 1]);
-    // another program, another row: left as they are
-    view._draft = { ...program(), id: "q" };
-    view._restLabel = "keep";
-    view._group = { slot: slot("keep") };
-    view._onLabelReplaced({ from: "old", to: "new", revisions: { p: 9 } });
-    expect([view._draft.revision, view._restLabel, view._group.slot.label]).toEqual([3, "keep", "keep"]);
-    view._draft = null;
-    view._group = null;
-    view._onLabelReplaced({ from: "old", to: "new", revisions: {} });
   });
 });

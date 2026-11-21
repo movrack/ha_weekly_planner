@@ -944,6 +944,9 @@ var Et = {
 	mode_copy_from: "Reuse the schedules of another mode",
 	advanced_options: "Advanced options",
 	schedules_legend: "Schedules",
+	settings_legend: "Settings",
+	settings_edit: "Edit settings",
+	settings_none: "No setting yet",
 	mode_copy_pick: "Copy the schedules of:",
 	mode_copy_confirm: "{to} already has schedules. Replace them with those of {from}?",
 	mode_copy_replace: "Replace",
@@ -1066,7 +1069,6 @@ var Et = {
 	handle: "Boundary {time}",
 	lb_new: "New setting",
 	lb_name: "Name",
-	lb_save: "Save the setting",
 	lb_show_value: "Show the value after the name",
 	lb_color: "Setting color",
 	lb_value_here: "Value for this device",
@@ -1479,6 +1481,9 @@ var Et = {
 	mode_copy_from: "Reprendre les horaires d’un autre mode",
 	advanced_options: "Options avancées",
 	schedules_legend: "Horaires",
+	settings_legend: "Réglages",
+	settings_edit: "Modifier les réglages",
+	settings_none: "Aucun réglage",
 	mode_copy_pick: "Copier les horaires de :",
 	mode_copy_confirm: "{to} a déjà des horaires. Les remplacer par ceux de {from} ?",
 	mode_copy_replace: "Remplacer",
@@ -1571,7 +1576,6 @@ var Et = {
 	action_scene_description: "Activer cette scène Home Assistant et appliquer ses réglages enregistrés.",
 	lb_new: "Nouveau réglage",
 	lb_name: "Nom",
-	lb_save: "Enregistrer le réglage",
 	lb_show_value: "Afficher la valeur après le nom",
 	lb_color: "Couleur du réglage",
 	lb_value_here: "Valeur pour cet appareil",
@@ -3794,7 +3798,7 @@ D([T({ attribute: !1 })], ji.prototype, "hass", void 0), D([T({ attribute: "enti
 // src/components/label-picker.ts
 var U = class extends S {
 	constructor(...e) {
-		super(...e), this.entityIds = [], this.value = null, this.allowNone = !1, this.disabled = !1, this.compact = !1, this.readonlySettings = !1, this.embedded = !1, this._form = !1, this._editId = null, this._name = "", this._color = "", this._showValue = !1, this._action = null, this._ov = {}, this._error = "", this._saving = !1, this._valueFor = null, this._confirmDel = !1, this._replaceBy = null, this._delError = "", this._loaded = "";
+		super(...e), this.entityIds = [], this.value = null, this.allowNone = !1, this.disabled = !1, this.compact = !1, this.readonlySettings = !1, this._form = !1, this._editId = null, this._name = "", this._color = "", this._showValue = !1, this._action = null, this._ov = {}, this._error = "", this._saving = !1, this._valueFor = null, this._confirmDel = !1, this._replaceBy = null, this._delError = "", this._loaded = "";
 	}
 	get _lang() {
 		return wi(this.hass);
@@ -3812,34 +3816,17 @@ var U = class extends S {
 	}
 	_open(e) {
 		let t = e ? B(this.data, this.value) : void 0;
-		(!e || t) && (this._form = !0, this._editId = t?.id ?? null, this._name = t?.name ?? "", this._color = t?.color ?? ei(this.data.labels), this._showValue = !!t?.show_value, this._action = t ? structuredClone(t.action) : null, this._ov = {}, this._valueFor = null, this._error = "", this._changed());
+		(!e || t) && (this._form = !0, this._editId = t?.id ?? null, this._name = t?.name ?? "", this._color = t?.color ?? ei(this.data.labels), this._showValue = !!t?.show_value, this._action = t ? structuredClone(t.action) : null, this._ov = {}, this._valueFor = null, this._error = "");
 	}
 	_close() {
-		this._form = !1, this._error = "", this._changed();
-	}
-	_changed() {
-		this.embedded && this._emit("label-draft", this._form ? this._draft() : null);
-	}
-	_draft() {
-		return {
-			id: this._editId,
-			name: this._name.trim(),
-			color: this._color,
-			action: this._action,
-			showValue: this._showValue,
-			overrides: Object.entries(this._ov).map(([e, t]) => ({
-				entityId: e,
-				action: t
-			})),
-			problem: this._formProblem
-		};
+		this._form = !1, this._error = "";
 	}
 	get _formProblem() {
 		let e = this._lang;
 		return this._name.trim() ? !this._action || this._action.kind === "service" && (!this._action.service || this._action.target_entity_id === "") ? k(e, "lb_err_action") : this._action.kind === "service" && Yr(this.hass, this._action.service, this._action.data, this._action.target_entity_id ?? this.entityIds[0], this._action.data_sources).length ? k(e, "lb_err_fields") : "" : k(e, "lb_err_name");
 	}
 	_set(e) {
-		e.showValue !== void 0 && (this._showValue = e.showValue), e.name !== void 0 && (this._name = e.name), e.color !== void 0 && (this._color = e.color), e.action !== void 0 && (this._action = e.action), this._error = "", this._changed();
+		e.showValue !== void 0 && (this._showValue = e.showValue), e.name !== void 0 && (this._name = e.name), e.color !== void 0 && (this._color = e.color), e.action !== void 0 && (this._action = e.action), this._error = "";
 	}
 	_ownValue(e, t) {
 		return e in this._ov ? this._ov[e] : this.program.entities.find((t) => t.entity_id === e)?.label_overrides?.[t] ?? null;
@@ -3904,7 +3891,7 @@ var U = class extends S {
 			await this.hass.callWS({
 				type: "weekly_planner/label/delete",
 				label_id: e.id
-			}), this._confirmDel = !1, this._delError = "", this._form = !1, this._changed(), this._emit("label-change", null);
+			}), this._confirmDel = !1, this._delError = "", this._form = !1, this._emit("label-change", null);
 		} catch (t) {
 			let n = t;
 			this._delError = n?.code === "in_use" ? k(this._lang, "lb_delete_used", {
@@ -3920,22 +3907,14 @@ var U = class extends S {
 		if (t && !this._saving) {
 			this._saving = !0, this._delError = "";
 			try {
-				let n = {};
-				for (let r of this.data.programs.filter((t) => bi(t, e.id))) {
-					let i = await this.hass.callWS({
-						type: "weekly_planner/program/save",
-						program: Si(r, e.id, t)
-					});
-					n[r.id] = i.program.revision;
-				}
+				for (let n of this.data.programs.filter((t) => bi(t, e.id))) await this.hass.callWS({
+					type: "weekly_planner/program/save",
+					program: Si(n, e.id, t)
+				});
 				await this.hass.callWS({
 					type: "weekly_planner/label/delete",
 					label_id: e.id
-				}), this._confirmDel = !1, this._replaceBy = null, this._form = !1, this._changed(), this._emit("label-replaced", {
-					from: e.id,
-					to: t,
-					revisions: n
-				}), this._emit("label-change", t);
+				}), this._confirmDel = !1, this._replaceBy = null, this._form = !1, this._emit("label-change", t);
 			} catch (e) {
 				let t = e;
 				this._delError = t?.code === "unauthorized" ? k(this._lang, "err_unauthorized") : t?.code === "conflict" ? k(this._lang, "lb_replace_conflict") : k(this._lang, "lb_err_delete");
@@ -3985,7 +3964,7 @@ var U = class extends S {
     </div>`;
 	}
 	_choose(e) {
-		this._confirmDel = !1, this._delError = "", this._form && (this._form = !1, this._changed()), this._emit("label-change", e);
+		this._confirmDel = !1, this._delError = "", this._form = !1, this._emit("label-change", e);
 	}
 	_valueEditor(e, t) {
 		let n = this._lang, r = this._ownValue(e, t), i = this._valueFor === e;
@@ -3999,14 +3978,14 @@ var U = class extends S {
 			t.stopPropagation(), this._ov = {
 				...this._ov,
 				[e]: t.detail
-			}, this._error = "", this._changed();
+			}, this._error = "";
 		}}></wp-action-picker>
         ${r ? y`<button class="btn" ?disabled=${this.disabled}
           @click=${() => {
 			this._ov = {
 				...this._ov,
 				[e]: null
-			}, this._changed();
+			};
 		}}>
           <ha-icon icon="mdi:undo"></ha-icon>${k(n, "lb_common_value")}</button>` : x}
       </div>` : x}
@@ -4047,7 +4026,7 @@ var U = class extends S {
       ${this._error ? y`${C("error", "", this._error, { role: "alert" })}` : x}
       <div class="btns">
         <button class="btn primary" ?disabled=${this._saving || this.disabled}
-          @click=${() => this.embedded ? this._emit("label-commit", null) : void this._save()}>${k(e, this.embedded ? "lb_save" : "save")}</button>
+          @click=${() => void this._save()}>${k(e, "save")}</button>
         <button class="btn" @click=${() => this._close()}>${k(e, "cancel")}</button>
       </div>
     </div>`;
@@ -4170,7 +4149,7 @@ D([T({ attribute: !1 })], U.prototype, "hass", void 0), D([T({ attribute: !1 })]
 })], U.prototype, "allowNone", void 0), D([T({ type: Boolean })], U.prototype, "disabled", void 0), D([T({ type: Boolean })], U.prototype, "compact", void 0), D([T({
 	type: Boolean,
 	attribute: "readonly-settings"
-})], U.prototype, "readonlySettings", void 0), D([T({ type: Boolean })], U.prototype, "embedded", void 0), D([E()], U.prototype, "_form", void 0), D([E()], U.prototype, "_editId", void 0), D([E()], U.prototype, "_name", void 0), D([E()], U.prototype, "_color", void 0), D([E()], U.prototype, "_showValue", void 0), D([E()], U.prototype, "_action", void 0), D([E()], U.prototype, "_ov", void 0), D([E()], U.prototype, "_error", void 0), D([E()], U.prototype, "_saving", void 0), D([E()], U.prototype, "_valueFor", void 0), D([E()], U.prototype, "_confirmDel", void 0), D([E()], U.prototype, "_replaceBy", void 0), D([E()], U.prototype, "_delError", void 0), U = D([w("wp-label-picker")], U);
+})], U.prototype, "readonlySettings", void 0), D([E()], U.prototype, "_form", void 0), D([E()], U.prototype, "_editId", void 0), D([E()], U.prototype, "_name", void 0), D([E()], U.prototype, "_color", void 0), D([E()], U.prototype, "_showValue", void 0), D([E()], U.prototype, "_action", void 0), D([E()], U.prototype, "_ov", void 0), D([E()], U.prototype, "_error", void 0), D([E()], U.prototype, "_saving", void 0), D([E()], U.prototype, "_valueFor", void 0), D([E()], U.prototype, "_confirmDel", void 0), D([E()], U.prototype, "_replaceBy", void 0), D([E()], U.prototype, "_delError", void 0), U = D([w("wp-label-picker")], U);
 // src/components/confirm.ts
 var Mi = class extends S {
 	constructor(...e) {
@@ -8106,7 +8085,7 @@ var Y = class extends S {
       </section>
       <section>
         <h4>${k(e, "action")}</h4>
-        <wp-label-picker embedded .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${this.entityIds}
+        <wp-label-picker readonly-settings .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${this.entityIds}
           .value=${n.label || null} ?disabled=${this.disabled}
           @label-change=${(e) => {
 			e.stopPropagation(), this._set({ label: e.detail ?? "" });
@@ -8394,7 +8373,7 @@ D([T({ attribute: !1 })], ks.prototype, "hass", void 0), D([T({ attribute: !1 })
 // src/components/schedule-dialog.ts
 var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t : e) : [...e, t], js = (e) => e.kind === "device" ? `d:${e.entityId}` : `p:${e.programId}`, Ms = 7, X = class extends S {
 	constructor(...e) {
-		super(...e), this.chart = !0, this._viewMode = null, this._copyOpen = !1, this._optsOpen = !1, this._editProfileId = null, this._editMode = null, this.day = null, this.create = !1, this.slotId = null, this._chartContext = null, this._chartProgram = null, this._open = null, this._group = null, this._dayOnly = null, this._rest = null, this._openId = null, this._base = null, this._dropBusy = !1, this._focus = null, this._note = "", this._origin = null, this._initialGroup = "", this._overrides = [], this._saved = {}, this._draft = null, this._restLabel = null, this._labelDraft = null, this._pickerKey = 0, this._fresh = /* @__PURE__ */ new Set(), this._programId = "", this._error = "", this._saving = !1, this._toggling = !1, this._offset = 0, this._resp = null, this._pick = "", this._who = null, this._shared = !1, this._token = 0, this._loaded = "", this._include = (e) => {
+		super(...e), this.chart = !0, this._viewMode = null, this._copyOpen = !1, this._optsOpen = !1, this._settingsOpen = !1, this._settingId = null, this._editProfileId = null, this._editMode = null, this.day = null, this.create = !1, this.slotId = null, this._chartContext = null, this._chartProgram = null, this._open = null, this._group = null, this._dayOnly = null, this._rest = null, this._openId = null, this._base = null, this._dropBusy = !1, this._focus = null, this._note = "", this._origin = null, this._initialGroup = "", this._saved = {}, this._restLabel = null, this._programId = "", this._error = "", this._saving = !1, this._toggling = !1, this._offset = 0, this._resp = null, this._pick = "", this._who = null, this._shared = !1, this._token = 0, this._loaded = "", this._include = (e) => {
 			let t = this._eid;
 			if (!t) return !0;
 			if (!Ln(e, t)) return !1;
@@ -8555,7 +8534,7 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
 		return this.data.can_edit && !this.data.read_only;
 	}
 	_expand(e, t, n, r = {}) {
-		this._editMode = this._openMode, this._editProfileId = this._modeProfile(t)?.id ?? z(), this._open = e, this._programId = t.id, this._group = n ? structuredClone(n) : null, this._initialGroup = JSON.stringify(this._group), this._restLabel = r.restLabel ?? null, this._rest = r.rest ?? null, this._dayOnly = r.dayOnly ?? null, this._openId = r.openId ?? null, this._base = null, this._origin = r.origin ? structuredClone(r.origin) : null, this._overrides = [], this._labelDraft = null, this._dropBusy = !1, this._who = null, this._shared = !!(n && r.openId && this._eid && Ra(n.slot, G(t))), this._draft = structuredClone(t), this._error = "", this._note = "", this.updateComplete.then(() => requestAnimationFrame(() => {
+		this._editMode = this._openMode, this._editProfileId = this._modeProfile(t)?.id ?? z(), this._open = e, this._programId = t.id, this._group = n ? structuredClone(n) : null, this._initialGroup = JSON.stringify(this._group), this._restLabel = r.restLabel ?? null, this._rest = r.rest ?? null, this._dayOnly = r.dayOnly ?? null, this._openId = r.openId ?? null, this._base = null, this._origin = r.origin ? structuredClone(r.origin) : null, this._dropBusy = !1, this._who = null, this._shared = !!(n && r.openId && this._eid && Ra(n.slot, G(t))), this._error = "", this._note = "", this.updateComplete.then(() => requestAnimationFrame(() => {
 			this._revealEditor(), this._focusEditor();
 		}));
 	}
@@ -8603,21 +8582,7 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
 	}
 	_cancel() {
 		let e = this._open;
-		e !== null && this._focusRow(e), this._editProfileId = null, this._editMode = null, this._open = null, this._group = null, this._dayOnly = null, this._rest = null, this._openId = null, this._base = null, this._origin = null, this._overrides = [], this._labelDraft = null, this._dropBusy = !1, this._who = null, this._shared = !1, this._draft = null, this._restLabel = null, this._error = "";
-	}
-	_onOverride(e) {
-		let t = this._draft;
-		t && (this._overrides = [...this._overrides.filter((t) => t.entityId !== e.entityId || t.labelId !== e.labelId), e], this._draft = {
-			...t,
-			entities: t.entities.map((t) => {
-				if (t.entity_id !== e.entityId) return t;
-				let n = { ...t.label_overrides ?? {} };
-				return e.action ? n[e.labelId] = e.action : delete n[e.labelId], {
-					...t,
-					label_overrides: n
-				};
-			})
-		});
+		e !== null && this._focusRow(e), this._editProfileId = null, this._editMode = null, this._open = null, this._group = null, this._dayOnly = null, this._rest = null, this._openId = null, this._base = null, this._origin = null, this._dropBusy = !1, this._who = null, this._shared = !1, this._restLabel = null, this._error = "";
 	}
 	_add(e = this._focus === null ? qi : [this._focus]) {
 		let t = this._programs[0];
@@ -8692,18 +8657,6 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
 		}
 		return this._error = k(this._lang, "ss_err_save"), !1;
 	}
-	_withOverrides(e, t = e.entities) {
-		return t.map((e) => {
-			let t = this._overrides.filter((t) => t.entityId === e.entity_id);
-			if (!t.length) return e;
-			let n = { ...e.label_overrides ?? {} };
-			for (let e of t) e.action ? n[e.labelId] = e.action : delete n[e.labelId];
-			return {
-				...e,
-				label_overrides: n
-			};
-		});
-	}
 	_overlapText(e) {
 		let t = this._lang, n = oa(e);
 		if (!n) return k(t, "w_err_overlap");
@@ -8721,7 +8674,7 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
 	}
 	_problem() {
 		let e = this._lang, t = this._group;
-		return t ? t.days.length ? Pn(t.slot.start) || Pn(t.slot.end) ? k(e, "err_sun_bounds") : t.slot.end && JSON.stringify(t.slot.start) === JSON.stringify(t.slot.end) ? k(e, "w_err_same") : !B(this.data, t.slot.label) && !this._fresh.has(t.slot.label) ? k(e, "err_action") : this._shared && this._who === null && this._contentChanged() ? k(e, "who_pick") : "" : k(e, "err_days") : "";
+		return t ? t.days.length ? Pn(t.slot.start) || Pn(t.slot.end) ? k(e, "err_sun_bounds") : t.slot.end && JSON.stringify(t.slot.start) === JSON.stringify(t.slot.end) ? k(e, "w_err_same") : B(this.data, t.slot.label) ? this._shared && this._who === null && this._contentChanged() ? k(e, "who_pick") : "" : k(e, "err_action") : k(e, "err_days") : "";
 	}
 	_contentChanged() {
 		let e = this._origin, t = this._group;
@@ -8788,63 +8741,12 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
 		} else this._cancel();
 		return this._error = r ? a : "", this._note = r ? "" : a, !0;
 	}
-	_onLabelReplaced({ from: e, to: t, revisions: n }) {
-		if (this._draft) {
-			let r = n[this._draft.id];
-			this._draft = {
-				...Si(this._draft, e, t),
-				...r === void 0 ? {} : { revision: r }
-			};
-		}
-		this._restLabel === e && (this._restLabel = t), this._group?.slot.label === e && (this._group = {
-			...this._group,
-			slot: {
-				...this._group.slot,
-				label: t
-			}
-		}), this._pickerKey += 1;
-	}
-	async _saveLabelDraft() {
-		let e = this._labelDraft;
-		if (!e) return !0;
-		if (e.problem) return this._error = e.problem, !1;
-		this._saving = !0;
-		try {
-			let t = await this.hass.callWS({
-				type: "weekly_planner/label/save",
-				label: {
-					...e.id ? { id: e.id } : {},
-					name: e.name,
-					color: e.color,
-					action: e.action,
-					show_value: e.showValue
-				}
-			});
-			for (let n of e.overrides) this._onOverride({
-				entityId: n.entityId,
-				labelId: t.label.id,
-				action: n.action
-			});
-			return e.id || (this._open?.startsWith("rest:") ? this._restLabel = t.label.id : this._group &&= {
-				...this._group,
-				slot: {
-					...this._group.slot,
-					label: t.label.id
-				}
-			}), this._fresh.add(t.label.id), this._labelDraft = null, this._pickerKey += 1, !0;
-		} catch (e) {
-			return this._error = e?.code === "unauthorized" ? k(this._lang, "err_unauthorized") : k(this._lang, "lb_err_save"), !1;
-		} finally {
-			this._saving = !1;
-		}
-	}
 	async _saveRow() {
 		let e = this._live(this._programId);
 		if (!e || !this._editProfile(e)) {
 			this._error = k(this._lang, "ss_changed");
 			return;
 		}
-		if (!await this._saveLabelDraft()) return;
 		let t = this._group, n = this._live(this._programId);
 		if (!n || !t) return;
 		let r = this._problem();
@@ -8866,7 +8768,6 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
 				};
 				return oa(a) ? { error: this._overlapText(a) } : { program: {
 					...n,
-					entities: this._withOverrides(n),
 					profiles: As(n.profiles, a)
 				} };
 			}) && !e && this._cancel();
@@ -8902,7 +8803,6 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
 			};
 			return oa(l) ? { error: this._overlapText(l) } : { program: {
 				...e,
-				entities: this._withOverrides(e),
 				profiles: As(e.profiles, l)
 			} };
 		}) && !o && (this._cancel(), a.length && (this._note = k(this._lang, "w_dropped", { days: a.map((e) => O(this._lang).days_short[e]).join(" ") })));
@@ -8948,14 +8848,13 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
 		}) && this._cancel();
 	}
 	async _saveRest(e) {
-		if (!await this._saveLabelDraft()) return;
 		let t = this._live(this._programId) ?? this._programs[0];
 		t && await this._commit(t.id, (t) => ({ program: {
 			...t,
-			entities: this._withOverrides(t, t.entities.map((t) => t.entity_id === e ? {
+			entities: t.entities.map((t) => t.entity_id === e ? {
 				...t,
 				default_label: this._restLabel
-			} : t))
+			} : t)
 		} })) && this._cancel();
 	}
 	get _enabled() {
@@ -9060,21 +8959,12 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
 	_renderEditor(e, t) {
 		let n = this._lang, r = t === "new", i = this._devices(e), a = this._origin ? zn(this._origin.slot, i).length : i.length;
 		return y`<div class="editor">
-      ${yt(this._pickerKey, y`<wp-slot-form .hass=${this.hass} .data=${this.data} .program=${this._draft ?? e} .group=${this._group} .entityIds=${[this._eid]}
+      <wp-slot-form .hass=${this.hass} .data=${this.data} .program=${e} .group=${this._group} .entityIds=${[this._eid]}
         .device=${this._eid} .also=${!this._shared}
         .dayOnly=${this._dayOnly} ?disabled=${!this._canEdit}
-        @label-draft=${(e) => {
-			e.stopPropagation(), this._labelDraft = e.detail, this._error = "";
-		}}
-        @label-commit=${(e) => {
-			e.stopPropagation(), this._saveLabelDraft();
-		}}
-        @label-replaced=${(e) => {
-			e.stopPropagation(), this._onLabelReplaced(e.detail);
-		}}
         @group-change=${(e) => {
 			e.stopPropagation(), this._group = e.detail, this._error = "";
-		}}></wp-slot-form>`)}
+		}}></wp-slot-form>
       ${this._shared && !r ? y`<div class="who" role="radiogroup" aria-label=${k(n, "who_title")}>
         <span>${k(n, "who_title")}</span>
         <div class="seg">
@@ -9085,10 +8975,10 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
         </div></div>` : x}
       ${this._error ? y`${C("error", "", this._error, { role: "alert" })}` : x}
       <div class="btns">
-        <button class="btn primary" ?disabled=${this._saving || !this._canEdit || this._labelDraft !== null} @click=${() => void this._saveRow()}>${k(n, "save")}</button>
-        <button class="btn" ?disabled=${this._labelDraft !== null} @click=${() => this._cancel()}>${k(n, "cancel")}</button>
+        <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRow()}>${k(n, "save")}</button>
+        <button class="btn" @click=${() => this._cancel()}>${k(n, "cancel")}</button>
       </div>
-      ${r || this._labelDraft ? x : y`<button class="btn dup" ?disabled=${!this._canEdit} @click=${() => this._duplicate()}>
+      ${r ? x : y`<button class="btn dup" ?disabled=${!this._canEdit} @click=${() => this._duplicate()}>
         <ha-icon icon="mdi:content-copy"></ha-icon>${k(n, "duplicate")}</button>`}
       <button class="btn danger-line alone" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._deleteRow()}>
         <ha-icon icon="mdi:delete-outline"></ha-icon>${k(n, "delete")}</button>
@@ -9099,24 +8989,15 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
 		return [this._eid].filter((e) => t.entities.some((t) => t.entity_id === e)).map((n) => {
 			let r = t.entities.find((e) => e.entity_id === n), i = `rest:${n}`, a = k(e, "rest_of_time");
 			if (this._open === i) return y`<div class="editor"><h4>${a}</h4>
-          ${yt(this._pickerKey, y`<wp-label-picker embedded allow-none .hass=${this.hass} .data=${this.data} .program=${this._draft ?? t} .entityIds=${[n]}
+          <wp-label-picker readonly-settings allow-none .hass=${this.hass} .data=${this.data} .program=${t} .entityIds=${[n]}
             .value=${this._restLabel} ?disabled=${!this._canEdit}
-            @label-draft=${(e) => {
-				e.stopPropagation(), this._labelDraft = e.detail, this._error = "";
-			}}
-            @label-commit=${(e) => {
-				e.stopPropagation(), this._saveLabelDraft();
-			}}
-            @label-replaced=${(e) => {
-				e.stopPropagation(), this._onLabelReplaced(e.detail);
-			}}
             @label-change=${(e) => {
 				e.stopPropagation(), this._restLabel = e.detail;
-			}}></wp-label-picker>`)}
+			}}></wp-label-picker>
           ${this._error ? y`${C("error", "", this._error, { role: "alert" })}` : x}
           <div class="btns">
-            <button class="btn primary" ?disabled=${this._saving || !this._canEdit || this._labelDraft !== null} @click=${() => void this._saveRest(n)}>${k(e, "save")}</button>
-            <button class="btn" ?disabled=${this._labelDraft !== null} @click=${() => this._cancel()}>${k(e, "cancel")}</button>
+            <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRest(n)}>${k(e, "save")}</button>
+            <button class="btn" @click=${() => this._cancel()}>${k(e, "cancel")}</button>
           </div></div>`;
 			let o = B(this.data, r.default_label);
 			return y`<button class="row rest" data-key=${i} aria-expanded="false" @click=${() => this._expand(i, t, null, { restLabel: r.default_label ?? null })}>
@@ -9234,6 +9115,25 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
         ${t ? y`<small>${k(e, "mode_follows_short", { source: t })}</small>` : x}</button>
       ${$e(this._optsOpen, y`<div class="opts-body">${this._renderFollow()}${this._renderCopy()}</div>`)}`;
 	}
+	_renderSettings() {
+		let e = this._lang, t = this._programs[0], n = di(this.hass, this.data, this._entities, t).sort((t, n) => V(this.hass, t).localeCompare(V(this.hass, n), e, {
+			numeric: !0,
+			sensitivity: "base"
+		})), r = this._settingsOpen || !n.length;
+		return y`<fieldset class="box setbox" ?hidden=${this._open !== null}><legend>${k(e, "settings_legend")}</legend>
+      ${r ? x : y`<ul class="tags">${n.length ? n.map((e) => y`<li><i class="dot" style="background:${e.color}"></i>${V(this.hass, e, this._eid)}</li>`) : y`<li class="muted">${k(e, "settings_none")}</li>`}</ul>`}
+      <button class="row opts" aria-expanded=${r} @click=${() => {
+			this._settingsOpen = !r;
+		}}>
+        <ha-icon icon=${r ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
+        <span class="txt">${k(e, "settings_edit")}</span></button>
+      ${$e(r, y`<wp-label-picker .hass=${this.hass} .data=${this.data} .program=${t} .entityIds=${this._entities}
+        .value=${this._settingId} ?disabled=${!this._canEdit}
+        @label-change=${(e) => {
+			e.stopPropagation(), this._settingId = e.detail;
+		}}></wp-label-picker>`)}
+    </fieldset>`;
+	}
 	_renderInactive() {
 		let e = this._lang, t = this.data.mode, n = this._openMode ?? "", r = t.active ? k(e, "mode_not_active_why", {
 			active: t.active,
@@ -9246,7 +9146,7 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
 		return C("info", k(e, "mode_not_active"), r, { role: "status" });
 	}
 	get _editDirty() {
-		return this._open !== null && (JSON.stringify(this._group) !== this._initialGroup || this._labelDraft !== null);
+		return this._open !== null && JSON.stringify(this._group) !== this._initialGroup;
 	}
 	async _pickMode(e, t) {
 		if (e !== this._openMode) {
@@ -9451,6 +9351,7 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
           ${this._modeOnly ? this._renderInactive() : x}
           ${this._renderModeOptions()}
           <wp-mode-notice .hass=${this.hass} .data=${this.data}></wp-mode-notice>`)}
+        ${this._modeOnly ? x : this._renderSettings()}
         ${this._canEdit ? x : y`${C("error", "", k(e, "read_only"), { role: "alert" })}`}
         ${this._error && !this._open ? y`${C("error", "", this._error, { role: "alert" })}` : x}
         ${i("schedbox", k(e, "schedules_legend"), y`
@@ -9526,6 +9427,10 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
     .row.opts { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; margin: 0 0 8px; padding: 0 12px; border-radius: 12px;
       border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem; cursor: pointer; text-align: left; }
     .row.opts .txt { flex: 1; }
+    .tags { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 4px; padding: 0; list-style: none; font-size: 0.875rem; }
+    .tags li { display: inline-flex; align-items: center; gap: 6px; }
+    .tags .dot { width: 10px; height: 10px; border-radius: 5px; flex: none; }
+    fieldset.box[hidden] { display: none; }
     .row.opts small { color: var(--secondary-text-color); font-size: 0.75rem; }
     .opts-body { margin: 0 0 12px; padding: 8px 0 0 12px; border-left: 3px solid var(--divider-color); }
     .modechip {
@@ -9601,7 +9506,7 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
   `];
 	}
 };
-D([T({ attribute: !1 })], X.prototype, "hass", void 0), D([T({ attribute: !1 })], X.prototype, "data", void 0), D([T({ attribute: !1 })], X.prototype, "scope", void 0), D([T({ type: Boolean })], X.prototype, "chart", void 0), D([E()], X.prototype, "_viewMode", void 0), D([E()], X.prototype, "_copyOpen", void 0), D([E()], X.prototype, "_optsOpen", void 0), D([T({ attribute: !1 })], X.prototype, "day", void 0), D([T({ type: Boolean })], X.prototype, "create", void 0), D([T({ attribute: !1 })], X.prototype, "slotId", void 0), D([E()], X.prototype, "_chartContext", void 0), D([E()], X.prototype, "_chartProgram", void 0), D([E()], X.prototype, "_open", void 0), D([E()], X.prototype, "_group", void 0), D([E()], X.prototype, "_dayOnly", void 0), D([E()], X.prototype, "_focus", void 0), D([E()], X.prototype, "_note", void 0), D([E()], X.prototype, "_draft", void 0), D([E()], X.prototype, "_restLabel", void 0), D([E()], X.prototype, "_labelDraft", void 0), D([E()], X.prototype, "_pickerKey", void 0), D([E()], X.prototype, "_programId", void 0), D([E()], X.prototype, "_error", void 0), D([E()], X.prototype, "_saving", void 0), D([E()], X.prototype, "_toggling", void 0), D([E()], X.prototype, "_offset", void 0), D([E()], X.prototype, "_resp", void 0), D([E()], X.prototype, "_pick", void 0), D([E()], X.prototype, "_who", void 0), D([E()], X.prototype, "_shared", void 0), X = D([w("wp-schedule")], X);
+D([T({ attribute: !1 })], X.prototype, "hass", void 0), D([T({ attribute: !1 })], X.prototype, "data", void 0), D([T({ attribute: !1 })], X.prototype, "scope", void 0), D([T({ type: Boolean })], X.prototype, "chart", void 0), D([E()], X.prototype, "_viewMode", void 0), D([E()], X.prototype, "_copyOpen", void 0), D([E()], X.prototype, "_optsOpen", void 0), D([E()], X.prototype, "_settingsOpen", void 0), D([E()], X.prototype, "_settingId", void 0), D([T({ attribute: !1 })], X.prototype, "day", void 0), D([T({ type: Boolean })], X.prototype, "create", void 0), D([T({ attribute: !1 })], X.prototype, "slotId", void 0), D([E()], X.prototype, "_chartContext", void 0), D([E()], X.prototype, "_chartProgram", void 0), D([E()], X.prototype, "_open", void 0), D([E()], X.prototype, "_group", void 0), D([E()], X.prototype, "_dayOnly", void 0), D([E()], X.prototype, "_focus", void 0), D([E()], X.prototype, "_note", void 0), D([E()], X.prototype, "_restLabel", void 0), D([E()], X.prototype, "_programId", void 0), D([E()], X.prototype, "_error", void 0), D([E()], X.prototype, "_saving", void 0), D([E()], X.prototype, "_toggling", void 0), D([E()], X.prototype, "_offset", void 0), D([E()], X.prototype, "_resp", void 0), D([E()], X.prototype, "_pick", void 0), D([E()], X.prototype, "_who", void 0), D([E()], X.prototype, "_shared", void 0), X = D([w("wp-schedule")], X);
 // src/chart-state.ts
 var Ns = "weekly-planner:chart-choices", Ps = "weekly-planner:open-charts";
 function Fs() {

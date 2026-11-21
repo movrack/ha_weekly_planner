@@ -304,7 +304,7 @@ Un changement extérieur (utilisateur, autre automatisation) reste donc en place
   (défaut des nouveaux appareils), une liste vide signifie **aucune** commande ; sans ce drapeau
   (configurations existantes), une liste vide ou absente garde **toutes** les commandes. Une
   réglage dont le service n'est pas autorisé pour un appareil est incompatible pour lui (ignorée, avertissement).
-- Cadre du réglage choisi : lecture seule ; un crayon ouvre un seul formulaire (nom, couleur, action, valeur pour
+- Cadre du réglage choisi (dans le cadre Réglages ouvert) : lecture seule ; un crayon ouvre un seul formulaire (nom, couleur, action, valeur pour
   cet appareil). Jamais plus d'une paire Enregistrer / Annuler visible.
 - Exemples : chauffage `climate.set_temperature {temperature: 18}` ; volet `cover.set_cover_position {position: 30}` ;
   lampe `light.turn_on {brightness_pct: 60}` ; prise `switch.turn_off` ; aspirateur `vacuum.start`.
@@ -571,7 +571,12 @@ Vue de **lecture** de la journée d'aujourd'hui ; elle remplace la barre / le ca
   « Rien » ; interrupteur de pause, dupliquer, supprimer (§ 18, confirmé, bouton rouge isolé) ; fermeture par glissement
   vers le bas sur téléphone.
 - **Réglages** : modifiés uniquement par programme, dans la fenêtre d'horaires (pas de fenêtre globale sur la carte).
-  « + Nouveau réglage » ouvre un mini-formulaire en ligne (nom, couleur de la palette de 12, action par le sélecteur
+  Toute la gestion (ajouter, modifier, supprimer, remplacer puis supprimer) est dans le cadre **Réglages**, entre **Mode** et
+  **Horaires** (#75) : fermé par défaut, il ne liste que les réglages existants (une ligne de points colorés et de noms) ;
+  « Modifier les réglages » (`mdi:chevron-down`, repli animé `collapse`) ouvre les contrôles ; ouvert d'office tant qu'aucun
+  réglage n'existe ; masqué (`hidden`, état conservé) pendant qu'un formulaire d'horaire est ouvert, pour ne jamais voir deux
+  paires Enregistrer / Annuler ; absent pour un mode seulement édité. Le formulaire d'horaire et « Reste du temps » ne
+  font que choisir un réglage (`readonly-settings`). « + Nouveau réglage » ouvre un mini-formulaire en ligne (nom, couleur de la palette de 12, action par le sélecteur
   générique ou une scène) qui crée le réglage et le sélectionne ; pour le réglage choisi, « Valeur pour cet appareil »
   modifie la valeur propre de l'appareil (même sélecteur) avec « Revenir à la valeur commune ».
 - **Supprimer un réglage** : à côté du crayon du réglage choisi, une corbeille (`mdi:delete-outline`, cible 48 px, clavier
@@ -662,7 +667,7 @@ Barre « Auj. » et sept barres de la semaine, doigt et souris (événements poi
 - **Logique pure** (`edits.ts`, tests vitest) : `moveBoundary`, `splitAt`, `setLabel`, `removeSlot`, `copyConflicts` / `copyToDays`, `mergeAdjacent`.
 - **Icônes solaires** : `mdi:weather-sunset-up` / `-down` à la position de toute frontière ou repère dépendant du soleil.
 - **Trait « maintenant »** : icône `mdi:clock-outline` (12–14 px) centrée au-dessus, hors de la barre, `aria-label` « Maintenant » ; aussi sur le graphique.
-- **Renommer un réglage sur place** (écran d'horaires) : crayon `mdi:pencil`, nom + couleur + action, `weekly_planner/label/save`, « Partagé » si utilisée ailleurs.
+- **Renommer un réglage sur place** (cadre Réglages de l'écran d'horaires) : crayon `mdi:pencil`, nom + couleur + action, `weekly_planner/label/save`, « Partagé » si utilisée ailleurs.
 - **Mise à jour automatique de la carte** : `card_version` dans `get` / `subscribe` ; différent de celui du bundle chargé et page au repos → rechargement
   unique (mémorisé dans `sessionStorage`) ; `get` interrogé aussi toutes les 5 min et au retour de la page visible.
 - Les éditions sur barre, les reprises de conflit et « Annuler » restent attachées au mode d'origine (§ 17) ; la

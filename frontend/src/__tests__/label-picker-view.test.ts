@@ -174,7 +174,7 @@ describe("the buttons of the summary", () => {
 
 describe("a device's own value", () => {
   it("opens, is edited and is reset while the other draft changes stay", () => {
-    const el = both({ embedded: true });
+    const el = both({  });
     el._open(true);
     let view = el._valueEditor("cover.a", "l");
     expect(values(view, "aria-expanded=")).toEqual([false]);
@@ -191,17 +191,15 @@ describe("a device's own value", () => {
     expect(event.stopPropagation).toHaveBeenCalledOnce();
     expect(el._error).toBe("");
     expect(el._ov).toEqual({ "cover.b": null, "cover.a": event.detail });
-    expect(el.dispatchEvent.mock.calls.at(-1)[0].detail.overrides).toHaveLength(2);
     view = el._valueEditor("cover.a", "l");
     expect(flat(view)).toContain('class="link own"');
     expect(flat(view)).toContain(t("en", "lb_common_value"));
     expect(values(view, ".action=")).toEqual([event.detail]);
     clicks(view)[1].fn();
     expect(el._ov).toEqual({ "cover.b": null, "cover.a": null });
-    expect(el.dispatchEvent.mock.calls.at(-1)[0].detail.overrides).toContainEqual({ entityId: "cover.a", action: null });
   });
   it("closes again when its link is clicked a second time", () => {
-    const el = both({ embedded: true });
+    const el = both({  });
     el._open(true);
     clicks(el._valueEditor("cover.a", "l"))[0].fn();
     clicks(el._valueEditor("cover.a", "l"))[0].fn();
@@ -216,30 +214,29 @@ describe("a device's own value", () => {
 });
 
 describe("the form", () => {
-  it("binds the common action to the first device and reports name and action changes", () => {
-    const el = both({ embedded: true });
+  it("binds the common action to the first device and keeps name and action changes", () => {
+    const el = both({  });
     el._open(true);
     const view = el._renderForm();
     expect(flat(view)).toContain(t("en", "lb_name"));
     expect(values(view, "entity-id=")).toContain("cover.a");
     expect(values(view, ".allowed=")).toContainEqual(["cover.open_cover"]);
     handlers(view).find((h) => h.event === "input")!.fn({ target: { value: "  Night " } });
-    expect(el._draft().name).toBe("Night");
+    expect(el._name).toBe("  Night ");
     const event = { detail: { kind: "scene", scene: "scene.night" }, stopPropagation: vi.fn() };
     handlers(view).find((h) => h.event === "action-change")!.fn(event);
     expect(event.stopPropagation).toHaveBeenCalledOnce();
-    expect(el._draft().action).toEqual(event.detail);
-    expect(el.dispatchEvent.mock.calls.at(-1)[0].detail.action).toEqual(event.detail);
+    expect(el._action).toEqual(event.detail);
   });
   it.each([[["cover.a", "cover.b"], [true]], [[], [false]]])("keeps the advanced values open when only a device overrides: devices %j", (entityIds, expected) => {
-    const el = both({ embedded: true, entityIds });
+    const el = both({ entityIds });
     el._open(true);
     const view = el._renderForm();
     expect(values(view, "?advanced-open=")).toEqual(expected);
     if (!entityIds.length) expect(values(view, "entity-id=")).toEqual([""]);
   });
   it("shows an error as an alert", () => {
-    const el = mk({ embedded: true });
+    const el = mk();
     el._open(true);
     el._error = "Cannot save";
     const error = flat(el._renderForm());
