@@ -125,6 +125,12 @@ Le moteur recalcule l’action voulue et agit aux transitions. Il ne force pas e
 continu l’état observé et ne détecte pas les réglages manuels pour les corriger.
 Leur affichage dans le graphique ne modifie pas cette règle.
 
+Un réglage extérieur (utilisateur, autre automatisation) reste donc jusqu’à la prochaine frontière
+de segment, où le moteur envoie l’action du nouveau segment sans lire l’état de l’appareil, même si
+sa valeur est la même ; après le dernier horaire, le défaut est envoyé s’il y en a un, sinon rien.
+Exemple : 18 °C de 10:00 à 20:00, puis 17 °C de 20:00 à 21:00 ; un réglage à 20 °C à 12:00 reste
+jusqu’à 20:00, puis 17 °C est envoyé.
+
 - **Avec fin** : action au début, puis défaut éligible ou action du programme qui reprend la main à la fin.
 - **Ponctuelle** : action lancée une seule fois, aucun événement de fin, jamais rejouée après son heure. Un horaire borné prioritaire peut la supprimer.
 - **Priorité** : c’est un rang (1, 2, 3…, sans plafond) dans un groupe de programmes qui partagent un appareil ; le rang 1 gagne entre les horaires éligibles actifs, le programme le plus ancien départage les égalités. L’interface ne la saisit pas (glisser-déposer) ; `priority` reste dans le YAML et l’API. Commande `weekly_planner/program/priorities` : liste `{id, revision}` dans le nouvel ordre d’un groupe, tout ou rien ; `weekly_planner/program/save` accepte aussi `group_order`. Sans horaire actif, le programme activé le plus prioritaire contenant l’entité fournit son défaut facultatif.

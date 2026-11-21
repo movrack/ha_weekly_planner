@@ -11,13 +11,15 @@ from .helpers import (
     COVER,
     Recorder,
     go_to,
+    label,
+    labels,
     local,
     program,
     setup,
     slot,
+    temp,
     tick,
 )
-
 
 async def test_start_of_slot_and_default_at_its_end(hass, hass_storage, freezer):  # S1
     rec = Recorder(hass)
@@ -124,6 +126,21 @@ async def test_contiguous_slots_both_send_their_action(hass, hass_storage, freez
     count = len(rec.calls)
     await go_to(hass, freezer, local(26, 8, 0))
     assert len(rec.calls) == count + 1
+
+
+async def test_external_change_stays_until_the_next_boundary(hass, hass_storage, freezer):  # #76
+    rec = Recorder(hass)
+    extra = [*labels(), label("t18", temp(18)), label("t17", temp(17))]
+    slots = [slot("a", "10:00", "20:00", "t18"), slot("b", "20:00", "21:00", "t17")]
+    await setup(hass, hass_storage, freezer, [program(slots=slots)], local(26, 10, 30), extra_labels=extra)
+    assert rec.calls[-1][1] == {"temperature": 18}
+    count = len(rec.calls)
+    hass.states.async_set(CLIMATE, "heat", {"temperature": 20})  # someone else sets 20 °C
+    await go_to(hass, freezer, local(26, 12, 0))
+    assert len(rec.calls) == count  # nothing is sent, nothing is undone
+    await go_to(hass, freezer, local(26, 20, 0))
+    assert len(rec.calls) == count + 1
+    assert rec.calls[-1][1] == {"temperature": 17}  # the planner takes control back
 
 
 async def test_priority_hand_back(hass, hass_storage, freezer):  # S9
