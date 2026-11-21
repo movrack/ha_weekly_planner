@@ -89,7 +89,7 @@ describe("setting picker behaviour in the modal", () => {
     return el;
   };
   it("opens the form on the chosen setting, then on a new one, and closes it", () => {
-    const el = make({ embedded: true });
+    const el = make();
     el._open(true);
     expect(el._form).toBe(true);
     expect(el._name).toBe("Comfort");
@@ -101,9 +101,6 @@ describe("setting picker behaviour in the modal", () => {
     expect(el._name).toBe("");
     el._close();
     expect(el._form).toBe(false);
-    const drafts = el.dispatchEvent.mock.calls.map((c: any[]) => c[0].detail);
-    expect(drafts.at(-1)).toBeNull();
-    expect(drafts[0].id).toBe("t21");
   });
   it("keeps the per-device value in the action picker's advanced slot, open only when a device value is set", () => {
     const flag = (v: any): boolean[] => {
@@ -114,7 +111,7 @@ describe("setting picker behaviour in the modal", () => {
         return (str.endsWith("?advanced-open=") ? [Boolean(val)] : []).concat(flag(val));
       });
     };
-    const el = make({ embedded: true });
+    const el = make();
     el._open(true);
     const html = flat(el.render());
     expect(html).toContain('slot="advanced"');
@@ -131,11 +128,11 @@ describe("setting picker behaviour in the modal", () => {
   it("reports why the form cannot be saved yet", () => {
     const el = make();
     el._open(false);
-    expect(el._draft().problem).toBeTruthy();
+    expect(el._formProblem).toBeTruthy();
     el._set({ name: "Eco", action: { kind: "service", service: "climate.set_temperature", data: { temperature: 16 } } });
-    expect(el._draft().problem).toBe("");
+    expect(el._formProblem).toBe("");
     el._set({ action: { kind: "service", service: "" } });
-    expect(el._draft().problem).toBeTruthy();
+    expect(el._formProblem).toBeTruthy();
   });
   it("choosing a setting closes the form and reports the choice", () => {
     const el = make();

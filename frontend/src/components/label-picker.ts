@@ -12,28 +12,6 @@ import { editorStyles, langOf } from "../editors/shared";
 import { callout } from "../styles";
 import type { Action, HomeAssistant, Label, PlannerData, Program } from "../types";
 
-/** A setting deleted after being replaced everywhere: the window that holds a draft of a program follows it. */
-export interface LabelReplaced {
-  from: string;
-  to: string;
-  /** New revision of each program that was saved with the replacement. */
-  revisions: Record<string, number>;
-}
-
-/** The label form as a draft, for a parent that saves it together with its own form (`embedded`). */
-export interface LabelDraft {
-  /** null: a new label. */
-  id: string | null;
-  name: string;
-  color: string;
-  action: Action | null;
-  showValue: boolean;
-  /** Values for a device changed in the form (null: back to the common value). */
-  overrides: { entityId: string; action: Action | null }[];
-  /** Why it cannot be saved yet ("" when it can). */
-  problem: string;
-}
-
 @customElement("wp-label-picker")
 export class WpLabelPicker extends LitElement {
   @property({ attribute: false }) hass!: HomeAssistant;
@@ -48,8 +26,6 @@ export class WpLabelPicker extends LitElement {
   @property({ type: Boolean }) compact = false;
   /** Settings can be chosen but not configured: no pencil, no "new setting", no form (the strip under a bar). */
   @property({ type: Boolean, attribute: "readonly-settings" }) readonlySettings = false;
-  /** Inside a form that has its own Save / Cancel: the label form has no buttons and reports `label-draft`. */
-  @property({ type: Boolean }) embedded = false;
 
   /** The label form is open (edit of the chosen label, or a new one). */
   @state() private _form = false;
@@ -97,27 +73,11 @@ export class WpLabelPicker extends LitElement {
     this._ov = {};
     this._valueFor = null;
     this._error = "";
-    this._changed();
   }
 
   private _close(): void {
     this._form = false;
     this._error = "";
-    this._changed();
-  }
-
-  /** The form changed: an embedding form is told. */
-  private _changed(): void {
-    if (!this.embedded) return;
-    this._emit("label-draft", this._form ? this._draft() : null);
-  }
-
-  private _draft(): LabelDraft {
-    return {
-      id: this._editId, name: this._name.trim(), color: this._color, action: this._action, showValue: this._showValue,
-      overrides: Object.entries(this._ov).map(([entityId, action]) => ({ entityId, action })),
-      problem: this._formProblem,
-    };
   }
 
   private get _formProblem(): string {
@@ -137,7 +97,6 @@ export class WpLabelPicker extends LitElement {
     if (patch.color !== undefined) this._color = patch.color;
     if (patch.action !== undefined) this._action = patch.action;
     this._error = "";
-    this._changed();
   }
 
   /** The value of the label for a device as the form shows it: changed in the form, else the saved one. */
@@ -207,7 +166,6 @@ export class WpLabelPicker extends LitElement {
       this._confirmDel = false;
       this._delError = "";
       this._form = false;
-      this._changed();
       this._emit("label-change", null);
     } catch (err) {
       const e = err as { code?: string; message?: string };
@@ -230,17 +188,13 @@ export class WpLabelPicker extends LitElement {
     this._saving = true;
     this._delError = "";
     try {
-      const revisions: Record<string, number> = {};
       for (const program of this.data.programs.filter((p) => usesLabel(p, label.id))) {
-        const res = await this.hass.callWS<{ program: Program }>({ type: "weekly_planner/program/save", program: replaceLabel(program, label.id, to) });
-        revisions[program.id] = res.program.revision;
+        await this.hass.callWS({ type: "weekly_planner/program/save", program: replaceLabel(program, label.id, to) });
       }
       await this.hass.callWS({ type: "weekly_planner/label/delete", label_id: label.id });
       this._confirmDel = false;
       this._replaceBy = null;
       this._form = false;
-      this._changed();
-      this._emit("label-replaced", { from: label.id, to, revisions } satisfies LabelReplaced);
       this._emit("label-change", to);
     } catch (err) {
       const e = err as { code?: string };
@@ -286,10 +240,7 @@ export class WpLabelPicker extends LitElement {
   private _choose(id: string | null): void {
     this._confirmDel = false;
     this._delError = "";
-    if (this._form) {
-      this._form = false;
-      this._changed();
-    }
+    this._form = false;
     this._emit("label-change", id);
   }
 
@@ -304,9 +255,9 @@ export class WpLabelPicker extends LitElement {
       ${shown ? html`<div class="valbox wp-appear">
         <wp-action-picker no-fold .hass=${this.hass} entity-id=${entityId} .allowed=${allowedOf(this.program, entityId)}
           .action=${own ?? this._action} ?disabled=${this.disabled}
-          @action-change=${(e: CustomEvent<Action>) => { e.stopPropagation(); this._ov = { ...this._ov, [entityId]: e.detail }; this._error = ""; this._changed(); }}></wp-action-picker>
+          @action-change=${(e: CustomEvent<Action>) => { e.stopPropagation(); this._ov = { ...this._ov, [entityId]: e.detail }; this._error = ""; }}></wp-action-picker>
         ${own ? html`<button class="btn" ?disabled=${this.disabled}
-          @click=${() => { this._ov = { ...this._ov, [entityId]: null }; this._changed(); }}>
+          @click=${() => { this._ov = { ...this._ov, [entityId]: null }; }}>
           <ha-icon icon="mdi:undo"></ha-icon>${t(lang, "lb_common_value")}</button>` : nothing}
       </div>` : nothing}
     </div>`;
@@ -360,7 +311,7 @@ export class WpLabelPicker extends LitElement {
       ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
       <div class="btns">
         <button class="btn primary" ?disabled=${this._saving || this.disabled}
-          @click=${() => (this.embedded ? this._emit("label-commit", null) : void this._save())}>${t(lang, this.embedded ? "lb_save" : "save")}</button>
+          @click=${() => void this._save()}>${t(lang, "save")}</button>
         <button class="btn" @click=${() => this._close()}>${t(lang, "cancel")}</button>
       </div>
     </div>`;

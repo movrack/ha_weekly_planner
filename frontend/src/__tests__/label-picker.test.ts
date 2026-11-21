@@ -38,36 +38,17 @@ describe("form open and close", () => {
     el._open(true);
     expect(el._form).toBe(false);
   });
-  it("an embedding form is told the draft when the form opens", () => {
-    const el = mk({ embedded: true });
-    el._open(true);
-    expect(events(el)).toEqual([["label-draft", { id: "l", name: "Open", color: PALETTE[2], action: open.action, showValue: false, overrides: [], problem: "" }]]);
-  });
-  it("closing clears the error and tells an embedding form with null; a standalone picker tells nobody", () => {
-    const el = mk({ embedded: true });
+  it("closing the form clears its error", () => {
+    const el = mk();
     el._open(true);
     el._error = "x";
-    el.dispatchEvent.mockClear();
     el._close();
     expect([el._form, el._error]).toEqual([false, ""]);
-    expect(events(el)).toEqual([["label-draft", null]]);
-    const plain = mk();
-    plain._open(true); plain._close();
-    expect(events(plain)).toEqual([]);
   });
-  it("the draft lists the changes by device, trims the name and carries the problem", () => {
-    const el = mk({ embedded: true });
-    el._open(false);
-    el._name = "  Night  ";
-    el._ov = { "cover.a": null, "cover.b": open.action };
-    expect(el._draft()).toEqual({ id: null, name: "Night", color: nextColor(el.data.labels), action: null, showValue: false,
-      overrides: [{ entityId: "cover.a", action: null }, { entityId: "cover.b", action: open.action }], problem: t("en", "lb_err_action") });
-  });
-  it("a patch sets only what it names, clears the error and reports the draft each time", () => {
-    const el = mk({ embedded: true });
+  it("a patch sets only what it names and clears the error", () => {
+    const el = mk();
     el._open(true);
     el._error = "x";
-    el.dispatchEvent.mockClear();
     el._set({ name: "Other" });
     expect([el._name, el._color, el._action, el._error]).toEqual(["Other", PALETTE[2], open.action, ""]);
     el._set({ color: "#123456" });
@@ -76,7 +57,6 @@ describe("form open and close", () => {
     expect(el._action).toBeNull();
     el._set({ name: "" });
     expect(el._name).toBe("");
-    expect(events(el)).toHaveLength(4);
   });
 });
 
@@ -266,12 +246,12 @@ describe("saving the device values", () => {
 
 describe("deleting", () => {
   it("tells the parent there is no setting any more and closes everything", async () => {
-    const el = mk({ embedded: true });
+    const el = mk();
     el._confirmDel = true; el._delError = "x"; el._form = true;
     await el._delete(open);
     expect(el.hass.callWS).toHaveBeenCalledWith({ type: "weekly_planner/label/delete", label_id: "l" });
     expect([el._confirmDel, el._delError, el._form, el._saving]).toEqual([false, "", false, false]);
-    expect(events(el)).toEqual([["label-draft", null], ["label-change", null]]);
+    expect(events(el)).toEqual([["label-change", null]]);
   });
   it("tells a listening parent with a composed, bubbling event", async () => {
     const el = mk();
@@ -332,11 +312,11 @@ describe("deleting", () => {
 
 describe("choosing", () => {
   it("closes the confirmation and the form, and tells the parent", () => {
-    const el = mk({ embedded: true });
+    const el = mk();
     el._confirmDel = true; el._delError = "x"; el._form = true;
     el._choose("l2");
     expect([el._confirmDel, el._delError, el._form]).toEqual([false, "", false]);
-    expect(events(el)).toEqual([["label-draft", null], ["label-change", "l2"]]);
+    expect(events(el)).toEqual([["label-change", "l2"]]);
     el.dispatchEvent.mockClear();
     el._choose(null);
     expect(events(el)).toEqual([["label-change", null]]);

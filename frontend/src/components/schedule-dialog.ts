@@ -4,7 +4,6 @@ import { TIMELINE } from "../timeline-geometry";
 
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { keyed } from "lit/directives/keyed.js";
 import "./chart";
 import "./chart-options";
 import type { SourcePoint } from "../chart-sources";
@@ -21,8 +20,7 @@ import { applyEdit, compareOrigin, dayView, findGroup, freshGroup, groupId, next
 import { devicesOf, dropDeviceSlots, editForDevice, isShared, remergeIdentical } from "../device-edits";
 import type { SlotPatch } from "../device-edits";
 import type { RowEdit } from "../edits";
-import { appliedAction, labelDomains, labelName, labelOf, labelsFor, replaceLabel } from "../labels";
-import type { LabelDraft, LabelReplaced } from "./label-picker";
+import { appliedAction, labelDomains, labelName, labelOf, labelsFor } from "../labels";
 import { addDaysIso } from "./chart";
 import { chooseAction, confirmAction, pauseChoice } from "./confirm";
 import { errorText, slotDeviceError, strings, t } from "../i18n";
@@ -34,7 +32,7 @@ import { dayInText, holidayApplies, holidayChoice, holidayDayToday, holidayOwnSl
 import { applicable, applies, normaliseEntities, shiftTimeSpec, specMinutes, sunBoundsInvalid } from "../slots";
 import { editorStyles, langOf } from "../editors/shared";
 import { callout, collapse } from "../styles";
-import type { Action, HomeAssistant, PlannerData, PreviewResponse, PreviewSlot, Profile, Program, Slot, TimeSpec } from "../types";
+import type { HomeAssistant, PlannerData, PreviewResponse, PreviewSlot, Profile, Program, Slot, TimeSpec } from "../types";
 
 /** The profiles with `next` in place of the one with its id, added at the end when it is new. */
 const putProfile = (profiles: Profile[], next: Profile): Profile[] =>
@@ -58,6 +56,9 @@ export class WpSchedule extends LitElement {
   @state() private _viewMode: string | null = null;
   @state() private _copyOpen = false;
   @state() private _optsOpen = false;
+  /** The settings box is unfolded (its controls shown), and the setting it shows the details of. */
+  @state() private _settingsOpen = false;
+  @state() private _settingId: string | null = null;
   private _editProfileId: string | null = null;
   /** Mode of the row being edited (null: no mode, the first schedules). */
   private _editMode: string | null = null;
@@ -102,19 +103,9 @@ export class WpSchedule extends LitElement {
   private _origin: SlotGroup | null = null;
   /** The form's group as opened (JSON), to tell unsaved changes from none. */
   private _initialGroup = "";
-  /** Label values set for a device while editing, applied on top of the current program when saving. */
-  private _overrides: { entityId: string; labelId: string; action: Action | null }[] = [];
   /** Last program saved from here: newer than the pushed data until the push arrives. */
   private _saved: Record<string, Program> = {};
-  /** Program being edited: the saved one plus the values of labels set for a device (saved with the row). */
-  @state() private _draft: Program | null = null;
   @state() private _restLabel: string | null = null;
-  /** The label form open in the row (edit of its label, or a new one): saved first by the row's Save. */
-  @state() private _labelDraft: LabelDraft | null = null;
-  /** Changes when the label picker must start afresh (its form was saved with the row's Save). */
-  @state() private _pickerKey = 0;
-  /** Labels created from here, possibly not in the pushed data yet. */
-  private _fresh = new Set<string>();
   @state() private _programId = "";
   @state() private _error = "";
   @state() private _saving = false;
@@ -340,12 +331,9 @@ export class WpSchedule extends LitElement {
     this._openId = opts.openId ?? null;
     this._base = null;
     this._origin = opts.origin ? structuredClone(opts.origin) : null;
-    this._overrides = [];
-    this._labelDraft = null;
     this._dropBusy = false;
     this._who = null;
     this._shared = Boolean(group && opts.openId && this._eid && isShared(group.slot, devicesOf(program)));
-    this._draft = structuredClone(program);
     this._error = "";
     this._note = "";
     // Show the top of the opened row, not the bottom of its form.
@@ -416,30 +404,11 @@ export class WpSchedule extends LitElement {
     this._openId = null;
     this._base = null;
     this._origin = null;
-    this._overrides = [];
-    this._labelDraft = null;
     this._dropBusy = false;
     this._who = null;
     this._shared = false;
-    this._draft = null;
     this._restLabel = null;
     this._error = "";
-  }
-
-  private _onOverride(detail: { entityId: string; labelId: string; action: Action | null }): void {
-    const draft = this._draft;
-    if (!draft) return;
-    this._overrides = [...this._overrides.filter((o) => o.entityId !== detail.entityId || o.labelId !== detail.labelId), detail];
-    this._draft = {
-      ...draft,
-      entities: draft.entities.map((e) => {
-        if (e.entity_id !== detail.entityId) return e;
-        const overrides = { ...(e.label_overrides ?? {}) };
-        if (detail.action) overrides[detail.labelId] = detail.action;
-        else delete overrides[detail.labelId];
-        return { ...e, label_overrides: overrides };
-      }),
-    };
   }
 
   /** A new slot: all days from the full screen, one day when focused (starting after that day's last slot). */
@@ -566,20 +535,6 @@ export class WpSchedule extends LitElement {
     return false;
   }
 
-  /** The entities of the current program with the label values set on this screen. */
-  private _withOverrides(live: Program, entities = live.entities): Program["entities"] {
-    return entities.map((e) => {
-      const mine = this._overrides.filter((o) => o.entityId === e.entity_id);
-      if (!mine.length) return e;
-      const overrides = { ...(e.label_overrides ?? {}) };
-      for (const o of mine) {
-        if (o.action) overrides[o.labelId] = o.action;
-        else delete overrides[o.labelId];
-      }
-      return { ...e, label_overrides: overrides };
-    });
-  }
-
   /** Names the two colliding slots, the day and their times (the generic sentence when nothing is found). */
   private _overlapText(profile: Profile): string {
     const lang = this._lang;
@@ -603,7 +558,7 @@ export class WpSchedule extends LitElement {
     if (!g.days.length) return t(lang, "err_days");
     if (sunBoundsInvalid(g.slot.start) || sunBoundsInvalid(g.slot.end)) return t(lang, "err_sun_bounds");
     if (g.slot.end && JSON.stringify(g.slot.start) === JSON.stringify(g.slot.end)) return t(lang, "w_err_same");
-    if (!labelOf(this.data, g.slot.label) && !this._fresh.has(g.slot.label)) return t(lang, "err_action");
+    if (!labelOf(this.data, g.slot.label)) return t(lang, "err_action");
     if (this._shared && this._who === null && this._contentChanged()) return t(lang, "who_pick");
     return "";
   }
@@ -691,55 +646,9 @@ export class WpSchedule extends LitElement {
     return true;
   }
 
-  /**
-   * The label form of the open row is part of the row: saved first (then its values for a device become part
-   * of the row's draft). False: stop, the error is shown.
-   */
-  /** A setting was replaced everywhere and deleted: what this window holds follows, and the revision of its program too. */
-  private _onLabelReplaced({ from, to, revisions }: LabelReplaced): void {
-    if (this._draft) {
-      const revision = revisions[this._draft.id];
-      this._draft = { ...replaceLabel(this._draft, from, to), ...(revision !== undefined ? { revision } : {}) };
-    }
-    if (this._restLabel === from) this._restLabel = to;
-    if (this._group?.slot.label === from) this._group = { ...this._group, slot: { ...this._group.slot, label: to } };
-    this._pickerKey += 1;
-  }
-
-  private async _saveLabelDraft(): Promise<boolean> {
-    const d = this._labelDraft;
-    if (!d) return true;
-    if (d.problem) {
-      this._error = d.problem;
-      return false;
-    }
-    this._saving = true;
-    try {
-      const res = await this.hass.callWS<{ label: { id: string } }>({
-        type: "weekly_planner/label/save",
-        label: { ...(d.id ? { id: d.id } : {}), name: d.name, color: d.color, action: d.action, show_value: d.showValue },
-      });
-      for (const o of d.overrides) this._onOverride({ entityId: o.entityId, labelId: res.label.id, action: o.action });
-      if (!d.id) {
-        if (this._open?.startsWith("rest:")) this._restLabel = res.label.id;
-        else if (this._group) this._group = { ...this._group, slot: { ...this._group.slot, label: res.label.id } };
-      }
-      this._fresh.add(res.label.id);
-      this._labelDraft = null;
-      this._pickerKey += 1;
-      return true;
-    } catch (err) {
-      this._error = (err as { code?: string })?.code === "unauthorized" ? t(this._lang, "err_unauthorized") : t(this._lang, "lb_err_save");
-      return false;
-    } finally {
-      this._saving = false;
-    }
-  }
-
   private async _saveRow(): Promise<void> {
     const live = this._live(this._programId);
     if (!live || !this._editProfile(live)) { this._error = t(this._lang, "ss_changed"); return; }
-    if (!(await this._saveLabelDraft())) return;
     const draft = this._group;
     const program = this._live(this._programId);
     if (!program || !draft) return;
@@ -758,7 +667,7 @@ export class WpSchedule extends LitElement {
         if (!days) return { error: t(this._lang, "ss_changed") };
         const next = { ...profile, days };
         if (overlapPair(next)) return { error: this._overlapText(next) };
-        return { program: { ...live, entities: this._withOverrides(live), profiles: putProfile(live.profiles, next) } };
+        return { program: { ...live, profiles: putProfile(live.profiles, next) } };
       });
       if (ok && !stale) this._cancel();
       return;
@@ -787,7 +696,7 @@ export class WpSchedule extends LitElement {
       // copies that became identical again (other devices) are merged back into one slot (D1)
       const next = { ...edited, days: edited.days.map((d) => remergeIdentical(d, devicesOf(live)).day) };
       if (overlapPair(next)) return { error: this._overlapText(next) };
-      return { program: { ...live, entities: this._withOverrides(live), profiles: putProfile(live.profiles, next) } };
+      return { program: { ...live, profiles: putProfile(live.profiles, next) } };
     });
     if (saved && !changed) {
       this._cancel();
@@ -824,13 +733,12 @@ export class WpSchedule extends LitElement {
   }
 
   private async _saveRest(eid: string): Promise<void> {
-    if (!(await this._saveLabelDraft())) return;
     const program = this._live(this._programId) ?? this._programs[0];
     if (!program) return;
     const ok = await this._commit(program.id, (live) => ({
       program: {
         ...live,
-        entities: this._withOverrides(live, live.entities.map((e) => (e.entity_id === eid ? { ...e, default_label: this._restLabel } : e))),
+        entities: live.entities.map((e) => (e.entity_id === eid ? { ...e, default_label: this._restLabel } : e)),
       },
     }));
     if (ok) this._cancel();
@@ -954,13 +862,10 @@ export class WpSchedule extends LitElement {
     const devices = this._devices(program);
     const count = this._origin ? applicable(this._origin.slot, devices).length : devices.length;
     return html`<div class="editor">
-      ${keyed(this._pickerKey, html`<wp-slot-form .hass=${this.hass} .data=${this.data} .program=${this._draft ?? program} .group=${this._group!} .entityIds=${[this._eid]}
+      <wp-slot-form .hass=${this.hass} .data=${this.data} .program=${program} .group=${this._group!} .entityIds=${[this._eid]}
         .device=${this._eid} .also=${!this._shared}
         .dayOnly=${this._dayOnly} ?disabled=${!this._canEdit}
-        @label-draft=${(e: CustomEvent<LabelDraft | null>) => { e.stopPropagation(); this._labelDraft = e.detail; this._error = ""; }}
-        @label-commit=${(e: Event) => { e.stopPropagation(); void this._saveLabelDraft(); }}
-        @label-replaced=${(e: CustomEvent<LabelReplaced>) => { e.stopPropagation(); this._onLabelReplaced(e.detail); }}
-        @group-change=${(e: CustomEvent<SlotGroup>) => { e.stopPropagation(); this._group = e.detail; this._error = ""; }}></wp-slot-form>`)}
+        @group-change=${(e: CustomEvent<SlotGroup>) => { e.stopPropagation(); this._group = e.detail; this._error = ""; }}></wp-slot-form>
       ${this._shared && !isNew ? html`<div class="who" role="radiogroup" aria-label=${t(lang, "who_title")}>
         <span>${t(lang, "who_title")}</span>
         <div class="seg">
@@ -971,10 +876,10 @@ export class WpSchedule extends LitElement {
         </div></div>` : nothing}
       ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
       <div class="btns">
-        <button class="btn primary" ?disabled=${this._saving || !this._canEdit || this._labelDraft !== null} @click=${() => void this._saveRow()}>${t(lang, "save")}</button>
-        <button class="btn" ?disabled=${this._labelDraft !== null} @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
+        <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRow()}>${t(lang, "save")}</button>
+        <button class="btn" @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
       </div>
-      ${isNew || this._labelDraft ? nothing : html`<button class="btn dup" ?disabled=${!this._canEdit} @click=${() => this._duplicate()}>
+      ${isNew ? nothing : html`<button class="btn dup" ?disabled=${!this._canEdit} @click=${() => this._duplicate()}>
         <ha-icon icon="mdi:content-copy"></ha-icon>${t(lang, "duplicate")}</button>`}
       <button class="btn danger-line alone" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._deleteRow()}>
         <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete")}</button>
@@ -990,16 +895,13 @@ export class WpSchedule extends LitElement {
       const title = t(lang, "rest_of_time");
       if (this._open === key) {
         return html`<div class="editor"><h4>${title}</h4>
-          ${keyed(this._pickerKey, html`<wp-label-picker embedded allow-none .hass=${this.hass} .data=${this.data} .program=${this._draft ?? program} .entityIds=${[eid]}
+          <wp-label-picker readonly-settings allow-none .hass=${this.hass} .data=${this.data} .program=${program} .entityIds=${[eid]}
             .value=${this._restLabel} ?disabled=${!this._canEdit}
-            @label-draft=${(e: CustomEvent<LabelDraft | null>) => { e.stopPropagation(); this._labelDraft = e.detail; this._error = ""; }}
-            @label-commit=${(e: Event) => { e.stopPropagation(); void this._saveLabelDraft(); }}
-            @label-replaced=${(e: CustomEvent<LabelReplaced>) => { e.stopPropagation(); this._onLabelReplaced(e.detail); }}
-            @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._restLabel = e.detail; }}></wp-label-picker>`)}
+            @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._restLabel = e.detail; }}></wp-label-picker>
           ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
           <div class="btns">
-            <button class="btn primary" ?disabled=${this._saving || !this._canEdit || this._labelDraft !== null} @click=${() => void this._saveRest(eid)}>${t(lang, "save")}</button>
-            <button class="btn" ?disabled=${this._labelDraft !== null} @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
+            <button class="btn primary" ?disabled=${this._saving || !this._canEdit} @click=${() => void this._saveRest(eid)}>${t(lang, "save")}</button>
+            <button class="btn" @click=${() => this._cancel()}>${t(lang, "cancel")}</button>
           </div></div>`;
       }
       const label = labelOf(this.data, entity.default_label);
@@ -1139,6 +1041,31 @@ export class WpSchedule extends LitElement {
       ${collapse(this._optsOpen, html`<div class="opts-body">${this._renderFollow()}${this._renderCopy()}</div>`)}`;
   }
 
+  /**
+   * All management of the settings (add, edit, delete, replace and delete) between Mode and Schedules: closed by default
+   * it only lists the settings that exist; the fold opens the controls. Hidden (not removed) while a slot form is open,
+   * so that only one Save / Cancel pair is visible.
+   */
+  private _renderSettings() {
+    const lang = this._lang;
+    const program = this._programs[0];
+    const labels = labelsFor(this.hass, this.data, this._entities, program)
+      .sort((a, b) => labelName(this.hass, a).localeCompare(labelName(this.hass, b), lang, { numeric: true, sensitivity: "base" }));
+    // no setting yet: the controls are open, the first one has to be created here
+    const open = this._settingsOpen || !labels.length;
+    return html`<fieldset class="box setbox" ?hidden=${this._open !== null}><legend>${t(lang, "settings_legend")}</legend>
+      ${open ? nothing : html`<ul class="tags">${labels.length
+        ? labels.map((l) => html`<li><i class="dot" style="background:${l.color}"></i>${labelName(this.hass, l, this._eid)}</li>`)
+        : html`<li class="muted">${t(lang, "settings_none")}</li>`}</ul>`}
+      <button class="row opts" aria-expanded=${open} @click=${() => { this._settingsOpen = !open; }}>
+        <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
+        <span class="txt">${t(lang, "settings_edit")}</span></button>
+      ${collapse(open, html`<wp-label-picker .hass=${this.hass} .data=${this.data} .program=${program} .entityIds=${this._entities}
+        .value=${this._settingId} ?disabled=${!this._canEdit}
+        @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._settingId = e.detail; }}></wp-label-picker>`)}
+    </fieldset>`;
+  }
+
   /** Warning shown when the opened mode is not the active one: what it means and when it will apply. */
   private _renderInactive() {
     const lang = this._lang;
@@ -1152,7 +1079,7 @@ export class WpSchedule extends LitElement {
 
   /** True when the open slot form differs from what it was opened with (or a new setting is being drafted). */
   private get _editDirty(): boolean {
-    return this._open !== null && (JSON.stringify(this._group) !== this._initialGroup || this._labelDraft !== null);
+    return this._open !== null && JSON.stringify(this._group) !== this._initialGroup;
   }
 
   private async _pickMode(name: string, select?: HTMLSelectElement): Promise<void> {
@@ -1400,6 +1327,7 @@ export class WpSchedule extends LitElement {
           ${this._modeOnly ? this._renderInactive() : nothing}
           ${this._renderModeOptions()}
           <wp-mode-notice .hass=${this.hass} .data=${this.data}></wp-mode-notice>`)}
+        ${this._modeOnly ? nothing : this._renderSettings()}
         ${!this._canEdit ? html`${callout("error", "", t(lang, "read_only"), { role: "alert" })}` : nothing}
         ${this._error && !this._open ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
         ${box("schedbox", t(lang, "schedules_legend"), html`
@@ -1473,6 +1401,10 @@ export class WpSchedule extends LitElement {
     .row.opts { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; margin: 0 0 8px; padding: 0 12px; border-radius: 12px;
       border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem; cursor: pointer; text-align: left; }
     .row.opts .txt { flex: 1; }
+    .tags { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 4px; padding: 0; list-style: none; font-size: 0.875rem; }
+    .tags li { display: inline-flex; align-items: center; gap: 6px; }
+    .tags .dot { width: 10px; height: 10px; border-radius: 5px; flex: none; }
+    fieldset.box[hidden] { display: none; }
     .row.opts small { color: var(--secondary-text-color); font-size: 0.75rem; }
     .opts-body { margin: 0 0 12px; padding: 8px 0 0 12px; border-left: 3px solid var(--divider-color); }
     .modechip {

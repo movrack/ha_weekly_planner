@@ -190,21 +190,6 @@ describe("schedule screen editing", () => {
     expect(html).toContain(t("en", "who_title"));
     expect(html).toContain(t("en", "who_one", { name: "Demo" }));
     expect(html).toContain(t("en", "who_some", { me: "Demo", names: "switch.two, light.third" }));
-    const r = view.render();
-    const stopDraft = vi.fn(); view._error = "old error";
-    find(r, "label-draft", "wp-slot-form").fn({ stopPropagation: stopDraft, detail: { problem: "p" } });
-    expect(stopDraft).toHaveBeenCalledOnce(); expect(view._error).toBe("");
-    expect(view._labelDraft).toEqual({ problem: "p" });
-    view._saveLabelDraft = vi.fn(async () => true);
-    const stopCommit = vi.fn();
-    find(view.render(), "label-commit", "wp-slot-form").fn({ stopPropagation: stopCommit });
-    expect(stopCommit).toHaveBeenCalledOnce();
-    expect(view._saveLabelDraft).toHaveBeenCalled();
-    view._onLabelReplaced = vi.fn();
-    const stopReplace = vi.fn();
-    find(view.render(), "label-replaced", "wp-slot-form").fn({ stopPropagation: stopReplace, detail: { from: "a", to: "b", revisions: {} } });
-    expect(stopReplace).toHaveBeenCalledOnce();
-    expect(view._onLabelReplaced).toHaveBeenCalledWith({ from: "a", to: "b", revisions: {} });
     const g = { ...view._group, days: [0, 1] };
     const stopGroup = vi.fn(); view._error = "old group error";
     find(view.render(), "group-change", "wp-slot-form").fn({ stopPropagation: stopGroup, detail: g });
@@ -215,7 +200,6 @@ describe("schedule screen editing", () => {
     expect(view._who).toBe("one"); // This template helper cannot mount Lit to inspect the rendered radio state.
     handlers(view.render()).filter((handler) => handler.event === "click" && handler.before.includes('class="who"') && handler.before.includes('role="radio"'))[1].fn();
     expect(view._who).toBe("all"); // This template helper cannot mount Lit to inspect the rendered radio state.
-    view._labelDraft = null;
     view._error = "row error";
     expect(flat(view.render())).toContain('role="alert"');
     expect(flat(view.render())).toContain("row error");
@@ -231,13 +215,12 @@ describe("schedule screen editing", () => {
     view._saveRow = vi.fn();
     find(view.render(), "click", "class=" + '"btn primary"').fn();
     expect(view._saveRow).toHaveBeenCalledOnce();
-    find(view.render(), "click", 'class="btn" ?disabled=').fn();
+    find(view.render(), "click", 'class="btn" @click=').fn();
     expect(view._open).toBeNull();
-    view._overrides = [{ entityId: "switch.demo", labelId: "comfort", action: null }];
     view._dropBusy = true; view._shared = true; view._error = "draft error"; view._note = "draft note";
     view._cancel();
-    expect(view._open).toBeNull(); expect(view._group).toBeNull(); expect(view._draft).toBeNull();
-    expect(view._overrides).toEqual([]); expect(view._dropBusy).toBe(false); expect(view._shared).toBe(false);
+    expect(view._open).toBeNull(); expect(view._group).toBeNull();
+    expect(view._dropBusy).toBe(false); expect(view._shared).toBe(false);
     expect(view._error).toBe("");
   });
   it("adds a slot for the whole week, dropping busy days when saved", async () => {
@@ -326,11 +309,6 @@ describe("schedule screen editing", () => {
     view.data.programs[0].entities.push({ entity_id: "switch.three", default_label: null, label_overrides: null });
     const row = view._rows()[0];
     view._openRow(row.key, row.program, row.group);
-    view._labelDraft = { problem: "label is invalid" };
-    await view._saveRow();
-    expect(view._error).toBe("label is invalid");
-    expect(view.hass.callWS).not.toHaveBeenCalled();
-    view._labelDraft = null;
     view._group = { ...view._group, days: [] };
     await view._saveRow(); expect(view._error).toBe(t("en", "err_days"));
     view._group = { ...view._group, days: [0], slot: { ...view._group.slot, label: "ghost" } };
@@ -346,18 +324,12 @@ describe("schedule screen editing", () => {
     expect(view._error).toBe(t("en", "who_pick")); // shared by both devices: D1 asks first
     view._pickWho("all");
     expect(view._error).toBe("");
-    view._overrides = [
-      { entityId: "switch.demo", labelId: "comfort", action: { kind: "scene", scene: "scene.override" } },
-      { entityId: "switch.two", labelId: "comfort", action: null },
-    ];
     await view._saveRow();
     expect(view._open).toBeNull();
     expect(view._note).toBe("");
     const sent = view.hass.callWS.mock.calls.slice(-1)[0][0].program;
     expect(sent.profiles[0].days[0][0].end).toEqual({ time: "11:00" });
-    expect(sent.entities.map((e: any) => e.label_overrides)).toEqual([
-      { existing: { kind: "scene", scene: "scene.keep" }, comfort: { kind: "scene", scene: "scene.override" } }, {}, null,
-    ]);
+    expect(sent.entities.map((e: any) => e.label_overrides)).toEqual([{ existing: { kind: "scene", scene: "scene.keep" } }, {}, null]);
   });
   it("refuses a row edit that overlaps another slot", async () => {
     const program = mkProgram();
@@ -428,18 +400,6 @@ describe("schedule screen editing", () => {
     expect(view._error).toBe("");
     expect(view._open).toBeNull();
     expect(view.hass.callWS.mock.calls.map((call: any) => call[0].type)).toEqual(["weekly_planner/program/save"]);
-  });
-  it("stops saving a row when its label edit clears the row", async () => {
-    const { view } = make();
-    view._add([2]);
-    view._labelDraft = { name: "N", color: "#000", action: { kind: "scene", scene: "scene.x" }, overrides: [] };
-    view.hass.callWS.mockImplementationOnce(async () => {
-      view._group = null;
-      return { label: { id: "L" } };
-    });
-    await view._saveRow();
-    expect(view._fresh.has("L")).toBe(true);
-    expect(view.hass.callWS.mock.calls.some((call: any) => call[0].type === "weekly_planner/program/save")).toBe(false);
   });
   it("keeps a row open when its profile disappears during a conflict retry", async () => {
     const { view } = make();
@@ -604,68 +564,69 @@ describe("schedule screen editing", () => {
     ];
     expect(view._overlapText(oneTimeProfile)).toBe(t("en", "w_err_overlap"));
   });
-  describe("while a setting is being edited", () => {
-    const draft = { name: "N", color: "#000", action: { kind: "scene", scene: "scene.x" }, overrides: [] };
-    const flags = (view: any) => ({
-      save: valuesAfter(view.render(), 'class="btn primary" ?disabled=')[0],
-      cancel: valuesAfter(view.render(), 'class="btn" ?disabled='),
-    });
-
-    it("disables the Save and Cancel of the schedule, and enables them again once the setting form is closed", () => {
-      const { view } = make();
-      view._add([0]);
-      expect(flags(view)).toEqual({ save: false, cancel: [false] });
-      view._labelDraft = draft;
-      expect(flags(view)).toEqual({ save: true, cancel: [true] });
-      view._labelDraft = null;
-      expect(flags(view)).toEqual({ save: false, cancel: [false] });
-    });
-
-    it("does the same for the rest of the time", () => {
-      const { view } = make();
-      find(view.render(), "click", "row rest").fn();
-      expect(flags(view)).toEqual({ save: false, cancel: [false] });
-      view._labelDraft = draft;
-      expect(flags(view)).toEqual({ save: true, cancel: [true] });
-    });
-  });
-  it("saves the rest of the time and a new label draft with the row", async () => {
+  it("saves the rest of the time with its own Save", async () => {
     const { view } = make();
     find(view.render(), "click", "row rest").fn();
     expect(view._open).toBe("rest:switch.demo");
     expect(view._restLabel).toBe("comfort");
-    expect(flat(view.render())).toContain("wp-label-picker");
     expect(flat(view.render())).toContain(".entityIds=switch.demo");
     const stopChange = vi.fn();
-    find(view.render(), "label-change", "wp-label-picker").fn({ stopPropagation: stopChange, detail: null });
+    find(view.render(), "label-change", "readonly-settings allow-none").fn({ stopPropagation: stopChange, detail: "away" });
     expect(stopChange).toHaveBeenCalledOnce();
-    const stopDraft = vi.fn(); view._error = "old error";
-    find(view.render(), "label-draft", "wp-label-picker").fn({ stopPropagation: stopDraft, detail: { name: "N", color: "#000", action: { kind: "service", service: "switch.turn_off" }, overrides: [{ entityId: "switch.demo", action: { kind: "service", service: "switch.turn_on", data: {} } }] } });
-    expect(stopDraft).toHaveBeenCalledOnce(); expect(view._error).toBe("");
-    // Child-component events are dispatched through the handler without mounting the child in the node-only test runner.
-    const saveDraft = view._saveLabelDraft.bind(view);
-    view._saveLabelDraft = vi.fn(async () => true);
-    const stopCommit = vi.fn();
-    find(view.render(), "label-commit", "wp-label-picker").fn({ stopPropagation: stopCommit });
-    expect(stopCommit).toHaveBeenCalledOnce(); expect(view._saveLabelDraft).toHaveBeenCalledOnce();
-    view._saveLabelDraft = saveDraft;
-    // The rendered replacement event exposes only its forwarded callback and payload.
-    view._onLabelReplaced = vi.fn();
-    const stopReplace = vi.fn();
-    find(view.render(), "label-replaced", "wp-label-picker").fn({ stopPropagation: stopReplace, detail: { from: "old", to: "new", revisions: {} } });
-    expect(stopReplace).toHaveBeenCalledOnce();
-    expect(view._onLabelReplaced).toHaveBeenCalledWith({ from: "old", to: "new", revisions: {} });
-    const saveRest = vi.spyOn(view, "_saveRest");
+    expect(view._restLabel).toBe("away");
     find(view.render(), "click", 'class="btn primary"').fn();
-    await saveRest.mock.results[0].value;
-    expect(saveRest).toHaveBeenCalledWith("switch.demo");
-    expect(view.hass.callWS.mock.calls.map((c: any) => c[0].type)).toEqual(["weekly_planner/label/save", "weekly_planner/program/save"]);
-    expect(view._open).toBeNull();
-    expect(view._fresh.has("newlabel")).toBe(true);
-    const saved = view.hass.callWS.mock.calls[1][0].program;
-    expect(saved.entities[0].default_label).toBe("newlabel");
+    await vi.waitFor(() => expect(view._open).toBeNull());
+    const saved = view.hass.callWS.mock.calls.at(-1)[0].program;
+    expect(saved.entities[0].default_label).toBe("away");
     expect(saved.entities[1].default_label).toBeNull();
-    expect(saved.entities[0].label_overrides.newlabel).toBeDefined();
+  });
+  describe("the settings box between Mode and Schedules", () => {
+    const toggle = (view: any) => find(view.render(), "click", 'class="box setbox"');
+    const attr = (view: any, name: string) => valuesAfter(view.render(), name);
+    it("is closed by default and only lists the settings that exist", () => {
+      const { view } = make();
+      const html = flat(view.render());
+      expect(html).toContain(t("en", "settings_legend"));
+      expect(html).toContain("<li><i");
+      expect(html).toContain(">Comfort</li>");
+      expect(html).not.toContain(t("en", "settings_none"));
+      expect(attr(view, 'class="row opts" aria-expanded=')).toEqual([false]);
+    });
+    it("opens the controls with its fold, and closes them again", () => {
+      const { view } = make();
+      toggle(view).fn();
+      expect(attr(view, 'class="row opts" aria-expanded=')).toEqual([true]);
+      expect(flat(view.render())).not.toContain("<li><i");
+      toggle(view).fn();
+      expect(attr(view, 'class="row opts" aria-expanded=')).toEqual([false]);
+    });
+    it("stays open while there is no setting to create a slot with", () => {
+      const { view } = make(undefined, undefined, { labels: [] });
+      expect(attr(view, 'class="row opts" aria-expanded=')).toEqual([true]);
+      toggle(view).fn();
+      expect(attr(view, 'class="row opts" aria-expanded=')).toEqual([true]);
+    });
+    it("is hidden, not removed, while a slot form is open so only one Save / Cancel pair shows", () => {
+      const { view } = make();
+      expect(attr(view, 'class="box setbox" ?hidden=')).toEqual([false]);
+      view._add([0]);
+      expect(attr(view, 'class="box setbox" ?hidden=')).toEqual([true]);
+    });
+    it("is not shown when the screen only edits an inactive mode", () => {
+      const { view } = make();
+      view._viewMode = "Away";
+      view.data.mode = { selector: "input_select.mode", active: "Home", options: ["Home", "Away"] };
+      expect(view._modeOnly).toBe(true);
+      expect(flat(view.render())).not.toContain(t("en", "settings_legend"));
+    });
+    it("follows the setting chosen in its picker, and lets every device give its own value", () => {
+      const { view } = make();
+      const stop = vi.fn();
+      find(view.render(), "label-change", "wp-label-picker .hass").fn({ stopPropagation: stop, detail: "comfort" });
+      expect(stop).toHaveBeenCalledOnce();
+      expect(attr(view, ".value=")).toContain("comfort");
+      expect(attr(view, ".entityIds=")).toEqual([["switch.demo", "switch.two"]]);
+    });
   });
   it("keeps the rest editor open when saving fails", async () => {
     const { view } = make();
@@ -692,82 +653,6 @@ describe("schedule screen editing", () => {
     view._programId = "missing";
     await view._saveRest("switch.demo");
     expect(view.hass.callWS).not.toHaveBeenCalled();
-  });
-  it("label draft: problem blocks, failure reports, new label is selected in a slot", async () => {
-    const { view } = make();
-    view._add([0]);
-    view._labelDraft = { problem: "bad" };
-    expect(await view._saveLabelDraft()).toBe(false); expect(view._error).toBe("bad");
-    view._labelDraft = { name: "Pending", color: "#000", action: { kind: "scene", scene: "scene.x" }, overrides: [] };
-    const pending: { resolve?: (value: { label: { id: string } }) => void } = {};
-    view.hass.callWS.mockImplementationOnce(() => new Promise((resolve: (value: { label: { id: string } }) => void) => { pending.resolve = resolve; }));
-    const inFlight = view._saveLabelDraft();
-    expect(view._saving).toBe(true); // The saving flag has no public accessor while the request is pending.
-    pending.resolve?.({ label: { id: "waiting" } });
-    expect(await inFlight).toBe(true);
-    view._labelDraft = { name: "N", color: "#000", action: { kind: "scene", scene: "scene.x" }, overrides: [] };
-    view.hass.callWS.mockRejectedValueOnce(null);
-    expect(await view._saveLabelDraft()).toBe(false);
-    expect(view._error).toBe(t("en", "lb_err_save"));
-    view._labelDraft = { name: "N", color: "#000", action: { kind: "scene", scene: "scene.x" }, overrides: [] };
-    view.hass.callWS.mockRejectedValueOnce({ code: "unauthorized" });
-    expect(await view._saveLabelDraft()).toBe(false);
-    expect(view._error).toBe(t("en", "err_unauthorized"));
-    expect(view._saving).toBe(false); // No public surface exposes the saving flag after the request settles.
-    view.hass.callWS.mockRejectedValueOnce(new Error("x"));
-    expect(await view._saveLabelDraft()).toBe(false);
-    expect(view._error).toBe(t("en", "lb_err_save"));
-    expect(view._saving).toBe(false); // No public surface exposes the saving flag after the request settles.
-    view.hass.callWS.mockResolvedValueOnce({ label: { id: "L2" } });
-    expect(await view._saveLabelDraft()).toBe(true);
-    expect(view._pickerKey).toBe(2); // Lit's public rendered key is not exposed by the template test helper.
-    expect(view.hass.callWS.mock.calls.at(-1)?.[0]).toEqual({
-      type: "weekly_planner/label/save",
-      label: { name: "N", color: "#000", action: { kind: "scene", scene: "scene.x" }, show_value: undefined },
-    });
-    expect(view._group.slot.label).toBe("L2");
-    expect(view._fresh.has("L2")).toBe(true);
-    view._labelDraft = null; expect(await view._saveLabelDraft()).toBe(true);
-    view._open = null;
-    view._labelDraft = { name: "No open row", color: "#fff", action: { kind: "scene", scene: "scene.x" }, overrides: [] };
-    view.hass.callWS.mockResolvedValueOnce({ label: { id: "L4" } });
-    expect(await view._saveLabelDraft()).toBe(true);
-    expect(view._group.slot.label).toBe("L4");
-    view._labelDraft = { id: "comfort", name: "Updated", color: "#123", action: { kind: "scene", scene: "scene.x" }, showValue: true, overrides: [] };
-    view._open = "rest:switch.demo";
-    view._restLabel = "comfort";
-    view.hass.callWS.mockResolvedValueOnce({ label: { id: "L3" } });
-    expect(await view._saveLabelDraft()).toBe(true);
-    expect(view.hass.callWS.mock.calls.at(-1)?.[0]).toEqual({
-      type: "weekly_planner/label/save",
-      label: { id: "comfort", name: "Updated", color: "#123", action: { kind: "scene", scene: "scene.x" }, show_value: true },
-    });
-    expect(view._restLabel).toBe("comfort");
-    view._open = null;
-    view._group = null;
-    view._labelDraft = { name: "Unattached", color: "#456", action: { kind: "scene", scene: "scene.x" }, overrides: [] };
-    view.hass.callWS.mockResolvedValueOnce({ label: { id: "unattached" } });
-    expect(await view._saveLabelDraft()).toBe(true);
-    expect(view._labelDraft).toBeNull();
-    expect(view._fresh.has("unattached")).toBe(true);
-    view._draft.entities[0].label_overrides = { existing: { kind: "scene", scene: "old" } };
-    view._draft.entities[1].label_overrides = null;
-    view._onOverride({ entityId: "switch.demo", labelId: "comfort", action: { kind: "scene", scene: "s" } });
-    view._onOverride({ entityId: "switch.demo", labelId: "other", action: { kind: "scene", scene: "other" } });
-    view._onOverride({ entityId: "switch.two", labelId: "comfort", action: { kind: "scene", scene: "two" } });
-    expect(view._draft.entities.map((e: any) => [e.entity_id, e.label_overrides])).toEqual([
-      ["switch.demo", { existing: { kind: "scene", scene: "old" }, comfort: { kind: "scene", scene: "s" }, other: { kind: "scene", scene: "other" } }],
-      ["switch.two", { comfort: { kind: "scene", scene: "two" } }],
-    ]);
-    view._onOverride({ entityId: "switch.demo", labelId: "comfort", action: null });
-    expect(view._overrides).toEqual([
-      { entityId: "switch.demo", labelId: "other", action: { kind: "scene", scene: "other" } },
-      { entityId: "switch.two", labelId: "comfort", action: { kind: "scene", scene: "two" } },
-      { entityId: "switch.demo", labelId: "comfort", action: null },
-    ]);
-    expect(view._draft.entities[0].label_overrides).toEqual({ existing: { kind: "scene", scene: "old" }, other: { kind: "scene", scene: "other" } });
-    const none = make().view; none._onOverride({ entityId: "a", labelId: "b", action: null });
-    expect(none._overrides).toEqual([]);
   });
   it("duplicates the open slot right after it, and refuses when invalid", () => {
     const { view } = make();
