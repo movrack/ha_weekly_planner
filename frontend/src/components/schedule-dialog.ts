@@ -265,6 +265,23 @@ export class WpSchedule extends LitElement {
 
   /* ---- lifecycle / chart ---- */
 
+  /** Two-column layout on (the grid of `.cols`): the week and the chart then stay beside every panel of the accordion. */
+  @state() private _wide = false;
+  private _colsRo?: ResizeObserver;
+  private _colsEl?: Element;
+
+  protected updated(): void {
+    const cols = this.renderRoot.querySelector(".cols");
+    if (!cols || cols === this._colsEl) return;
+    this._colsEl = cols;
+    const measure = () => { this._wide = getComputedStyle(cols).display === "grid"; };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    this._colsRo?.disconnect();
+    this._colsRo = new ResizeObserver(measure);
+    this._colsRo.observe(cols);
+  }
+
   firstUpdated(): void {
     this._loadNames();
     if (this.create && !this.day) {
@@ -1477,6 +1494,8 @@ export class WpSchedule extends LitElement {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     this._offNames?.();
+    this._colsRo?.disconnect();
+    this._colsEl = undefined;
   }
 
   render() {
@@ -1488,7 +1507,8 @@ export class WpSchedule extends LitElement {
     const rows = this._rows();
     const editing = this._open !== null;
     // the week, the chart and its sources belong to the Schedules panel: they fold with it (in their own grid cells)
-    const scheduled = this._panel === "schedules";
+    // (on a two-column screen the right column would stay empty for the other panels: they stay, as the context)
+    const scheduled = this._panel === "schedules" || this._wide;
     const chart = this._renderChart();
     const options = this._renderChartOptions();
     const controls = ["acc-schedules", "acc-week", chart === nothing ? "" : "acc-chart", options === nothing ? "" : "acc-options"].filter(Boolean).join(" ");

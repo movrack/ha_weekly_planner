@@ -586,8 +586,9 @@ Vue de **lecture** de la journée d'aujourd'hui ; elle remplace la barre / le ca
   l'ouverture de la fenêtre, **Horaires** est ouvert, **Mode** et **Réglages** repliés (la configuration des horaires reste l'essentiel) ; exceptions :
   « Créer un réglage » de l'écran vide, ou aucun réglage encore (modification permise et fenêtre non ouverte depuis un
   jour), ouvrent **Réglages**. Le panneau **Horaires** comprend les appareils, « Le reste du temps », la liste des horaires
-  et le jour férié ; la semaine, le graphique et ses options lui appartiennent aussi et se replient avec lui (dans leurs
-  propres cases de la grille sur grand écran). Un panneau fermé garde son en-tête (il ne disparaît jamais) : titre,
+  et le jour férié ; la semaine, le graphique et ses options lui appartiennent aussi et se replient avec lui sur petit écran ; sur grand
+  écran (deux colonnes) ils restent affichés à droite quel que soit le panneau ouvert (propriétaire, 2026-11-21 : la colonne
+  de droite n'est plus vide quand Mode ou Réglages est ouvert), dans leurs propres cases de la grille. Un panneau fermé garde son en-tête (il ne disparaît jamais) : titre,
   chevron (`mdi:chevron-down` / `mdi:chevron-up`) et un court résumé (Mode : voir plus haut, aussi quand il est ouvert ;
   Réglages : points colorés et noms des réglages, ou « Aucun réglage » ; Horaires : « N horaires », ou « Aucun
   horaire. ») sur une seule ligne, coupé par des points de suspension, le texte complet formant le nom accessible de
