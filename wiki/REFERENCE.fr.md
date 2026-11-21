@@ -259,8 +259,9 @@ sont refusées, aussi lors de l’enregistrement d’un programme ou d’un rég
 | `notify_delay_min` | `30` | Notification d’entité indisponible, 1 à 1440 minutes. |
 | `debounce_min` | `2` | Délai de stabilité des conditions, 0 à 60 minutes. |
 
-Les actions sensibles sont protégées côté serveur indépendamment de `admin_only`
-(voir [actions.py](../custom_components/weekly_planner/actions.py)). Les réglages
+Indépendamment de `admin_only`, on ne peut enregistrer une action que si ses propres droits
+Home Assistant permettent cet appel (contrôle des entités visées, services réservés aux
+administrateurs) ; voir [rights.py](../custom_components/weekly_planner/rights.py). Les réglages
 partagés sont affichés à toute personne qui peut modifier. Horaires et réglages dépendent aussi
 de `can_edit` et de l’état du stockage. Le rechargement demandé par un utilisateur
 nécessite les droits administrateur.

@@ -114,9 +114,10 @@ player is idle) instead of tuning a delay.
 Weekly Planner only starts the script. Once started, the sequence is Home Assistant's:
 it is not shown step by step on the card, it is not cancelled when the program is
 switched off or the mode changes, and the script's own `mode` option (`single`,
-`restart`, `queued`) decides what a second start does. Services in the `homeassistant`
-domain and a few others stay reserved to administrators; `script` and `automation`
-are not among them.
+`restart`, `queued`) decides what a second start does. Weekly Planner adds no rights of
+its own: you can save an action only if your Home Assistant user could make that same
+call (control of the targeted entities; no administrator-only service for a
+non-administrator).
 
 ## See also
 

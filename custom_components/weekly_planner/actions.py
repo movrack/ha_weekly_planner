@@ -20,12 +20,6 @@ from typing import Any
 
 from .messages import validation_error
 
-# Domains whose services only administrators may schedule (spec § 9).
-SENSITIVE_DOMAINS = frozenset({
-    "homeassistant", "hassio", "alarm_control_panel", "lock", "alarmo",
-    "shell_command", "python_script", "pyscript", "rest_command",
-})
-
 
 @dataclass(frozen=True, slots=True)
 class Call:
@@ -72,13 +66,6 @@ def resolve_action(
     if not action or (accepts is not None and not accepts(entity_id, action)):
         return None
     return action
-
-
-def needs_admin(action: dict | None) -> bool:
-    """Actions that only an administrator may create (whatever ``admin_only`` says)."""
-    if not action or action.get("kind") != "service":
-        return False
-    return str(action.get("service", "")).split(".", 1)[0] in SENSITIVE_DOMAINS
 
 
 def source_value(source: dict, get_state: Callable[[str], Any]) -> Any:

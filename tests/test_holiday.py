@@ -39,11 +39,11 @@ from custom_components.weekly_planner.resolver import (
     occurrences_around,
     resolve_entity,
 )
+from custom_components.weekly_planner.rights import program_actions
 from custom_components.weekly_planner.slots import remove_device_from_slots
 from custom_components.weekly_planner.timeline import Occurrence
 from custom_components.weekly_planner.validation import (
     ProgramError,
-    admin_required,
     check_holiday_config,
     check_program,
     driven_entities,
@@ -264,12 +264,12 @@ def test_a_following_mode_cannot_have_its_own_day_off():
         check_program(prog, LABELS)
 
 
-def test_labels_used_by_a_day_off_are_in_use_and_checked_for_admin():
+def test_labels_used_by_a_day_off_are_in_use_and_checked_for_rights():
     lock = label("unlock", act("lock.unlock"))
     labs = {**LABELS, "unlock": lock}
     prog = with_holiday({"day": [slot("x", "08:00", "09:00", "unlock")]})
     assert label_users([prog], "unlock") == ["office"]
-    assert admin_required(prog, labs) is True
+    assert ("climate.office", lock["action"]) in list(program_actions(prog, labs))
     assert label_users([with_holiday({"copy": 2})], "unlock") == []
 
 

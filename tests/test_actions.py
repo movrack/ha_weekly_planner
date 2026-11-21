@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 import voluptuous as vol
 
-from custom_components.weekly_planner.actions import call_for, needs_admin, resolve_action
+from custom_components.weekly_planner.actions import call_for, resolve_action
 from custom_components.weekly_planner.const import DOMAIN
 from custom_components.weekly_planner.validation import ACTION
 
@@ -33,12 +33,6 @@ def test_call_for_service_and_scene():
     call = call_for(CLIMATE, scene("scene.work"))
     assert (call.domain, call.service, call.service_data(), call.as_target) == (
         "scene", "turn_on", {"entity_id": "scene.work"}, False)
-
-
-def test_sensitive_domains_need_an_admin():
-    assert needs_admin(act("lock.unlock"))
-    assert needs_admin(act("homeassistant.restart"))
-    assert not needs_admin(temp(18)) and not needs_admin(scene("scene.x")) and not needs_admin(None)
 
 
 def test_action_schema():
@@ -160,11 +154,10 @@ async def test_next_action_of_a_one_shot(hass, hass_storage, freezer):
 
 
 def test_service_data_cannot_retarget():
-    """Service data may not name another target than the device; shell commands are admin-only."""
+    """Service data may not name another target than the device."""
     import pytest
     import voluptuous as vol
 
-    from custom_components.weekly_planner.actions import needs_admin
     from custom_components.weekly_planner.validation import check_label
 
     base = {"id": "l1", "name": "Test", "action": {"kind": "service", "service": "light.turn_on", "data": {}}}
@@ -173,4 +166,3 @@ def test_service_data_cannot_retarget():
         bad = {**base, "action": {**base["action"], "data": {key: "x"}}}
         with pytest.raises(vol.Invalid):
             check_label(bad)
-    assert needs_admin({"kind": "service", "service": "shell_command.run"})

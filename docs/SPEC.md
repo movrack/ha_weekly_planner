@@ -461,7 +461,7 @@ Planner » (`integration_type: service`) ; un `select` par programme nommé « M
   (heures résolues, raison d'ignorance § 5.7 ; `holiday` : la date est aujourd'hui et aujourd'hui est férié, les horaires
   sont alors ceux qui tournent vraiment, § 5.11).
 - `program/holiday {program_id, profile_id, holiday: null | {copy} | {day}, revision?}` (#54) : règle ou efface le férié
-  d'un mode ; mêmes droits et contrôles que `program/save` (`admin_only`, actions sensibles, validation, `conflict`).
+  d'un mode ; mêmes droits et contrôles que `program/save` (`admin_only`, droits Home Assistant, validation, `conflict`).
   `program/save` sans clé `holiday` dans un profil garde le réglage stocké ; `holiday: null` l'efface.
 - `journal {entity_id?, days? (1–14, défaut 1)}` → `{segments: […]}` (les deux sortes d'entrées du journal, § 8).
 - Codes d'erreur : `conflict` (révision changée), `invalid` (validation), `unauthorized`, `not_found`, `in_use`, `not_loaded`.
@@ -475,8 +475,14 @@ Planner » (`integration_type: service`) ; un `select` par programme nommé « M
 **Droits**
 - `admin_only` (option globale, désactivée par défaut) : si actif, seule l'édition des programmes et réglages est réservée
   aux admins.
-- **Toujours réservé aux admins** : toute action visant un domaine sensible (`homeassistant`, `hassio`,
-  `alarm_control_panel`, `lock`, `alarmo`, `shell_command`, `python_script`, `pyscript`, `rest_command`).
+- **Chacun garde ses droits Home Assistant** (propriétaire, 2026-11-21) : Weekly Planner n'ajoute aucun droit. À
+  l'enregistrement (réglage, programme, priorités, jour férié), chaque action doit être un appel que l'utilisateur
+  pourrait faire lui-même : contrôle (`POLICY_CONTROL`) de chaque entité visée (appareil du programme,
+  `target_entity_id`, scène), lecture (`POLICY_READ`) des entités sources, et pour un non-administrateur aucun service
+  enregistré comme réservé aux administrateurs (`async_register_admin_service` ou service d'entité `admin_only`).
+  Sinon `unauthorized`. Le moteur appelle ensuite les services sans utilisateur (contexte système) : c'est ce contrôle
+  à l'enregistrement qui empêche de dépasser ses droits. Limite : un service qui vérifie lui-même les droits dans son
+  code (par exemple `verify_domain_control`) n'est pas reconnu ; seules ses entités visées sont contrôlées.
 
 **Avertissements** affichés dans la carte (jamais bloquants), `{entity_id, code, detail}` : `other_program` (autre programme
 actif sur la même entité), `automation` (automatisation active qui la vise), `scheduler` (`switch.schedule_*` actif),

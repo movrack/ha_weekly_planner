@@ -12,7 +12,6 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.util import dt as dt_util
 
-from .actions import needs_admin
 from .checks import program_warnings
 from .const import (
     CONF_ADMIN_ONLY,
@@ -26,12 +25,12 @@ from .frontend import CARD_VERSION_KEY
 from .modes import apply_default_mode, profile_slots
 from .priorities import apply_order, devices, settle_saved, write_ranks
 from .resolver import NO_HOLIDAY, Holiday, OccurrenceCache, active_profile, occurrences_around
+from .rights import label_allowed, program_allowed
 from .slots import normalise_slot_entities, remove_device_from_slots
 from .store import new_id
 from .timeline import resolve
 from .validation import (
     PROGRAM,
-    admin_required,
     check_holiday_loop,
     check_label,
     check_mode_config,
@@ -40,6 +39,9 @@ from .validation import (
     label_users,
     with_defaults,
 )
+
+# The saving user's own Home Assistant rights refuse the action (rights.py).
+RIGHTS_ERROR = "Your Home Assistant rights do not allow this action"
 
 
 async def _descriptions(hass: HomeAssistant) -> dict | None:
@@ -265,8 +267,8 @@ async def ws_program_save(hass, connection, msg) -> None:
     except vol.Invalid as err:
         connection.send_error(msg["id"], "invalid", str(err))
         return
-    if admin_required(program, engine.labels) and not connection.user.is_admin:
-        connection.send_error(msg["id"], "unauthorized", "Sensitive actions are reserved to administrators")
+    if not program_allowed(hass, connection.user, program, engine.labels):
+        connection.send_error(msg["id"], "unauthorized", RIGHTS_ERROR)
         return
     # Metadata loading may suspend while another editor saves or deletes this program.
     # Re-read and compare immediately before mutation, without another await.
@@ -337,8 +339,8 @@ async def ws_program_priorities(hass, connection, msg) -> None:
         if program.get("revision", 0) != item["revision"]:
             connection.send_error(msg["id"], "conflict", "Modified elsewhere, reload")
             return
-        if admin_required(program, engine.labels) and not connection.user.is_admin:
-            connection.send_error(msg["id"], "unauthorized", "Sensitive actions are reserved to administrators")
+        if not program_allowed(hass, connection.user, program, engine.labels):
+            connection.send_error(msg["id"], "unauthorized", RIGHTS_ERROR)
             return
         members.append(program)
     changed = write_ranks(engine.store.programs, members)
@@ -389,8 +391,8 @@ async def ws_label_save(hass, connection, msg) -> None:
     except vol.Invalid as err:
         connection.send_error(msg["id"], "invalid", str(err))
         return
-    if needs_admin(label["action"]) and not connection.user.is_admin:
-        connection.send_error(msg["id"], "unauthorized", "Sensitive actions are reserved to administrators")
+    if not label_allowed(hass, connection.user, label, engine.store.programs, engine.labels):
+        connection.send_error(msg["id"], "unauthorized", RIGHTS_ERROR)
         return
     labels = engine.store.config.setdefault("labels", [])
     index = next((i for i, x in enumerate(labels) if x["id"] == label["id"]), None)
@@ -694,8 +696,8 @@ async def ws_holiday(hass, connection, msg) -> None:
     except vol.Invalid as err:
         connection.send_error(msg["id"], "invalid", str(err))
         return
-    if admin_required(program, engine.labels) and not connection.user.is_admin:
-        connection.send_error(msg["id"], "unauthorized", "Sensitive actions are reserved to administrators")
+    if not program_allowed(hass, connection.user, program, engine.labels):
+        connection.send_error(msg["id"], "unauthorized", RIGHTS_ERROR)
         return
     current = engine.store.program(program["id"])  # re-read after the await, as program/save does
     if current is None:

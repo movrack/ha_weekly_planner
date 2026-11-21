@@ -263,8 +263,9 @@ is saved.
 | `notify_delay_min` | `30` | Unavailable-entity notification delay, 1–1440 minutes. |
 | `debounce_min` | `2` | Condition stability delay, 0–60 minutes. |
 
-Sensitive-action authorization is enforced server-side independently of
-`admin_only`; see [actions.py](../custom_components/weekly_planner/actions.py).
+Independently of `admin_only`, a user can save an action only if their own Home Assistant
+rights allow that call (entity control, administrator-only services); see
+[rights.py](../custom_components/weekly_planner/rights.py).
 Shared program settings are shown to everyone who may edit. Schedule editing and
 contextual setting editing also depend on `can_edit` and storage state. The reload
 action requires administrator permission for user-originated calls.
