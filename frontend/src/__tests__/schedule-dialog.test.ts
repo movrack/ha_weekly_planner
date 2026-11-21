@@ -606,11 +606,74 @@ describe("schedule screen editing", () => {
       toggle(view).fn();
       expect(attr(view, 'class="row opts" aria-expanded=')).toEqual([true]);
     });
-    it("is hidden, not removed, while a slot form is open so only one Save / Cancel pair shows", () => {
+    it("stays shown, folded, while a slot form is open", () => {
       const { view } = make();
-      expect(attr(view, 'class="box setbox" ?hidden=')).toEqual([false]);
       view._add([0]);
-      expect(attr(view, 'class="box setbox" ?hidden=')).toEqual([true]);
+      const html = flat(view.render());
+      expect(html).not.toContain('class="box setbox" ?hidden=');
+      expect(html).toContain(t("en", "settings_legend"));
+      expect(html).toContain("<li><i");
+      expect(attr(view, 'class="row opts" aria-expanded=')).toEqual([false]);
+    });
+    it("lets the fold open while a slot form is open and the schedule form keeps its changes", () => {
+      const { view } = make();
+      view._add([0]);
+      view._group = { ...view._group, slot: { ...view._group.slot, start: { time: "05:00" } } };
+      toggle(view).fn();
+      expect(attr(view, 'class="row opts" aria-expanded=')).toEqual([true]);
+      expect(view._group.slot.start).toEqual({ time: "05:00" });
+      expect(view._open).toBe("new");
+    });
+    it("opening a schedule greys and disables the settings controls, with the reason, without hiding the box", () => {
+      const { view } = make();
+      expect(flat(view.render())).not.toContain(t("en", "finish_schedule_first"));
+      view._add([0]);
+      const html = flat(view.render());
+      expect(html).toContain(t("en", "settings_legend"));
+      expect(html).toContain('id="why-settings"');
+      expect(html).toContain('role="status"');
+      expect(html).toContain(t("en", "finish_schedule_first"));
+      expect(view._open).toBe("new");
+    });
+    it("opening a setting form makes the schedules, week, chart and Delete inert with one reason, and keeps what was typed", () => {
+      const { view } = make();
+      view._add([0]);
+      view._group = { ...view._group, slot: { ...view._group.slot, start: { time: "05:00" } } };
+      const stop = vi.fn();
+      find(view.render(), "label-form-change", "wp-label-picker .hass").fn({ stopPropagation: stop, detail: true });
+      expect(stop).toHaveBeenCalledOnce();
+      expect(view._settingForm).toBe(true);
+      const html = flat(view.render());
+      expect(html).toContain('id="why-sched"');
+      expect(html).toContain(t("en", "finish_setting_first"));
+      expect(html).toContain("aria-disabled=");
+      expect(view._group.slot.start).toEqual({ time: "05:00" });
+      expect(view._open).toBe("new");
+      // the fold cannot hide the open setting form
+      expect(valuesAfter(view.render(), 'class="row opts" aria-expanded=')).toEqual([true]);
+      find(view.render(), "label-form-change", "wp-label-picker .hass").fn({ stopPropagation: stop, detail: false });
+      expect(view._settingForm).toBe(false);
+      expect(flat(view.render())).not.toContain('id="why-sched"');
+      expect(view._group.slot.start).toEqual({ time: "05:00" });
+    });
+    it("ignores Escape on the open schedule while the setting form is open", async () => {
+      const { view } = make();
+      view._add([0]);
+      view._settingForm = true;
+      const preventDefault = vi.fn();
+      view._onEscape({ preventDefault } as any);
+      expect(preventDefault).toHaveBeenCalled();
+      await Promise.resolve();
+      expect(view._open).toBe("new");
+    });
+    it("asks before closing when the schedule form or the setting form holds changes", async () => {
+      const { view } = make();
+      expect(await view._guardClose()).toBe(true);
+      view._add([0]);
+      view._group = { ...view._group, slot: { ...view._group.slot, start: { time: "05:00" } } };
+      view._settingForm = true;
+      vi.mocked(confirmAction).mockResolvedValue(false);
+      expect(await view._guardClose()).toBe(false);
     });
     it("is not shown when the screen only edits an inactive mode", () => {
       const { view } = make();

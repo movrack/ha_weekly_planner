@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { describe, expect, it, vi } from "vitest";
 import { WpSchedule } from "../components/schedule-dialog";
 import type { Program } from "../types";
@@ -75,11 +76,12 @@ describe("schedule screen order", () => {
     view.data.programs = [];
     expect(flat(view.render())).not.toContain('class="switch"');
   });
-  it("hides the switch, chart and Delete while a slot is being edited", () => {
+  it("keeps the switch shown but disabled with its reason, and hides chart and Delete, while a slot is being edited", () => {
     const view = screen();
     view._open = "new";
     const html = flat(view.render());
-    expect(html).not.toContain('class="switch"');
+    expect(html).toContain('class="switch"');
+    expect(html).toContain(t("en", "finish_schedule_first"));
     expect(html).not.toContain("[CHART]");
     expect(html).not.toContain("danger-line alone");
     expect(html).not.toContain("row add");

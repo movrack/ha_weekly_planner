@@ -3,6 +3,7 @@ import { TIMELINE } from "../timeline-geometry";
 // the time, the chart of the day, the pause switch and the delete button.
 
 import { LitElement, css, html, nothing } from "lit";
+import { ifDefined } from "lit/directives/if-defined.js";
 import { customElement, property, state } from "lit/decorators.js";
 import "./chart";
 import "./chart-options";
@@ -59,6 +60,8 @@ export class WpSchedule extends LitElement {
   /** The settings box is unfolded (its controls shown), and the setting it shows the details of. */
   @state() private _settingsOpen = false;
   @state() private _settingId: string | null = null;
+  /** The setting form (its own Save / Cancel pair) is open: the schedule's Save and Cancel are disabled meanwhile. */
+  @state() private _settingForm = false;
   private _editProfileId: string | null = null;
   /** Mode of the row being edited (null: no mode, the first schedules). */
   private _editMode: string | null = null;
@@ -390,6 +393,7 @@ export class WpSchedule extends LitElement {
   private _onEscape(e: Event): void {
     if (this._open === null) return;
     e.preventDefault();
+    if (this._settingForm) return;  // the setting form's own Cancel is the active one
     void this._guardClose().then((ok) => { if (ok) this._cancel(); });
   }
 
@@ -1056,8 +1060,9 @@ export class WpSchedule extends LitElement {
 
   /**
    * All management of the settings (add, edit, delete, replace and delete) between Mode and Schedules: closed by default
-   * it only lists the settings that exist; the fold opens the controls. Hidden (not removed) while a slot form is open,
-   * so that only one Save / Cancel pair is visible.
+   * it only lists the settings that exist; the fold opens the controls. Always shown, also while a slot form is open (the
+   * owner can look at and edit the settings while setting up a schedule); then only one Save / Cancel pair is active:
+   * while the setting form is open the schedule's pair is disabled, and the fold cannot be closed on the open form.
    */
   private _renderSettings() {
     const lang = this._lang;
@@ -1065,17 +1070,21 @@ export class WpSchedule extends LitElement {
     const labels = labelsFor(this.hass, this.data, this._entities, program)
       .sort((a, b) => labelName(this.hass, a).localeCompare(labelName(this.hass, b), lang, { numeric: true, sensitivity: "base" }));
     // no setting yet: the controls are open, the first one has to be created here
-    const open = this._settingsOpen || !labels.length;
-    return html`<fieldset class="box setbox" ?hidden=${this._open !== null}><legend>${t(lang, "settings_legend")}</legend>
+    const open = this._settingsOpen || !labels.length || this._settingForm;
+    // a schedule form is open: the controls stay shown but greyed and disabled, with the reason
+    const locked = this._open !== null;
+    return html`<fieldset class="box setbox"><legend>${t(lang, "settings_legend")}</legend>
       ${open ? nothing : html`<ul class="tags">${labels.length
         ? labels.map((l) => html`<li><i class="dot" style="background:${l.color}"></i>${labelName(this.hass, l, this._eid)}</li>`)
         : html`<li class="muted">${t(lang, "settings_none")}</li>`}</ul>`}
-      <button class="row opts" aria-expanded=${open} @click=${() => { this._settingsOpen = !open; }}>
+      <button class="row opts" aria-expanded=${open} aria-describedby=${ifDefined(locked ? "why-settings" : undefined)} ?disabled=${this._settingForm} @click=${() => { this._settingsOpen = !open; }}>
         <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
         <span class="txt">${t(lang, "settings_edit")}</span></button>
+      ${locked ? html`<p class="why" id="why-settings" role="status">${t(lang, "finish_schedule_first")}</p>` : nothing}
       ${collapse(open, html`<wp-label-picker .hass=${this.hass} .data=${this.data} .program=${program} .entityIds=${this._entities}
         ?start-new=${this.create && !this.day && !this._rows().length && this._canEdit}
-        .value=${this._settingId} ?disabled=${!this._canEdit}
+        .value=${this._settingId} ?disabled=${!this._canEdit || locked} aria-disabled=${locked ? "true" : "false"}
+        @label-form-change=${(e: CustomEvent<boolean>) => { e.stopPropagation(); this._settingForm = e.detail; }}
         @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._settingId = e.detail; }}></wp-label-picker>`)}
     </fieldset>`;
   }
@@ -1120,7 +1129,8 @@ export class WpSchedule extends LitElement {
     if (!modes.length) return nothing;
     const lang = this._lang;
     const open = this._openMode;
-    return html`<select class="modesel" aria-label=${t(lang, "profile")}
+    return html`<select class="modesel" aria-label=${t(lang, "profile")} ?disabled=${this._settingForm} aria-disabled=${this._settingForm ? "true" : "false"}
+        aria-describedby=${ifDefined(this._settingForm ? "why-sched" : undefined)}
         @change=${(e: Event) => { const el = e.target as HTMLSelectElement; void this._pickMode(el.value, el); }}>
         ${modes.map((m) => {
           const follows = this._programs.map((p) => p.profiles.find((x) => x.name === m.name)?.follows).find(Boolean);
@@ -1323,6 +1333,8 @@ export class WpSchedule extends LitElement {
     }
     const rows = this._rows();
     const first = !rows.length && this._focus === null && !this._modeOnly;
+    // a setting form is open: the schedules (and the week, chart and delete button) stay shown but inert and greyed
+    const sf = this._settingForm;
     // With a mode selector, everything about the mode and everything about the schedule each sit in a fieldset.
     const boxed = this._modes().length > 0;
     const box = (cls: string, legend: string, body: unknown) => boxed ? html`<fieldset class="box ${cls}"><legend>${legend}</legend>${body}</fieldset>` : body;
@@ -1330,12 +1342,14 @@ export class WpSchedule extends LitElement {
       <wp-dialog open columns heading=${this._title} .beforeClose=${this._guardClose} @escape=${(e: Event) => this._onEscape(e)}>
         <div class="cols">
         <div class="params">
-        ${this._open !== null || this._modeOnly ? nothing : html`<label class="switch">
+        ${this._modeOnly ? nothing : html`<label class="switch">
           <span class="grow">${t(lang, "schedule_on")}</span>
           <span class="state">${this._stateText()}</span>
-          <input type="checkbox" .checked=${this._enabled} ?disabled=${!this._canEdit || this._toggling}
+          <input type="checkbox" .checked=${this._enabled} ?disabled=${!this._canEdit || this._toggling || this._open !== null}
+            aria-disabled=${this._open !== null ? "true" : "false"} aria-describedby=${ifDefined(this._open !== null ? "why-switch" : undefined)}
             @change=${(e: Event) => void this._setEnabled((e.target as HTMLInputElement).checked, e.target as HTMLInputElement)} />
           <span class="track"></span>
+          ${this._open !== null ? html`<small class="why" id="why-switch">${t(lang, "finish_schedule_first")}</small>` : nothing}
         </label>`}
         ${box("modebox", t(lang, "profile"), html`${this._renderModes()}
           ${this._modeOnly ? this._renderInactive() : nothing}
@@ -1345,6 +1359,8 @@ export class WpSchedule extends LitElement {
         ${!this._canEdit ? html`${callout("error", "", t(lang, "read_only"), { role: "alert" })}` : nothing}
         ${this._error && !this._open ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
         ${box("schedbox", t(lang, "schedules_legend"), html`
+        ${sf ? html`<p class="why" id="why-sched" role="status">${t(lang, "finish_setting_first")}</p>` : nothing}
+        <div class="gate ${sf ? "off" : ""}" ?inert=${sf} aria-disabled=${sf ? "true" : "false"} aria-describedby=${ifDefined(sf ? "why-sched" : undefined)}>
         ${this._renderDevices()}
         ${this._modeOnly ? nothing : html`<div class="rests">${this._renderRest()}</div>`}
         ${this._focus !== null && this._open === null ? html`<div class="focus">
@@ -1358,12 +1374,13 @@ export class WpSchedule extends LitElement {
           ${this._open === null ? html`<button class="row add ${first ? "first" : ""}" ?disabled=${!this._canEdit} @click=${() => this._add()}>
             <ha-icon icon="mdi:plus"></ha-icon><span class="txt">${this._focus === null ? t(lang, "w_add") : t(lang, "w_add_day", { day: strings(lang).days[this._focus].toLocaleLowerCase(lang) })}</span></button>` : nothing}
         </div>
-        ${this._open === null ? this._renderHoliday() : nothing}`)}
+        ${this._open === null ? this._renderHoliday() : nothing}
+        </div>`)}
         </div>
-        <div class="area-week">${this._renderWeek()}${this._renderWeekNote()}</div>
-        <div class="area-chart">${this._open !== null ? nothing : this._renderChart()}</div>
+        <div class="area-week" ?inert=${sf}>${this._renderWeek()}${this._renderWeekNote()}</div>
+        <div class="area-chart" ?inert=${sf}>${this._open !== null ? nothing : this._renderChart()}</div>
         <div class="area-options">${this._renderChartOptions()}</div>
-        <div class="area-delete">${this._open !== null || this._modeOnly ? nothing : html`<button class="btn danger-line alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteAll()}>
+        <div class="area-delete" ?inert=${sf}>${this._open !== null || this._modeOnly ? nothing : html`<button class="btn danger-line alone" ?disabled=${!this._canEdit} @click=${() => void this._deleteAll()}>
           <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete_schedule")}</button>`}</div>
         </div>
       </wp-dialog>`;
@@ -1472,6 +1489,10 @@ export class WpSchedule extends LitElement {
     .btn.danger-line { color: var(--wp-danger-text); border-color: var(--wp-danger-text); }
     .btn.danger { background: var(--wp-danger-fill); border-color: var(--wp-danger-border); color: #fff; }
     .muted { color: var(--secondary-text-color); }
+    .why { margin: 4px 0 8px; font-size: 0.8125rem; color: var(--secondary-text-color); }
+    .gate.off, .area-week[inert], .area-chart[inert], .area-delete[inert] { opacity: 0.5; pointer-events: none; }
+    .switch:has(input:disabled) { opacity: 0.6; cursor: default; flex-wrap: wrap; }
+    .switch .why { flex: 1 0 100%; margin: 0; }
     .note { margin: 0 0 8px; font-size: 0.875rem; }
     .focus { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
     .focus h3 { margin: 0; font-size: 1.25rem; font-weight: 600; }

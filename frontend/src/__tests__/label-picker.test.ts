@@ -328,6 +328,30 @@ describe("choosing", () => {
   });
 });
 
+describe("telling the window when the form opens and closes", () => {
+  it("emits label-form-change on open and on close, never for the first closed render", () => {
+    const el = mk();
+    const seen: boolean[] = [];
+    el.dispatchEvent = vi.fn((e: CustomEvent) => { seen.push(e.detail); return true; });
+    el.updated(new Map([["_form", undefined]]));
+    expect(seen).toEqual([]);
+    el._open(false);
+    el.updated(new Map([["_form", false]]));
+    el._close();
+    el.updated(new Map([["_form", true]]));
+    el.updated(new Map([["_name", ""]]));
+    expect(seen).toEqual([true, false]);
+  });
+  it("emits for a form that is already open on the first render (start-new)", () => {
+    const el = mk();
+    const seen: boolean[] = [];
+    el.dispatchEvent = vi.fn((e: CustomEvent) => { seen.push(e.detail); return true; });
+    el._open(false);
+    el.updated(new Map([["_form", undefined]]));
+    expect(seen).toEqual([true]);
+  });
+});
+
 describe("loading the names of the services", () => {
   it.each([true, false])("a chosen service action loads the names of its domain once and refreshes only when they changed (%s)", async (changed) => {
     const el = mk();

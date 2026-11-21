@@ -3,7 +3,7 @@ import { WpSchedule } from "../components/schedule-dialog";
 import { WpModeNotice } from "../components/mode-notice";
 import { WeeklyPlannerCard } from "../weekly-planner-card";
 import { confirmAction } from "../components/confirm";
-import { flat, handlers, find } from "./helpers/tpl";
+import { flat, handlers, find, valuesAfter } from "./helpers/tpl";
 import type { Program } from "../types";
 
 vi.mock("../components/confirm", () => ({ confirmAction: vi.fn(async () => true), pauseChoice: vi.fn(async () => "none") }));
@@ -95,7 +95,14 @@ describe("mode choice in the schedules screen", () => {
     view._open = "new";
     const html = flat(view._renderModes());
     expect(html).toContain('class="modesel"');
-    expect(html.slice(html.indexOf('class="modesel"'), html.indexOf("</select>") > 0 ? html.indexOf("<option") : undefined)).not.toContain("disabled");
+    expect(valuesAfter(view._renderModes(), "?disabled=")[0]).toBe(false);
+    expect(view._settingForm).toBe(false);
+  });
+  it("greys the mode select, with its reason, while a setting form is open", () => {
+    const { view } = make();
+    view._settingForm = true;
+    expect(valuesAfter(view._renderModes(), "?disabled=")[0]).toBe(true);
+    expect(flat(view.render())).toContain('id="why-sched"');
   });
   it("switches mode and abandons the edit without asking when nothing changed", async () => {
     const { view } = make();

@@ -574,8 +574,15 @@ Vue de **lecture** de la journée d'aujourd'hui ; elle remplace la barre / le ca
   Toute la gestion (ajouter, modifier, supprimer, remplacer puis supprimer) est dans le cadre **Réglages**, entre **Mode** et
   **Horaires** (#75) : fermé par défaut, il ne liste que les réglages existants (une ligne de points colorés et de noms) ;
   « Modifier les réglages » (`mdi:chevron-down`, repli animé `collapse`) ouvre les contrôles ; ouvert d'office tant qu'aucun
-  réglage n'existe ; masqué (`hidden`, état conservé) pendant qu'un formulaire d'horaire est ouvert, pour ne jamais voir deux
-  paires Enregistrer / Annuler ; absent pour un mode seulement édité. Le formulaire d'horaire et « Reste du temps » ne
+  réglage n'existe ; toujours visible, au même endroit et replié par défaut, y compris pendant qu'un formulaire d'horaire est ouvert (règle « un élément ne disparaît jamais »,
+  2026-11-21 : un élément inutilisable reste affiché, grisé, `disabled` + `aria-disabled`, avec un message court lié par
+  `aria-describedby`). Un seul formulaire actif dans la fenêtre : horaire ouvert → les contrôles du cadre Réglages
+  (liste, nouveau, crayon, corbeille) sont grisés avec « Terminez d'abord l'horaire. » (`role="status"`) et l'interrupteur
+  « Programme actif » reste affiché, grisé, avec le même message ; formulaire de réglage ouvert (événement
+  `label-form-change`) → toute la section Horaires, la semaine, le graphique et Supprimer restent affichés mais `inert` et
+  grisés avec UN message « Terminez d'abord le réglage. », le sélecteur de Mode est grisé, Échap sur l'horaire est ignoré,
+  le repli ne peut pas être refermé ; rien de saisi n'est perdu et la fermeture de la fenêtre demande confirmation si l'un
+  des deux formulaires est modifié ; absent pour un mode seulement édité. Le formulaire d'horaire et « Reste du temps » ne
   font que choisir un réglage (`readonly-settings`). « + Nouveau réglage » ouvre un mini-formulaire en ligne (nom, couleur de la palette de 12, action par le sélecteur
   générique ou une scène) qui crée le réglage et le sélectionne ; pour le réglage choisi, « Valeur pour cet appareil »
   modifie la valeur propre de l'appareil (même sélecteur) avec « Revenir à la valeur commune ».
