@@ -1306,10 +1306,44 @@ describe("schedule dialog state, previews and save errors", () => {
     expect(view.dispatchEvent).not.toHaveBeenCalled();
     expect(view._saved.p).toBeUndefined();
   });
-  it("leaves Escape to the dialog unless a row editor is open", () => {
+  it("leaves Escape to the dialog unless a row editor is open", async () => {
     const view = makeView(); const event = { preventDefault: vi.fn() }; view._cancel = vi.fn();
     view._onEscape(event); expect(event.preventDefault).not.toHaveBeenCalled(); expect(view._cancel).not.toHaveBeenCalled();
-    view._open = "new"; view._onEscape(event); expect(event.preventDefault).toHaveBeenCalledOnce(); expect(view._cancel).toHaveBeenCalledOnce();
+    view.renderRoot = { querySelector: () => null };
+    view._initialGroup = "null"; view._open = "new"; view._onEscape(event); expect(event.preventDefault).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(view._cancel).toHaveBeenCalledOnce();
+    expect(confirmAction).not.toHaveBeenCalled();
+  });
+  describe("close guard with a modified schedule form", () => {
+    const view0 = () => { const v = makeView(); v.renderRoot = { querySelector: () => null }; return v; };
+    const dirtyView = () => { const v = view0(); v._open = "new"; v._group = { a: 1 }; v._initialGroup = "{}"; return v; };
+    it("asks with the schedule question, 'No' keeps the form, 'Yes' lets it go", async () => {
+      const v = dirtyView();
+      vi.mocked(confirmAction).mockResolvedValueOnce(false);
+      expect(await v._guardClose()).toBe(false);
+      expect(confirmAction).toHaveBeenCalledWith(v, t("en", "edit_discard"), t("en", "edit_discard_yes"), t("en", "edit_discard_no"));
+      expect(await v._guardClose()).toBe(true);
+    });
+    it("Escape on the modified form asks and keeps the editor on 'No'", async () => {
+      const v = dirtyView(); v._cancel = vi.fn();
+      vi.mocked(confirmAction).mockResolvedValueOnce(false);
+      v._onEscape({ preventDefault: vi.fn() });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(confirmAction).toHaveBeenCalledOnce();
+      expect(v._cancel).not.toHaveBeenCalled();
+    });
+    it("an unmodified form, or none, closes silently (read-only users never open one)", async () => {
+      const v = view0(); v._open = "new"; v._group = { a: 1 }; v._initialGroup = JSON.stringify({ a: 1 });
+      expect(await v._guardClose()).toBe(true);
+      const ro = view0(); ro.data.read_only = true; expect(await ro._guardClose()).toBe(true);
+      expect(confirmAction).not.toHaveBeenCalled();
+    });
+    it("schedule and setting forms both modified: one question only", async () => {
+      const v = dirtyView(); v.renderRoot = { querySelector: () => ({ dirty: true }) };
+      await v._guardClose();
+      expect(confirmAction).toHaveBeenCalledOnce();
+    });
   });
   it("renders no initial error or note and starts with closed mode options", () => {
     const view = makeView(); expect(view._optsOpen).toBe(false); expect(view._shared).toBe(false); expect(view._dropBusy).toBe(false);

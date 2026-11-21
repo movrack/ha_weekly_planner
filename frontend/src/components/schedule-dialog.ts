@@ -390,7 +390,7 @@ export class WpSchedule extends LitElement {
   private _onEscape(e: Event): void {
     if (this._open === null) return;
     e.preventDefault();
-    this._cancel();
+    void this._guardClose().then((ok) => { if (ok) this._cancel(); });
   }
 
   private _cancel(): void {
@@ -814,11 +814,16 @@ export class WpSchedule extends LitElement {
     window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
   }
 
-  /** Closing with a setting form holding changes asks first (same question and buttons as abandoning a schedule edit). */
+  /**
+   * Closing (or leaving the open editor with Escape) while the schedule form or the setting form holds changes asks once
+   * (same buttons as when the mode selector abandons an edit); "modified" is `_editDirty` for the schedule.
+   */
   private readonly _guardClose = async (): Promise<boolean> => {
+    const lang = this._lang;
     const picker = this.renderRoot.querySelector<HTMLElement & { dirty: boolean }>("wp-label-picker:not([readonly-settings])");
-    if (!picker?.dirty) return true;
-    return confirmAction(this, t(this._lang, "setting_discard"), t(this._lang, "edit_discard_yes"), t(this._lang, "edit_discard_no"));
+    const slot = this._editDirty;
+    if (!slot && !picker?.dirty) return true;
+    return confirmAction(this, t(lang, slot ? "edit_discard" : "setting_discard"), t(lang, "edit_discard_yes"), t(lang, "edit_discard_no"));
   };
 
   private _closeDialog(): void {

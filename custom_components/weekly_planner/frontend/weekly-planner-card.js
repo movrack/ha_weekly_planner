@@ -8402,7 +8402,10 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
 			if (!Ln(e, t)) return !1;
 			let n = B(this.data, e.label), r = this._programs.find((e) => e.id === this._programId) ?? this._programs[0];
 			return !n?.action || !r || !!H(this.hass, r, t, n, e);
-		}, this._minutes = (e) => I(this.hass, e), this._guardClose = async () => !this.renderRoot.querySelector("wp-label-picker:not([readonly-settings])")?.dirty || Ni(this, k(this._lang, "setting_discard"), k(this._lang, "edit_discard_yes"), k(this._lang, "edit_discard_no"));
+		}, this._minutes = (e) => I(this.hass, e), this._guardClose = async () => {
+			let e = this._lang, t = this.renderRoot.querySelector("wp-label-picker:not([readonly-settings])"), n = this._editDirty;
+			return !n && !t?.dirty || Ni(this, k(e, n ? "edit_discard" : "setting_discard"), k(e, "edit_discard_yes"), k(e, "edit_discard_no"));
+		};
 	}
 	_chartOwner() {
 		let e = this._programs[0];
@@ -8601,7 +8604,9 @@ var As = (e, t) => e.some((e) => e.id === t.id) ? e.map((e) => e.id === t.id ? t
 		});
 	}
 	_onEscape(e) {
-		this._open !== null && (e.preventDefault(), this._cancel());
+		this._open !== null && (e.preventDefault(), this._guardClose().then((e) => {
+			e && this._cancel();
+		}));
 	}
 	_cancel() {
 		let e = this._open;
