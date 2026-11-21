@@ -17,6 +17,7 @@ import type { TypeNames } from "./type-names";
 import { errorText, t } from "./i18n";
 import { setTimeFormat } from "./time";
 import { collapse, tokenStyles } from "./styles";
+import { ariaDisabled, describedBy, whyNote, whyStyles } from "./reason";
 import { langOf } from "./editors/shared";
 import type { HomeAssistant, PlannerData, Program } from "./types";
 
@@ -261,31 +262,36 @@ export class WpProgramsPanel extends LitElement {
     const lang = this._lang;
     const shown = viewPrograms(this.hass, programs, this._view);
     const filtered = filterCount(this._view) > 0;
+    const has = programs.length > 0;
     const overview = this.narrow && this._listMode === "overview" && programs.length > 0;
     return html`<nav class="list" aria-label=${t(lang, "panel_title")}>
       <h2 class="grp" id="panel-actions">${t(lang, "panel_actions")}</h2>
       <button class="row act new ${this._selected === "new" ? "on" : ""}" @click=${() => this._open("new")}>
         <ha-icon icon="mdi:plus"></ha-icon><span class="txt"><span class="name">${t(lang, "new_program")}</span></span>
       </button>
-      ${programs.length ? html`<button class="row act dup-open" @click=${() => this._openDuplicate()}>
+      <button class="row act dup-open" ?disabled=${!has} aria-disabled=${ariaDisabled(!has)} aria-describedby=${describedBy(!has, "why-dup-open")} @click=${() => this._openDuplicate()}>
         <ha-icon icon="mdi:content-copy"></ha-icon><span class="txt"><span class="name">${t(lang, "panel_dup_open")}</span></span>
-      </button>` : nothing}
+      </button>
+      ${whyNote("why-dup-open", t(lang, "panel_create_first"), !has)}
       <button class="row act prio-open" @click=${() => this._openPriorities()}>
         <ha-icon icon="mdi:swap-vertical"></ha-icon><span class="txt"><span class="name">${t(lang, "prio_button")}</span>
           <span class="sub">${t(lang, "prio_button_sub")}</span></span>
       </button>
 
       <div class="grp-row"><h2 class="grp" id="panel-programs">${t(lang, "panel_programs")}</h2>
-        ${programs.length && this.narrow ? html`<div class="seg" role="radiogroup" aria-label=${t(lang, "panel_programs")}>
+        ${this.narrow ? html`<div class="seg" role="radiogroup" aria-label=${t(lang, "panel_programs")}>
           ${(["list", "overview"] as const).map((mode) => html`<button role="radio" aria-checked=${this._listMode === mode} class=${this._listMode === mode ? "on" : ""}
+            ?disabled=${!has} aria-disabled=${ariaDisabled(!has)} aria-describedby=${describedBy(!has, "why-tools")}
             @click=${() => this._setListMode(mode)}>${t(lang, mode === "list" ? "panel_list_mode" : "panel_overview")}</button>`)}</div>` : nothing}</div>
-      ${programs.length ? html`<span class="tools">
-          <button class="link sort-open" aria-haspopup="dialog" @click=${() => this._openSort()}>
+      <span class="tools">
+          <button class="link sort-open" aria-haspopup="dialog" ?disabled=${!has} aria-disabled=${ariaDisabled(!has)} aria-describedby=${describedBy(!has, "why-tools")} @click=${() => this._openSort()}>
             <ha-icon icon="mdi:sort"></ha-icon>${t(lang, "panel_sort_open")}${this._view.sort === "created" ? "" : ` · ${t(lang, `panel_sort_${this._view.sort}`)}`}</button>
-          <button class="link filter-open" aria-haspopup="dialog" @click=${() => this._openFilter()}>
-            <ha-icon icon="mdi:filter-variant"></ha-icon>${t(lang, "panel_filter_open")}${filterCount(this._view) ? ` · ${filterCount(this._view)}` : ""}</button></span>` : nothing}
-      ${filtered ? html`<p class="filter-note" role="status">${t(lang, "panel_filter_shown", { n: String(shown.length), total: String(programs.length) })}
-        <button class="link" @click=${() => this._resetFilters()}>${t(lang, "panel_filter_reset")}</button></p>` : nothing}
+          <button class="link filter-open" aria-haspopup="dialog" ?disabled=${!has} aria-disabled=${ariaDisabled(!has)} aria-describedby=${describedBy(!has, "why-tools")} @click=${() => this._openFilter()}>
+            <ha-icon icon="mdi:filter-variant"></ha-icon>${t(lang, "panel_filter_open")}${filterCount(this._view) ? ` · ${filterCount(this._view)}` : ""}</button></span>
+      ${whyNote("why-tools", t(lang, "panel_create_first"), !has)}
+      <p class="filter-note" role=${filtered ? "status" : nothing}>${filtered ? t(lang, "panel_filter_shown", { n: String(shown.length), total: String(programs.length) }) : nothing}
+        <button class="link" ?disabled=${!filtered} aria-disabled=${ariaDisabled(!filtered)} aria-describedby=${describedBy(!filtered, "why-reset")} @click=${() => this._resetFilters()}>${t(lang, "panel_filter_reset")}</button></p>
+      ${whyNote("why-reset", t(lang, "panel_no_filter"), !filtered)}
       ${overview ? html`<section class="ov">${this._overview(programs)}</section>` : html`${shown.map((p) => html`<button class="row ${this._selected === p.id ? "on" : ""} ${p.enabled ? "" : "off"}" aria-current=${this._selected === p.id ? "true" : "false"}
         @click=${() => this._open(p.id)}>${this._rowBody(p)}</button>`)}
       ${programs.length ? shown.length ? nothing : html`<p class="empty" role="status">${t(lang, "panel_filter_none")}</p>` : html`<p class="empty" role="status">${t(lang, "no_program")}</p>`}`}
@@ -407,6 +413,9 @@ export class WpProgramsPanel extends LitElement {
 
   static styles = css`
     ${tokenStyles}
+    ${whyStyles}
+    .why { margin: 4px 16px 8px; }
+    .link:disabled, .seg button:disabled, .row.act:disabled { opacity: 0.5; cursor: default; }
     :host { display: block; min-height: 100%; background: var(--primary-background-color); color: var(--primary-text-color); }
     header { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 0 16px; background: var(--app-header-background-color, var(--card-background-color)); border-bottom: 1px solid var(--divider-color); box-sizing: border-box; }
     h1 { margin: 0; font-size: 1.25rem; font-weight: 500; }
