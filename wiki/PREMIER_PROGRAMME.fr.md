@@ -31,8 +31,7 @@ La carte annonce que le programme est créé et choisi pour cette carte.
 
 1. Toucher **Définir les horaires**. Plus tard, le crayon du calendrier à droite du nom de l’appareil sur la
    carte ouvre la même fenêtre.
-2. Sous **Horaires**, toucher **Créer un réglage**. Si des horaires existent déjà, le bouton s’appelle
-   **Ajouter un horaire**.
+2. Sous **Horaires**, toucher **Ajouter un horaire**.
 3. Sous **Jours**, choisir **Tous les jours**.
 4. Sous **Début**, saisir **06:30**. Sous **Fin**, choisir **Jusqu’à une heure**, puis saisir **08:30**.
 5. Sous **Réglage**, toucher **Nouveau réglage** : nommer **Confort**, choisir une couleur, choisir ce que

@@ -84,7 +84,7 @@ Prenons cet exemple pour le chauffage du salon :
 
 Toucher le **calendrier avec un crayon**, à droite de Chauffage du salon.
 Les horaires déjà créés apparaissent sous les sept barres de la semaine.
-Si rien n'est encore réglé pour un appareil, la carte affiche sur sa ligne un bouton **Créer un réglage** à la place des barres : il ouvre directement le formulaire d'un premier horaire pour cet appareil.
+Si rien n'est encore réglé pour un appareil, la carte affiche sur sa ligne un bouton **Ajouter un horaire** à la place des barres : il ouvre directement le formulaire d'un premier horaire pour cet appareil.
 En haut de l’écran, l’interrupteur **Programme actif** arrête ou remet en marche le programme ; viennent ensuite
 trois panneaux qui s’ouvrent un à la fois : **Mode** (si un sélecteur de mode est réglé ; son titre rappelle toujours
 le mode affiché et s’il est actif), **Réglages** et **Horaires**, ouvert à l’arrivée ; à la fin de **Horaires**, la section
@@ -94,7 +94,7 @@ repliable **Jour férié** (visible seulement si une entité jour férié est r�
 
 ### 2. Régler le matin
 
-1. Toucher **Ajouter un horaire** (**Créer un réglage** s'il n'y en a aucun), ou la ligne du matin si elle existe déjà.
+1. Toucher **Ajouter un horaire**, ou la ligne du matin si elle existe déjà.
 2. Sous **Début**, saisir **06:30**.
 3. Sous **Fin**, choisir **Jusqu’à une heure**, puis saisir **08:30**.
 4. Choisir **Tous les jours**.
@@ -406,7 +406,7 @@ Enregistrer la carte et terminer l’édition du tableau de bord.
 
 Voir [la création S37](SCREENS.fr.md#s37), [la pièce S40](SCREENS.fr.md#s40) et [les filtres S41](SCREENS.fr.md#s41).
 
-Le panneau **Programmes** a deux rubriques. **Actions** : **Nouveau programme**, **Dupliquer un programme** (choisir le programme à copier, puis **Dupliquer** : la copie s’appelle **Copie** suivi du nom, avec un numéro si ce nom existe déjà, garde les appareils, les réglages et les horaires, et apparaît tout en bas de la liste) **Ordre des priorités** (voir [Priorités](PRIORITES.fr.md)). **Liste des programmes** : sur téléphone, une bascule **Liste | Résumé** remplace les lignes par la carte Weekly Planner en liste compacte, sans quitter l’écran (les Actions, **Trier** et **Filtrer** restent là) ; l’aperçu montre les mêmes programmes dans le même ordre que la liste, filtres et tri compris, et on peut y modifier les horaires. Sur grand écran, l’aperçu occupe la partie de droite tant qu’aucun programme n’est ouvert. La **Liste des programmes** : le bouton **Trier** ouvre une fenêtre pour trier par **Ordre de création** (par défaut), **Nom** ou **Priorité**. Le bouton **Filtrer** ouvre une fenêtre pour filtrer par **Type**, **Pièce** (avec **Sans pièce**) et **Appareil** ; chacun est une section d’un accordéon, ouvrir l’une referme les autres, et le titre indique combien de filtres y sont actifs : un programme est affiché s’il correspond à l’une des valeurs choisies dans chaque filtre. **Réinitialiser** efface les filtres et garde le tri choisi.
+Le panneau **Programmes** a deux rubriques. **Actions** : **Nouveau programme**, **Dupliquer un programme** (choisir le programme à copier, puis **Dupliquer** : la copie s’appelle **Copie** suivi du nom, avec un numéro si ce nom existe déjà, garde les appareils, les réglages et les horaires, et apparaît tout en bas de la liste) **Ordre des priorités** (voir [Priorités](PRIORITES.fr.md)). **Liste des programmes** : sur téléphone, une bascule **Liste | Aperçu** remplace les lignes par la carte Weekly Planner en liste compacte, sans quitter l’écran (les Actions, **Trier** et **Filtrer** restent là) ; l’aperçu montre les mêmes programmes dans le même ordre que la liste, filtres et tri compris, et on peut y modifier les horaires. Sur grand écran, l’aperçu occupe la partie de droite tant qu’aucun programme n’est ouvert. La **Liste des programmes** : le bouton **Trier** ouvre une fenêtre pour trier par **Ordre de création** (par défaut), **Nom** ou **Priorité**. Le bouton **Filtrer** ouvre une fenêtre pour filtrer par **Type**, **Pièce** (avec **Sans pièce**) et **Appareil** ; chacun est une section d’un accordéon, ouvrir l’une referme les autres, et le titre indique combien de filtres y sont actifs : un programme est affiché s’il correspond à l’une des valeurs choisies dans chaque filtre. **Réinitialiser** efface les filtres et garde le tri choisi.
 
 Les programmes se gèrent **uniquement** dans ce panneau, plus dans l’éditeur de la carte : celui-ci ne garde que l’affichage
 (titre, programmes montrés, vue, couleurs). Une carte sans programme montre, à toute personne qui peut modifier, un lien **Gérer les programmes**.

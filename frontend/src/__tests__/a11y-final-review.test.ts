@@ -13,7 +13,7 @@ const css = (c: any) => [c.styles].flat(Infinity).map((s: any) => s?.cssText ?? 
 const rule = (sheet: string, selector: string) => sheet.match(new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`))?.[1] ?? "";
 
 describe("a11y review 2026-11-22", () => {
-  it("1: the selected Liste/Résumé button and the Done button use the white-text fill token (>= 4.5:1), not the raw primary colour", () => {
+  it("1: the selected Liste/Aperçu button and the Done button use the white-text fill token (>= 4.5:1), not the raw primary colour", () => {
     const sheet = css(WpProgramsPanel);
     for (const sel of [".seg button.on", ".done"]) {
       const r = rule(sheet, sel);

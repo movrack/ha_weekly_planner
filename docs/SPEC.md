@@ -584,7 +584,7 @@ Vue de **lecture** de la journée d'aujourd'hui ; elle remplace la barre / le ca
   autre) ; son en-tête montre toujours, ouvert ou replié, le mode ouvert et s'il est actif (« Présent (Actif) »,
   « Absent · pas actif »). L'avis d'un mode qui n'existe plus (`wp-mode-notice`) reste au-dessus de l'accordéon. À
   l'ouverture de la fenêtre, **Horaires** est ouvert, **Mode** et **Réglages** repliés (la configuration des horaires reste l'essentiel) ; exceptions :
-  « Créer un réglage » de l'écran vide, ou aucun réglage encore (modification permise et fenêtre non ouverte depuis un
+  « Ajouter un horaire » de l'écran vide, ou aucun réglage encore (modification permise et fenêtre non ouverte depuis un
   jour), ouvrent **Réglages**. Le panneau **Horaires** comprend les appareils, « Le reste du temps », la liste des horaires
   et le jour férié ; la semaine, le graphique et ses options lui appartiennent aussi et se replient avec lui sur petit écran ; sur grand
   écran (deux colonnes) ils restent affichés à droite quel que soit le panneau ouvert (propriétaire, 2026-11-21 : la colonne

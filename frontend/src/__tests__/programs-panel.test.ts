@@ -42,7 +42,7 @@ describe("programs panel", () => {
     expect(out).not.toContain("1 devices");
     expect(out).toContain("2 devices · Paused");
     expect(out).toContain("New program");
-    expect(out).toContain('<h2 class="pane-title">Summary</h2>');   // nothing is open: the pane is the overview
+    expect(out).toContain('<h2 class="pane-title">Preview</h2>');   // nothing is open: the pane is the overview
   });
 
   it("says there is no program yet but still offers to create one", () => {
@@ -422,7 +422,7 @@ describe("programs panel: sort and filter", () => {
     expect(ok).toMatch(/aria-disabled=false/);
   });
 
-  it("with a filter the Reset button is usable and the message is gone; the List/Summary toggle is greyed only when the list is empty", () => {
+  it("with a filter the Reset button is usable and the message is gone; the List/Preview toggle is greyed only when the list is empty", () => {
     const p = make({ data: set() });
     p._view = { ...p._view, types: ["cover"] };
     const out = flat(p._list(p._data.programs));
@@ -559,7 +559,7 @@ describe("programs panel: sort and filter", () => {
   });
 });
 
-describe("programs panel: overview (Résumé)", () => {
+describe("programs panel: overview (Aperçu)", () => {
   const set = () => data([
     program("1", { name: "Volet salon", priority: 2, entities: [{ entity_id: "cover.salon" }] }),
     program("2", { name: "Chauffage bureau", priority: 1, entities: [{ entity_id: "climate.bureau" }] }),
@@ -572,10 +572,10 @@ describe("programs panel: overview (Résumé)", () => {
     const p = make({ narrow: true, data: set() });
     const out = flat(p._list(p._data.programs));
     expect(out).toContain('role="radiogroup"');
-    expect(out.indexOf(">List<")).toBeLessThan(out.indexOf(">Summary<"));
+    expect(out.indexOf(">List<")).toBeLessThan(out.indexOf(">Preview<"));
     expect(bindings(p._list(p._data.programs), "aria-checked")).toEqual([true, false]);
     const fr = make({ narrow: true, data: set() }); fr.hass.language = "fr";
-    expect(flat(fr._list(fr._data.programs))).toContain(">Résumé<");
+    expect(flat(fr._list(fr._data.programs))).toContain(">Aperçu<");
   });
 
   it("has no toggle on a wide screen (the overview already fills the right column); without programs it stays on a narrow one, greyed", () => {
@@ -599,7 +599,7 @@ describe("programs panel: overview (Résumé)", () => {
     expect(flat(p._list(p._data.programs))).not.toContain("wp-overview");
   });
 
-  it("the whole screen stays the list screen: no separate overview screen, no Summary action", () => {
+  it("the whole screen stays the list screen: no separate overview screen, no Preview action", () => {
     const p = make({ narrow: true, data: set() });
     expect(flat(p._list(p._data.programs))).not.toContain("overview-open");
     radios(p)[1].fn();
@@ -623,17 +623,17 @@ describe("programs panel: overview (Résumé)", () => {
     expect(props(p)).toEqual({ programs: [], order: [] });
   });
 
-  it("fills the right column on a wide screen when no program is selected, titled Summary; not once one is selected", () => {
+  it("fills the right column on a wide screen when no program is selected, titled Preview; not once one is selected", () => {
     const p = make({ data: set() });
     const out = flat(p._editor(p._data));
-    expect(out).toContain('<h2 class="pane-title">Summary</h2>'); expect(out).toContain("wp-overview");
+    expect(out).toContain('<h2 class="pane-title">Preview</h2>'); expect(out).toContain("wp-overview");
     expect(out).not.toContain("Choose a program");
     p._selected = "1";
     expect(flat(p._editor(p._data))).not.toContain("wp-overview");
     expect(flat(make({ data: data([]) })._editor(data([])))).not.toContain("wp-overview");
   });
 
-  it("titles the pane Settings above the editor of a program or of a new one, and says Résumé / Réglages in French", () => {
+  it("titles the pane Settings above the editor of a program or of a new one, and says Aperçu / Réglages in French", () => {
     const p = make({ data: set() });
     p._selected = "1";
     let out = flat(p._editor(p._data));
@@ -642,7 +642,7 @@ describe("programs panel: overview (Résumé)", () => {
     p._selected = "new";
     expect(flat(p._editor(p._data))).toContain("Settings");
     const fr = make({ data: set() }); fr.hass.language = "fr";
-    expect(flat(fr._editor(fr._data))).toContain('<h2 class="pane-title">Résumé</h2>');
+    expect(flat(fr._editor(fr._data))).toContain('<h2 class="pane-title">Aperçu</h2>');
     fr._selected = "1";
     expect(flat(fr._editor(fr._data))).toContain('<h2 class="pane-title">Réglages</h2>');
   });
