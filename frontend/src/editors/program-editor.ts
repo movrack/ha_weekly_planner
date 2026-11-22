@@ -526,11 +526,7 @@ export class WpProgramEditor extends LitElement {
     return html`
       ${p.entities.length === 0 ? html`<p class="muted">${this._tr("pe_no_entity")}</p>` : nothing}
       ${p.entities.map((e, i) => this._renderEntity(e, i))}
-      ${keyed(this._pickerKey, this._picker
-        ? html`<ha-selector id="pe-entity-add" aria-invalid=${this._entitiesError ? "true" : "false"} aria-describedby=${this._entitiesError ? "pe-entities-error" : nothing} .hass=${this.hass} .selector=${{ entity: { exclude_entities: p.entities.map((x) => x.entity_id) } }}
-            .label=${this._tr(p.entities.length ? "pe_add_another_entity" : "pe_add_entity")} .value=${""} .required=${!p.entities.length}
-            @value-changed=${(ev: CustomEvent<{ value?: string }>) => { ev.stopPropagation(); this._addEntity(ev.detail.value ?? ""); }}></ha-selector>`
-        : html`<wp-entity-picker id="pe-entity-add" aria-describedby=${this._entitiesError ? "pe-entities-error" : nothing} .hass=${this.hass} .value=${""} .label=${this._tr(p.entities.length ? "pe_add_another_entity" : "pe_add_entity")} .required=${!p.entities.length}
+      ${keyed(this._pickerKey, html`<wp-entity-picker id="pe-entity-add" aria-describedby=${this._entitiesError ? "pe-entities-error" : nothing} .hass=${this.hass} .value=${""} .label=${this._tr(p.entities.length ? "pe_add_another_entity" : "pe_add_entity")} .placeholder=${this._tr("choose_device")} .required=${!p.entities.length}
         .exclude=${p.entities.map((x) => x.entity_id)}
         @wp-change=${(ev: CustomEvent) => { ev.stopPropagation(); this._addEntity(ev.detail); }}></wp-entity-picker>`)}
       ${this._entitiesError ? html`<p id="pe-entities-error" class="error field-error" role="alert">${this._entitiesError}</p>` : nothing}

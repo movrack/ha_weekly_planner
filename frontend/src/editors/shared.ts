@@ -91,6 +91,7 @@ export class WpEntityPicker extends LitElement {
   @property({ attribute: false }) hass!: HomeAssistant;
   @property() value = "";
   @property() label = "";
+  @property() placeholder = "";
   @property({ type: Boolean }) disabled = false;
   @property({ type: Boolean }) required = false;
   @property({ attribute: false }) domains: string[] = [];
@@ -114,7 +115,7 @@ export class WpEntityPicker extends LitElement {
     if (customElements.get("ha-entity-picker")) {
       const filter = this.filter;
       return html`<ha-entity-picker
-        .hass=${this.hass} .value=${this.value} .label=${this.label} .disabled=${this.disabled} .required=${this.required}
+        .hass=${this.hass} .value=${this.value} .label=${this.label} .placeholder=${this.placeholder || undefined} .disabled=${this.disabled} .required=${this.required}
         .includeDomains=${this.domains.length ? this.domains : undefined}
         .excludeEntities=${this.exclude}
         .entityFilter=${filter ? (e: HassEntity) => filter(e.entity_id) : undefined}
@@ -128,7 +129,7 @@ export class WpEntityPicker extends LitElement {
       <div class="field">
         ${this.label ? html`<label>${this.label}</label>` : nothing}
         <input type="text" ?disabled=${this.disabled} ?required=${this.required} list=${this._listId} .value=${this.value} autocomplete="off"
-          aria-label=${this.label || "entity"} placeholder="domain.entity"
+          aria-label=${this.label || "entity"} placeholder=${this.placeholder || "domain.entity"}
           @change=${(ev: Event) => {
             const v = (ev.target as HTMLInputElement).value.trim();
             if (v === "" || this.hass.states[v]) this._emit(v);
@@ -177,7 +178,7 @@ export class WpConditionsEditor extends LitElement {
       ${this.conditions.map(
         (c, i) => html`
           <div class="card">
-            <wp-entity-picker .hass=${this.hass} .value=${c.entity_id} .label=${this._tr("entity")}
+            <wp-entity-picker .hass=${this.hass} .value=${c.entity_id} .label=${this._tr("entity")} .placeholder=${this._tr("choose_device")}
               @wp-change=${(e: CustomEvent) => { e.stopPropagation(); this._patch(i, { entity_id: e.detail }); }}></wp-entity-picker>
             <div class="row">
               <div class="field">

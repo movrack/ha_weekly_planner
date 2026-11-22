@@ -172,8 +172,9 @@ describe("program editor: general and entities tabs", () => {
     find(r, "value-changed", "ha-selector").fn({ detail: {} });
     expect(e._p.icon).toBe("mdi:radiator");
     const ent = flat(e._renderEntities());
-    expect(ent).toContain("ha-selector");
-    find(e._renderEntities(), "value-changed", "pe-entity-add").fn({ stopPropagation() {}, detail: { value: "climate.b" } });
+    expect(ent).toContain("wp-entity-picker");
+    expect(ent).toContain("Choose a device");
+    find(e._renderEntities(), "wp-change", "pe-entity-add").fn({ stopPropagation() {}, detail: "climate.b" });
     expect(e._p.entities).toHaveLength(2);
   });
   it("lists devices with other programs, services and toggles them", async () => {
