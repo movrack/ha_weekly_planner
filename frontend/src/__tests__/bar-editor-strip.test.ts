@@ -75,13 +75,16 @@ describe("strip controls", () => {
     expect(attributes(el._strip(), "?disabled")[1]).toBe(false);
     el.program.profiles[0].days[0][0].end = undefined;
     expect(attributes(el._strip(), "?disabled")[1]).toBe(true);
+    expect(flat(el._strip())).toMatch(/id=why-cut role="status">Split in two needs/);
     el.program.profiles[0].days[0] = [slot("a", "06:00", "06:05")];
     expect(attributes(el._strip(), "?disabled")[1]).toBe(true);
+    expect(flat(el._strip())).toContain(`id=why-cut role="status">${t("en", "strip_cut_short")}</p>`);
     el.program.profiles[0].days[0] = [];
     el._selected = { kind: "gap", start: 0, end: 1440 };
     expect(attributes(el._strip(), "?disabled")[1]).toBe(false);
     el.data.labels = []; el.program.entities[0].default_label = null;
     expect(attributes(el._strip(), "?disabled")[1]).toBe(true);
+    expect(flat(el._strip())).toContain(`id=why-cut role="status">${t("en", "strip_cut_nodefault")}</p>`);
     expect(flat(el._strip())).toContain('content-copy'); // kept, greyed (no schedule here)
     expect(attributes(el._strip(), "?disabled").slice(0, 3)).toEqual([true, true, true]);
     expect(flat(el._strip())).toContain('id=why-strip role="status">No schedule here.</p>');
