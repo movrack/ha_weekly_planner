@@ -246,7 +246,7 @@ describe("overlay markup while editing", () => {
     expect(html).toContain('<div class="ov "');
     expect(html).toContain(`<div class="selbox " style="left:${525 / 1440 * 100}%;width:${495 / 1440 * 100}%">`);
     expect(html).not.toContain("selpoint");
-    expect(html).toContain(`style="left:clamp(0px, ${525 / 1440 * 100}%, 100%)"`);
+    expect(html).toContain(`style="left:clamp(8px, ${525 / 1440 * 100}%, calc(100% - 8px))"`); // kept 8 px inside the bar: the 23:59 handle no longer overflows a 320 px screen
     expect(html).toContain('role="slider" aria-orientation="horizontal" aria-valuemin="0" aria-valuemax="1440" aria-valuenow=525');
     expect(html).toContain("aria-valuetext=8:45 am");
     expect(html).toContain(`aria-label=${t("en", "handle", { time: "8:45 am" })}`);

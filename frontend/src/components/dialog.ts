@@ -273,10 +273,13 @@ export class WpDialog extends LitElement {
     }
   }
 
-  /** The first control of the content (no text field on a phone: it would raise the keyboard), else the dialog itself. */
+  /** The control marked `data-initial-focus` (the safe choice of a dialog whose first control is destructive), else the first control of
+   *  the content (no text field on a phone: it would raise the keyboard), else the dialog itself. */
   private _focusFirst(): void {
     const panel = this._panel();
     if (!panel) return;
+    const chosen = this.querySelector?.<HTMLElement>("[data-initial-focus]");
+    if (chosen) { chosen.focus(); return; }
     const content = panel.querySelector<HTMLElement>(".content");
     const first = content ? collectFocusable(content).find((el) => !(this._isPhone() && el.matches('input:not([type="checkbox"]):not([type="radio"]), textarea'))) : undefined;
     (first ?? panel).focus();
@@ -360,11 +363,11 @@ export class WpDialog extends LitElement {
     .expand:focus-visible, button.icon:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
     .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     h2 { padding-right: 52px; }
-    header { display: flex; align-items: center; gap: 12px; padding: 16px 16px 8px 20px; }
+    header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 16px 8px 20px; }
     header { touch-action: none; }
     h2 {
-      flex: 1; min-width: 0; margin: 0; font-size: 1.25rem; font-weight: 500;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      flex: 1 1 0; min-width: 0; margin: 0; font-size: 1.25rem; font-weight: 500;
+      overflow-wrap: anywhere; /* wraps instead of being cut at 200 % zoom (WCAG 1.4.4 / 1.4.10) */
     }
     .content { padding: 8px 20px 16px; overflow-y: auto; }
     footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 8px 20px 20px; }

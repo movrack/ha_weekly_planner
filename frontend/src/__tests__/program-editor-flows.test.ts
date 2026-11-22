@@ -431,6 +431,17 @@ describe("program editor: priority order of competing programs", () => {
     expect(calls).toEqual(["#pe-comp:nearest", "#pe-comp-head:focus:true"]);
   });
 
+  it.each([[true, "auto"], [false, "smooth"]])("the refused-save scroll is not animated when the user asks for reduced motion (%s)", async (reduce, behavior) => {
+    const { e } = make(prog(), {});
+    vi.stubGlobal("matchMedia", () => ({ matches: reduce }));
+    const target = { scrollIntoView: vi.fn(), focus: vi.fn() };
+    e.renderRoot = { querySelector: () => target };
+    e._showField("name");
+    await Promise.resolve(); await Promise.resolve();
+    expect(target.scrollIntoView).toHaveBeenCalledWith({ block: "center", behavior });
+    vi.unstubAllGlobals();
+  });
+
   it("keeps the also-driven-by line on a device and links it to the block", () => {
     const { e } = make(prog(), { others: [rival()] });
     e._tab = "entities";

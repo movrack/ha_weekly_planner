@@ -144,7 +144,9 @@ export class WpEntityPicker extends LitElement {
       </div>`;
   }
 
-  static styles = [editorStyles, css`:host { display: block; min-width: 0; } ha-entity-picker { display: block; }`];
+  /* The placeholder of the HA picker is drawn in --secondary-text-color (4.35:1 on the dark picker surface): HA's own secondary text token is 7.5:1 there. */
+  static styles = [editorStyles, css`:host { display: block; min-width: 0; --wp-picker-secondary: var(--ha-color-text-secondary, var(--secondary-text-color)); }
+    ha-entity-picker { display: block; --secondary-text-color: var(--wp-picker-secondary); }`];
 }
 
 /* ------------------------------------------------------------------ conditions */

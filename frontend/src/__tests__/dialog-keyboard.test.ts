@@ -139,6 +139,15 @@ describe("wp-dialog focus trap", () => {
     d.disconnectedCallback();
   });
 
+  it("opens on the control marked data-initial-focus instead of the first one (a destructive first choice)", () => {
+    const { d, a } = trapped();
+    const safe = fake();
+    d.querySelector = (q: string) => (q === "[data-initial-focus]" ? safe : null);
+    d._focusFirst();
+    expect(safe.focus).toHaveBeenCalled();
+    expect(a.focus).not.toHaveBeenCalled();
+  });
+
   it("brings the focus back in when it fell to the page (Tab heard on the document)", () => {
     const { d, a } = trapped();
     d.updated(new Map([["open", false]]));

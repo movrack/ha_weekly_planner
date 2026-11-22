@@ -15,6 +15,7 @@ describe("copy conflict choices", () => {
     let tpl = el._conflictDialog();
     expect(flat(tpl)).toContain('Tuesday');
     expect(flat(tpl)).toContain('role="radiogroup"');
+    expect(flat(tpl)).toContain(`class="btn" data-initial-focus`); // the focus opens on Cancel, never on the destructive "Replace"
     expect(attributes(tpl, "aria-checked")).toEqual([true, false]);
     expect(attributes(tpl, "?disabled")).toEqual([false]);
     const radios = handlers(tpl).filter(h => h.event === "click");

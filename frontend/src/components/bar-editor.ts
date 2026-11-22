@@ -1068,7 +1068,7 @@ export class WpBarEditor extends LitElement {
       ${repeat(bnds, (b) => b.refs.map((r) => `${r.id}:${r.edge}`).join("+"), (b) => {
         const ref = b.refs[0];
         const on = this._hsel && b.refs.some((r) => r.id === this._hsel?.id && r.edge === this._hsel?.edge);
-        return html`<button class="hd ${b.oneShot ? "dot" : ""} ${on ? "on" : ""}" style="left:clamp(0px, ${pct(b.m)}, 100%)"
+        return html`<button class="hd ${b.oneShot ? "dot" : ""} ${on ? "on" : ""}" style="left:clamp(8px, ${pct(b.m)}, calc(100% - 8px))"
           role="slider" aria-orientation="horizontal" aria-valuemin="0" aria-valuemax="1440" aria-valuenow=${b.m}
           aria-valuetext=${this._clock(b.m)} aria-label=${t(this.lang, "handle", { time: this._clock(b.m) })}
           data-h=${b.refs.map((r) => `${r.id}:${r.edge}`).join(" ")} title=${this._sunTitle(ref, b.m)}
@@ -1167,7 +1167,7 @@ export class WpBarEditor extends LitElement {
             <button role="radio" aria-checked=${c.skip.includes(d)} class=${c.skip.includes(d) ? "on" : ""} @click=${() => set(d, true)}>${t(lang, "skip_day")}</button>
           </div></div>`)}
       </div>
-      <button slot="footer" class="btn" @click=${() => (this._conflict = null)}>${t(lang, "cancel")}</button>
+      <button slot="footer" class="btn" data-initial-focus @click=${() => (this._conflict = null)}>${t(lang, "cancel")}</button>
       <button slot="footer" class="btn primary" ?disabled=${allSkipped} @click=${() => void this._doCopy(c.id, c.to, c.skip)}>${t(lang, "copy_go")}</button>
     </wp-dialog>`;
   }
@@ -1211,7 +1211,7 @@ export class WpBarEditor extends LitElement {
     .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     :host { display: block; min-width: 0; }
     .zone { position: relative; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: pointer; }
-    .hours { position: relative; height: 20px; font-size: 0.75rem; color: var(--secondary-text-color); }
+    .hours { pointer-events: none; /* the zone's 48 px tap area reaches under the axis */ position: relative; height: 20px; font-size: 0.75rem; color: var(--secondary-text-color); }
     .hours span { position: absolute; transform: translateX(-50%); top: 2px; white-space: nowrap; }
     .hours span:first-child { transform: none; }
     .hours span:last-child { transform: translateX(-100%); }

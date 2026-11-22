@@ -338,7 +338,7 @@ export class WpProgramEditor extends LitElement {
     void this.updateComplete.then(() => {
       const target = this.renderRoot?.querySelector<HTMLElement>(field === "name" ? "#f-name" : "#pe-entity-add");
       if (!target) return;
-      target.scrollIntoView?.({ block: "center", behavior: "smooth" });
+      target.scrollIntoView?.({ block: "center", behavior: globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
       target.focus?.();
     });
   }

@@ -1671,8 +1671,8 @@ export class WpSchedule extends LitElement {
     .chart { margin-top: 16px; }
     .chart .nav { display: flex; align-items: center; justify-content: space-between; font-size: 0.9375rem; font-weight: 500; }
     .chart select { margin-bottom: 4px; }
-    .switch { position: relative; min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; margin-bottom: 8px; font-size: 1rem; }
-    .switch .grow { flex: 0 0 auto; margin-right: auto; }
+    .switch { position: relative; min-height: 56px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; margin-bottom: 8px; font-size: 1rem; }
+    .switch .grow { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; margin-right: auto; }
     .switch .state { flex: 0 1 auto; min-width: 0; text-align: right; overflow-wrap: anywhere; font-size: 0.875rem; color: var(--secondary-text-color); }
     .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
     .switch .track { position: relative; width: 44px; height: 24px; border-radius: 12px; background: var(--disabled-color, #bdbdbd); transition: background 0.2s; flex: none; }

@@ -83,8 +83,9 @@ export class WpTip extends LitElement {
     :host([passive]) { pointer-events: none; }
     .hit {
       min-width: 32px; min-height: 32px; display: inline-flex; align-items: center; justify-content: center;
-      outline: none; border-radius: 16px; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+      outline: none; border-radius: 16px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; position: relative;
     }
+    .hit::before { content: ""; position: absolute; inset: -6px; } /* 32 px icon, 44 px tap area, layout unchanged */
     .hit:focus-visible { outline: 2px solid var(--wp-primary-text); }
     .bubble {
       position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(calc(-50% + var(--shift, 0px)));
