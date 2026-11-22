@@ -595,6 +595,14 @@ describe("the All types chip, like All rooms", () => {
     all.fn();
     expect(sent(el)[0].filter).toEqual({ area: "k" });
   });
+  it("from All types a type chip selects only that type, like a room chip from All rooms; a second click on it excludes it", () => {
+    const el = mk({ filter: {} }, [prog("a", "Alpha", ["cover.a"]), prog("b", "Beta", ["light.b"])]);
+    const chip = (e: any) => handlers(e.render()).find((h) => h.event === "click" && h.before.slice(-400).includes("data-type=cover"))!;
+    chip(el).fn();
+    expect(sent(el)[0].filter.programs).toEqual(["a"]);
+    chip(el).fn();
+    expect(sent(el)[1].filter.programs).toEqual([]);
+  });
   it("it stays when no program has a type yet", () => {
     expect(types(mk({ filter: {} }, []))).toContain(t("en", "ce_all_types"));
   });

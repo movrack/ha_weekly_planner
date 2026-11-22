@@ -282,7 +282,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
           const label = this._tr("ce_type_chip", { type: g.label });
           return html`<button class="chip ${state}" data-type=${g.type} aria-pressed=${state === "on" ? "true" : state === "partial" ? "mixed" : "false"}
             aria-label=${counter ? `${label} (${counter})` : label}
-            @click=${() => this._treeChange(toggleType(programs, filter, g.type, state === "off", visible))}>
+            @click=${() => this._treeChange(toggleType(programs, filter, g.type, state === "off" || all, visible, all))}>
             ${state === "on" ? html`<ha-icon class="check-on" icon="mdi:check"></ha-icon>` : nothing}
             <ha-icon icon=${this._typeIcons.get(g.type) ?? "mdi:shape-outline"}></ha-icon>${g.label}${counter ? html` <span class="count">${counter}</span>` : nothing}</button>`;
         })}</div>
