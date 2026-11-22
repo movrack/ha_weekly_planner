@@ -22,6 +22,8 @@ const mk = (config: any = {}, programs: any[] = [prog("a", "Alpha"), prog("b", "
 const sent = (el: any): any[] => el.dispatchEvent.mock.calls.map(([e]: any[]) => e.detail.config);
 /** The handler of `event` whose markup, just before it, mentions `marker`. */
 const eventNear = (tpl: any, event: string, marker: string) => handlers(tpl).find((h) => h.event === event && h.before.slice(-250).includes(marker))!.fn;
+/** The change handler of the switch named `name` (its accessible name is the text slotted inside the switch). */
+const switchNamed = (tpl: any, name: string) => handlers(tpl).find((h) => h.event === "change" && h.after.trimStart().startsWith(`><span class="sr-only">${name}</span></ha-switch>`))!.fn;
 /** What a method needs to move the focus once the render is done. */
 const withFocus = (el: any, focus = vi.fn()) => {
   const querySelector = vi.fn(() => ({ focus }));
@@ -567,12 +569,12 @@ describe("the Chart fieldset", () => {
   it("the sub-option writes chart_collapsed (its opposite), raises chart_epoch and is no longer greyed", () => {
     const el = mk({ show_chart: false });
     el._emit = vi.fn();
-    eventNear(el.render(), "change", `aria-label=${t("en", "ce_chart_open")}`)({ target: { checked: true } });
+    switchNamed(el.render(), t("en", "ce_chart_open"))({ target: { checked: true } });
     expect(el._emit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ chart_collapsed: false, chart_epoch: 1 }));
     el._config.chart_epoch = 4;
-    eventNear(el.render(), "change", `aria-label=${t("en", "ce_chart_open")}`)({ target: { checked: false } });
+    switchNamed(el.render(), t("en", "ce_chart_open"))({ target: { checked: false } });
     expect(el._emit).toHaveBeenLastCalledWith(expect.objectContaining({ chart_collapsed: true, chart_epoch: 5 }));
-    expect(flat(el.render())).not.toContain("aria-disabled=true aria-label=Chart open by default");
+    expect(flat(el.render())).not.toContain("aria-label=Chart open by default");
   });
 });
 
@@ -654,7 +656,7 @@ describe("the programs list grouped by type", () => {
   it("a row switch still edits the selection", () => {
     const el = mk({ filter: {} }, progs());
     el._treeChange = vi.fn();
-    eventNear(el.render(), "change", "aria-label=Alpha")({ target: { checked: false } });
+    switchNamed(el.render(), "Alpha")({ target: { checked: false } });
     expect(el._treeChange).toHaveBeenCalledOnce();
   });
 });
@@ -663,14 +665,16 @@ describe("the Week fieldset", () => {
   it("a Week fieldset comes before the Chart one (owner, 2026-11-22), with the Week button switch and its hint, on by default", () => {
     const out = flat(mk({}).render());
     expect(out.indexOf(`<legend>${t("en", "ce_week_group")}</legend>`)).toBeLessThan(out.indexOf(`<legend>${t("en", "ce_chart_group")}</legend>`));
-    expect(out).toContain(`aria-label=${t("en", "ce_show_week")} aria-describedby=ce-show-week-hint`);
+    expect(out).toContain(`aria-describedby=ce-show-week-hint`);
+    expect(out).toContain(`<span class="sr-only">${t("en", "ce_show_week")}</span></ha-switch>`);
+    expect(out).not.toContain("<ha-switch aria-label");
     expect(out).toContain(t("en", "ce_show_week_hint"));
-    expect(out).not.toContain("aria-disabled=true aria-label=Week button");
+    expect(out).not.toContain("aria-label=Week button");
   });
   it("the switch writes show_week_button", () => {
     const el = mk({});
     el._set = vi.fn();
-    eventNear(el.render(), "change", `aria-label=${t("en", "ce_show_week")}`)({ target: { checked: false } });
+    switchNamed(el.render(), t("en", "ce_show_week"))({ target: { checked: false } });
     expect(el._set).toHaveBeenCalledExactlyOnceWith("show_week_button", false);
   });
   it.each([[{}, "true", true], [{ show_week_button: true }, "true", true], [{ show_week_button: false }, "false", false]])(
@@ -684,7 +688,7 @@ describe("the Week fieldset", () => {
   it("the sub-option writes week_collapsed (its opposite); default and false/true show off/on", () => {
     const el = mk({});
     el._emit = vi.fn();
-    eventNear(el.render(), "change", `aria-label=${t("en", "ce_week_open")}`)({ target: { checked: true } });
+    switchNamed(el.render(), t("en", "ce_week_open"))({ target: { checked: true } });
     expect(el._emit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ week_collapsed: false, week_epoch: 1 }));
     expect(flat(mk({}).render())).toContain(t("en", "ce_week_open_hint"));
   });

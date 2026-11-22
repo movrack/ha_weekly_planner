@@ -193,9 +193,9 @@ export class WeeklyPlannerCardEditor extends LitElement {
   }
 
   private _switch(checked: boolean, label: string, onChange: (on: boolean) => void, partial = false, disabled = false, describing = "", fold?: { expanded: boolean; controls: string }) {
-    return html`<ha-switch class=${partial ? "partial" : ""} .checked=${checked} .disabled=${disabled} aria-disabled=${ariaDisabled(disabled)} aria-label=${label} aria-describedby=${describing || nothing}
+    return html`<ha-switch class=${partial ? "partial" : ""} .checked=${checked} .disabled=${disabled} aria-disabled=${ariaDisabled(disabled)} aria-describedby=${describing || nothing}
       aria-expanded=${fold ? String(fold.expanded) : nothing} aria-controls=${fold?.controls ?? nothing}
-      @change=${(e: Event) => onChange((e.target as HTMLInputElement).checked)}></ha-switch>`;
+      @change=${(e: Event) => onChange((e.target as HTMLInputElement).checked)}><span class="sr-only">${label}</span></ha-switch>`;
   }
 
   /** A change in the "programs to display" tree (the help under "All programs" says what the switch means in each state). */

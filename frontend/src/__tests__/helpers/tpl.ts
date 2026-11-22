@@ -11,9 +11,9 @@ export const flat = (v: any): string => {
   return "";
 };
 
-export interface Handler { event: string; fn: (...args: any[]) => any; before: string }
+export interface Handler { event: string; fn: (...args: any[]) => any; before: string; readonly after: string }
 
-/** Every `@event=${fn}` of a template tree in document order, with the markup that precedes it. */
+/** Every `@event=${fn}` of a template tree in document order, with the markup that precedes it (`before`) and follows it (`after`). */
 export function handlers(v: any, out: Handler[] = [], acc = { text: "" }): Handler[] {
   if (Array.isArray(v)) { v.forEach((x) => handlers(x, out, acc)); return out; }
   if (v && v.strings) {
@@ -22,7 +22,10 @@ export function handlers(v: any, out: Handler[] = [], acc = { text: "" }): Handl
       if (i >= v.values.length) return;
       const val = v.values[i];
       const m = /@([\w-]+)=$/.exec(s);
-      if (m && typeof val === "function") out.push({ event: m[1], fn: val, before: acc.text });
+      if (m && typeof val === "function") {
+        const pos = acc.text.length;
+        out.push({ event: m[1], fn: val, before: acc.text, get after() { return acc.text.slice(pos); } });
+      }
       else handlers(val, out, acc);
     });
   } else if (v && v._$litDirective$ && Array.isArray(v.values)) handlers(v.values, out, acc);
