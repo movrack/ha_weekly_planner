@@ -46,7 +46,7 @@ Choisir la pièce dans la liste de Général (« Pièce du programme » : pièce
 
 ### S41 — Filtres et présentation
 
-Choisir les programmes à afficher (dont la pièce) et l’affichage. L’interrupteur « Afficher les horaires » ajoute la liste « Horaires » sous les barres ou le cadran ; il est grisé sur les autres affichages. Le groupe « Graphique » réunit « Bouton Graphique » et, dessous, « Graphique ouvert par défaut » (replié tant que le bouton est désactivé).
+Choisir les programmes à afficher (dont la pièce) et l’affichage. L’interrupteur « Afficher les horaires » ajoute la liste « Horaires » sous les barres ou le cadran ; il est grisé sur les autres affichages. Le groupe « Graphique » réunit « Bouton Graphique » et, dessous, « Graphique ouvert par défaut » (replié tant que le bouton est désactivé). Le groupe « Semaine » contient « Bouton Semaine » (actif par défaut) : désactivé, la carte n’a plus de bouton Semaine sous les appareils, la fenêtre des horaires garde sa semaine.
 
 <a href="images/guide/s41-card-filter.png"><img src="images/guide/s41-card-filter.png" width="320" alt="Filtres et présentation" /></a>
 

@@ -212,6 +212,19 @@ describe("the week and chart toggles under a bar", () => {
     const scope = { kind: "program", programId: "p1" };
     return { c, p, scope };
   };
+  it("show_week_button: false removes the Week button and its panel, even for a week left open; the chart stays", () => {
+    const { c, p, scope } = setup({ show_week_button: false });
+    c._week = new Set(["p:p1|cover.a"]);
+    const html = flat(c._extras(scope, "cover.a", [p]));
+    expect(html).not.toContain(`aria-label=${t("en", "week_of", { name: "Volet" })}`);
+    expect(html).not.toContain("wp-appear\"><div class=\"wday");
+    expect(html).not.toContain('class="week wp-appear"');
+    expect(html).toContain("chartbtn");
+  });
+  it.each([[{}], [{ show_week_button: true }], [{ show_week: false }]])("%j: the Week button is shown (the obsolete show_week stays ignored)", (config) => {
+    const { c, p, scope } = setup(config);
+    expect(flat(c._extras(scope, "cover.a", [p]))).toContain(`aria-label=${t("en", "week_of", { name: "Volet" })}`);
+  });
   it("the week button opens and closes seven days Monday to Sunday, each opening its day", () => {
     const { c, p, scope } = setup({ show_chart: false });
     const closed = c._extras(scope, "cover.a", [p]);

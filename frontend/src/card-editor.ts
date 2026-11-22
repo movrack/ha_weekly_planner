@@ -410,6 +410,11 @@ export class WeeklyPlannerCardEditor extends LitElement {
           ${this._switch(c.chart_collapsed === false, this._tr("ce_chart_open"), (on) => this._set("chart_collapsed", !on), false, false, "ce-chart-open-hint")}</div>
         <p id="ce-chart-open-hint" class="hint">${this._tr("ce_chart_open_hint")}</p>`, "ce-chart-more")}
       </fieldset>
+      <fieldset class="group"><legend>${this._tr("ce_week_group")}</legend>
+        <div class="switch-row"><span class="grow">${this._tr("ce_show_week")}</span>
+          ${this._switch(c.show_week_button !== false, this._tr("ce_show_week"), (on) => this._set("show_week_button", on), false, false, "ce-show-week-hint")}</div>
+        <p id="ce-show-week-hint" class="hint">${this._tr("ce_show_week_hint")}</p>
+      </fieldset>
     `;
 
   }

@@ -133,6 +133,7 @@ Every option can be set in the visual editor or in YAML. The main ones:
 | `schedule_view` | `bars` (default), `list`, `radial`, `radial_12h`, `times` or `compare` (every device, one day at a time with a row of day chips). |
 | `sort`, `order` | Order of the list: by `type` (default), `area`, `name`, or your own order. |
 | `show_chart`, `chart_collapsed` | Chart button under each device, and whether the chart starts closed. |
+| `show_week_button` | Week button under each device (on by default). |
 | `show_schedule_list` | Lists today’s schedules under the bars or the dials (default off). |
 | `title` | Card title. |
 

@@ -812,7 +812,7 @@ export class WeeklyPlannerCard extends LitElement {
   }
 
   /**
-   * The two collapsible parts under today's bar: the next 6 days (one thin bar each) and, unless `show_chart` is off,
+   * The two collapsible parts under today's bar: the next 6 days (one thin bar each; unless `show_week_button` is off) and, unless `show_chart` is off,
    * the chart of today (same component as the schedule screen; no history is fetched while it is collapsed).
    * Stacked at every width: each button is immediately followed by its own panel (Week, week bars, Today's chart,
    * chart). The chart choice is remembered per card and device.
@@ -841,10 +841,11 @@ export class WeeklyPlannerCard extends LitElement {
     const who = this._deviceLabel(program, entityId);
     const date = localDateIso(this._now, this._tz);
     const { today: slots, previous } = this._deviceDays(program.id, date, entityId);
+    const showWeek = this._config.show_week_button !== false;
     return html`
-      <button class="weekbtn" aria-label=${t(lang, "week_of", { name: who })} aria-expanded=${weekOpen} @click=${toggleWeek}>
-        <ha-icon icon="mdi:calendar-week"></ha-icon>${t(lang, "week")}<ha-icon class="after" icon=${weekOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>
-      ${weekOpen ? html`<div class="week wp-appear">
+      ${showWeek ? html`<button class="weekbtn" aria-label=${t(lang, "week_of", { name: who })} aria-expanded=${weekOpen} @click=${toggleWeek}>
+        <ha-icon icon="mdi:calendar-week"></ha-icon>${t(lang, "week")}<ha-icon class="after" icon=${weekOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>` : nothing}
+      ${showWeek && weekOpen ? html`<div class="week wp-appear">
         ${[0, 1, 2, 3, 4, 5, 6].map((weekday) => {
           // the whole week, Monday to Sunday, each day at its next occurrence (today included)
           const o = (weekday - localWeekday(this._now, this._tz) + 7) % 7;

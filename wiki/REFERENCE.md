@@ -37,6 +37,7 @@ Card examples are in the [README](../README.md#examples).
 | Time format | No option: the card follows the 12 h or 24 h setting of your Home Assistant profile (12 h shows am/pm, “midnight” and “noon”; the time fields of the slot editor show the chosen time, such as “= 10:30 pm”, under them). |
 | `show_chart` | Boolean, default `true`. On: a **Today’s chart** button under each device on the card, and the chart in the schedule window. Off: no button and no chart anywhere on this card. In the editor: “Chart button under each device”. |
 | `show_schedule_list` | Boolean, default `false`. On: under the bars, the 24 h dial and the 12 h dials of each program (and device), a **Schedules** list shows today like **Daily times**, between the main graphic and the Week and Today’s chart buttons. Always visible, no collapse. A row opens its own schedule by a long press (mouse too) or Enter or Space, never by a plain click (it only reminds “Keep your finger down to edit”), and only when editing is allowed. Not on the compact list, **Daily times** or the comparison. In the editor: “Show the schedules”. |
+| `show_week_button` | Boolean, default `true`. On: a **Week** button under each device on the card. Off: no Week button on the card; the schedule window keeps its week. In the editor: “Week button”. The deprecated `show_week` key is still ignored. |
 | `chart_collapsed` | Boolean, default `true`: the chart under each device starts closed (`false`: starts open). Only matters when `show_chart` is on. In the editor: the switch “Chart open by default” (the inverse). A choice made with the chart button is remembered per browser, per card and per device, and wins afterwards. |
 
 **YAML reference.** Every option of the visual editor can be set in the YAML code editor, with the same
@@ -63,6 +64,7 @@ schedule_view: bars             # bars | list | radial | radial_12h | times | co
 sort: type                      # type | area | name | custom (default type)
 order: []                       # program IDs, used when sort is custom
 show_chart: true                # default true
+show_week_button: true          # default true
 show_schedule_list: false       # default false
 chart_collapsed: true           # default true (collapsed)
 filter:                         # ignored when `program` is set

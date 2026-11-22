@@ -40,7 +40,7 @@ describe("echo guard of setConfig", () => {
     el._set("title", "B");
     expect(sent(el)[0].title).toBe("B");
     el.dispatchEvent.mockClear();
-    el.setConfig({ type: CARD, title: "B", schedule_view: "bars", show_chart: true, chart_collapsed: true, filter: {} });
+    el.setConfig({ type: CARD, title: "B", schedule_view: "bars", show_chart: true, show_week_button: true, chart_collapsed: true, filter: {} });
     expect(el._config.title).toBe("B");
     expect(sent(el)).toEqual([]);
   });
@@ -86,7 +86,7 @@ describe("echo guard of setConfig", () => {
     el.dispatchEvent.mockClear();
     const config = el._config;
     const guard = el._sent;
-    el.setConfig({ chart_collapsed: true, show_chart: true, schedule_view: "bars", title: "After", filter: { programs: ["b", "a"], area: ["z", "a"] }, type: CARD });
+    el.setConfig({ chart_collapsed: true, show_chart: true, show_week_button: true, schedule_view: "bars", title: "After", filter: { programs: ["b", "a"], area: ["z", "a"] }, type: CARD });
     expect(el._config).toBe(config);
     expect(el._sent).toBe(guard);
     expect(sent(el)).toEqual([]);
@@ -102,7 +102,7 @@ describe("edits of the config", () => {
   it("any other value sets the key and the full effective config is sent", () => {
     const el = mk({ title: "A", program: "a" });
     el._set("show_chart", false);
-    expect(sent(el)[0]).toEqual({ type: CARD, title: "A", program: "a", schedule_view: "bars", show_chart: false, chart_collapsed: true });
+    expect(sent(el)[0]).toEqual({ type: CARD, title: "A", program: "a", schedule_view: "bars", show_chart: false, show_week_button: true, chart_collapsed: true });
     expect(el._config).toEqual(sent(el)[0]);
   });
   it("config events bubble through the dashboard shadow root", () => {
@@ -542,7 +542,7 @@ describe("the Chart fieldset", () => {
     const set = out.slice(out.indexOf(`<legend>${t("en", "ce_chart_group")}</legend>`));
     expect(out).toMatch(/<fieldset class="group"><legend>Chart<\/legend>/);
     expect(set.indexOf(t("en", "ce_show_chart"))).toBeLessThan(set.indexOf(t("en", "ce_chart_open")));
-    expect(out.match(/<\/fieldset>/g)).toHaveLength(1);
+    expect(out.match(/<\/fieldset>/g)).toHaveLength(2);
   });
   it.each([[{}, "true", true], [{ show_chart: true }, "true", true], [{ show_chart: false }, "false", false]])(
     "%j: the parent switch says aria-expanded=%s and the sub-option folds under it (open = %s)", (config, expanded, open) => {
@@ -634,5 +634,24 @@ describe("the programs list grouped by type", () => {
     el._treeChange = vi.fn();
     eventNear(el.render(), "change", "aria-label=Alpha")({ target: { checked: false } });
     expect(el._treeChange).toHaveBeenCalledOnce();
+  });
+});
+
+describe("the Week fieldset", () => {
+  it("a Week fieldset follows the Chart one with the Week button switch and its hint, on by default", () => {
+    const out = flat(mk({}).render());
+    expect(out.indexOf(`<legend>${t("en", "ce_week_group")}</legend>`)).toBeGreaterThan(out.indexOf(`<legend>${t("en", "ce_chart_group")}</legend>`));
+    expect(out).toContain(`aria-label=${t("en", "ce_show_week")} aria-describedby=ce-show-week-hint`);
+    expect(out).toContain(t("en", "ce_show_week_hint"));
+    expect(out).not.toContain("aria-disabled=true aria-label=Week button");
+  });
+  it("the switch writes show_week_button", () => {
+    const el = mk({});
+    el._set = vi.fn();
+    eventNear(el.render(), "change", `aria-label=${t("en", "ce_show_week")}`)({ target: { checked: false } });
+    expect(el._set).toHaveBeenCalledExactlyOnceWith("show_week_button", false);
+  });
+  it("EN and FR wording", () => {
+    expect([t("en", "ce_week_group"), t("en", "ce_show_week"), t("fr", "ce_week_group"), t("fr", "ce_show_week")]).toEqual(["Week", "Week button", "Semaine", "Bouton Semaine"]);
   });
 });
