@@ -176,8 +176,8 @@ describe("programs panel: priority order", () => {
     const p = open([shared("1", 1), shared("2", 2), program("3", { entities: [{ entity_id: "light.z" }] })]);
     const out = flat(p._priorities(p._data));
     expect(out).toContain('id=why-alone role="status">Nothing to rank here');
-    expect(out.match(/aria-describedby=why-alone/g)).toHaveLength(2);
-    expect(out.match(/aria-disabled=true/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(out.match(/aria-describedby="why-alone"/g)).toHaveLength(2);
+    expect(out.match(/aria-disabled="true"/g)?.length).toBeGreaterThanOrEqual(2);
     expect(out).toContain("Move Prog 3 up");
     expect(out).toContain("Move Prog 3 down");
   });
