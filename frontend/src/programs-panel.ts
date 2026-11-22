@@ -382,6 +382,16 @@ export class WpProgramsPanel extends LitElement {
       @program-deleted=${(e: CustomEvent<string>) => this._deleted(e)}></wp-program-editor>`);
   }
 
+  /** The page title: the screen shown (priorities, duplicate), the program being edited on a narrow screen (its sheet replaces the list), else the panel. */
+  _title(): string {
+    const lang = this._lang;
+    if (this._screen === "priorities") return t(lang, "prio_title");
+    if (this._screen === "duplicate") return t(lang, "panel_dup_open");
+    if (this.narrow && this._selected === "new") return t(lang, "new_program");
+    if (this.narrow && this._selected !== null) return this._data?.programs.find((p) => p.id === this._selected)?.name ?? t(lang, "panel_title");
+    return t(lang, "panel_title");
+  }
+
   render() {
     if (!this.hass) return nothing;
     const lang = this._lang;
@@ -394,7 +404,7 @@ export class WpProgramsPanel extends LitElement {
         ${this._screen !== "programs" || (this.narrow && this._selected !== null)
           ? html`<button class="back" aria-label=${t(lang, "panel_back")} title=${t(lang, "panel_back")} @click=${() => (this._screen === "priorities" ? this._leavePriorities() : this._screen === "duplicate" ? this._leaveDuplicate() : this._back())}><ha-icon icon="mdi:arrow-left"></ha-icon></button>`
           : nothing}
-        <h1>${t(lang, this._screen === "priorities" ? "prio_title" : this._screen === "duplicate" ? "panel_dup_open" : "panel_title")}</h1>
+        <h1>${this._title()}</h1>
       </header>
       <span class="sr" role="status" aria-live="polite">${this._said}</span>
       ${!data ? html`<p class="hint">…</p>`
@@ -450,7 +460,7 @@ export class WpProgramsPanel extends LitElement {
     .pane-title { margin: 0 0 12px; font-size: 1.125rem; font-weight: 500; color: var(--primary-text-color); }
     .seg { display: inline-flex; border: 1px solid var(--divider-color); border-radius: 24px; overflow: hidden; }
     .seg button { min-width: 48px; min-height: 48px; padding: 0 16px; border: none; background: none; color: var(--primary-text-color); font: inherit; cursor: pointer; }
-    .seg button.on { background: var(--primary-color); color: var(--text-primary-color, #fff); font-weight: 500; }
+    .seg button.on { background: var(--wp-primary-fill); color: #fff; font-weight: 500; }
     .seg button:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: -2px; }
     .grp { margin: 8px 4px 0; font-size: 0.875rem; font-weight: 600; line-height: 1.3; color: var(--primary-text-color); }
     .grp:first-child { margin-top: 0; }
@@ -468,7 +478,7 @@ export class WpProgramsPanel extends LitElement {
     .optname { flex: 1; min-width: 0; overflow-wrap: anywhere; }
     .count { color: var(--secondary-text-color); font-size: 0.8125rem; }
     .filter-count { margin: 8px 0 0; color: var(--secondary-text-color); font-size: 0.875rem; }
-    .done { min-height: 48px; padding: 0 24px; border: none; border-radius: 24px; background: var(--primary-color); color: var(--text-primary-color, #fff); font: inherit; font-weight: 500; cursor: pointer; }
+    .done { min-height: 48px; padding: 0 24px; border: none; border-radius: 24px; background: var(--wp-primary-fill); color: #fff; font: inherit; font-weight: 500; cursor: pointer; }
     .link { display: inline-flex; align-items: center; gap: 4px; min-height: 48px; padding: 0 8px; border: none; background: none; color: var(--wp-primary-text); font: inherit; cursor: pointer; --mdc-icon-size: 20px; }
     .hint, .empty { margin: 16px; color: var(--secondary-text-color); }
   `;

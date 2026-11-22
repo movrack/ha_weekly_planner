@@ -698,6 +698,17 @@ describe("a locked day", () => {
     expect(withSpans).toEqual([[[600, 660]], [[480, 540]]]);
     vi.useRealTimers();
   });
+  it("the read-only week schematic is not seven tab stops: its day bars carry no-tab (their sun markers stay named images)", () => {
+    const p: any = program("p", profile({ day: [slot("h", "10:00", "11:00")] }));
+    const w = new WpSchedule() as any;
+    w.hass = hass;
+    w.scope = { kind: "device", entityId: "cover.b" };
+    w.data = { labels: [label], programs: [p], status: { p: { holiday: { own: true } } }, can_edit: true, holiday_today: false };
+    const out = flat(w._renderWeek());
+    const bars = out.split("<wp-day-bar").length - 1;
+    expect(bars).toBeGreaterThanOrEqual(7);
+    expect(out.split("notches no-tab").length - 1).toBe(bars);
+  });
 });
 
 describe("week note on a day off", () => {
@@ -884,7 +895,7 @@ describe("day-off row under Sunday in the week schematics", () => {
     const out = spansOf(w._renderWeek());
     expect(out[7].map((s) => [s.start, s.end])).toEqual([[600, 660]]);
     expect(hoursAt(w._renderWeek())).toEqual([false, false, false, false, false, false, false]);
-    expect(flat(w._renderWeek()).slice(flat(w._renderWeek()).indexOf("schema-off"))).toContain("notches show-hours");
+    expect(flat(w._renderWeek()).slice(flat(w._renderWeek()).indexOf("schema-off"))).toContain("notches no-tab show-hours");
   });
   it("window: absent with no setting, with off, and without the day-off entity", () => {
     expect(rowOf(win(prof())).off).toBe(false);

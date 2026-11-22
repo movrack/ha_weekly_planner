@@ -1458,10 +1458,10 @@ export class WpSchedule extends LitElement {
     const off = this._weekHasOff(eid);
     return html`<section class="schematic" aria-label=${t(lang, "week")}>
       ${strings(lang).days_short.map((name, day) => html`<div class="schema-day ${day === 5 ? "schema-sat" : ""}"><span>${name}</span>
-        <wp-day-bar lang=${lang} notches ?show-hours=${!off && day === 6} .spans=${this._weekSpans(eid, day)}></wp-day-bar>
+        <wp-day-bar lang=${lang} notches no-tab ?show-hours=${!off && day === 6} .spans=${this._weekSpans(eid, day)}></wp-day-bar>
       </div>`)}
       ${off ? html`<div class="schema-day schema-off" role="group" aria-label=${t(lang, "holiday_title")}><span>${t(lang, "holiday_row")}</span>
-        <wp-day-bar lang=${lang} notches show-hours .spans=${this._weekSpans(eid, null)}></wp-day-bar>
+        <wp-day-bar lang=${lang} notches no-tab show-hours .spans=${this._weekSpans(eid, null)}></wp-day-bar>
       </div>` : nothing}
     </section>`;
   }

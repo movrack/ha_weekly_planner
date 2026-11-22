@@ -214,6 +214,7 @@ const en = {
   rename_label: "Edit setting",
   edit_bar: "Edit the day",
   hold_hint: "Keep your finger down to edit",
+  zone_action: "Opens the editor",
   handle: "Boundary {time}",
   // --- settings (0.6) ---
   lb_new: "New setting",
@@ -781,6 +782,7 @@ const fr: typeof en = {
   rename_label: "Modifier le réglage",
   edit_bar: "Modifier la journée",
   hold_hint: "Gardez le doigt appuyé pour modifier",
+  zone_action: "Ouvre l’éditeur",
   handle: "Limite {time}",
   lb_err_save: "Réglage non enregistré.",
   lb_delete: "Supprimer le réglage",

@@ -1163,7 +1163,7 @@ export class WpBarEditor extends LitElement {
     return html`
       <div class="zone ${this.editing ? "editing" : ""}" title=${this._tipText || (this.editing ? this._selectedTime : "")} tabindex=${ifDefined(this.editing ? undefined : 0)}
         role=${ifDefined(this.editing ? undefined : "button")} aria-label=${ifDefined(this.editing ? undefined : this._zoneLabel())}
-        aria-description=${ifDefined(this.editing || !this.editable ? undefined : t(this.lang, "hold_hint"))}
+        aria-description=${ifDefined(this.editing || !this.editable ? undefined : t(this.lang, "zone_action"))}
         aria-disabled=${ifDefined(this.lockedReason ? "true" : undefined)} aria-describedby=${ifDefined(this.lockedReason ? "locked-reason" : undefined)}
         @keydown=${this._zoneKey} @click=${this._zoneClick}
         @pointerdown=${(e: PointerEvent) => { this._tip = null; this._zoneDown(e); }}

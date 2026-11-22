@@ -239,12 +239,14 @@ describe("zone: keyboard and click without a pointer", () => {
 
 describe("zone: markup", () => {
   it("the zone says how to edit (aria-description) unless editing or read only; lock attributes only when locked", () => {
-    const hint = t("en", "hold_hint");
+    const hint = t("en", "zone_action"); // neutral: the keyboard (Enter) and the mouse open it too, not only a finger held down
+    expect(hint).not.toMatch(/finger/i);
+    expect(t("fr", "zone_action")).not.toMatch(/doigt/i);
     expect(flat(bar().render())).toContain(`aria-description=${hint}`);
     const ro = flat(bar(false).render());
-    expect(ro).not.toContain("aria-description=Keep");
+    expect(ro).not.toContain("aria-description=Opens");
     const editing = bar(); editing.editing = true;
-    expect(flat(editing.render())).not.toContain("aria-description=Keep");
+    expect(flat(editing.render())).not.toContain("aria-description=Opens");
     expect(flat(bar().render())).not.toContain("aria-disabled=true");
     const locked = bar(false); locked.lockedReason = "Because";
     const html = flat(locked.render());
@@ -253,7 +255,7 @@ describe("zone: markup", () => {
     expect(flat(bar().render())).not.toContain("locked-reason");
     expect(flat(bar().render())).toContain('class="hold-hint" role="status"></div>');
     const shown = bar(); shown._hint = true;
-    expect(flat(shown.render())).toContain(`role="status">${hint}</div>`);
+    expect(flat(shown.render())).toContain(`role="status">${t("en", "hold_hint")}</div>`); // the visible hint keeps the touch wording
   });
   it("the zone is not rendered without data; the editing zone has the editing class, no tab stop and no button role", () => {
     for (const drop of ["hass", "data", "program"]) {

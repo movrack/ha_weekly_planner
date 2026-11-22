@@ -492,7 +492,7 @@ export class WpProgramEditor extends LitElement {
       <div class="row">
         <div class="field"><label for="f-icon">${this._tr("pe_icon")}</label>
           ${this._picker
-            ? html`<ha-selector id="f-icon" .hass=${this.hass} .selector=${{ icon: {} }} .value=${p.icon ?? ""}
+            ? html`<ha-selector id="f-icon" .hass=${this.hass} .selector=${{ icon: {} }} .label=${this._tr("pe_icon")} .required=${false} .value=${p.icon ?? ""}
                 @value-changed=${(e: CustomEvent<{ value?: string }>) => this._setIcon(e.detail.value || null)}></ha-selector>`
             : html`<div class="row" style="flex-wrap:nowrap">
                 ${p.icon && customElements.get("ha-icon") ? html`<ha-icon .icon=${p.icon}></ha-icon>` : nothing}
