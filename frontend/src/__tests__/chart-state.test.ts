@@ -117,6 +117,9 @@ describe("card identity", () => {
     expect(cardIdentity({ title: "A", filter: {} })).not.toBe(cardIdentity({ title: "B", filter: {} }));
     expect(cardIdentity({ filter: { area: "x" } })).not.toBe(cardIdentity({ filter: {} }));
     expect(cardIdentity({ program: "p1" })).not.toBe(cardIdentity({ program: "p2" }));
+    // opening the charts by default starts afresh; the default (collapsed, set or not) keeps its identity
+    expect(cardIdentity({ title: "A", chart_collapsed: false })).not.toBe(cardIdentity({ title: "A" }));
+    expect(cardIdentity({ title: "A", chart_collapsed: true })).toBe(cardIdentity({ title: "A" }));
     expect(cardIdentity({ title: "A", program: "p1", filter: { area: "x" } })).toBe(cardIdentity({ title: "A", program: "p1" }));
   });
 });
