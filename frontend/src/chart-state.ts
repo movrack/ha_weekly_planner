@@ -30,12 +30,12 @@ export function saveChartChoices(choices: Map<string, boolean>): void {
 /**
  * Identity of a card for the remembered choices: its title and what it shows (program or filter). Lovelace gives a
  * card no id, so two cards with the same title and content share their choices; cards that differ keep their own.
- * "Open by default" is part of it: turning it on in the editor starts the charts open again, instead of an old closed choice
- * saved in this browser winning over the new option (the default, collapsed, keeps the identity it always had).
+ * `chart_epoch` is part of it: the editor raises it each time "Chart open by default" changes, so every device starts afresh
+ * with the new default instead of an old saved choice winning (no epoch keeps the identity it always had).
  */
-export function cardIdentity(config: { title?: string; program?: string; filter?: unknown; chart_collapsed?: boolean }): string {
+export function cardIdentity(config: { title?: string; program?: string; filter?: unknown; chart_epoch?: number }): string {
   const parts: unknown[] = [config.title ?? "", config.program ?? null, config.program === undefined ? config.filter ?? null : null];
-  if (config.chart_collapsed === false) parts.push("open");
+  if (config.chart_epoch) parts.push(config.chart_epoch);
   const text = JSON.stringify(parts);
   let h = 5381;
   for (let i = 0; i < text.length; i++) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0;

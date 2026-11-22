@@ -153,6 +153,11 @@ export class WeeklyPlannerCardEditor extends LitElement {
     this._emit(next as unknown as CardConfig);
   }
 
+  /** "Chart open by default": also raises `chart_epoch`, so saved browser choices no longer override the new default. */
+  private _setChartOpen(on: boolean): void {
+    this._emit({ ...this._config, chart_collapsed: !on, chart_epoch: (this._config.chart_epoch ?? 0) + 1 });
+  }
+
   /** How many programs the card shows with this configuration (what the selection gives); unknown before the data arrives. */
   private get _shown(): number | undefined {
     return this._data ? filterPrograms(this._data, { ...this._config, filter: this._filter, program: undefined }, this.hass).length : undefined;
@@ -416,7 +421,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
           ${this._switch(chartOn, this._tr("ce_show_chart"), (on) => this._set("show_chart", on), false, false, "ce-show-chart-hint", { expanded: chartOn, controls: "ce-chart-more" })}</div>
         <p id="ce-show-chart-hint" class="hint">${this._tr("ce_show_chart_hint")}</p>
         ${collapse(chartOn, html`<div class="switch-row"><span class="grow">${this._tr("ce_chart_open")}</span>
-          ${this._switch(c.chart_collapsed === false, this._tr("ce_chart_open"), (on) => this._set("chart_collapsed", !on), false, false, "ce-chart-open-hint")}</div>
+          ${this._switch(c.chart_collapsed === false, this._tr("ce_chart_open"), (on) => this._setChartOpen(on), false, false, "ce-chart-open-hint")}</div>
         <p id="ce-chart-open-hint" class="hint">${this._tr("ce_chart_open_hint")}</p>`, "ce-chart-more")}
       </fieldset>
     `;

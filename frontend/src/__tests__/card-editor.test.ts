@@ -564,11 +564,14 @@ describe("the Chart fieldset", () => {
       expect(out).toContain(t("en", "ce_show_chart")); // the parent switch never goes away
       expect(out).toContain(t("en", "ce_chart_open")); // the folded sub-option stays in the page, only inert
     });
-  it("the sub-option writes chart_collapsed (its opposite) and is no longer greyed", () => {
+  it("the sub-option writes chart_collapsed (its opposite), raises chart_epoch and is no longer greyed", () => {
     const el = mk({ show_chart: false });
-    el._set = vi.fn();
+    el._emit = vi.fn();
     eventNear(el.render(), "change", `aria-label=${t("en", "ce_chart_open")}`)({ target: { checked: true } });
-    expect(el._set).toHaveBeenCalledExactlyOnceWith("chart_collapsed", false);
+    expect(el._emit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ chart_collapsed: false, chart_epoch: 1 }));
+    el._config.chart_epoch = 4;
+    eventNear(el.render(), "change", `aria-label=${t("en", "ce_chart_open")}`)({ target: { checked: false } });
+    expect(el._emit).toHaveBeenLastCalledWith(expect.objectContaining({ chart_collapsed: true, chart_epoch: 5 }));
     expect(flat(el.render())).not.toContain("aria-disabled=true aria-label=Chart open by default");
   });
 });
