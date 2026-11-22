@@ -163,9 +163,11 @@ M3 1.7, 2.10, 5.5, 5.6, 6.7, 7.3. M4 règle « Public ». M5 règle « Histoire 
 « Entretien ». M8 section « Langues ». Mineurs : « plusieurs maisons » retiré ; « revenir en arrière » retiré
 (non pris en charge, non documenté) ; « coupure du cloud » devient « panne » (2.11).
 
-## Reste pour le propriétaire (max 5)
-1. Pour `README.fr.md` et `README.md` : on garde un lien vers `REFERENCE*.md` du dépôt comme seule référence d'intégrateur ? (oui/non)
-2. Faut-il fusionner `RECETTE_MEMES_HORAIRES` dans le guide (2.6) et supprimer la recette ? (oui/non)
-3. Les deux recettes « jour férié » attendent-elles la sortie de #54 (pas de page avant) ? (oui/non)
-4. Neuf recettes à ajouter : tu valides la liste, ou tu retires lesquelles ? (une ligne)
-5. Le script de publication `wiki/` vers le wiki GitHub (avec contrôle des liens) : on le crée dans `scripts/` ? (oui/non)
+## Décisions du propriétaire sur les 5 derniers points (2026-11-22)
+1. Les README (EN et FR) renvoient vers le **wiki**, pas vers `REFERENCE*.md` comme référence d'intégrateur.
+2. `RECETTE_MEMES_HORAIRES` est fusionnée dans le guide (2.6) ; la recette est supprimée (recommandation suivie).
+3. Les deux recettes « jour férié » sont écrites tout de suite, sans attendre la sortie de #54.
+4. Les neuf recettes à ajouter sont validées (chacune reste un cas réel et utile, règle du livre de recettes).
+5. Pas de script de publication du wiki pour l'instant : la resynchro reste manuelle (AGENTS.md).
+
+Plus aucune question ouverte sur le plan. Étape suivante : écrire les pages, une section à la fois.
