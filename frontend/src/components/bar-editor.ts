@@ -1138,7 +1138,7 @@ export class WpBarEditor extends LitElement {
     const ctx = this._ctx();
     const bar = (title: string, slots: Slot[]) => html`<div class="cfbar"><span>${title}</span>
       <wp-day-bar lang=${this.lang} notches .spans=${this._spansOf(slots)} .now=${null}></wp-day-bar></div>`;
-    return html`<wp-dialog open heading=${t(lang, "conflict_title")} @closed=${(e: Event) => { e.stopPropagation(); this._conflict = null; }}>
+    return html`<wp-dialog open heading=${c.days.length === 1 ? t(lang, "conflict_title_one", { day: days[c.days[0]] }) : t(lang, "conflict_title")} @closed=${(e: Event) => { e.stopPropagation(); this._conflict = null; }}>
       <div class="cf">
         ${c.days.map((d) => html`<div class="cfrow"><strong>${days[d]}</strong>
           ${bar(t(lang, "cf_before"), all[d] ?? [])}

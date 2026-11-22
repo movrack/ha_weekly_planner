@@ -260,7 +260,7 @@ describe("names of the strip and conflict controls", () => {
     const el = editor(); el.program.profiles[0].days[1] = [slot("busy", "10:00", "14:00")];
     el._conflict = { id: "a", to: [1], days: [1], skip: [] };
     const tpl = el._conflictDialog();
-    expect(attributes(tpl, "heading")).toEqual(["Already scheduled"]);
+    expect(attributes(tpl, "heading")).toEqual(["Tuesday already has schedules"]);
     expect(attributes(tpl, "aria-label")).toEqual(["Tuesday"]);
     expect(attributes(tpl, ".now")).toEqual([null, null]);
     const spans = attributes(tpl, ".spans");

@@ -49,4 +49,9 @@ describe("novice review 2: plain wording", () => {
     expect(t("fr", "lb_delete")).toBe("Supprimer ce réglage");
     expect(t("en", "lb_delete")).toBe("Delete this setting");
   });
+
+  it("the copy-conflict dialog names the day", () => {
+    expect(t("fr", "conflict_title_one", { day: "Lundi" })).toBe("Lundi a déjà des horaires");
+    expect(t("fr", "conflict_title")).toBe("Ces jours ont déjà des horaires");
+  });
 });
