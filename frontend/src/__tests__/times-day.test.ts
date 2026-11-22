@@ -77,12 +77,13 @@ describe("wp-times-day: buttons and sizes", () => {
     expect(flat(comp({ rows: [row()], editable: true }).render())).not.toContain('class="action"');
   });
 
-  it("an empty editable day keeps one 'Add a schedule' button (owner's exception); a read-only one has none", () => {
-    const empty = flat(comp({ rows: [], state: "ready", rest: "Eco", editable: true }).render());
-    expect(empty).toContain("Add a schedule");
-    expect(empty).toContain("mdi:plus");
-    expect(flat(comp({ rows: [], state: "ready", rest: "Eco", editable: false }).render())).not.toContain("Add a schedule");
-    expect(flat(comp({ rows: [], state: "loading", editable: true }).render())).not.toContain("Add a schedule");
+  it("an empty day has no 'Add a schedule' button, editable or not (owner, 2026-11-21)", () => {
+    for (const editable of [true, false]) {
+      const empty = flat(comp({ rows: [], state: "ready", rest: "Eco", editable }).render());
+      expect(empty).toContain("Nothing planned today");
+      expect(empty).not.toContain("Add a schedule");
+      expect(empty).not.toContain('class="action"');
+    }
   });
 
   it("a failure offers 'Try again', which asks the card to reload; loading has no button", () => {
@@ -356,8 +357,6 @@ describe("wp-times-day: details of a row and of its events", () => {
     const retry = comp({ state: "failed" });
     expect(flat(retry.render())).toContain("mdi:refresh");
     expect(ev(retry, (x) => find(x.render(), "click", 'class="action"').fn())[0].type).toBe("retry");
-    const add = comp({ rows: [], state: "ready", editable: true });
-    expect(ev(add, (x) => find(x.render(), "click", 'class="action"').fn())[0].type).toBe("open-day");
   });
 });
 
