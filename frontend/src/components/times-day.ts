@@ -17,6 +17,8 @@ export class WpTimesDay extends LitElement {
   @property() state: "ready" | "loading" | "failed" = "ready";
   /** Name of the setting applied the rest of the time (shown when the day is empty). */
   @property() rest = "";
+  /** The program is paused: an empty day says so instead of "Nothing planned today" (the engine applies no schedule while paused). */
+  @property({ type: Boolean }) paused = false;
   @property({ type: Boolean }) editable = false;
   /** A day off runs today: the rows are only read. */
   @property({ type: Boolean }) locked = false;
@@ -92,6 +94,7 @@ export class WpTimesDay extends LitElement {
   private _message() {
     if (this.state === "loading") return html`<p class="msg">${t(this.lang, "times_loading")}</p>`;
     if (this.state === "failed") return html`<p class="msg">${t(this.lang, "times_failed")}</p>`;
+    if (!this.rows.length && this.paused) return html`<p class="msg"><strong>${t(this.lang, "times_paused")}</strong></p>`;
     if (!this.rows.length) {
       return html`<p class="msg"><strong>${t(this.lang, "times_none")}</strong>
         ${this.rest ? html`<span>${t(this.lang, "times_rest", { name: this.rest })}</span>` : nothing}</p>`;

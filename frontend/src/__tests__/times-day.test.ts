@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { WpTimesDay } from "../components/times-day";
 import { WeeklyPlannerCard } from "../weekly-planner-card";
 import { normalizeConfig } from "../config";
-import { strings } from "../i18n";
+import { strings, t } from "../i18n";
 import { find, flat } from "./helpers/tpl";
 import type { TimesRow } from "../times-list";
 
@@ -26,6 +26,16 @@ describe("wp-times-day", () => {
     const ro = flat(comp({ rows: [row()], editable: false }).render());
     expect(ro).toContain("<ul");
     expect(ro).not.toContain("<button");
+  });
+
+  it("a paused program with an empty day says it is paused, not 'Nothing planned today'", () => {
+    const paused = flat(comp({ rows: [], paused: true, rest: "15 °C" }).render());
+    expect(paused).toContain(t("en", "times_paused"));
+    expect(paused).not.toContain(t("en", "times_none"));
+    expect(paused).not.toContain("15 °C");
+    const active = flat(comp({ rows: [], paused: false, rest: "15 °C" }).render());
+    expect(active).toContain(t("en", "times_none"));
+    expect(t("fr", "times_paused")).toBe("En pause : les horaires ne sont pas appliqués.");
   });
 
   it("says 'Now' in words with aria-current, not by colour only", () => {
@@ -177,7 +187,7 @@ describe("the card with schedule_view times", () => {
     const p = program("p", ["switch.a"]);
     p.profiles.push({ id: "b", name: "B", follows: "A", days: [[], [], [], [], [], [], []] } as any);
     const c = card([p], { mode: { selector: "x", options: ["A", "B"], active: "B" } });
-    const editable = (cc: any) => cc._todayBlock("switch.a", cc._data.programs[0], () => {}).values[3];
+    const editable = (cc: any) => cc._todayBlock("switch.a", cc._data.programs[0], () => {}).values[4];
     expect(editable(c)).toBe(false);
     expect(editable(card([program("p", ["switch.a"])]))).toBe(true);
   });

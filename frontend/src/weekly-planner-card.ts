@@ -744,7 +744,7 @@ export class WeeklyPlannerCard extends LitElement {
     const rows = state === "ready" ? timesRows(this._spans(entityId, [program], 0), {
       tz: this._tz, nowMin: localMinutes(this._now, this._tz), nowMs: this._now.getTime() }) : [];
     const rest = labelOf(this._data!, program.entities.find((e) => e.entity_id === entityId)?.default_label);
-    return html`<wp-times-day .rows=${rows} state=${state} .rest=${rest ? labelName(this.hass, rest) : t(this._lang, "rest_none")}
+    return html`<wp-times-day .rows=${rows} state=${state} ?paused=${!program.enabled} .rest=${rest ? labelName(this.hass, rest) : t(this._lang, "rest_none")}
       ?editable=${editable} ?hold=${hold} ?locked=${this._lockedText(program) !== ""} lang=${this._lang} device-name=${this._deviceLabel(program, entityId)}
       @open-day=${open} @retry=${() => this._retryPreviews()}></wp-times-day>`;
   }
