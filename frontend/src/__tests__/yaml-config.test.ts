@@ -6,7 +6,7 @@ import { filterPrograms } from "../planner";
 
 describe("YAML-only card configuration", () => {
   it("accepts every documented key unchanged", () => {
-    const cfg = { type: "custom:weekly-planner-card", title: "T", schedule_view: "radial_12h", show_chart: false, chart_collapsed: true,
+    const cfg = { type: "custom:weekly-planner-card", title: "T", schedule_view: "radial_12h", show_chart: false, chart_collapsed: true, week_collapsed: true,
       filter: { types: ["climate"], area: "Salon", programs: ["p1"] }, show_week: true, show_advanced: false };
     expect(normalizeConfig(cfg)).toEqual(cfg);
   });
@@ -52,14 +52,14 @@ describe("YAML-only card configuration", () => {
     const ed = new WeeklyPlannerCardEditor() as any;
     const out: any[] = [];
     ed.addEventListener("config-changed", (e: any) => out.push(e.detail.config));
-    ed.setConfig({ type: "x", chart_collapsed: true, future_option: 1, filter: { types: ["cover"], programs: ["a"], area: "Salon" } });
+    ed.setConfig({ type: "x", chart_collapsed: true, week_collapsed: true, future_option: 1, filter: { types: ["cover"], programs: ["a"], area: "Salon" } });
     ed._set("title", "Hello");
     ed._setFilter({ programs: ["a", "b"] });
-    expect(out[out.length - 1]).toEqual({ type: "x", chart_collapsed: true, schedule_view: "bars", show_chart: true, future_option: 1, title: "Hello", filter: { types: ["cover"], programs: ["a", "b"], area: "Salon" } });
+    expect(out[out.length - 1]).toEqual({ type: "x", chart_collapsed: true, week_collapsed: true, schedule_view: "bars", show_chart: true, show_week_button: true, future_option: 1, title: "Hello", filter: { types: ["cover"], programs: ["a", "b"], area: "Salon" } });
   });
   it("stub config lists every setting the visual editor shows, equal to the effective defaults", () => {
     const stub = WeeklyPlannerCard.getStubConfig();
-    expect(stub).toEqual({ filter: {}, schedule_view: "bars", show_chart: true, chart_collapsed: true });
+    expect(stub).toEqual({ filter: {}, schedule_view: "bars", show_chart: true, show_week_button: true, chart_collapsed: true, week_collapsed: true });
     const card = new WeeklyPlannerCard() as any;
     card.setConfig({ type: "x", ...stub });
     expect(card._config).toEqual({ type: "x", ...stub });
@@ -74,7 +74,7 @@ describe("YAML-only card configuration", () => {
     ed.setConfig({ type: "x", filter: {} });
     expect(out).toEqual([]);
     ed._set("show_chart", false);
-    expect(out[0]).toEqual({ type: "x", filter: {}, schedule_view: "bars", show_chart: false, chart_collapsed: true });
+    expect(out[0]).toEqual({ type: "x", filter: {}, schedule_view: "bars", show_chart: false, show_week_button: true, chart_collapsed: true, week_collapsed: true });
   });
   it("program mode gets no filter; roundtrip through the card is stable", () => {
     const ed = new WeeklyPlannerCardEditor() as any;
@@ -82,7 +82,7 @@ describe("YAML-only card configuration", () => {
     ed.addEventListener("config-changed", (e: any) => out.push(e.detail.config));
     ed.setConfig({ type: "x", program: "p1", future: 1 });
     ed._set("title", "T");
-    expect(out[0]).toEqual({ type: "x", program: "p1", future: 1, title: "T", schedule_view: "bars", show_chart: true, chart_collapsed: true });
+    expect(out[0]).toEqual({ type: "x", program: "p1", future: 1, title: "T", schedule_view: "bars", show_chart: true, show_week_button: true, chart_collapsed: true, week_collapsed: true });
     const card = new WeeklyPlannerCard() as any;
     card.setConfig(out[0]);
     expect(card._config).toEqual(out[0]);

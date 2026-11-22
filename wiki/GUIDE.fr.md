@@ -392,13 +392,12 @@ Si les boutons manquent, demander à cette personne de les ouvrir.
 
 Les intitulés de Home Assistant peuvent varier légèrement selon sa version.
 
-**Affichage de la carte** permet de choisir **Un seul programme** ou **Plusieurs programmes**.
-Dans **Programmes à afficher**, on réduit la liste puis on affine : une **Pièce** (une pastille, ou **Toutes les pièces**),
-un **Type** (les pastilles Climatisation, Ouverture… cochent d’un coup tous les programmes qui ont un appareil de ce type),
+Dans **Programmes à afficher** (on peut n’en choisir qu’un), on réduit la liste puis on affine : une **Pièce** (une pastille, ou **Toutes les pièces**),
+un **Type** (**Tous les types**, puis les pastilles Climatisation, Ouverture… cochent d’un coup tous les programmes qui ont un appareil de ce type),
 puis la liste **Programmes** : **Tous les programmes** (activé, la carte montre aussi les programmes créés plus tard),
-puis un interrupteur par programme, avec ses appareils dessous. La pièce et le type limitent la liste. Sous **Affichage**, choisir **Barres**, **Cadran 24 heures**, **Double
-cadran 12 heures**, **Liste compacte**, **Horaires du jour** ou **Comparateur**. Les cadrans sont aussi possibles en
-liste filtrée. L’interrupteur **Afficher les horaires** ajoute, sous les barres ou le cadran de chaque programme et
+puis les programmes regroupés par type (un pli par type, avec son icône et « x sur y » ; replié, sauf les types qui contiennent des programmes choisis), un interrupteur par programme, avec ses appareils dessous. La pièce et le type limitent la liste. Sous **Affichage** (intitulé **Affichage d’un programme** ou **Affichage de plusieurs programmes** selon la sélection), les choix dépendent du nombre de programmes choisis : avec **2 programmes ou plus**, **Liste compacte** ou **Comparateur** ;
+avec **un seul**, **Barres**, **Cadran 24 heures**, **Double cadran 12 heures** ou **Horaires du jour**. Si l’affichage enregistré ne convient plus
+après un changement de sélection, il est remplacé par le premier choix proposé et une note le dit. **Ordre de la liste** n’apparaît (replié sinon) qu’à partir de 2 programmes. Le groupe **Semaine** (**Bouton Semaine**, actif par défaut) montre ou cache le bouton **Semaine** sous chaque appareil ; la semaine reste dans la fenêtre des horaires. **Semaine ouverte par défaut** (repliée sous le bouton quand il est désactivé, désactivée par défaut) fait démarrer la semaine ouverte ; chacun peut l’ouvrir ou la fermer, le navigateur ne retient pas ce choix. L’interrupteur **Afficher les horaires** ajoute, sous les barres ou le cadran de chaque programme et
 au-dessus des boutons **Semaine** et **Graphique du jour**, la liste **Horaires** d’aujourd’hui (une ligne par période,
 avec son réglage) ; un appui long sur une ligne (souris aussi), ou Entrée ou Espace, ouvre cet horaire quand la modification est permise ; un simple clic ne l’ouvre pas (clé `show_schedule_list`).
 Cette liste n’existe ni en liste compacte, ni en **Comparateur**, ni en **Horaires du jour**, qui est déjà cette liste.
@@ -434,7 +433,7 @@ horaires de ce mode**. Les onglets se parcourent aux flèches, avec Début et Fi
 Dans **Général**, **Pièce du programme** permet de le ranger, par exemple dans
 Salon. Choisir une pièce de Home Assistant ou une pièce déjà utilisée par un programme dans la liste, ou **Autre pièce…** pour en écrire une nouvelle. Cette pièce est propre
 au programme : elle n’est pas reprise automatiquement de la pièce d’un appareil.
-Dans **Affichage de la carte → Plusieurs programmes**, choisir ensuite cette pièce ou
+Dans **Programmes à afficher**, choisir ensuite cette pièce ou
 **Toutes les pièces**. Si la carte est vide, vérifier ses filtres.
 
 **Attention aux deux enregistrements :** **Enregistrer la carte** (dans Home Assistant) ne change que la présentation de cette carte ;

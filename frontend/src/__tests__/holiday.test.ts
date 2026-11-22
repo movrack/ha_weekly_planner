@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { cardIdentity, chartKey } from "../chart-state";
+import { scopeKey } from "../components/schedule-dialog";
 import { allSlots, dayInText, holidayApplies, holidayChoice, holidayDayToday, holidayKind, holidayLine, holidayOwnSlots, holidayReplaces } from "../holiday";
 import { strings, t } from "../i18n";
 import { specText } from "../actions";
@@ -109,13 +111,6 @@ describe("card on a day off", () => {
     el.locked = true;
     const t = flat(el.render());
     expect(t).not.toContain('class="action"');
-  });
-  it("a locked empty day shows no Add a schedule button, an unlocked one does", () => {
-    const el = new WpTimesDay() as any;
-    el.lang = "en"; el.editable = true; el.state = "ready"; el.rows = [];
-    expect(flat(el.render())).toContain('class="action"');
-    el.locked = true;
-    expect(flat(el.render())).not.toContain('class="action"');
   });
 });
 
@@ -945,7 +940,7 @@ describe("day-off row under Sunday in the week schematics", () => {
     const b = cardWeek(profile({ day: [slot("h", "10:00", "11:00")] }));
     expect(spansOf(b.c._holidayRow("cover.b", b.p))[0].map((s) => [s.start, s.end])).toEqual([[600, 660]]);
     // in the week, right after the seven day rows
-    b.c._week = new Set(["p:p|cover.b"]);
+    b.c._week = new Map([[chartKey(cardIdentity(b.c._config, "week_epoch"), scopeKey({ kind: "program", programId: "p" } as any), "cover.b"), true]]);
     const open = flat(b.c._extras({ kind: "program", programId: "p" }, "cover.b", [b.p]));
     expect(open).toContain("wday-off");
     expect(open.indexOf("wday-off")).toBeGreaterThan(open.lastIndexOf('class="wday"'));

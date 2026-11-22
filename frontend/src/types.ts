@@ -214,10 +214,18 @@ export interface CardConfig {
   /** Deprecated: accepted and ignored (the week list is always collapsible); kept so existing YAML never breaks. */
   show_week?: boolean;
   show_chart?: boolean;
+  /** Show the Week button (the next days, one bar each) under each device. Default true; off hides it on the card only, never in the schedule window. */
+  show_week_button?: boolean;
   /** Optional: list today's schedules (Daily times rows) under the bars / circular graphic. Default false. */
   show_schedule_list?: boolean;
   /** Optional: start with the day chart collapsed. */
   chart_collapsed?: boolean;
+  /** Raised by the editor each time `chart_collapsed` changes, so devices drop their saved open/closed choice. Do not edit by hand. */
+  chart_epoch?: number;
+  /** Week bars under each device start folded (default) or open (`false`). */
+  week_collapsed?: boolean;
+  /** Raised by the editor each time `week_collapsed` changes (same role as `chart_epoch`). Do not edit by hand. */
+  week_epoch?: number;
   /** Deprecated: accepted and ignored; kept so existing YAML never breaks. */
   show_advanced?: boolean;
 }

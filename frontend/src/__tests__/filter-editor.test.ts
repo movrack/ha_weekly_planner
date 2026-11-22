@@ -43,6 +43,10 @@ describe("editor type groups and switches", () => {
     const on = apply(off, toggleType(programs, off, "cover", true));
     expect(shown(on)).toEqual(["a", "b", "c", "d"]);
   });
+  it("from nothing restricted, a type chip selects only that type (fromAll)", () => {
+    const f = apply({}, toggleType(programs, {}, "cover", true, programs, true));
+    expect(shown(f)).toEqual(["a", "b"]);
+  });
   it("enabling a program outside a legacy type filter widens types without revealing its siblings", () => {
     const f0 = { types: ["cover"] };
     const f = apply(f0, toggleProgram(programs, f0, "c", true));

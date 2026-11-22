@@ -18,7 +18,7 @@ export class WpTimesDay extends LitElement {
   /** Name of the setting applied the rest of the time (shown when the day is empty). */
   @property() rest = "";
   @property({ type: Boolean }) editable = false;
-  /** A day off runs today: the rows are only read and the empty state offers no "Add a schedule" button. */
+  /** A day off runs today: the rows are only read. */
   @property({ type: Boolean }) locked = false;
   @property() lang = "en";
   /** Program (and device) the list belongs to: names the rows when several lists share the screen. */
@@ -106,7 +106,6 @@ export class WpTimesDay extends LitElement {
       ${shown && this.hold && this.editable && !this.locked ? html`<p class="hint" role="status">${this._hold.hint ? t(this.lang, "hold_hint") : nothing}</p>` : nothing}
       ${shown ? html`<ul role="list" aria-label=${t(this.lang, "times_list_label")}>${this.rows.map((r) => this._row(r))}</ul>`
       : this.state === "failed" ? this._button(t(this.lang, "times_retry"), "mdi:refresh", () => this._retry())
-      : this.state === "ready" && this.editable && !this.locked ? this._button(t(this.lang, "times_add"), "mdi:plus", () => this._open())
       : nothing}`;
   }
 

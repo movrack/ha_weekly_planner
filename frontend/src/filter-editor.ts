@@ -70,9 +70,11 @@ export function toggleProgram(programs: Program[], filter: FilterConfig | undefi
   return build(programs, filter, ids, on && p ? domainsOf(p) : []);
 }
 
-/** `visible` = the programs the editor lists (a room is chosen): only those change, the others keep their state. */
-export function toggleType(programs: Program[], filter: FilterConfig | undefined, type: string, on: boolean, visible: Program[] = programs): FilterPatch {
+/** `fromAll` = nothing is restricted yet: the chip selects only this type. `visible` = the programs the editor lists (a room is chosen): only those change, the others keep their state. */
+export function toggleType(programs: Program[], filter: FilterConfig | undefined, type: string, on: boolean, visible: Program[] = programs, fromAll = false): FilterPatch {
   const ids = currentIds(programs, filter);
+  // from "All types" a type chip selects only that type (like a room chip from "All rooms"), it does not exclude it
+  if (fromAll) for (const p of visible) ids.delete(p.id);
   const members = visible.filter((p) => domainsOf(p).includes(type));
   for (const p of members) { if (on) ids.add(p.id); else ids.delete(p.id); }
   const patch = build(programs, filter, ids, on ? [type] : []);

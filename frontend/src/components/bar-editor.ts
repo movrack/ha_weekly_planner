@@ -1072,12 +1072,18 @@ export class WpBarEditor extends LitElement {
     const idle = !sel || Boolean(this._ask);
     const noSlot = !sel?.slot || idle;
     const canCut = !idle && sel.end !== null && (sel.slot ? Boolean(sel.slot.end) : Boolean(ctx.defaultLabel)) && middle(sel.start, sel.end) !== null;
+    // why "Split in two" alone is greyed while something is selected
+    const cutWhy = idle || canCut ? null
+      : sel.end === null ? t(lang, "strip_cut_point")
+      : sel.slot && !sel.slot.end ? t(lang, "strip_cut_open")
+      : !sel.slot && !ctx.defaultLabel ? t(lang, "strip_cut_nodefault")
+      : t(lang, "strip_cut_short");
     const days = strings(lang).days_short;
     return html`<div class="strip" role="group">
       <div class="acts">
         <button class="act" ?disabled=${noSlot} aria-disabled=${ariaDisabled(noSlot)} aria-describedby=${describedBy(noSlot, "why-strip")} @click=${() => void this._nothing()}><ha-icon icon="mdi:close-circle-outline"></ha-icon>${t(lang, "strip_erase")}</button>
         <div class="grp" role="group" aria-label=${t(lang, "grp_time")}>
-          <button class="act" ?disabled=${!canCut} aria-label=${`${t(lang, "cut")}. ${t(lang, "cut_hint")}`} title=${t(lang, "cut_hint")} aria-describedby=${describedBy(idle, "why-strip")} @click=${() => this._cut()}>
+          <button class="act" ?disabled=${!canCut} aria-disabled=${ariaDisabled(!canCut)} aria-label=${`${t(lang, "cut")}. ${t(lang, "cut_hint")}`} title=${t(lang, "cut_hint")} aria-describedby=${cutWhy ? "why-cut" : describedBy(idle, "why-strip")} @click=${() => this._cut()}>
             <ha-icon icon="mdi:arrow-split-vertical"></ha-icon>${t(lang, "cut")}</button>
         </div>
         <div class="grp" role="group" aria-label=${t(lang, "grp_days")}>
@@ -1087,6 +1093,7 @@ export class WpBarEditor extends LitElement {
         </div>
       </div>
       ${whyNote("why-strip", why ?? "", why !== null)}
+      ${whyNote("why-cut", cutWhy ?? "", cutWhy !== null)}
       ${this._copyOpen && !noSlot ? html`<div class="copy wp-appear">
         ${days.map((name, d) => d === this.weekday ? nothing : html`<button class="dchip ${this._copyDays.includes(d) ? "on" : ""}"
           role="checkbox" aria-checked=${this._copyDays.includes(d)} @click=${() => this._toggleDay(d)}>${name}</button>`)}

@@ -16,7 +16,6 @@ const mk = (config: any = {}, programs: any[] = [prog("a", "Alpha"), prog("b", "
   el.hass = { language: "en", states: {}, areas: {}, user: { is_admin: true }, loadBackendTranslation: vi.fn(async () => () => "") };
   el._config = { type: "custom:weekly-planner-card", ...config };
   el._data = { programs, labels: [], status: {}, can_edit: true, read_only: false };
-  el._programs = programs.map((p: any) => ({ id: p.id, name: p.name }));
   el.dispatchEvent = vi.fn();
   return el;
 };
@@ -41,7 +40,7 @@ describe("echo guard of setConfig", () => {
     el._set("title", "B");
     expect(sent(el)[0].title).toBe("B");
     el.dispatchEvent.mockClear();
-    el.setConfig({ type: CARD, title: "B", schedule_view: "bars", show_chart: true, chart_collapsed: true, filter: {} });
+    el.setConfig({ type: CARD, title: "B", schedule_view: "bars", show_chart: true, show_week_button: true, chart_collapsed: true, week_collapsed: true, filter: {} });
     expect(el._config.title).toBe("B");
     expect(sent(el)).toEqual([]);
   });
@@ -87,7 +86,7 @@ describe("echo guard of setConfig", () => {
     el.dispatchEvent.mockClear();
     const config = el._config;
     const guard = el._sent;
-    el.setConfig({ chart_collapsed: true, show_chart: true, schedule_view: "bars", title: "After", filter: { programs: ["b", "a"], area: ["z", "a"] }, type: CARD });
+    el.setConfig({ chart_collapsed: true, week_collapsed: true, show_chart: true, show_week_button: true, schedule_view: "bars", title: "After", filter: { programs: ["b", "a"], area: ["z", "a"] }, type: CARD });
     expect(el._config).toBe(config);
     expect(el._sent).toBe(guard);
     expect(sent(el)).toEqual([]);
@@ -103,14 +102,8 @@ describe("edits of the config", () => {
   it("any other value sets the key and the full effective config is sent", () => {
     const el = mk({ title: "A", program: "a" });
     el._set("show_chart", false);
-    expect(sent(el)[0]).toEqual({ type: CARD, title: "A", program: "a", schedule_view: "bars", show_chart: false, chart_collapsed: true });
+    expect(sent(el)[0]).toEqual({ type: CARD, title: "A", program: "a", schedule_view: "bars", show_chart: false, show_week_button: true, chart_collapsed: true, week_collapsed: true });
     expect(el._config).toEqual(sent(el)[0]);
-  });
-  it("choosing a program keeps the other keys and fills in the defaults", () => {
-    const el = mk({ title: "A", program: "a" });
-    el._set("title", "B");
-    el._set("program", "b");
-    expect(sent(el)[1]).toMatchObject({ program: "b", schedule_view: "bars", show_chart: true, chart_collapsed: true });
   });
   it("config events bubble through the dashboard shadow root", () => {
     const el = mk();
@@ -121,27 +114,43 @@ describe("edits of the config", () => {
     expect(event.composed).toBe(true);
     expect(event.detail.config.title).toBe("Kitchen");
   });
-  it("switching to one program picks the first one and drops the filter", () => {
-    const el = mk({ filter: { types: ["cover"] } });
-    el._setMode(true);
-    expect(sent(el)[0].program).toBe("a");
+  it("a saved single program is shown as the selection of that program and nothing is rewritten before a change", () => {
+    const el = mk({ program: "b" });
+    expect(el._filter).toEqual({ programs: ["b"] });
+    expect(sent(el)).toEqual([]);
+    expect(mk({ program: "" })._filter).toEqual({}); // the card shows every program for an empty `program`
+    expect(mk({})._filter).toEqual({});
+    expect(mk({ filter: { types: ["light"] } })._filter).toEqual({ types: ["light"] });
+  });
+  it("a change that is not a selection leaves a saved single program as it is", () => {
+    const el = mk({ title: "A", program: "b" });
+    el._set("title", "B");
+    expect(sent(el)[0]).toMatchObject({ title: "B", program: "b" });
     expect("filter" in sent(el)[0]).toBe(false);
   });
-  it("switching to one program with no program leaves the choice empty, and an empty choice still is the one-program mode", () => {
-    const none = mk({}, []);
-    none._setMode(true);
-    expect(sent(none)[0].program).toBe("");
-    expect(mk({ program: "" })._isProgram).toBe(true);
-    expect(mk({})._isProgram).toBe(false);
-  });
-  it("back to a list: with no types the list is empty, with types they are kept", () => {
-    const el = mk({ program: "a" });
-    el._setMode(false);
+  it("the first change of the selection moves a saved single program to the filter, leaving any old filter aside", () => {
+    const el = mk({ program: "b", filter: { types: ["light"] } });
+    el._setFilter({ area: "k" });
+    expect(sent(el)[0].filter).toEqual({ programs: ["b"], area: "k" });
     expect("program" in sent(el)[0]).toBe(false);
-    expect(sent(el)[0].filter).toEqual({ types: [] });
-    const typed = mk({ program: "b", filter: { types: ["light"], area: "k" } });
-    typed._setMode(false);
-    expect(sent(typed)[0].filter).toEqual({ types: ["light"], area: "k" });
+    const empty = mk({ program: "" });
+    empty._setFilter({ area: "k" });
+    expect(sent(empty)[0].filter).toEqual({ area: "k" });
+  });
+  it("a saved single program, once migrated, still shows exactly the programs the card showed", async () => {
+    const { filterPrograms } = await import("../planner");
+    const data: any = { programs: [prog("a", "Alpha"), prog("b", "Beta")] };
+    for (const ref of ["b", "beta", "Béta", "nobody"]) {
+      const el = mk({ program: ref });
+      el._setFilter({});
+      expect(filterPrograms(data, sent(el)[0]).map((p) => p.id)).toEqual(filterPrograms(data, { program: ref }).map((p) => p.id));
+    }
+  });
+  it("a program chosen in the tree of a saved single program replaces it in the filter", () => {
+    const el = mk({ program: "a" });
+    el._treeChange({ programs: ["a", "c"] });
+    expect(sent(el)[0].filter).toEqual({ programs: ["a", "c"] });
+    expect("program" in sent(el)[0]).toBe(false);
   });
   it.each([
     ["no types", { types: ["cover"], area: "k", programs: ["a"] }, { types: [] }, { area: "k", programs: ["a"] }],
@@ -165,21 +174,12 @@ describe("edits of the config", () => {
 describe("form fields of the display tab", () => {
   it.each([
     ["ce-title", "input", "Living room", "title"],
-    ["ce-program", "change", "b", "program"],
     ["ce-view", "change", "compare", "schedule_view"],
   ])("the field %s sets %s of the config", (id, event, value, key) => {
-    const el = mk({ program: "a" });
+    const el = mk({ filter: { programs: ["a"] } });
     el._set = vi.fn();
     eventNear(el.render(), event, `id="${id}"`)({ target: { value } });
     expect(el._set).toHaveBeenCalledExactlyOnceWith(key, value);
-  });
-  it("the two mode choices switch to one program and back to a list", () => {
-    const el = mk({ program: "a" });
-    el._setMode = vi.fn();
-    const changes = handlers(el.render()).filter((h) => h.event === "change" && h.before.slice(-200).includes('name="ce-mode"'));
-    expect(changes).toHaveLength(2);
-    changes[0].fn(); expect(el._setMode).toHaveBeenLastCalledWith(true);
-    changes[1].fn(); expect(el._setMode).toHaveBeenLastCalledWith(false);
   });
 });
 
@@ -412,7 +412,6 @@ describe("snapshot subscription", () => {
     const snapshot = { programs: [{ id: "a", name: "Alpha" }] };
     subscription.subscribe.mock.calls[0][1](snapshot);
     expect(el._data).toBe(snapshot);
-    expect(el._programs).toEqual([{ id: "a", name: "Alpha" }]);
     el.updated();
     expect(subscription.subscribe).toHaveBeenCalledTimes(1);
     expect(el._loadDomainNames).toHaveBeenCalledTimes(2);
@@ -451,6 +450,164 @@ describe("manage programs entry", () => {
   });
 });
 
+describe("Show the schedules switch follows the display view", () => {
+  it.each([
+    ["bars", false], [undefined, false], ["radial", false], ["radial_12h", false],
+    ["times", true], ["list", true], ["compare", true],
+  ])("view %s: the switch is greyed = %s, with its reason", (view, greyed) => {
+    const out = flat(mk({ ...(view ? { schedule_view: view } : {}) }).render());
+    expect(out.includes(t("en", "ce_show_schedule_list_why"))).toBe(greyed);
+    expect(out.includes("aria-describedby=why-schedule-list")).toBe(greyed);
+    expect(out.includes("aria-disabled=true")).toBe(greyed);
+    expect(out.includes(t("en", "ce_show_schedule_list"))).toBe(true); // never removed
+  });
+});
+
+describe("List order folds under two programs", () => {
+  it.each([
+    ["all programs", {}, true],
+    ["two selected", { filter: { programs: ["a", "b"] } }, true],
+    ["one selected", { filter: { programs: ["a"] } }, false],
+    ["none selected", { filter: { programs: [] } }, false],
+    ["a saved single program", { program: "a" }, false],
+  ])("%s: the list order is unfolded = %s", (_name, config, open) => {
+    const out = flat(mk(config).render());
+    expect(out.includes('class="wp-collapse open" id=ce-sort-fold')).toBe(open);
+    expect(out.includes('class="wp-collapse " id=ce-sort-fold')).toBe(!open);
+    expect(out.includes(t("en", "ce_sort"))).toBe(true); // drawn but folded (inert), not removed or greyed
+    expect(out.includes("why-sort")).toBe(false);
+  });
+  it("the custom order list folds with its field", () => {
+    const folded = flat(mk({ sort: "custom", filter: { programs: ["a"] } }).render());
+    expect(folded.indexOf('id=ce-sort-fold')).toBeLessThan(folded.indexOf('class="order-list"'));
+    expect(folded).toContain('class="wp-collapse " id=ce-sort-fold');
+  });
+  it("before the data arrives the field is unfolded", () => {
+    const el = mk({ filter: { programs: ["a"] } });
+    el._data = undefined;
+    expect(flat(el.render())).toContain('class="wp-collapse open" id=ce-sort-fold');
+  });
+});
+
+describe("the display views follow the number of selected programs", () => {
+  const offered = (el: any) => [...flat(el.render()).matchAll(/<option value=(\w+) \?selected=/g)].map((m) => m[1]).filter((v) => v !== "type" && v !== "area" && v !== "name" && v !== "custom");
+  it.each([
+    ["several programs", { filter: {} }, ["list", "compare"]],
+    ["exactly one", { filter: { programs: ["a"] } }, ["bars", "radial", "radial_12h", "times"]],
+    ["none", { filter: { programs: [] } }, ["bars", "radial", "radial_12h", "list", "times", "compare"]],
+  ])("%s: the offered views", (_name, config, views) => {
+    expect(offered(mk({ ...config, schedule_view: views[0] }))).toEqual(views);
+  });
+  it.each([
+    ["several programs", { filter: {} }, "Display of several programs", "Affichage de plusieurs programmes"],
+    ["exactly one", { filter: { programs: ["a"] } }, "Display of one program", "Affichage d’un programme"],
+    ["none", { filter: { programs: [] } }, "Display", "Affichage"],
+  ])("%s: the label of the field says so and stays tied to its select", (_n, config, en, fr) => {
+    const out = flat(mk(config).render());
+    expect(out).toMatch(new RegExp(`<label for="?ce-view"?>${en}</label>`));
+    expect(out).toMatch(/<select id="?ce-view/);
+    const key = en === "Display" ? "ce_schedule_view" : en.includes("several") ? "ce_schedule_view_many" : "ce_schedule_view_one";
+    expect([t("en", key), t("fr", key)]).toEqual([en, fr]);
+  });
+  it("a saved view that does not fit stays selected, with a visible note, and nothing is rewritten", () => {
+    const el = mk({ filter: {}, schedule_view: "bars" });
+    expect(offered(el)).toEqual(["list", "compare", "bars"]);
+    expect(flat(el.render())).toContain(t("en", "ce_view_unavailable", { view: t("en", "ce_bars") }));
+    expect(sent(el)).toEqual([]);
+  });
+  it("selecting down to one program replaces a comparison view by the first view offered, and says so", () => {
+    const el = mk({ filter: {}, schedule_view: "compare" });
+    el._treeChange({ programs: ["a"] });
+    expect(sent(el)[0].schedule_view).toBe("bars");
+    expect(flat(el.render())).toContain(t("en", "ce_view_changed", { from: t("en", "ce_compare"), to: t("en", "ce_bars") }));
+  });
+  it("selecting several programs replaces bars by the compact list, and says so", () => {
+    const el = mk({ filter: { programs: ["a"] }, schedule_view: "bars" });
+    el._treeChange({ programs: ["a", "b"] });
+    expect(sent(el)[0].schedule_view).toBe("list");
+    expect(flat(el.render())).toContain(t("en", "ce_view_changed", { from: t("en", "ce_bars"), to: t("en", "ce_list") }));
+  });
+  it("a view that still fits is kept and no note is shown; choosing a view by hand clears the note", () => {
+    const el = mk({ filter: {}, schedule_view: "list" });
+    el._treeChange({ programs: ["a", "b"] });
+    expect(sent(el)[0].schedule_view).toBe("list");
+    expect(el._viewChanged).toBeUndefined();
+    el._treeChange({ programs: ["a"] });
+    expect(el._viewChanged).toEqual({ from: "list", to: "bars" });
+    el._set("schedule_view", "times");
+    expect(el._viewChanged).toBeUndefined();
+  });
+  it("emptying the selection keeps the view: nothing is drawn, and the pick is not lost while choosing", () => {
+    const el = mk({ filter: {}, schedule_view: "list" });
+    el._treeChange({ programs: [] });
+    expect(sent(el)[0].schedule_view).toBe("list");
+  });
+  it("a saved single program counts as one program", () => {
+    expect(offered(mk({ program: "a", schedule_view: "times" }))).toEqual(["bars", "radial", "radial_12h", "times"]);
+  });
+});
+
+describe("the Chart fieldset", () => {
+  it("the two chart switches sit in a fieldset with a visible legend, the parent switch first", () => {
+    const out = flat(mk({}).render());
+    const set = out.slice(out.indexOf(`<legend>${t("en", "ce_chart_group")}</legend>`));
+    expect(out).toMatch(/<fieldset class="group"><legend>Chart<\/legend>/);
+    expect(set.indexOf(t("en", "ce_show_chart"))).toBeLessThan(set.indexOf(t("en", "ce_chart_open")));
+    expect(out.match(/<\/fieldset>/g)).toHaveLength(2);
+  });
+  it.each([[{}, "true", true], [{ show_chart: true }, "true", true], [{ show_chart: false }, "false", false]])(
+    "%j: the parent switch says aria-expanded=%s and the sub-option folds under it (open = %s)", (config, expanded, open) => {
+      const out = flat(mk(config).render());
+      expect(out).toContain(`aria-expanded=${expanded} aria-controls=ce-chart-more`);
+      expect(out.includes('class="wp-collapse open" id=ce-chart-more')).toBe(open);
+      expect(out.includes('class="wp-collapse " id=ce-chart-more')).toBe(!open);
+      expect(out).toContain(t("en", "ce_show_chart")); // the parent switch never goes away
+      expect(out).toContain(t("en", "ce_chart_open")); // the folded sub-option stays in the page, only inert
+    });
+  it("the sub-option writes chart_collapsed (its opposite), raises chart_epoch and is no longer greyed", () => {
+    const el = mk({ show_chart: false });
+    el._emit = vi.fn();
+    eventNear(el.render(), "change", `aria-label=${t("en", "ce_chart_open")}`)({ target: { checked: true } });
+    expect(el._emit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ chart_collapsed: false, chart_epoch: 1 }));
+    el._config.chart_epoch = 4;
+    eventNear(el.render(), "change", `aria-label=${t("en", "ce_chart_open")}`)({ target: { checked: false } });
+    expect(el._emit).toHaveBeenLastCalledWith(expect.objectContaining({ chart_collapsed: true, chart_epoch: 5 }));
+    expect(flat(el.render())).not.toContain("aria-disabled=true aria-label=Chart open by default");
+  });
+});
+
+describe("the All types chip, like All rooms", () => {
+  const types = (el: any) => flat(el.render()).split('id="ce-types-label"')[1].split('id="ce-types-hint"')[0];
+  it("it comes first among the type chips and is on while no type or program restricts the card", () => {
+    const el = mk({ filter: {} }, [prog("a", "Alpha", ["cover.a"]), prog("b", "Beta", ["light.b"])]);
+    expect(types(el).indexOf(t("en", "ce_all_types"))).toBeLessThan(types(el).indexOf("data-type=cover"));
+    expect(types(el)).toMatch(/chip on" aria-pressed=true\s+@click=>.*All types/);
+    expect(t("en", "ce_all_types")).toBe("All types");
+    expect(t("fr", "ce_all_types")).toBe("Tous les types");
+  });
+  it.each([["a type kept", { types: ["cover"] }], ["programs picked", { programs: ["a"] }]])("%s: the chip is off", (_n, filter) => {
+    const el = mk({ filter }, [prog("a", "Alpha", ["cover.a"]), prog("b", "Beta", ["light.b"])]);
+    expect(types(el)).toMatch(/chip off" aria-pressed=false\s+@click=>All types/);
+  });
+  it("a click clears the types and the programs, and keeps the room", () => {
+    const el = mk({ filter: { types: ["cover"], programs: ["a"], area: "k" } });
+    const all = handlers(el.render()).find((h) => h.event === "click" && h.before.includes('id="ce-types-label"'))!;
+    all.fn();
+    expect(sent(el)[0].filter).toEqual({ area: "k" });
+  });
+  it("from All types a type chip selects only that type, like a room chip from All rooms; a second click on it excludes it", () => {
+    const el = mk({ filter: {} }, [prog("a", "Alpha", ["cover.a"]), prog("b", "Beta", ["light.b"])]);
+    const chip = (e: any) => handlers(e.render()).find((h) => h.event === "click" && h.before.slice(-400).includes("data-type=cover"))!;
+    chip(el).fn();
+    expect(sent(el)[0].filter.programs).toEqual(["a"]);
+    chip(el).fn();
+    expect(sent(el)[1].filter.programs).toEqual([]);
+  });
+  it("it stays when no program has a type yet", () => {
+    expect(types(mk({ filter: {} }, []))).toContain(t("en", "ce_all_types"));
+  });
+});
+
 describe("card editor: touch targets", () => {
   // Layout at 360 px (UI review 2026-02-10): touch targets, wrapping, no word cut in a program name.
   it("fits a 360 px screen: 44 px type chips that wrap, program names not cut mid-word, notice button inside its box", () => {
@@ -459,5 +616,80 @@ describe("card editor: touch targets", () => {
     expect(css).toMatch(/\.chips \{[^}]*flex-wrap: wrap/);
     expect(css).toMatch(/\.type-title \{[^}]*overflow-wrap: normal/);
     expect(css).toMatch(/\.callout \.btn \{[^}]*max-width: 100%[^}]*white-space: normal/);
+  });
+});
+
+describe("the programs list grouped by type", () => {
+  const progs = () => [prog("a", "Alpha", ["cover.a"]), prog("b", "Beta", ["cover.b"]), prog("c", "Gamma", ["light.c"]), prog("m", "Mixed", ["cover.m", "light.m"])];
+  const list = (el: any) => flat(el.render()).split('id="ce-all-hint"')[1].split("</details>")[0];
+  const group = (el: any, type: string) => list(el).split(`class="type-group" data-type=${type}`)[1].split('class="type-group"')[0];
+  it("All programs stays on top, then one fold per type, each a button with aria-expanded and aria-controls", () => {
+    const out = list(mk({ filter: {} }, progs()));
+    expect(out.indexOf("type-group")).toBeGreaterThan(-1);
+    expect(out).toMatch(/type-head"[^>]*id=ce-type-cover-btn aria-expanded=false aria-controls=ce-type-cover-body/);
+    expect(out).toContain("class=\"wp-collapse \" id=ce-type-cover-body");
+  });
+  it("with All programs every group starts folded", () => {
+    expect(list(mk({ filter: {} }, progs())).match(/aria-expanded=true/g)).toBeNull();
+  });
+  it("with a selection, only the groups holding selected programs start open, and the count says selected of total", () => {
+    const el = mk({ filter: { programs: ["c"] } }, progs());
+    expect(group(el, "light")).toContain("aria-expanded=true");
+    expect(group(el, "light")).toContain("1 of 2");
+    expect(group(el, "cover")).toContain("aria-expanded=false");
+    expect(group(el, "cover")).toContain("0 of 3");
+  });
+  it("a program of two types is listed under both", () => {
+    const el = mk({ filter: {} }, progs());
+    expect(group(el, "cover")).toContain("data-program=m");
+    expect(group(el, "light")).toContain("data-program=m");
+  });
+  it("the user's fold choice wins over the default", () => {
+    const el = mk({ filter: { programs: ["c"] } }, progs());
+    eventNear(el.render(), "click", "id=ce-type-light-btn")();
+    expect(group(el, "light")).toContain("aria-expanded=false");
+    eventNear(el.render(), "click", "id=ce-type-cover-btn")();
+    expect(group(el, "cover")).toContain("aria-expanded=true");
+  });
+  it("a row switch still edits the selection", () => {
+    const el = mk({ filter: {} }, progs());
+    el._treeChange = vi.fn();
+    eventNear(el.render(), "change", "aria-label=Alpha")({ target: { checked: false } });
+    expect(el._treeChange).toHaveBeenCalledOnce();
+  });
+});
+
+describe("the Week fieldset", () => {
+  it("a Week fieldset comes before the Chart one (owner, 2026-11-22), with the Week button switch and its hint, on by default", () => {
+    const out = flat(mk({}).render());
+    expect(out.indexOf(`<legend>${t("en", "ce_week_group")}</legend>`)).toBeLessThan(out.indexOf(`<legend>${t("en", "ce_chart_group")}</legend>`));
+    expect(out).toContain(`aria-label=${t("en", "ce_show_week")} aria-describedby=ce-show-week-hint`);
+    expect(out).toContain(t("en", "ce_show_week_hint"));
+    expect(out).not.toContain("aria-disabled=true aria-label=Week button");
+  });
+  it("the switch writes show_week_button", () => {
+    const el = mk({});
+    el._set = vi.fn();
+    eventNear(el.render(), "change", `aria-label=${t("en", "ce_show_week")}`)({ target: { checked: false } });
+    expect(el._set).toHaveBeenCalledExactlyOnceWith("show_week_button", false);
+  });
+  it.each([[{}, "true", true], [{ show_week_button: true }, "true", true], [{ show_week_button: false }, "false", false]])(
+    "%j: the Week switch says aria-expanded=%s and the sub-option folds under it (open = %s)", (config, expanded, open) => {
+      const out = flat(mk(config).render());
+      expect(out).toContain(`aria-expanded=${expanded} aria-controls=ce-week-more`);
+      expect(out.includes('class="wp-collapse open" id=ce-week-more')).toBe(open);
+      expect(out.includes('class="wp-collapse " id=ce-week-more')).toBe(!open);
+      expect(out).toContain(t("en", "ce_week_open")); // folded, not removed
+    });
+  it("the sub-option writes week_collapsed (its opposite); default and false/true show off/on", () => {
+    const el = mk({});
+    el._emit = vi.fn();
+    eventNear(el.render(), "change", `aria-label=${t("en", "ce_week_open")}`)({ target: { checked: true } });
+    expect(el._emit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ week_collapsed: false, week_epoch: 1 }));
+    expect(flat(mk({}).render())).toContain(t("en", "ce_week_open_hint"));
+  });
+  it("EN and FR wording", () => {
+    expect([t("en", "ce_week_open"), t("fr", "ce_week_open")]).toEqual(["Week open by default", "Semaine ouverte par défaut"]);
+    expect([t("en", "ce_week_group"), t("en", "ce_show_week"), t("fr", "ce_week_group"), t("fr", "ce_show_week")]).toEqual(["Week", "Week button", "Semaine", "Bouton Semaine"]);
   });
 });

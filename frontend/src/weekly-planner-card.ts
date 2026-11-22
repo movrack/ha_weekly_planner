@@ -19,7 +19,7 @@ import type { BarSpan } from "./components/day-bar";
 import { scopeKey } from "./components/schedule-dialog";
 import type { Scope } from "./components/schedule-dialog";
 import { nb } from "./actions";
-import { cardIdentity, chartKey, isChartOpen, loadChartChoices, openHistory, saveChartChoices } from "./chart-state";
+import { cardIdentity, chartKey, isChartOpen, loadChartChoices, openHistory, saveChartChoices, WEEK_KEY } from "./chart-state";
 import { actionText, appliedAction, labelDomains, labelName, labelOf } from "./labels";
 import { errorText, strings, t } from "./i18n";
 import { loadServiceNames, onServiceNames, serviceNamesVersion } from "./services";
@@ -74,7 +74,8 @@ export class WeeklyPlannerCard extends LitElement {
   // Resolved slots (sun times) per local date, then per program: today and the next 6 days (`by_entity` per device).
   @state() private _preview: Record<string, Record<string, PreviewResponse>> = {};
   @state() private _now = new Date();
-  @state() private _week = new Set<string>();
+  /** Week folds toggled on the card (key: scope|entity). Remembered per card and device like the charts; without a choice, `week_collapsed` (default folded) decides. */
+  @state() private _week = loadChartChoices(WEEK_KEY);
   /** Day shown by the comparison: 0 to 6 (Monday to Sunday), 7 for the day off, null for today. */
   @state() private _cmpDay: number | null = null;
   /** Long press, keyboard and hint of the rows of the comparison. */
@@ -812,20 +813,19 @@ export class WeeklyPlannerCard extends LitElement {
   }
 
   /**
-   * The two collapsible parts under today's bar: the next 6 days (one thin bar each) and, unless `show_chart` is off,
+   * The two collapsible parts under today's bar: the next 6 days (one thin bar each; unless `show_week_button` is off) and, unless `show_chart` is off,
    * the chart of today (same component as the schedule screen; no history is fetched while it is collapsed).
    * Stacked at every width: each button is immediately followed by its own panel (Week, week bars, Today's chart,
    * chart). The chart choice is remembered per card and device.
    */
   private _extras(scope: Scope, entityId: string, programs: Program[]) {
     const lang = this._lang;
-    const key = `${scopeKey(scope)}|${entityId}`;
-    const weekOpen = this._week.has(key);
+    const weekId = chartKey(cardIdentity(this._config, "week_epoch"), scopeKey(scope), entityId);
+    const weekOpen = isChartOpen(this._week, weekId, this._config.week_collapsed !== false);
     const toggleWeek = () => {
-      const week = new Set(this._week);
-      if (weekOpen) week.delete(key);
-      else week.add(key);
-      this._week = week;
+      const next = new Map(this._week).set(weekId, !weekOpen);
+      this._week = next;
+      saveChartChoices(next, WEEK_KEY);
     };
     const days = strings(lang).days_short;
     const showChart = this._config.show_chart !== false && Boolean(this._data);
@@ -841,10 +841,11 @@ export class WeeklyPlannerCard extends LitElement {
     const who = this._deviceLabel(program, entityId);
     const date = localDateIso(this._now, this._tz);
     const { today: slots, previous } = this._deviceDays(program.id, date, entityId);
+    const showWeek = this._config.show_week_button !== false;
     return html`
-      <button class="weekbtn" aria-label=${t(lang, "week_of", { name: who })} aria-expanded=${weekOpen} @click=${toggleWeek}>
-        <ha-icon icon="mdi:calendar-week"></ha-icon>${t(lang, "week")}<ha-icon class="after" icon=${weekOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>
-      ${weekOpen ? html`<div class="week wp-appear">
+      ${showWeek ? html`<button class="weekbtn" aria-label=${t(lang, "week_of", { name: who })} aria-expanded=${weekOpen} @click=${toggleWeek}>
+        <ha-icon icon="mdi:calendar-week"></ha-icon>${t(lang, "week")}<ha-icon class="after" icon=${weekOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>` : nothing}
+      ${showWeek && weekOpen ? html`<div class="week wp-appear">
         ${[0, 1, 2, 3, 4, 5, 6].map((weekday) => {
           // the whole week, Monday to Sunday, each day at its next occurrence (today included)
           const o = (weekday - localWeekday(this._now, this._tz) + 7) % 7;
