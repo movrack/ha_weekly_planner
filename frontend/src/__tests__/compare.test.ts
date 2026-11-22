@@ -132,7 +132,7 @@ describe("compare rows", () => {
     // a paused device is read with the paused word, after its own name, a running one without
     const read = flat(c._compare([[a], [b]], false));
     expect(read).toContain("aria-label=Zeta, Wednesday");
-    expect(read).toContain(`aria-label=Beta, cover.a ${t("en", "compare_paused")}, Wednesday`);
+    expect(read).toContain(`aria-label=cover.a, Beta ${t("en", "compare_paused")}, Wednesday`);
   });
   it("today is Wednesday: one is-today group and one is-today title, the others stay plain", () => {
     const c = wednesdayCard([]);
