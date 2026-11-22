@@ -7,6 +7,7 @@ import "./tip";
 import { strings, t } from "../i18n";
 import { DAY, fmtClock, fmtDayEnd } from "../time";
 import type { TimeSpec } from "../types";
+import { selectedTimeText } from "../selected-time";
 
 export interface BarSpan {
   start: number; // minutes 0–1440
@@ -198,13 +199,18 @@ export class WpDayBar extends LitElement {
     this.dispatchEvent(new CustomEvent("visible-text", { detail: text }));
   }
 
+  /** What a screen reader says of the bar: every span with its times (WCAG 1.1.1, as the name of the bar button does). */
+  private _name(): string {
+    return this.spans.map((s) => `${s.label} · ${selectedTimeText(this.lang, s.start, s.marker ? null : s.end, s.startSpec ?? undefined, s.endSpec)}`).join(", ");
+  }
+
   render() {
     const pct = (m: number) => `${(m / DAY) * 100}%`;
     const now = this.now;
     return html`
       <div class="wrap">
         <div class="bar ${this.thin ? "thin" : ""} ${this.tall ? "tall" : ""}" role="img"
-          aria-label=${this.spans.map((s) => s.label).join(", ")}>
+          aria-label=${this._name()}>
           ${this.notches ? [6, 12, 18].map((h) => html`<i class="tick" style="left:${pct(h * 60)}"></i>`) : nothing}
           ${this.spans.map((s) => {
             const box = this._labelBox(s);

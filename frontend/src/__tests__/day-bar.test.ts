@@ -98,7 +98,7 @@ describe("sun tip and day bar", () => {
     const html = flat(el.render());
     expect(html).toContain('class="bar thin tall"');
     expect(html).toContain('class="bar thin tall" role="img"');
-    expect(html).toContain("aria-label=Open, Tiny");
+    expect(html).toContain("aria-label=Open · 8 am – 10 am, Tiny · 11:40 am – 11:41 am"); // the times are in the name, not only the labels (Before / After of the copy dialog)
     expect(html.match(/class="tick" style="left:(\d+(\.\d+)?)%"/g)?.map((x) => x.match(/left:([\d.]+)%/)![1])).toEqual(["25", "50", "75"]);
     expect(html).toContain("left:33.33333333333333%;width:8.333333333333332%");
     expect(html).toContain("width:0.3472222222222222%".replace("0.3472222222222222", String(500 / 1440 * 0 + 5 / 1440 * 100)));
