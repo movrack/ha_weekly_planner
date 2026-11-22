@@ -17,7 +17,7 @@
         "description": "## [Open the Weekly Planner panel]({panel_url})\n\nCreate, edit and delete your programs there.\n\nOr choose:",
         "menu_options": {
           "settings": "Settings",
-          "resync": "Resynchronise the devices"
+          "resync": "Send the state to the devices again"
         }
       },
       "settings": {
@@ -51,7 +51,7 @@
         }
       },
       "resync": {
-        "title": "Resynchronise the devices",
+        "title": "Send the state to the devices again",
         "description": "Use this after an outage. Every program is looked at. Nothing has been sent yet. Pressing Submit sends the commands below for real to your devices (shutters, heating, lights…), one device at a time, and they will act immediately. Programs that are paused or off, and devices changed by a person since their last one-shot, are left alone.\n\n{plan}"
       },
       "default_mode": {

@@ -351,11 +351,12 @@ async def test_options_step_with_nothing_to_send(hass, hass_storage, freezer):
 async def test_plan_text_in_french_with_reasons(hass, hass_storage, freezer):
     from custom_components.weekly_planner.messages import resync_lines
     engine, _ = await start(hass, hass_storage, freezer, [shutters(entities=["cover.s1", "cover.s2"])], local(26, 18))
-    hass.states.async_set("cover.s2", "unavailable", {})
+    hass.states.async_set("cover.s2", "unavailable", {"friendly_name": "Volet cuisine"})
     hass.config.language = "fr"
     text = resync_lines(hass, await engine.async_plan_resync(), engine.tz)
-    assert "Sera envoyé (1)" in text and "Laissé tel quel (1)" in text and "indisponible" in text
+    assert "Sera envoyé maintenant (1)" in text and "Laissé tel quel (1)" in text and "indisponible" in text
     assert "(depuis 26/10 17:00)" in text
+    assert "Volet cuisine" in text and "cover.s2" not in text  # plain device name, not the entity id
 
 
 def test_every_resync_reason_has_a_text_in_both_languages():
