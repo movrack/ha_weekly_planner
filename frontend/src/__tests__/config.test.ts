@@ -8,6 +8,10 @@ describe("card config normalization and defaults", () => {
     const f = normalizeConfig({ type: "x", filter: { types: undefined, programs: undefined, area: undefined } }).filter as any;
     expect(Object.keys(f).sort()).toEqual(["area", "programs", "types"]);
   });
+  it("week_collapsed: a boolean is kept, a wrong type is dropped", () => {
+    expect(normalizeConfig({ type: "x", week_collapsed: false }).week_collapsed).toBe(false);
+    expect("week_collapsed" in (normalizeConfig({ type: "x", week_collapsed: "no" }) as any)).toBe(false);
+  });
   it("wrong types: chart_collapsed, order, types, programs and area are removed", () => {
     const out = normalizeConfig({ type: "x", chart_collapsed: "yes", show_chart: 1, show_week_button: "no", order: 7, filter: { types: 7, programs: {}, area: 7 } }) as any;
     expect("chart_collapsed" in out).toBe(false);

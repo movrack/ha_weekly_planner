@@ -62,7 +62,7 @@ describe("chart under the week on the card", () => {
   });
   it("puts each panel directly under its own button (week, week panel, chart, chart panel)", async () => {
     const c = await card();
-    c._week = new Set([`${scopeKey(scope)}|switch.x`]);
+    c._week = new Map([[`${scopeKey(scope)}|switch.x`, true]]);
     c._charts = new Map([[keyOf(c), true]]);
     const out = flat(c._extras(scope, "switch.x", [program]));
     expect(out).not.toContain("toggles");
@@ -74,7 +74,7 @@ describe("chart under the week on the card", () => {
   });
   it("keeps the week and the chart independent", async () => {
     const c = await card();
-    c._week = new Set([`${scopeKey(scope)}|switch.x`]);
+    c._week = new Map([[`${scopeKey(scope)}|switch.x`, true]]);
     const out = flat(c._extras(scope, "switch.x", [program]));
     expect(out).toContain('class="week wp-appear"');
     expect(out).not.toContain("<wp-chart");

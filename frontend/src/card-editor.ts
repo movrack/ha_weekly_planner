@@ -388,6 +388,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
     const c = this._config;
     const listUsed = usesScheduleList(c.schedule_view);
     const chartOn = c.show_chart !== false;
+    const weekOn = c.show_week_button !== false;
     return html`
       ${this._canManage ? html`<a class="btn manage-programs" href="/weekly-planner"><ha-icon icon="mdi:calendar-edit"></ha-icon>${this._tr("ce_manage_programs")}</a>`
         : !this._data ? nothing : html`<button type="button" class="btn manage-programs" disabled aria-disabled="true" aria-describedby="why-manage"><ha-icon icon="mdi:calendar-edit"></ha-icon>${this._tr("ce_manage_programs")}</button>
@@ -412,8 +413,11 @@ export class WeeklyPlannerCardEditor extends LitElement {
       </fieldset>
       <fieldset class="group"><legend>${this._tr("ce_week_group")}</legend>
         <div class="switch-row"><span class="grow">${this._tr("ce_show_week")}</span>
-          ${this._switch(c.show_week_button !== false, this._tr("ce_show_week"), (on) => this._set("show_week_button", on), false, false, "ce-show-week-hint")}</div>
+          ${this._switch(weekOn, this._tr("ce_show_week"), (on) => this._set("show_week_button", on), false, false, "ce-show-week-hint", { expanded: weekOn, controls: "ce-week-more" })}</div>
         <p id="ce-show-week-hint" class="hint">${this._tr("ce_show_week_hint")}</p>
+        ${collapse(weekOn, html`<div class="switch-row"><span class="grow">${this._tr("ce_week_open")}</span>
+          ${this._switch(c.week_collapsed === false, this._tr("ce_week_open"), (on) => this._set("week_collapsed", !on), false, false, "ce-week-open-hint")}</div>
+        <p id="ce-week-open-hint" class="hint">${this._tr("ce_week_open_hint")}</p>`, "ce-week-more")}
       </fieldset>
     `;
 

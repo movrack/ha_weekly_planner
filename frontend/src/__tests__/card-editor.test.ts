@@ -40,7 +40,7 @@ describe("echo guard of setConfig", () => {
     el._set("title", "B");
     expect(sent(el)[0].title).toBe("B");
     el.dispatchEvent.mockClear();
-    el.setConfig({ type: CARD, title: "B", schedule_view: "bars", show_chart: true, show_week_button: true, chart_collapsed: true, filter: {} });
+    el.setConfig({ type: CARD, title: "B", schedule_view: "bars", show_chart: true, show_week_button: true, chart_collapsed: true, week_collapsed: true, filter: {} });
     expect(el._config.title).toBe("B");
     expect(sent(el)).toEqual([]);
   });
@@ -86,7 +86,7 @@ describe("echo guard of setConfig", () => {
     el.dispatchEvent.mockClear();
     const config = el._config;
     const guard = el._sent;
-    el.setConfig({ chart_collapsed: true, show_chart: true, show_week_button: true, schedule_view: "bars", title: "After", filter: { programs: ["b", "a"], area: ["z", "a"] }, type: CARD });
+    el.setConfig({ chart_collapsed: true, week_collapsed: true, show_chart: true, show_week_button: true, schedule_view: "bars", title: "After", filter: { programs: ["b", "a"], area: ["z", "a"] }, type: CARD });
     expect(el._config).toBe(config);
     expect(el._sent).toBe(guard);
     expect(sent(el)).toEqual([]);
@@ -102,7 +102,7 @@ describe("edits of the config", () => {
   it("any other value sets the key and the full effective config is sent", () => {
     const el = mk({ title: "A", program: "a" });
     el._set("show_chart", false);
-    expect(sent(el)[0]).toEqual({ type: CARD, title: "A", program: "a", schedule_view: "bars", show_chart: false, show_week_button: true, chart_collapsed: true });
+    expect(sent(el)[0]).toEqual({ type: CARD, title: "A", program: "a", schedule_view: "bars", show_chart: false, show_week_button: true, chart_collapsed: true, week_collapsed: true });
     expect(el._config).toEqual(sent(el)[0]);
   });
   it("config events bubble through the dashboard shadow root", () => {
@@ -651,7 +651,23 @@ describe("the Week fieldset", () => {
     eventNear(el.render(), "change", `aria-label=${t("en", "ce_show_week")}`)({ target: { checked: false } });
     expect(el._set).toHaveBeenCalledExactlyOnceWith("show_week_button", false);
   });
+  it.each([[{}, "true", true], [{ show_week_button: true }, "true", true], [{ show_week_button: false }, "false", false]])(
+    "%j: the Week switch says aria-expanded=%s and the sub-option folds under it (open = %s)", (config, expanded, open) => {
+      const out = flat(mk(config).render());
+      expect(out).toContain(`aria-expanded=${expanded} aria-controls=ce-week-more`);
+      expect(out.includes('class="wp-collapse open" id=ce-week-more')).toBe(open);
+      expect(out.includes('class="wp-collapse " id=ce-week-more')).toBe(!open);
+      expect(out).toContain(t("en", "ce_week_open")); // folded, not removed
+    });
+  it("the sub-option writes week_collapsed (its opposite); default and false/true show off/on", () => {
+    const el = mk({});
+    el._set = vi.fn();
+    eventNear(el.render(), "change", `aria-label=${t("en", "ce_week_open")}`)({ target: { checked: true } });
+    expect(el._set).toHaveBeenCalledExactlyOnceWith("week_collapsed", false);
+    expect(flat(mk({}).render())).toContain(t("en", "ce_week_open_hint"));
+  });
   it("EN and FR wording", () => {
+    expect([t("en", "ce_week_open"), t("fr", "ce_week_open")]).toEqual(["Week open by default", "Semaine ouverte par défaut"]);
     expect([t("en", "ce_week_group"), t("en", "ce_show_week"), t("fr", "ce_week_group"), t("fr", "ce_show_week")]).toEqual(["Week", "Week button", "Semaine", "Bouton Semaine"]);
   });
 });

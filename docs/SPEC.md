@@ -511,7 +511,7 @@ puis nom ; `area` = pièce du programme A→Z, puis nom, sans pièce ou type inc
 `name` = A→Z ; `custom` = `order`, un identifiant absent va à la fin (type puis nom), un inconnu est ignoré sans
 erreur ni réécriture. Petit titre non interactif au-dessus de chaque groupe pour `type` et `area` seulement. Ordre
 personnalisé réglé dans l'éditeur (poignée de glissement et boutons monter/descendre). Valeur invalide : défaut.
-`chart_collapsed` (défaut vrai) donne l'état initial du graphique. Les clés inconnues ou obsolètes (`show_week`,
+`chart_collapsed` (défaut vrai) donne l'état initial du graphique. `week_collapsed` (défaut vrai = repliée) donne l'état initial de la semaine sous chaque appareil (toutes les vues) ; le bouton « Semaine » l'ouvre ou la replie, sans mémoire entre deux chargements. Les clés inconnues ou obsolètes (`show_week`,
 `show_advanced`) sont acceptées et ignorées ; la semaine est toujours repliable. `show_week_button` (défaut vrai) affiche ou cache le bouton « Semaine » sous chaque appareil de la carte (toutes les vues) ; la semaine de la fenêtre des horaires reste toujours.
 Éditeur visuel Lovelace : onglets « Affichage de la carte » et « Réglages des programmes » (ce dernier ouvert à tous) ; filtres de types dynamiques (§ 14.12), zone, programmes à afficher (section repliable), vue, graphique.
 

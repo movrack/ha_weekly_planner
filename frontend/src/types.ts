@@ -220,6 +220,8 @@ export interface CardConfig {
   show_schedule_list?: boolean;
   /** Optional: start with the day chart collapsed. */
   chart_collapsed?: boolean;
+  /** Week bars under each device start folded (default) or open (`false`). */
+  week_collapsed?: boolean;
   /** Deprecated: accepted and ignored; kept so existing YAML never breaks. */
   show_advanced?: boolean;
 }

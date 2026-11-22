@@ -74,7 +74,8 @@ export class WeeklyPlannerCard extends LitElement {
   // Resolved slots (sun times) per local date, then per program: today and the next 6 days (`by_entity` per device).
   @state() private _preview: Record<string, Record<string, PreviewResponse>> = {};
   @state() private _now = new Date();
-  @state() private _week = new Set<string>();
+  /** Week folds toggled on the card (key: scope|entity). Not remembered: a reload starts from `week_collapsed` (default folded). */
+  @state() private _week = new Map<string, boolean>();
   /** Day shown by the comparison: 0 to 6 (Monday to Sunday), 7 for the day off, null for today. */
   @state() private _cmpDay: number | null = null;
   /** Long press, keyboard and hint of the rows of the comparison. */
@@ -820,12 +821,9 @@ export class WeeklyPlannerCard extends LitElement {
   private _extras(scope: Scope, entityId: string, programs: Program[]) {
     const lang = this._lang;
     const key = `${scopeKey(scope)}|${entityId}`;
-    const weekOpen = this._week.has(key);
+    const weekOpen = this._week.get(key) ?? this._config.week_collapsed === false;
     const toggleWeek = () => {
-      const week = new Set(this._week);
-      if (weekOpen) week.delete(key);
-      else week.add(key);
-      this._week = week;
+      this._week = new Map(this._week).set(key, !weekOpen);
     };
     const days = strings(lang).days_short;
     const showChart = this._config.show_chart !== false && Boolean(this._data);
