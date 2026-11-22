@@ -498,6 +498,17 @@ describe("the display views follow the number of selected programs", () => {
   ])("%s: the offered views", (_name, config, views) => {
     expect(offered(mk({ ...config, schedule_view: views[0] }))).toEqual(views);
   });
+  it.each([
+    ["several programs", { filter: {} }, "Display of several programs", "Affichage de plusieurs programmes"],
+    ["exactly one", { filter: { programs: ["a"] } }, "Display of one program", "Affichage d’un programme"],
+    ["none", { filter: { programs: [] } }, "Display", "Affichage"],
+  ])("%s: the label of the field says so and stays tied to its select", (_n, config, en, fr) => {
+    const out = flat(mk(config).render());
+    expect(out).toMatch(new RegExp(`<label for="?ce-view"?>${en}</label>`));
+    expect(out).toMatch(/<select id="?ce-view/);
+    const key = en === "Display" ? "ce_schedule_view" : en.includes("several") ? "ce_schedule_view_many" : "ce_schedule_view_one";
+    expect([t("en", key), t("fr", key)]).toEqual([en, fr]);
+  });
   it("a saved view that does not fit stays selected, with a visible note, and nothing is rewritten", () => {
     const el = mk({ filter: {}, schedule_view: "bars" });
     expect(offered(el)).toEqual(["list", "compare", "bars"]);

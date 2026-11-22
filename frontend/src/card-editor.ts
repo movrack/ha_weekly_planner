@@ -377,7 +377,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
     const note = this._viewChanged
       ? this._tr("ce_view_changed", { from: this._viewLabel(this._viewChanged.from), to: this._viewLabel(this._viewChanged.to) })
       : viewAllowed(saved, this._shown) ? "" : this._tr("ce_view_unavailable", { view: this._viewLabel(saved) });
-    return html`<div class="field"><label for="ce-view">${this._tr("ce_schedule_view")}</label>
+    return html`<div class="field"><label for="ce-view">${this._tr(this._shown === 1 ? "ce_schedule_view_one" : (this._shown ?? 0) >= 2 ? "ce_schedule_view_many" : "ce_schedule_view")}</label>
         <select id="ce-view" data-value=${saved} aria-describedby=${note ? "ce-view-note" : nothing} @change=${(e: Event) => this._set("schedule_view", (e.target as HTMLSelectElement).value)}>
           ${options.map((v) => html`<option value=${v} ?selected=${v === saved}>${this._viewLabel(v)}</option>`)}
         </select></div>
