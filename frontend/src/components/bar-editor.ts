@@ -402,7 +402,7 @@ export class WpBarEditor extends LitElement {
           aria-label=${t(this.lang, "handle", { time: this._clock(b.m) })} data-h=${`${ref.id}:${ref.edge}`}
           @keydown=${(e: KeyboardEvent) => this._key(e, ref)} @focus=${() => { this._hsel = ref; this._selected = { kind: "slot", id: ref.id }; this._focusSlotTip(ref.id); }} @blur=${() => { this._tip = null; }}><i></i></button>`;
       })}
-      ${!this._selectedTime && this._bubble ? html`<div class="polar-time">${this._bubble.text ?? this._clock(this._bubble.m)}</div>` : nothing}
+      ${this._showBubble && this._bubble ? html`<div class="polar-time">${this._bubble.text ?? this._clock(this._bubble.m)}</div>` : nothing}
     </div>`;
   }
 
@@ -961,6 +961,13 @@ export class WpBarEditor extends LitElement {
     return `${span.label} · ${selectedTimeText(this.lang, start, end, slot?.start ?? span.startSpec ?? undefined, slot?.end ?? span.endSpec)}`;
   }
 
+  /** The time bubble, unless the hover tip already says the same words (two stacked bubbles hid the next change). */
+  private get _showBubble(): boolean {
+    const b = this._bubble;
+    if (this._selectedTime || !b) return false;
+    return !this._tipText.includes(b.text ?? this._clock(b.m));
+  }
+
   private get _tipText(): string {
     if (this._tip === "now") return this.now === null ? "" : t(this.lang, "now_time", { time: fmtClock(this.lang, this.now) });
     const span = this._tip === null ? undefined : this._spansNow()[this._tip];
@@ -1059,7 +1066,7 @@ export class WpBarEditor extends LitElement {
           @keydown=${(e: KeyboardEvent) => this._key(e, ref)} @focus=${() => { this._hsel = ref; this._selected = { kind: "slot", id: ref.id }; this._focusSlotTip(ref.id); }} @blur=${() => { this._tip = null; }}
           ><i></i></button>`;
       })}
-      ${!this._selectedTime && this._bubble ? html`<div class="bubble" style="left:clamp(44px, ${pct(this._bubble.m)}, calc(100% - 44px))">${this._bubble.text ?? this._clock(this._bubble.m)}</div>` : nothing}
+      ${this._showBubble && this._bubble ? html`<div class="bubble" style="left:clamp(44px, ${pct(this._bubble.m)}, calc(100% - 44px))">${this._bubble.text ?? this._clock(this._bubble.m)}</div>` : nothing}
     </div>`;
   }
 

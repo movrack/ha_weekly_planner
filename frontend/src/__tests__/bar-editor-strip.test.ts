@@ -256,6 +256,13 @@ describe("names of the strip and conflict controls", () => {
     expect(attributes(el._strip(), ".value")).toEqual([null]);
     expect(flat(el._strip())).not.toContain('class="copy"');
   });
+  it("the time bubble is not shown when the hover tip already says the same time", () => {
+    const el = editor();
+    el._bubble = { m: 480 };
+    expect(el._showBubble).toBe(true);
+    Object.defineProperty(el, "_tipText", { get: () => `Comfort · ${el._clock(480)} – 11 am` });
+    expect(el._showBubble).toBe(false);
+  });
   it("the conflict dialog names before, after and each radio choice and carries transformed spans", () => {
     const el = editor(); el.program.profiles[0].days[1] = [slot("busy", "10:00", "14:00")];
     el._conflict = { id: "a", to: [1], days: [1], skip: [] };
