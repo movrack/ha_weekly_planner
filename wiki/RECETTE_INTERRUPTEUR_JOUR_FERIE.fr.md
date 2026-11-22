@@ -13,7 +13,7 @@
    Mode et jour férié → Jour férié ou congé**. Laissez **Cette entité est allumée les jours travaillés,
    pas les jours fériés** décoché : interrupteur allumé veut dire « aujourd'hui est férié ».
 2. Dans la fenêtre des horaires de chaque programme concerné, ouvrez **Jour férié** à la fin du panneau
-   **Horaires** et activez **Horaires différents les jours fériés** : les mêmes horaires qu'un jour de la
+   **Horaires** et activez **Horaires à part les jours fériés** : les mêmes horaires qu'un jour de la
    semaine (dimanche au départ) ou des horaires propres.
 3. Ajoutez l'interrupteur à un tableau de bord.
 4. Pour ne pas l'oublier allumé, créez cette automatisation qui l'éteint chaque nuit :

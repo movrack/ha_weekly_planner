@@ -366,8 +366,8 @@ Un jour férié ou de congé, la maison peut suivre d’autres horaires que ceux
 réglage se fait pour chaque mode : le jour férié de « Maison » peut être différent de celui de « Vacances ».
 
 1. Ouvrir les horaires du programme. À la fin du panneau **Horaires**, ouvrir **Jour férié**.
-2. Activer **Horaires différents les jours fériés**.
-3. Choisir **Mêmes horaires que :** puis un jour de la semaine (dimanche au départ), ou **Mes propres
+2. Activer **Horaires à part les jours fériés**.
+3. Choisir **Prendre les horaires de :** puis un jour de la semaine (dimanche au départ), ou **Mes propres
    horaires** pour régler une journée à part.
 
 Le schéma de la semaine montre alors une ligne **Férié** sous le dimanche. Désactiver l’interrupteur ne

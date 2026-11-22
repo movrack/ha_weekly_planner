@@ -79,7 +79,7 @@ marked “(no longer exists)”, and a mode that follows another one “(same sc
 ## Day off
 
 A day off is a setting of each mode, not a mode. In the schedules window, open **Day off** at the end of the
-**Schedules** box and turn on **Different schedule on days off**; choose **Same as:** a weekday, or **My own
+**Schedules** box and turn on **Special schedule on days off**; choose **Use the schedule of:** a weekday, or **My own
 schedule**. Turning it off keeps the setting in memory. The mode has priority over the day off: the day off
 only applies to the current mode. The entity that says whether today is a day off is chosen in
 **Configure → Settings → Mode and day off**; see the [reference](REFERENCE.md#day-off).
