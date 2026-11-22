@@ -43,9 +43,9 @@
               "holiday_invert": "This entity is on during working days, not on days off"
             },
             "data_description": {
-              "mode_selector": "A Home Assistant selector (input_select or select) whose current choice is the active Mode of the house, for example Home, Away or Vacation. Weekly Planner only reads it and never changes it. Leave empty to have a single Mode.",
+              "mode_selector": "A Home Assistant list of choices whose current choice is the Mode of the house (Home, Away, Vacation…). Weekly Planner only reads it and never changes it. Leave empty to have a single Mode.",
               "holiday_entity": "A Home Assistant entity that is on (“on”) on a holiday or day off: for example a toggle that you switch on yourself, or a public-holiday calendar. On such a day, a Mode with a Day off setting uses it instead of the weekday. Leave empty to ignore days off.",
-              "holiday_invert": "Tick only if the chosen entity is on (“on”) on the days you work, like the Workday sensor. If in doubt, leave it unticked: a wrong tick swaps days off and normal days. With a Workday sensor, weekends count as days off too: prefer a public-holiday calendar (Holiday integration)."
+              "holiday_invert": "Tick only if the chosen device is on on the days you work (Workday sensor). If in doubt, leave it unticked: a wrong tick swaps days off and normal days. With this sensor, weekends count as days off too: prefer a public-holiday calendar."
             }
           }
         }

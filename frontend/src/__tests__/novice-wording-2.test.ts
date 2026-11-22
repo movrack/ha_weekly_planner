@@ -54,4 +54,12 @@ describe("novice review 2: plain wording", () => {
     expect(t("fr", "conflict_title_one", { day: "Lundi" })).toBe("Lundi a déjà des horaires");
     expect(t("fr", "conflict_title")).toBe("Ces jours ont déjà des horaires");
   });
+
+  it("single action, sun limit, undo toast and chart legend in plain words", () => {
+    expect(t("fr", "no_end")).toBe("À cette heure seulement");
+    expect(t("en", "no_end")).toBe("At this time only");
+    expect(t("fr", "sun_limit_option")).toBe("Pas avant / pas après une heure fixe");
+    for (const k of ["edited_added", "edited_deleted", "edited_changed"] as const) expect(t("fr", k)).toMatch(/^Horaire /);
+    expect(t("fr", "chart_quantity_set", { quantity: "Température cible" })).not.toContain("cible");
+  });
 });

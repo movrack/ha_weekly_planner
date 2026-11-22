@@ -43,9 +43,9 @@
               "holiday_invert": "Cette entité est allumée les jours travaillés, pas les jours fériés"
             },
             "data_description": {
-              "mode_selector": "Un sélecteur de Home Assistant (input_select ou select) dont le choix actuel est le Mode actif de la maison, par exemple Maison, Absent ou Vacances. Weekly Planner le lit seulement, il ne le change jamais. Laisser vide pour n'avoir qu'un seul Mode.",
+              "mode_selector": "Une liste de choix de Home Assistant dont le choix actuel est le Mode de la maison (Maison, Absent, Vacances…). Weekly Planner la lit seulement, jamais il ne la change. Laisser vide pour n'avoir qu'un seul Mode.",
               "holiday_entity": "Une entité de Home Assistant qui est allumée (« on ») un jour férié ou de congé : par exemple un interrupteur que vous allumez vous-même, ou un calendrier des jours fériés. Ce jour-là, un Mode qui a un réglage Jour férié l'utilise à la place du jour de la semaine. Laisser vide pour ignorer les jours fériés.",
-              "holiday_invert": "À cocher seulement si l'entité choisie est allumée (« on ») les jours où l'on travaille, comme le capteur Jour ouvré (Workday). Dans le doute, laissez décoché : une coche à tort échange les jours fériés et les jours normaux. Avec un capteur Jour ouvré, les week-ends comptent aussi comme jours fériés : préférez un calendrier des jours fériés (intégration Jours fériés, « Holiday »)."
+              "holiday_invert": "À cocher seulement si l'appareil choisi est allumé les jours où l'on travaille (capteur Jour ouvré). Dans le doute, laissez décoché : une coche à tort échange les jours fériés et les jours normaux. Avec ce capteur, les week-ends comptent aussi comme jours fériés : préférez un calendrier des jours fériés."
             }
           }
         }
