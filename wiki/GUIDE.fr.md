@@ -438,7 +438,7 @@ Dans **Programmes à afficher**, choisir ensuite cette pièce ou
 
 **Attention aux deux enregistrements :** **Enregistrer la carte** (dans Home Assistant) ne change que la présentation de cette carte ;
 **Enregistrer** dans le panneau change le programme, sur toutes les cartes qui l’utilisent. Annuler l’éditeur de carte
-**n’annule pas un programme déjà enregistré**. Avant d’enregistrer, **Annuler la modification** et **Rétablir** parcourent le
+**n’annule pas un programme déjà enregistré**. Avant d’enregistrer, **Annuler la modification** et **Refaire** parcourent le
 brouillon. Ils ne reviennent pas sur un enregistrement déjà envoyé.
 Changer d’onglet ou de programme conserve le brouillon pendant cette édition ;
 fermer l’éditeur abandonne ce qui n’a pas été appliqué.

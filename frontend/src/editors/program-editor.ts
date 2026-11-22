@@ -569,8 +569,8 @@ export class WpProgramEditor extends LitElement {
         return html`<label class="check svc-choice"><input type="checkbox" .checked=${on(s.id)}
           aria-labelledby=${nameId} aria-describedby=${description ? descId : nothing}
           @change=${(ev: Event) => toggle(s.id, (ev.target as HTMLInputElement).checked)} />
-          <span class="svc-copy"><span id=${nameId}>${s.label}</span>
-            ${description ? html`<span id=${descId} class="svc-description">${description}</span>` : nothing}
+          <span class="svc-copy" title=${description || nothing}><span id=${nameId}>${s.label}</span>
+            ${description ? html`<span id=${descId} class="sr-only">${description}</span>` : nothing}
           </span></label>`;
       })}</div>`)}`;
   }
@@ -700,7 +700,7 @@ export class WpProgramEditor extends LitElement {
       : Boolean(this._p.name || this._p.entities.length));
     if (this.embedded) return html`<section class="embedded">${content}
       ${unapplied && !this._isNew ? html`<p role="status" class="hint">${this._tr("pe_unapplied")}</p>` : nothing}
-      <p class="hint">${this._tr(this._isNew ? "pe_create_save_hint" : "pe_shared_save_hint")}</p>
+      ${this._isNew ? nothing : html`<p class="hint">${this._tr("pe_shared_save_hint")}</p>`}
       ${globalError}
       <div class="actions apply-bar">${primaryActions}</div><div class="actions secondary-actions">${secondaryActions}</div>
       ${this._applied ? html`<p role="status" class="hint">${this._tr("ce_program_applied")}</p>` : nothing}
@@ -733,7 +733,7 @@ export class WpProgramEditor extends LitElement {
       .svc-choice { align-items: flex-start; padding: 8px 0; }
       .svc-choice input { margin-top: 2px; }
       .svc-copy { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
-      .svc-description { color: var(--secondary-text-color); font-size: 0.875rem; line-height: 1.45; margin-top: 3px; white-space: pre-line; }
+      .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
       .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--divider-color); margin-bottom: 8px; overflow-x: auto; }
       .tab {
         min-height: 48px; padding: 0 16px; border: none; background: none; color: var(--secondary-text-color);

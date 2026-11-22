@@ -31,7 +31,7 @@ describe("novice review 2026-11-22 wording", () => {
     el.conditions = [{ entity_id: "light.a", op: "eq", value: "on" }];
     const out = flat(el.render());
     for (const jargon of ["Opérateur", "Détail", ">Valeur<", ">=<", "≠"]) expect(out).not.toContain(jargon);
-    for (const w of ["Comparaison", "Ce qu’on vérifie (facultatif)", "Valeur attendue (par ex. on, off, 20)", ">est<", "n’est pas"]) expect(out).toContain(w);
+    for (const w of ["Comparaison", "Ce qu’on vérifie (facultatif)", "Valeur attendue (par ex. 20, « on » = allumé, « off » = éteint)", ">est<", "n’est pas"]) expect(out).toContain(w);
   });
 
   it("explains the shared setting, the random delay and the single action in plain words", () => {

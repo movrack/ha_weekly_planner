@@ -20,4 +20,20 @@ describe("novice review 2: plain wording", () => {
     expect(t("en", "delete_schedule")).toBe("Delete this program");
     expect(strings("fr").delete).toBe("Supprimer");
   });
+
+  it("the program form is short and plain", () => {
+    expect(t("fr", "pe_area")).toBe("Pièce (facultative)");
+    expect(t("fr", "pe_redo")).toBe("Refaire");
+    expect(t("fr", "pe_conditions_hint")).toContain("ne marche que si");
+    expect(t("fr", "pe_shared_save_hint")).not.toContain("Annuler");
+    expect(t("en", "pe_shared_save_hint")).not.toContain("Cancelling");
+    expect(strings("en")).not.toHaveProperty("pe_create_save_hint");
+    for (const lang of ["en", "fr"]) expect(t(lang, "pe_area_hint").length).toBeLessThan(70);
+    expect(t("en", "cond_remove")).toBe("Delete this condition");
+  });
+
+  it("the program switch says it once; the active mode is not tagged '(Active)'", () => {
+    expect(t("fr", "schedule_on")).toBe("Programme en marche");
+    expect(t("en", "schedule_on")).toBe("Program running");
+  });
 });

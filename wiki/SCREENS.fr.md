@@ -292,7 +292,7 @@ Choisir les appareils avant l’icône. Les réglages ne sont envoyés qu’avec
 
 ## S28 — Réglages généraux et historique local
 
-Les boutons Annuler la modification et Rétablir parcourent le brouillon local. Les avertissements indiquent les autres programmes utilisant les appareils sélectionnés.
+Les boutons Annuler la modification et Refaire parcourent le brouillon local. Les avertissements indiquent les autres programmes utilisant les appareils sélectionnés.
 
 <a href="images/guide/s28-program-general-history.png"><img src="images/guide/s28-program-general-history.png" width="320" alt="S28 — Réglages généraux et historique local" /></a>
 

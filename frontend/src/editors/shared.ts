@@ -183,7 +183,7 @@ export class WpConditionsEditor extends LitElement {
             <div class="row">
               <div class="field">
                 <label>${this._tr("cond_attribute")}</label>
-                <input type="text" .value=${c.attribute ?? ""} placeholder="—"
+                <input type="text" .value=${c.attribute ?? ""} placeholder=${this._tr("cond_attribute_example")}
                   @change=${(e: Event) => this._patch(i, { attribute: (e.target as HTMLInputElement).value.trim() || null })} />
               </div>
               <div class="field" style="flex:0 1 110px">
@@ -200,7 +200,7 @@ export class WpConditionsEditor extends LitElement {
                 <input type="text" .value=${String(c.value ?? "")}
                   @change=${(e: Event) => this._patch(i, { value: this._parse((e.target as HTMLInputElement).value, Boolean(c.attribute)) })} />
               </div>
-              <button class="ibtn" aria-label=${this._tr("delete")}
+              <button class="ibtn" aria-label=${this._tr("cond_remove")} title=${this._tr("cond_remove")}
                 @click=${() => this._set(this.conditions.filter((_, j) => j !== i))}><ha-icon icon="mdi:delete"></ha-icon></button>
             </div>
           </div>`,
