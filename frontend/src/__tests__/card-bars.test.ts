@@ -39,7 +39,7 @@ describe("a bar of the list", () => {
     expect(attrs(c._bar("cover.a", p, 0, "today")).view).toBe("radial");
     expect(attrs(c._bar("cover.a", p, 1, "week")).view).toBe("bar");
     const two = program("p2", "Duo", ["cover.a", "cover.b"]);
-    expect(attrs(c._bar("cover.b", two, 0, "today"))["device-name"]).toBe("Duo, cover.b");
+    expect(attrs(c._bar("cover.b", two, 0, "today"))["device-name"]).toBe("cover.b, Duo");
   });
   it("editing is true only for the bar being edited; the editor events set, clear and report", () => {
     const { c, p } = setup();

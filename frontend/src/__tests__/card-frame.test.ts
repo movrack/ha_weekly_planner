@@ -247,8 +247,8 @@ describe("names read aloud on the card", () => {
   it("puts the program (and device) name in Week and Chart buttons", () => {
     const p = program(2);
     const html = flat(namedCard(p)._extras({ kind: "program", programId: "p" }, "switch.d1", [p]));
-    expect(html).toContain("Week, Salon, Fan");
-    expect(html).toContain("Chart of the day, Salon, Fan");
+    expect(html).toContain("Week, Fan, Salon");
+    expect(html).toContain("Chart of the day, Fan, Salon");
   });
   it("names the schedules button and the program switch without the state", () => {
     const p = program(1);
@@ -258,7 +258,7 @@ describe("names read aloud on the card", () => {
     expect(html).toContain("aria-label=Salon");
     expect(html).not.toContain("Salon: ");
     expect(c._deviceLabel(p, "switch.d0")).toBe("Salon");
-    expect(c._deviceLabel(program(2), "switch.d1")).toBe("Salon, Fan");
+    expect(c._deviceLabel(program(2), "switch.d1")).toBe("Fan, Salon");
   });
 });
 

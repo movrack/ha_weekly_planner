@@ -83,7 +83,7 @@ describe("compare: structure", () => {
   it("devices of one program stay together", () => {
     const multi = program("pm", "Multi", ["light.y", "light.x"]);
     const h = flat(render(card([B(), multi, A()], { sort: "name" })));
-    expect(firstDay(h)).toEqual(["Alpha", "Multi, light.y", "Multi, light.x", "Zeta"]);
+    expect(firstDay(h)).toEqual(["Alpha", "light.y, Multi", "light.x, Multi", "Zeta"]);
   });
   it("extra gap between two types only in type / area mode", () => {
     const gaps = (cfg: any, ps = [A(), B(), C()]) => (flat(week(card(ps, cfg))).match(/class=crow gap/g) ?? []).length;

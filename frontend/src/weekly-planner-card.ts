@@ -707,8 +707,9 @@ export class WeeklyPlannerCard extends LitElement {
 
   /** A bar that can be edited in place: today's (`kind` "today") or one of the week's. */
   /** Program name, plus the device when the program has several: what names a block's buttons. */
+  /** Device first: the narrow compare column cuts the end, and programs sharing a name differ by their device. */
   private _deviceLabel(program: Program, entityId: string): string {
-    return program.entities.length > 1 ? `${program.name}, ${friendlyName(this.hass, entityId)}` : program.name;
+    return program.entities.length > 1 ? `${friendlyName(this.hass, entityId)}, ${program.name}` : program.name;
   }
 
   private _bar(entityId: string, program: Program, offset: number, kind: "today" | "week") {

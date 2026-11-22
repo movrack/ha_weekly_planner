@@ -176,7 +176,7 @@ describe("day-off section", () => {
     expect(el.render().values.filter((v: unknown) => v === false || v === true)).toEqual([true]);
     expect(flat(el.render())).toContain('class="wp-collapse open"');
     expect(t).toContain('role="switch"');
-    expect(t).toContain("Different schedule on days off");
+    expect(t).toContain("Special schedule on days off");
     expect(t).toContain("mdi:chevron-down");
     expect(flat(el.render())).toContain("mdi:chevron-up");
     expect(bindings(tpl, "aria-controls")).toEqual(["holiday-p"]);
@@ -184,7 +184,7 @@ describe("day-off section", () => {
     expect(t).toContain(strings("en").holiday_title);
     expect(t).not.toContain('type="radio"'); // off: no radios
     const on = flat(make({ profile: profile({ copy: 6 }) }).render());
-    for (const w of ["Same as:", "My own schedule"]) expect(on).toContain(w);
+    for (const w of ["Use the schedule of:", "My own schedule"]) expect(on).toContain(w);
   });
   it("switch on with no setting writes Sunday (copy 6), also through the switch's change event", async () => {
     const el = make();
@@ -412,7 +412,7 @@ describe("day-off section: rendered choices", () => {
     const tpl = el.render();
     expect(bindings(tpl, "value")).toEqual([0, 1, 2, 3, 4, 5, 6]);
     expect(bindings(tpl, "?selected")).toEqual([false, false, true, false, false, false, false]);
-    expect(bindings(tpl, "aria-label")).toEqual([lang === "en" ? "Same as" : "Mêmes horaires que"]);
+    expect(bindings(tpl, "aria-label")).toEqual([lang === "en" ? "Use the schedule of" : "Prendre les horaires de"]);
     for (const day of strings(lang).days) expect(flat(tpl)).toContain(day);
     expect(flat(tpl)).toContain(t(lang, "holiday_copy"));
     expect(flat(tpl)).toContain(t(lang, "holiday_own"));
