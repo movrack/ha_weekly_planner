@@ -145,6 +145,15 @@ describe("saving", () => {
     expect(el.hass.callWS).not.toHaveBeenCalled();
     expect(el._saving).toBe(false);
   });
+  it("Save is greyed with the reason while the form is not valid, and usable once it is", () => {
+    const el = mk();
+    el._open(false);
+    const form = flat(el._renderForm());
+    expect(form).toContain(`id=why-save-setting role="status">${t("en", "lb_err_name")}</p>`);
+    expect(form).toContain("aria-describedby=why-save-setting");
+    el._name = "Cosy";
+    expect(flat(el._renderForm())).toContain(`id=why-save-setting role="status">${t("en", "lb_err_action")}</p>`);
+  });
   it("a new setting is saved without an id and chosen once saved", async () => {
     const el = mk();
     el._open(false);

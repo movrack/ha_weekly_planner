@@ -325,6 +325,7 @@ export class WpLabelPicker extends LitElement {
 
   private _renderForm() {
     const lang = this._lang;
+    const problem = this._formProblem; // greyed Save, with this as its visible reason
     return html`<div class="form">
       <div class="field"><label for="lb-name">${t(lang, "lb_name")}</label>
         <input id="lb-name" type="text" maxlength="30" .value=${this._name} ?disabled=${this.disabled}
@@ -338,9 +339,10 @@ export class WpLabelPicker extends LitElement {
         ${this._editId ? html`<div slot="advanced">${this.entityIds.map((eid) => this._valueEditor(eid, this._editId!))}</div>` : nothing}
       </wp-action-picker>
       ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
+      ${whyNote("why-save-setting", problem, Boolean(problem))}
       <div class="btns">
-        <button class="btn primary" ?disabled=${this._saving || this.disabled}
-          @click=${() => void this._save()}>${t(lang, "save")}</button>
+        <button class="btn primary" ?disabled=${this._saving || this.disabled || Boolean(problem)} aria-disabled=${ariaDisabled(Boolean(problem))}
+          aria-describedby=${describedBy(Boolean(problem), "why-save-setting")} @click=${() => void this._save()}>${t(lang, "save")}</button>
         <button class="btn" @click=${() => this._close()}>${t(lang, "cancel")}</button>
       </div>
     </div>`;
