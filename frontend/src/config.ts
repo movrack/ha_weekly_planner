@@ -14,7 +14,7 @@ export function normalizeConfig(raw: unknown): CardConfig {
   const c = { ...(raw as Record<string, unknown>) };
   for (const k of ["title", "program"]) if (c[k] !== undefined && typeof c[k] !== "string") { if (typeof c[k] === "number") c[k] = String(c[k]); else delete c[k]; }
   for (const k of ["show_chart", "show_week_button", "chart_collapsed", "week_collapsed", "show_schedule_list"]) if (c[k] !== undefined && typeof c[k] !== "boolean") delete c[k];
-  if (c.chart_epoch !== undefined && !(typeof c.chart_epoch === "number" && Number.isFinite(c.chart_epoch))) delete c.chart_epoch;
+  for (const k of ["chart_epoch", "week_epoch"]) if (c[k] !== undefined && !(typeof c[k] === "number" && Number.isFinite(c[k]))) delete c[k];
   if (c.schedule_view !== undefined && !(VIEWS as readonly unknown[]).includes(c.schedule_view)) delete c.schedule_view;
   if (c.sort !== undefined && !(SORTS as readonly unknown[]).includes(c.sort)) delete c.sort;
   if (c.order !== undefined) { const v = strings(c.order); if (v) c.order = v; else delete c.order; }

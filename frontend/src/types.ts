@@ -224,6 +224,8 @@ export interface CardConfig {
   chart_epoch?: number;
   /** Week bars under each device start folded (default) or open (`false`). */
   week_collapsed?: boolean;
+  /** Raised by the editor each time `week_collapsed` changes (same role as `chart_epoch`). Do not edit by hand. */
+  week_epoch?: number;
   /** Deprecated: accepted and ignored; kept so existing YAML never breaks. */
   show_advanced?: boolean;
 }

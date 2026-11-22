@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { cardIdentity, chartKey } from "../chart-state";
+import { scopeKey } from "../components/schedule-dialog";
 import { allSlots, dayInText, holidayApplies, holidayChoice, holidayDayToday, holidayKind, holidayLine, holidayOwnSlots, holidayReplaces } from "../holiday";
 import { strings, t } from "../i18n";
 import { specText } from "../actions";
@@ -945,7 +947,7 @@ describe("day-off row under Sunday in the week schematics", () => {
     const b = cardWeek(profile({ day: [slot("h", "10:00", "11:00")] }));
     expect(spansOf(b.c._holidayRow("cover.b", b.p))[0].map((s) => [s.start, s.end])).toEqual([[600, 660]]);
     // in the week, right after the seven day rows
-    b.c._week = new Map([["p:p|cover.b", true]]);
+    b.c._week = new Map([[chartKey(cardIdentity(b.c._config, "week_epoch"), scopeKey({ kind: "program", programId: "p" } as any), "cover.b"), true]]);
     const open = flat(b.c._extras({ kind: "program", programId: "p" }, "cover.b", [b.p]));
     expect(open).toContain("wday-off");
     expect(open.indexOf("wday-off")).toBeGreaterThan(open.lastIndexOf('class="wday"'));

@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cardIdentity, chartKey } from "../chart-state";
+import { scopeKey } from "../components/schedule-dialog";
 import { t } from "../i18n";
 import { WeeklyPlannerCard } from "../weekly-planner-card";
 import { flat, handlers } from "./helpers/tpl";
@@ -11,6 +13,8 @@ import { pauseChoice } from "../components/confirm";
 
 beforeEach(stubBrowser);
 afterEach(unstubBrowser);
+
+const wk = (c: any, scope: any, entity: string) => chartKey(cardIdentity(c._config, "week_epoch"), scopeKey(scope), entity);
 
 describe("a bar of the list", () => {
   const setup = (extra: any = {}, config: any = {}) => {
@@ -214,7 +218,7 @@ describe("the week and chart toggles under a bar", () => {
   };
   it("show_week_button: false removes the Week button and its panel, even for a week left open; the chart stays", () => {
     const { c, p, scope } = setup({ show_week_button: false });
-    c._week = new Map([["p:p1|cover.a", true]]);
+    c._week = new Map([[wk(c, scope, "cover.a"), true]]);
     const html = flat(c._extras(scope, "cover.a", [p]));
     expect(html).not.toContain(`aria-label=${t("en", "week_of", { name: "Volet" })}`);
     expect(html).not.toContain("wp-appear\"><div class=\"wday");
@@ -235,7 +239,7 @@ describe("the week and chart toggles under a bar", () => {
     expect(html).not.toContain('class="week"');
     expect(html).not.toContain("chartbtn");
     handlers(closed).find((h) => h.event === "click")!.fn();
-    expect([...c._week]).toEqual([["p:p1|cover.a", true]]);
+    expect([...c._week]).toEqual([[wk(c, scope, "cover.a"), true]]);
     const open = c._extras(scope, "cover.a", [p]);
     const oh = flat(open);
     expect(oh).toContain('class="week wp-appear"');
@@ -251,7 +255,7 @@ describe("the week and chart toggles under a bar", () => {
     clicks[3].fn(); // Wednesday = today
     expect(c._open).toHaveBeenLastCalledWith(scope, { weekday: 2, offset: 0 });
     clicks[0].fn();
-    expect(c._week.get("p:p1|cover.a")).toBe(false);
+    expect(c._week.get(wk(c, scope, "cover.a"))).toBe(false);
   });
   it("week_collapsed: false opens the week at first, a click then folds it; default stays folded", () => {
     const folded = setup();

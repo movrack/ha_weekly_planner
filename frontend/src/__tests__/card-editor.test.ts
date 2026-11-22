@@ -675,9 +675,9 @@ describe("the Week fieldset", () => {
     });
   it("the sub-option writes week_collapsed (its opposite); default and false/true show off/on", () => {
     const el = mk({});
-    el._set = vi.fn();
+    el._emit = vi.fn();
     eventNear(el.render(), "change", `aria-label=${t("en", "ce_week_open")}`)({ target: { checked: true } });
-    expect(el._set).toHaveBeenCalledExactlyOnceWith("week_collapsed", false);
+    expect(el._emit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ week_collapsed: false, week_epoch: 1 }));
     expect(flat(mk({}).render())).toContain(t("en", "ce_week_open_hint"));
   });
   it("EN and FR wording", () => {

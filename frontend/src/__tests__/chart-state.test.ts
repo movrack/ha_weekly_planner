@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cardIdentity, chartKey, isChartOpen, loadChartChoices, saveChartChoices } from "../chart-state";
+import { cardIdentity, chartKey, isChartOpen, loadChartChoices, saveChartChoices, WEEK_KEY } from "../chart-state";
 import { scopeKey } from "../components/schedule-dialog";
 
 describe("card chart state", () => {
@@ -21,6 +21,17 @@ describe("card chart state", () => {
     expect(isChartOpen(c, "a", true)).toBe(true);
     expect(isChartOpen(c, "b", false)).toBe(false);
     expect(isChartOpen(c, "other", false)).toBe(true);
+  });
+  it("week choices live under their own key, apart from the charts and without the legacy list", () => {
+    store({ "weekly-planner:open-charts": '["a|switch.x"]' });
+    expect(loadChartChoices(WEEK_KEY).size).toBe(0);
+    saveChartChoices(new Map([["w", true]]), WEEK_KEY);
+    expect(isChartOpen(loadChartChoices(WEEK_KEY), "w", true)).toBe(true);
+    expect(loadChartChoices().has("w")).toBe(false);
+  });
+  it("week_epoch changes the week identity only", () => {
+    expect(cardIdentity({ title: "A", week_epoch: 1 }, "week_epoch")).not.toBe(cardIdentity({ title: "A" }, "week_epoch"));
+    expect(cardIdentity({ title: "A", week_epoch: 1 })).toBe(cardIdentity({ title: "A" }));
   });
   it("reads the legacy list of open charts", () => {
     store({ "weekly-planner:open-charts": '["a|switch.x"]' });
@@ -62,7 +73,7 @@ describe("chart under the week on the card", () => {
   });
   it("puts each panel directly under its own button (week, week panel, chart, chart panel)", async () => {
     const c = await card();
-    c._week = new Map([[`${scopeKey(scope)}|switch.x`, true]]);
+    c._week = new Map([[chartKey(cardIdentity(c._config, "week_epoch"), scopeKey(scope), "switch.x"), true]]);
     c._charts = new Map([[keyOf(c), true]]);
     const out = flat(c._extras(scope, "switch.x", [program]));
     expect(out).not.toContain("toggles");
@@ -74,7 +85,7 @@ describe("chart under the week on the card", () => {
   });
   it("keeps the week and the chart independent", async () => {
     const c = await card();
-    c._week = new Map([[`${scopeKey(scope)}|switch.x`, true]]);
+    c._week = new Map([[chartKey(cardIdentity(c._config, "week_epoch"), scopeKey(scope), "switch.x"), true]]);
     const out = flat(c._extras(scope, "switch.x", [program]));
     expect(out).toContain('class="week wp-appear"');
     expect(out).not.toContain("<wp-chart");

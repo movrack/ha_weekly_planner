@@ -153,9 +153,10 @@ export class WeeklyPlannerCardEditor extends LitElement {
     this._emit(next as unknown as CardConfig);
   }
 
-  /** "Chart open by default": also raises `chart_epoch`, so saved browser choices no longer override the new default. */
-  private _setChartOpen(on: boolean): void {
-    this._emit({ ...this._config, chart_collapsed: !on, chart_epoch: (this._config.chart_epoch ?? 0) + 1 });
+  /** "Chart / Week open by default": also raises the epoch, so saved browser choices no longer override the new default. */
+  private _setOpenDefault(part: "chart" | "week", on: boolean): void {
+    const epoch = `${part}_epoch` as "chart_epoch" | "week_epoch";
+    this._emit({ ...this._config, [`${part}_collapsed`]: !on, [epoch]: (this._config[epoch] ?? 0) + 1 } as CardConfig);
   }
 
   /** How many programs the card shows with this configuration (what the selection gives); unknown before the data arrives. */
@@ -413,7 +414,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
           ${this._switch(weekOn, this._tr("ce_show_week"), (on) => this._set("show_week_button", on), false, false, "ce-show-week-hint", { expanded: weekOn, controls: "ce-week-more" })}</div>
         <p id="ce-show-week-hint" class="hint">${this._tr("ce_show_week_hint")}</p>
         ${collapse(weekOn, html`<div class="switch-row"><span class="grow">${this._tr("ce_week_open")}</span>
-          ${this._switch(c.week_collapsed === false, this._tr("ce_week_open"), (on) => this._set("week_collapsed", !on), false, false, "ce-week-open-hint")}</div>
+          ${this._switch(c.week_collapsed === false, this._tr("ce_week_open"), (on) => this._setOpenDefault("week", on), false, false, "ce-week-open-hint")}</div>
         <p id="ce-week-open-hint" class="hint">${this._tr("ce_week_open_hint")}</p>`, "ce-week-more")}
       </fieldset>
       <fieldset class="group"><legend>${this._tr("ce_chart_group")}</legend>
@@ -421,7 +422,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
           ${this._switch(chartOn, this._tr("ce_show_chart"), (on) => this._set("show_chart", on), false, false, "ce-show-chart-hint", { expanded: chartOn, controls: "ce-chart-more" })}</div>
         <p id="ce-show-chart-hint" class="hint">${this._tr("ce_show_chart_hint")}</p>
         ${collapse(chartOn, html`<div class="switch-row"><span class="grow">${this._tr("ce_chart_open")}</span>
-          ${this._switch(c.chart_collapsed === false, this._tr("ce_chart_open"), (on) => this._setChartOpen(on), false, false, "ce-chart-open-hint")}</div>
+          ${this._switch(c.chart_collapsed === false, this._tr("ce_chart_open"), (on) => this._setOpenDefault("chart", on), false, false, "ce-chart-open-hint")}</div>
         <p id="ce-chart-open-hint" class="hint">${this._tr("ce_chart_open_hint")}</p>`, "ce-chart-more")}
       </fieldset>
     `;
