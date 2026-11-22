@@ -31,7 +31,7 @@ Exemple : le programme de rang 1 chauffe à 20 °C de 5 h à 10 h, celui de rang
   ligne indique les autres appareils du programme (« aussi : … »). Faire glisser une ligne par la poignée, ou utiliser
   les flèches ↑ et ↓. C'est enregistré tout de suite ; la bande **Ordre enregistré** en bas de l'écran propose
   **Remettre comme avant** et reste jusqu'au déplacement suivant ou à la sortie de l'écran. Les programmes qui n'ont
-  pas de concurrent sont listés à part (**Seuls sur leurs appareils**), sans pouvoir être déplacés.
+  pas de concurrent sont listés à part (**Un seul programme sur ces appareils**), sans pouvoir être déplacés.
 - **Depuis un programme** : onglet **Général**, bloc **Partage un appareil avec N programmes · passe en 2e**. Il s'ouvre tout
   seul, avec une note (« Ce programme passe en dernier. Changez l'ordre si besoin. »), quand la concurrence est
   nouvelle. Une ligne déplacée porte la mention « non enregistré » : l'ordre est enregistré quand vous cliquez sur

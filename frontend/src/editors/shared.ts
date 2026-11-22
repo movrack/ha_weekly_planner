@@ -190,7 +190,7 @@ export class WpConditionsEditor extends LitElement {
                 <select aria-label=${this._tr("cond_op")}
                   @change=${(e: Event) => this._patch(i, { op: (e.target as HTMLSelectElement).value as Condition["op"] })}>
                   ${(["eq", "ne", "lt", "gt"] as const).map(
-                    (op) => html`<option value=${op} ?selected=${(c.op ?? "eq") === op}>${{ eq: "=", ne: "≠", lt: "<", gt: ">" }[op]}</option>`,
+                    (op) => html`<option value=${op} ?selected=${(c.op ?? "eq") === op}>${this._tr(`cond_op_${op}` as K)}</option>`,
                   )}
                 </select>
               </div>

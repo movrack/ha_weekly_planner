@@ -108,7 +108,7 @@ shows every step with screenshots.
 | Option | Default | What it does |
 |---|---|---|
 | Only administrators can edit programs | off | Reserves program and setting changes to administrators. |
-| Send the current setting again after a restart or a change | on | Starting value of the **Re-apply the current setting after a restart or a change** box for every new program. |
+| Send the current setting again after a restart or a change | on | Starting value of the **Send the current setting again after a restart or a change** box for every new program. |
 | Alert when a device has been unavailable for | 30 min | Delay before the notification, 1 to 1440 minutes. |
 | Wait before applying a change of condition | 2 min | Stability delay of the program conditions, 0 to 60 minutes. |
 | Mode selector (optional) | none | An `input_select` or `select` entity whose state is the mode of the house; a default mode is asked next. |

@@ -1226,7 +1226,7 @@ describe("schedule screen editing", () => {
     expect(view._stateText()).toBe("Paused until Mon, Nov 9, 9:30 pm");
     expect(flat(view.render())).toContain("Paused until");
     view.data = { ...view.data, programs: [mkProgram({ enabled: false })] };
-    expect(view._stateText()).toBe("Paused");
+    expect(view._stateText()).toBe("Paused (no resume date)");
     view.data = { ...view.data, programs: [paused] };
     vi.mocked(pauseChoice).mockClear(); view.hass.callWS.mockClear();
     await view._setEnabled(true, input);

@@ -34,7 +34,7 @@ La carte annonce que le programme est créé et choisi pour cette carte.
 2. Sous **Horaires**, toucher **Créer un réglage**. Si des horaires existent déjà, le bouton s’appelle
    **Ajouter un horaire**.
 3. Sous **Jours**, choisir **Tous les jours**.
-4. Sous **Début**, saisir **06:30**. Sous **Fin**, choisir **Jusqu’à…**, puis saisir **08:30**.
+4. Sous **Début**, saisir **06:30**. Sous **Fin**, choisir **Jusqu’à une heure**, puis saisir **08:30**.
 5. Sous **Réglage**, toucher **Nouveau réglage** : nommer **Confort**, choisir une couleur, choisir ce que
    le réglage doit faire (régler la température), saisir **20**, puis **Enregistrer**.
 6. Toucher **Enregistrer** sous l’horaire.

@@ -653,17 +653,17 @@ describe("a locked day", () => {
   it("shows the reason under today's bar only when a day off replaces the day", () => {
     const p = program();
     const on = card({ programs: [p], holiday_today: true, status: { p: { holiday: { own: true } } } });
-    expect(flat(on._lockedNote(p))).toContain("Day off: to change this schedule, open Schedule (calendar icon), then “Day off”.");
+    expect(flat(on._lockedNote(p))).toContain("To change this schedule, open Schedule (calendar icon), then “Day off”.");
     expect(flat(card({ programs: [p], status: { p: {} } })._lockedNote(p))).toBe("");
   });
   it("the note names the copied day for a copy and keeps the generic text for an own day, in both languages", () => {
     const p = program();
     const copy = card({ programs: [p], holiday_today: true, status: { p: { holiday: { copy: 6 } } } }); // today is a Monday
     expect(flat(copy._lockedNote(p))).toContain(t("en", "holiday_locked_copy", { day: dayInText("en", 6) }));
-    expect(copy._lockedText(p)).toBe("Day off: today uses Sunday’s schedule. To change it, change Sunday.");
+    expect(copy._lockedText(p)).toBe("To change this schedule, change Sunday.");
     copy._config = {};
     copy.hass = { ...hass, language: "fr" };
-    expect(copy._lockedText(p)).toBe("Jour férié : aujourd’hui suit les horaires du dimanche. Pour les changer, modifiez le dimanche.");
+    expect(copy._lockedText(p)).toBe("Pour changer ces horaires, modifiez le dimanche.");
     const own = card({ programs: [p], holiday_today: true, status: { p: { holiday: { own: true } } } });
     expect(own._lockedText(p)).toBe(t("en", "holiday_locked"));
   });
@@ -821,8 +821,8 @@ describe("keyboard and screen reader", () => {
     const p = program();
     const c = card({ programs: [p], holiday_today: true, status: { p: { holiday: { own: true } } } });
     c._preview = {};
-    const reason = (offset: number) => c._bar("cover.b", p, offset, "today", () => {}).values.find((v: unknown) => v === "Day off: to change this schedule, open Schedule (calendar icon), then “Day off”." || v === "");
-    expect(reason(0)).toBe("Day off: to change this schedule, open Schedule (calendar icon), then “Day off”.");
+    const reason = (offset: number) => c._bar("cover.b", p, offset, "today", () => {}).values.find((v: unknown) => v === "To change this schedule, open Schedule (calendar icon), then “Day off”." || v === "");
+    expect(reason(0)).toBe("To change this schedule, open Schedule (calendar icon), then “Day off”.");
     expect(reason(1)).toBe("");
   });
 });

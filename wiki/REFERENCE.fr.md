@@ -136,7 +136,7 @@ Exemple : 18 °C de 10:00 à 20:00, puis 17 °C de 20:00 à 21:00 ; un réglage 
 jusqu’à 20:00, puis 17 °C est envoyé.
 
 - **Avec fin** : action au début, puis défaut éligible ou action du programme qui reprend la main à la fin.
-- **Ponctuelle** : action lancée une seule fois, aucun événement de fin, jamais rejouée après son heure. Un horaire borné prioritaire peut la supprimer.
+- **Une seule action** : action lancée une seule fois, aucun événement de fin, jamais rejouée après son heure. Un horaire borné prioritaire peut la supprimer.
 - **Priorité** : c’est un rang (1, 2, 3…, sans plafond) dans un groupe de programmes qui partagent un appareil ; le rang 1 gagne entre les horaires éligibles actifs, le programme le plus ancien départage les égalités. L’interface ne la saisit pas (glisser-déposer) ; `priority` reste dans le YAML et l’API. Commande `weekly_planner/program/priorities` : liste `{id, revision}` dans le nouvel ordre d’un groupe, tout ou rien ; `weekly_planner/program/save` accepte aussi `group_order`. Sans horaire actif, le programme activé le plus prioritaire contenant l’entité fournit son défaut facultatif.
 - **Conditions** : toutes les conditions du programme doivent être satisfaites pour ses horaires. Une condition fausse n’est pas une commande d’arrêt générique ; les règles des défauts comptent encore.
 - **Redémarrage** : stabilisation de 30 s, puis réapplication facultative de l’action bornée ou du défaut en cours après un redémarrage, une activation ou une modification. Les fins manquées sont rattrapées, pas les actions ponctuelles passées.
@@ -259,7 +259,7 @@ sont refusées, aussi lors de l’enregistrement d’un programme ou d’un rég
 | `admin_only` | `false` | Limite les modifications des programmes et réglages. Les interrupteurs restent des commandes séparées ; le mode se choisit sur l’entité sélecteur, pas dans Weekly Planner. |
 | `mode_selector` | aucun | Dans la sous-section **Mode et jour férié** du formulaire. Entité `input_select` ou `select` facultative dont l’état est le mode actif, puis un mode par défaut parmi ses options. Réservé aux administrateurs. |
 | `holiday_entity`, `holiday_invert` | aucune, `false` | Dans la même sous-section **Mode et jour férié** (le mode est prioritaire sur le jour férié, qui ne s’applique qu’au mode actuel). Entité jour férié facultative de la maison et la case « Cette entité est allumée les jours travaillés, pas les jours fériés ». Réservé aux administrateurs ; rangé avec le sélecteur de mode, pas dans les options de l’entrée. |
-| `reapply_default` | `true` | Valeur de départ de **Réappliquer** pour tout nouveau programme (carte, WebSocket, programme d’un fichier YAML sans `reapply`). |
+| `reapply_default` | `true` | Valeur de départ de **Renvoyer le réglage en cours** pour tout nouveau programme (carte, WebSocket, programme d’un fichier YAML sans `reapply`). |
 | `notify_delay_min` | `30` | Notification d’entité indisponible, 1 à 1440 minutes. |
 | `debounce_min` | `2` | Délai de stabilité des conditions, 0 à 60 minutes. |
 

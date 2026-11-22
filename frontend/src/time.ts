@@ -146,7 +146,7 @@ export function formatWhen(iso: string, timeZone: string, language: string, now 
 export function formatPauseEnd(iso: string, timeZone: string, language: string): string {
   const date = new Date(iso);
   const day = dateFormat(language, { timeZone, weekday: "short", day: "numeric", month: "short" }).format(date);
-  return `${day}, ${fmtClock(language, localMinutes(date, timeZone))}`;
+  return `${day}${language.startsWith("fr") ? " à " : ", "}${fmtClock(language, localMinutes(date, timeZone))}`;
 }
 
 /** Earliest end among the paused programs, or null when none has a timed pause. */

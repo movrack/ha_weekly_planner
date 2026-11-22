@@ -111,7 +111,7 @@ Le [guide illustré](https://github.com/movrack/ha_weekly_planner/wiki/Guide-uti
 | Option | Défaut | Effet |
 |---|---|---|
 | Seuls les administrateurs peuvent modifier les programmes | non | Réserve aux administrateurs les modifications des programmes et des réglages. |
-| Refaire le réglage en cours après un redémarrage ou une modification | oui | Valeur de départ de la case **Réappliquer le réglage en cours après un redémarrage ou une modification** pour chaque nouveau programme. |
+| Refaire le réglage en cours après un redémarrage ou une modification | oui | Valeur de départ de la case **Renvoyer le réglage en cours après un redémarrage ou un changement** pour chaque nouveau programme. |
 | Alerte si un appareil est indisponible depuis | 30 min | Délai avant la notification, de 1 à 1440 minutes. |
 | Attendre avant d’appliquer un changement de condition | 2 min | Délai de stabilité des conditions du programme, de 0 à 60 minutes. |
 | Sélecteur de mode (facultatif) | aucun | Une entité `input_select` ou `select` dont l’état est le mode de la maison ; un mode par défaut est demandé ensuite. |

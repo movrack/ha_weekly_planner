@@ -244,7 +244,7 @@ describe("names of the strip and conflict controls", () => {
     expect(attributes(tpl, ".entityIds")).toEqual([["cover.a"]]);
     expect(attributes(tpl, ".value")).toEqual(["l"]);
     const markup = flat(tpl);
-    expect(markup).toContain('>Erase</button>');
+    expect(markup).toContain('>Delete</button>');
     expect(markup).toContain('>Split in two</button>');
     expect(markup).toContain('>Copy to other days</button>');
     el._copyOpen = true;

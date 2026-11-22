@@ -219,7 +219,7 @@ describe("wp-pause-choice", () => {
   it("shows a Duration label, a Indefinite / Pause switch, the durations, then Confirm and Cancel", () => {
     const { el } = mount("fr", "Office");
     const out = flat(el.render());
-    for (const w of ["Jusqu’à quand ?", "Jusqu’à la reprise", "Pour une durée", "Pause", "1 jour", "7 jours", "jours", "Confirmer", "Annuler"]) expect(out).toContain(w);
+    for (const w of ["Jusqu’à quand ?", "Jusqu’à ce que je la reprenne", "Pour une durée", "Pause", "1 jour", "7 jours", "jours", "Confirmer", "Annuler"]) expect(out).toContain(w);
   });
   it("confirms 1 day (24 h) by default", () => {
     const { el, seen, close, querySelector } = mount("fr", "Office");
@@ -270,12 +270,12 @@ describe("wp-pause-choice", () => {
     clicks(el.render())[0].fn();
     expect(el._unlimited).toBe(true);
     const unlimited = flat(el.render());
-    expect(unlimited).toContain("aria-pressed=true class=on\n            @click=>Until resumed</button>");
+    expect(unlimited).toContain("aria-pressed=true class=on\n            @click=>Until I resume it</button>");
     expect(unlimited).toContain("aria-pressed=false class=\n            @click=>For a set time</button>");
     clicks(el.render())[1].fn();
     expect(el._unlimited).toBe(false);
     const paused = flat(el.render());
-    expect(paused).toContain("aria-pressed=false class=\n            @click=>Until resumed</button>");
+    expect(paused).toContain("aria-pressed=false class=\n            @click=>Until I resume it</button>");
     expect(paused).toContain("aria-pressed=true class=on\n            @click=>For a set time</button>");
     expect(paused).toContain('<div class="custom muted">');
   });

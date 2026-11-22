@@ -24,7 +24,7 @@ describe("plain vocabulary", () => {
     const fr = strings("fr"), en = strings("en");
     expect(fr.ce_area).toBe("Pièce");
     expect(fr.ce_schedule_view).toBe("Affichage");
-    expect(fr.ce_area_hint).toBe("Montre seulement les programmes rangés dans les pièces choisies. Pour ranger un programme dans une pièce : Réglages des programmes → Général → Pièce du programme.");
+    expect(fr.ce_area_hint).toBe("Montre seulement les programmes des pièces choisies. La pièce d’un programme se règle dans son onglet Général.");
     expect(fr.chart_day).toBe("Graphique du jour");
     expect(fr.planned).toBe("Prévu");
     expect(fr.measured).toBe("Valeur mesurée");

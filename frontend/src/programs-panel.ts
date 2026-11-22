@@ -230,7 +230,7 @@ export class WpProgramsPanel extends LitElement {
           @priority-moved=${(e: CustomEvent<{ id: string; text: string }>) => this._moved(e)}></wp-priority-list></div>`)}
       ${alone.length ? html`<div class="block"><h3>${t(lang, "prio_alone")}</h3>
         <ul class="alone">${alone.map((p) => html`<li class=${p.enabled ? "" : "off"}><span class="name">${p.name}</span>
-          <span class="sub">${names(p.entities.map((e) => e.entity_id))}</span></li>`)}</ul></div>` : nothing}
+          <span class="sub">${names(p.entities.map((e) => e.entity_id))}${p.enabled ? "" : ` · ${t(lang, "paused")}`}</span></li>`)}</ul></div>` : nothing}
       ${this._undo ? html`<div class="undo-bar"><span>${t(lang, "prio_saved")}</span>
         <button class="link" aria-label=${t(lang, "prio_undo_label")} @click=${() => void this._undoOrder()}><ha-icon icon="mdi:undo"></ha-icon>${t(lang, "prio_undo")}</button></div>` : nothing}
       <div class="done-row"><button class="done" @click=${() => this._leavePriorities()}>${t(lang, "prio_done")}</button></div>
@@ -344,8 +344,9 @@ export class WpProgramsPanel extends LitElement {
     return html`<wp-dialog open compact heading=${t(lang, "panel_filter_open")} @closed=${() => { this._dialog = ""; this._focusAfterRender(".filter-open"); }}>
       ${group(t(lang, "panel_filter_type"), "types", types)}${group(t(lang, "panel_filter_room"), "rooms", rooms)}${group(t(lang, "panel_filter_device"), "devices", devices)}
       <p class="filter-count" role="status">${t(lang, "panel_filter_shown", { n: String(viewPrograms(hass, data.programs, view).length), total: String(total) })}</p>
+      ${whyNote("why-reset-dialog", t(lang, "panel_no_filter"), filterCount(view) === 0)}
       <div class="done-row">
-        <button class="link" ?disabled=${filterCount(view) === 0} @click=${() => this._resetFilters()}>${t(lang, "panel_filter_reset")}</button>
+        <button class="link" ?disabled=${filterCount(view) === 0} aria-disabled=${ariaDisabled(filterCount(view) === 0)} aria-describedby=${describedBy(filterCount(view) === 0, "why-reset-dialog")} @click=${() => this._resetFilters()}>${t(lang, "panel_filter_reset")}</button>
         <button class="done" @click=${() => this._closeDialog()}>${t(lang, "prio_done")}</button>
       </div>
     </wp-dialog>`;

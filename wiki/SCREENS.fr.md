@@ -164,7 +164,7 @@ Dans **Options avancées**, les choix Lever et Coucher remplacent l’heure fixe
 
 ## S10 — Action sans fin
 
-Ponctuelle crée une action lancée une seule fois : elle est lancée au début, sans retour automatique à « Le reste du temps ».
+**Une seule action** crée une action lancée une seule fois : elle est lancée au début, sans retour automatique à « Le reste du temps ».
 
 <a href="images/guide/s10-one-shot.png"><img src="images/guide/s10-one-shot.png" width="320" alt="S10 — Action sans fin" /></a>
 
@@ -180,7 +180,7 @@ Ponctuelle crée une action lancée une seule fois : elle est lancée au début,
 
 ## S12 — Modifier un réglage partagé
 
-Dans le panneau **Réglages** ouvert, le crayon ouvre le réglage sélectionné. La mention « Aussi utilisé par : » nomme les autres programmes qu’une modification concernerait. La corbeille voisine supprime le réglage pour tous les appareils après confirmation ; elle est refusée, avec les noms des programmes concernés, tant que le réglage sert.
+Dans le panneau **Réglages** ouvert, le crayon ouvre le réglage sélectionné. La mention « Attention : modifier ce réglage modifie aussi… » nomme les autres programmes qu’une modification concernerait. La corbeille voisine supprime le réglage pour tous les appareils après confirmation ; elle est refusée, avec les noms des programmes concernés, tant que le réglage sert.
 
 <a href="images/guide/s12-edit-shared-label.png"><img src="images/guide/s12-edit-shared-label.png" width="320" alt="S12 — Modifier un réglage partagé" /></a>
 
@@ -228,7 +228,7 @@ Le bouton **Agrandir / réduire** (flèches, à côté de la croix) élargit la 
 
 ## S18 — Édition directe sur une barre
 
-Un appui long, au doigt ou à la souris, affiche les poignées et les actions de l’horaire sélectionné : **Couper en deux**, **Copier sur d’autres jours**, **Effacer** et le choix du réglage.
+Un appui long, au doigt ou à la souris, affiche les poignées et les actions de l’horaire sélectionné : **Couper en deux**, **Copier sur d’autres jours**, **Supprimer** et le choix du réglage.
 
 <a href="images/guide/s18-bar-edit.png"><img src="images/guide/s18-bar-edit.png" width="320" alt="S18 — Édition directe sur une barre" /></a>
 
@@ -368,7 +368,7 @@ Home Assistant refuse une seconde configuration de Weekly Planner. Pour ajouter 
 
 ### S46 — Fenêtre Pause
 
-La fenêtre **Pause** demande **Jusqu’à quand ?** avec deux choix, **Jusqu’à la reprise** et **Pour une durée**. Avec **Pour une durée**, vous choisissez **1 heure**, **1 jour** ou **7 jours**, ou vous remplissez les champs **Nombre d’heures** et **Nombre de jours**, puis **Confirmer**.
+La fenêtre **Pause** demande **Jusqu’à quand ?** avec deux choix, **Jusqu’à ce que je la reprenne** et **Pour une durée**. Avec **Pour une durée**, vous choisissez **1 heure**, **1 jour** ou **7 jours**, ou vous remplissez les champs **Nombre d’heures** et **Nombre de jours**, puis **Confirmer**.
 
 <a href="images/guide/s46-pause-dialog.png"><img src="images/guide/s46-pause-dialog.png" width="320" alt="S46 — Fenêtre Pause" /></a>
 

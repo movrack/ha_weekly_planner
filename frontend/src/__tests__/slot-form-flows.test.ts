@@ -32,7 +32,7 @@ describe("slot form: advanced options fold", () => {
     expect(folds).toHaveLength(2);
     // start time, its fold, then the end chips and time, then the end fold, then the action
     expect(times[0]).toBeLessThan(folds[0]);
-    expect(folds[0]).toBeLessThan(at("class=\"chip \"")); // “One-time” chip comes after the start fold
+    expect(folds[0]).toBeLessThan(at("class=\"chip \"")); // “Single action” chip comes after the start fold
     expect(folds[0]).toBeLessThan(times[times.length - 1]);
     expect(times[times.length - 1]).toBeLessThan(folds[1]);
     expect(folds[1]).toBeLessThan(at("<wp-label-picker"));

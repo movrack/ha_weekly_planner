@@ -384,7 +384,7 @@ export class WeeklyPlannerCard extends LitElement {
     const week = shown === 7 ? nothing : dayView(shown);
     const holidayShown = shown === 7 ? holiday() : nothing;
     return html`<div class="compare">
-      <div class="cedit"><button class="hours" aria-label=${t(lang, "compare_edit")} title=${t(lang, "compare_edit")}
+      <div class="cedit"><button class="hours" aria-label=${programs.length === 1 ? t(lang, "hours_of", { name: programs[0].name }) : t(lang, "compare_edit")} title=${t(lang, "compare_edit")}
         @click=${() => { this._dialog = programs.length === 1 ? { kind: "schedule", scope: { kind: "program", programId: programs[0].id } } : { kind: "pick", programs }; }}><ha-icon icon="mdi:calendar-edit"></ha-icon><span class="hl">${t(lang, "compare_edit")}</span></button></div>
       ${chips}
       ${anyHold ? html`<p class="chint" role="status">${hold.hint ? t(lang, "hold_hint") : nothing}</p>` : nothing}
@@ -649,10 +649,14 @@ export class WeeklyPlannerCard extends LitElement {
     return text ? html`<p class="locked-note">${text}</p>` : nothing;
   }
 
-  private _modeLine() {
+  private _modeLine(programs: Program[] = []) {
     const mode = this._data?.mode;
-    return mode?.selector && mode.options.length && mode.active
-      ? html`<p class="mode-line">${t(this._lang, "mode_shown", { name: mode.active })}</p>` : nothing;
+    if (!(mode?.selector && mode.options.length && mode.active)) return nothing;
+    // the active mode may reuse the schedules of another one: say so when every program of the view agrees
+    const sources = new Set(programs.map((p) => p.profiles.find((x) => x.name === mode.active)?.follows ?? ""));
+    const source = sources.size === 1 ? [...sources][0] : "";
+    const text = source ? t(this._lang, "mode_shown_follows", { name: mode.active, source }) : t(this._lang, "mode_shown", { name: mode.active });
+    return html`<p class="mode-line">${text}</p>`;
   }
 
   /** A program with no schedule for the active mode: only "the rest of the time" applies to its devices. */
@@ -938,7 +942,7 @@ export class WeeklyPlannerCard extends LitElement {
               ${data?.vacation ? html`<span class="chip"><ha-icon icon="mdi:pause-circle-outline"></ha-icon> ${t(lang, "vacation")}</span>` : nothing}
             </div>`
           : nothing}
-        ${this._modeLine()}
+        ${this._modeLine(programs)}
         ${this._holidayLine(programs)}
         ${this._info ? html`<div class="info" @pointerenter=${() => this._holdInfo(true)} @pointerleave=${() => this._holdInfo(false)}
           @focusin=${() => this._holdInfo(true)} @focusout=${() => this._holdInfo(false)}>${callout("success", "", this._info, { role: "status" })}</div>` : nothing}

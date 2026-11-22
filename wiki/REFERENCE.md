@@ -263,7 +263,7 @@ is saved.
 | `admin_only` | `false` | Restricts program/setting mutations. Program/vacation switches remain separate controls; choosing the mode is done on the selector entity, not in Weekly Planner. |
 | `mode_selector` | none | In the **Mode and day off** sub-section of the options form. Optional `input_select` or `select` entity whose state is the active mode, then a default mode among its options. Changing them is reserved to administrators. |
 | `holiday_entity`, `holiday_invert` | none, `false` | In the same **Mode and day off** sub-section (the mode has priority over the day off, which only applies to the current mode). Optional day-off entity of the house and the box “This entity is on during working days, not on days off”. Reserved to administrators; stored with the mode selector, not in the entry options. |
-| `reapply_default` | `true` | Starting value of **Re-apply** for every new program (card, WebSocket, or a YAML file program without `reapply`). |
+| `reapply_default` | `true` | Starting value of **Send the current setting again** for every new program (card, WebSocket, or a YAML file program without `reapply`). |
 | `notify_delay_min` | `30` | Unavailable-entity notification delay, 1–1440 minutes. |
 | `debounce_min` | `2` | Condition stability delay, 0–60 minutes. |
 

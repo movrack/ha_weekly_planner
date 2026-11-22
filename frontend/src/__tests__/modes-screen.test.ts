@@ -276,7 +276,7 @@ describe("mode notices", () => {
     expect(html).toContain("Cold"); expect(html).toContain("Snow"); expect(html).toContain("Delete its schedules");
     const fr = flat(notice({ proposals: [{ old: "Hiver", candidates: ["Froid"] }] }, "fr").render());
     expect(fr).toContain("Le mode Hiver n’existe plus dans la liste des modes. Est-ce devenu… ?");
-    expect(fr).toContain("Effacer ses horaires");
+    expect(fr).toContain("Supprimer ses horaires");
   });
   it("calls resolve with the chosen candidate", async () => {
     const n = notice({ proposals: [{ old: "Winter", candidates: ["Cold", "Snow"] }] });

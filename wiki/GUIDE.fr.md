@@ -24,7 +24,7 @@ L’interrupteur ne commande pas directement l’appareil. Mettre un programme e
 pause arrête ses horaires ; cela ne veut pas forcément dire éteindre l’appareil.
 Pour mettre en pause, un écran demande **Arrêter les horaires de « X » ?** puis
 **Jusqu’à quand ?** ; il s’ouvre sur **Pour une durée**, avec **1 jour** choisi. L’autre
-choix est **Jusqu’à la reprise** (sans limite). Avec **Pour une durée**, **Durée de la
+choix est **Jusqu’à ce que je la reprenne** (sans limite). Avec **Pour une durée**, **Durée de la
 pause** propose **1 heure**, **1 jour**, **7 jours** ou deux champs, **Nombre d’heures**
 puis **Nombre de jours**, pour une durée de votre choix, de 1 heure à 365 jours au
 total. On appuie ensuite sur **Confirmer**. Le programme
@@ -35,9 +35,9 @@ pendant une pause ne l’interrompt pas.
 <a href="images/guide/s46-pause-dialog.png"><img src="images/guide/s46-pause-dialog.png" width="320" alt="La fenêtre Pause : Jusqu’à quand ?" /></a>
 
 Quand le programme est arrêté, un badge rouge apparaît sous les icônes, en haut à
-droite : **En pause** (sans limite) ou **Pause jusqu’au** suivi de la date et de
+droite : **En pause (sans date de reprise)** ou **En pause jusqu’au** suivi de la date et de
 l’heure de reprise. L’écran des horaires a son propre interrupteur, **Programme actif**,
-avec le texte **En marche**, **En pause** (sans limite) ou **Pause jusqu’au** suivi de la
+avec le texte **En marche**, **En pause (sans date de reprise)** ou **En pause jusqu’au** suivi de la
 date. Cet interrupteur se met à jour sur les autres cartes.
 
 **Semaine** déplie les sept jours. Toucher le nom d’un jour permet de regarder ses
@@ -96,7 +96,7 @@ repliable **Jour férié** (visible seulement si une entité jour férié est r�
 
 1. Toucher **Ajouter un horaire** (**Créer un réglage** s'il n'y en a aucun), ou la ligne du matin si elle existe déjà.
 2. Sous **Début**, saisir **06:30**.
-3. Sous **Fin**, choisir **Jusqu’à…**, puis saisir **08:30**.
+3. Sous **Fin**, choisir **Jusqu’à une heure**, puis saisir **08:30**.
 4. Choisir **Tous les jours**.
 5. Sous **Réglage**, choisir **Confort**.
 6. Faire défiler jusqu’en bas et toucher **Enregistrer**.
@@ -156,7 +156,7 @@ du programme. Les commandes doivent d’abord y être cochées.
 
 Un réglage peut servir à plusieurs programmes. **Changer Confort de 20 à
 21 °C peut donc changer leurs horaires aussi.** Dans le panneau **Réglages**, le crayon ouvre son réglage ; la
-mention **Aussi utilisé par :** nomme les autres programmes qui s’en servent.
+mention **Attention : modifier ce réglage modifie aussi…** nomme les autres programmes qui s’en servent.
 
 <a href="images/guide/s50-setting-editor.png"><img src="images/guide/s50-setting-editor.png" width="320" alt="Un réglage avec ses Options avancées ouvertes." /></a>
 
@@ -212,7 +212,7 @@ Sous la barre, quand un horaire est sélectionné, trois boutons à ne pas confo
   d’horaire : le reste du temps s’applique. Quand la coupure tombe dans un trou, elle crée sur la
   seconde partie un horaire avec le réglage de « Le reste du temps ».
 - **Copier sur d’autres jours** (icône « deux feuilles ») recopie l’horaire sur d’autres jours.
-- **Effacer** enlève l’horaire sélectionné : le reste du temps s’applique à sa place.
+- **Supprimer** enlève l’horaire sélectionné : le reste du temps s’applique à sa place.
 
 La barre propose aussi le choix du réglage de l’horaire sélectionné.
 
@@ -284,7 +284,7 @@ puis renseigner **Au plus tôt à**, **Au plus tard à**, ou les deux. Cette opt
 séparément pour le début et la fin solaires. Décocher la case retire les deux limites.
 Voir [l’écran solaire S09](SCREENS.fr.md#s09).
 
-**Ponctuelle** sert à lancer une action une seule fois à son début, sans action de
+**Une seule action** sert à lancer une action une seule fois à son début, sans action de
 fin : [S10](SCREENS.fr.md#s10). Une action ponctuelle passée n’est pas rejouée après
 un redémarrage.
 
@@ -352,7 +352,7 @@ seulement, avec un bouton **Annuler** pendant une semaine et un bouton **OK** qu
 l’avis. Dans les autres cas, Weekly Planner ne devine pas : le mode sans option
 garde ses horaires, marqué **n’existe plus** (« Le mode X n’existe plus dans la liste des
 modes. »), et rien n’est effacé. L’écran des horaires propose chaque nouvelle option
-(**Est-ce devenu… ?**) ou **Effacer ses horaires**, et un message de **Réparations** de Home
+(**Est-ce devenu… ?**) ou **Supprimer ses horaires**, et un message de **Réparations** de Home
 Assistant le signale aussi.
 
 La **Suspension de tous les programmes** reste une commande à part, qui l’emporte
@@ -406,7 +406,7 @@ Enregistrer la carte et terminer l’édition du tableau de bord.
 
 Voir [la création S37](SCREENS.fr.md#s37), [la pièce S40](SCREENS.fr.md#s40) et [les filtres S41](SCREENS.fr.md#s41).
 
-Le panneau **Programmes** a deux rubriques. **Actions** : **Nouveau programme**, **Dupliquer un programme** (choisir le programme à copier, puis **Dupliquer** : la copie s’appelle **Copie** suivi du nom, avec un numéro si ce nom existe déjà, garde les appareils, les réglages et les horaires, et apparaît tout en bas de la liste) **Ordre des priorités** (voir [Priorités](PRIORITES.fr.md)). **Liste des programmes** : sur téléphone, une bascule **Liste | Aperçu** remplace les lignes par la carte Weekly Planner en liste compacte, sans quitter l’écran (les Actions, **Trier** et **Filtrer** restent là) ; l’aperçu montre les mêmes programmes dans le même ordre que la liste, filtres et tri compris, et on peut y modifier les horaires. Sur grand écran, l’aperçu occupe la partie de droite tant qu’aucun programme n’est ouvert. La **Liste des programmes** : le bouton **Trier** ouvre une fenêtre pour trier par **Ordre de création** (par défaut), **Nom** ou **Priorité**. Le bouton **Filtrer** ouvre une fenêtre pour filtrer par **Type**, **Pièce** (avec **Sans pièce**) et **Appareil** ; chacun est une section d’un accordéon, ouvrir l’une referme les autres, et le titre indique combien de filtres y sont actifs : un programme est affiché s’il correspond à l’une des valeurs choisies dans chaque filtre. **Réinitialiser** efface les filtres et garde le tri choisi.
+Le panneau **Programmes** a deux rubriques. **Actions** : **Nouveau programme**, **Dupliquer un programme** (choisir le programme à copier, puis **Dupliquer** : la copie s’appelle **Copie** suivi du nom, avec un numéro si ce nom existe déjà, garde les appareils, les réglages et les horaires, et apparaît tout en bas de la liste) **Ordre des priorités** (voir [Priorités](PRIORITES.fr.md)). **Liste des programmes** : sur téléphone, une bascule **Liste | Résumé** remplace les lignes par la carte Weekly Planner en liste compacte, sans quitter l’écran (les Actions, **Trier** et **Filtrer** restent là) ; l’aperçu montre les mêmes programmes dans le même ordre que la liste, filtres et tri compris, et on peut y modifier les horaires. Sur grand écran, l’aperçu occupe la partie de droite tant qu’aucun programme n’est ouvert. La **Liste des programmes** : le bouton **Trier** ouvre une fenêtre pour trier par **Ordre de création** (par défaut), **Nom** ou **Priorité**. Le bouton **Filtrer** ouvre une fenêtre pour filtrer par **Type**, **Pièce** (avec **Sans pièce**) et **Appareil** ; chacun est une section d’un accordéon, ouvrir l’une referme les autres, et le titre indique combien de filtres y sont actifs : un programme est affiché s’il correspond à l’une des valeurs choisies dans chaque filtre. **Réinitialiser** efface les filtres et garde le tri choisi.
 
 Les programmes se gèrent **uniquement** dans ce panneau, plus dans l’éditeur de la carte : celui-ci ne garde que l’affichage
 (titre, programmes montrés, vue, couleurs). Une carte sans programme montre, à toute personne qui peut modifier, un lien **Gérer les programmes**.
@@ -519,13 +519,13 @@ droits de modification avec la personne qui a installé la carte.
   Le formulaire n’édite pas les conditions par horaire.
 - Appareils → Actions proposées limite les choix de services. Les modes et favoris
   dépendent de ce que Home Assistant expose : [exemples](GENERIC_ACTIONS.md).
-- Réappliquer peut envoyer l’action courante après un changement ou un redémarrage.
+- **Renvoyer le réglage en cours** peut envoyer l’action courante après un changement ou un redémarrage.
   Les fins manquées restent un cas de rattrapage. Les identifiants internes des modes restent stables.
 - La pièce du programme se définit dans Général ; le filtre de carte propose les
   pièces existantes. Les cadrans fonctionnent aussi dans une liste filtrée.
 - Les options globales se trouvent dans Paramètres → Appareils et services →
   Weekly Planner → Configurer : [S35](SCREENS.fr.md#s35). L’option de réapplication
-  par défaut donne la valeur de départ de **Réappliquer** à chaque nouveau programme.
+  par défaut donne la valeur de départ de **Renvoyer le réglage en cours** à chaque nouveau programme.
   Les autres options : **Seuls les administrateurs peuvent modifier les programmes**, l’alerte si un
   appareil est indisponible (1 à 1440 minutes) et le délai d’attente avant d’appliquer un changement de condition
   (0 à 60 minutes).

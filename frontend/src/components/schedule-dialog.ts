@@ -1130,7 +1130,7 @@ export class WpSchedule extends LitElement {
       const current = this._ownProfile(program)?.follows ?? "";
       const followers = program.profiles.filter((p) => p.follows === open).map((p) => p.name);
       const name = many ? ` (${program.name})` : "";
-      if (followers.length) return html`<p class="muted note">${t(lang, "mode_followed_by", { modes: followers.join(", ") })}${name}</p>`;
+      if (followers.length) return html`<p class="muted note">${t(lang, followers.length > 1 ? "mode_followed_by_many" : "mode_followed_by", { modes: followers.join(", ") })}${name}</p>`;
       const sources = this._followSources(program);
       if (!this._canEdit && current) return html`<p class="muted note">${t(lang, "mode_follows_info", { source: current })}${name}</p>`;
       if (!this._canEdit || (!sources.length && !current)) {
@@ -1299,7 +1299,7 @@ export class WpSchedule extends LitElement {
         ${modes.map((m) => {
           const follows = this._programs.map((p) => p.profiles.find((x) => x.name === m.name)?.follows).find(Boolean);
           const notes = [m.name === this.data.mode?.active ? t(lang, "mode_active_badge") : "", m.orphan ? t(lang, "mode_no_option") : "",
-            follows ? t(lang, "mode_follows_short", { source: follows }) : ""].filter(Boolean);
+            follows ? t(lang, "mode_follows_opt", { source: follows }) : ""].filter(Boolean);
           const text = notes.length ? `${m.name} (${notes.join(", ")})` : m.name;
           return html`<option value=${m.name} ?selected=${m.name === open}>${text}</option>`;
         })}

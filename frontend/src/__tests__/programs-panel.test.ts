@@ -167,7 +167,7 @@ describe("programs panel: priority order", () => {
     const p = open([shared("1", 1), shared("2", 2), program("3", { entities: [{ entity_id: "light.z" }] })]);
     const out = flat(p._priorities(p._data));
     expect(out.match(/<wp-priority-list/g)).toHaveLength(1);
-    expect(out).toContain("Alone on their devices");
+    expect(out).toContain("Only one program on these devices");
     expect(out).toContain("Prog 3");
     expect(out).toContain("the top one wins.");
   });
@@ -559,7 +559,7 @@ describe("programs panel: sort and filter", () => {
   });
 });
 
-describe("programs panel: overview (Aperçu)", () => {
+describe("programs panel: overview (Résumé)", () => {
   const set = () => data([
     program("1", { name: "Volet salon", priority: 2, entities: [{ entity_id: "cover.salon" }] }),
     program("2", { name: "Chauffage bureau", priority: 1, entities: [{ entity_id: "climate.bureau" }] }),
@@ -575,7 +575,7 @@ describe("programs panel: overview (Aperçu)", () => {
     expect(out.indexOf(">List<")).toBeLessThan(out.indexOf(">Summary<"));
     expect(bindings(p._list(p._data.programs), "aria-checked")).toEqual([true, false]);
     const fr = make({ narrow: true, data: set() }); fr.hass.language = "fr";
-    expect(flat(fr._list(fr._data.programs))).toContain(">Aperçu<");
+    expect(flat(fr._list(fr._data.programs))).toContain(">Résumé<");
   });
 
   it("has no toggle on a wide screen (the overview already fills the right column); without programs it stays on a narrow one, greyed", () => {
@@ -633,7 +633,7 @@ describe("programs panel: overview (Aperçu)", () => {
     expect(flat(make({ data: data([]) })._editor(data([])))).not.toContain("wp-overview");
   });
 
-  it("titles the pane Settings above the editor of a program or of a new one, and says Aperçu / Réglages in French", () => {
+  it("titles the pane Settings above the editor of a program or of a new one, and says Résumé / Réglages in French", () => {
     const p = make({ data: set() });
     p._selected = "1";
     let out = flat(p._editor(p._data));
@@ -642,7 +642,7 @@ describe("programs panel: overview (Aperçu)", () => {
     p._selected = "new";
     expect(flat(p._editor(p._data))).toContain("Settings");
     const fr = make({ data: set() }); fr.hass.language = "fr";
-    expect(flat(fr._editor(fr._data))).toContain('<h2 class="pane-title">Aperçu</h2>');
+    expect(flat(fr._editor(fr._data))).toContain('<h2 class="pane-title">Résumé</h2>');
     fr._selected = "1";
     expect(flat(fr._editor(fr._data))).toContain('<h2 class="pane-title">Réglages</h2>');
   });

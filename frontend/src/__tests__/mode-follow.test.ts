@@ -101,7 +101,7 @@ describe("the schedules screen of a mode that follows", () => {
     expect(view._followSources(program)).toEqual(["Home", "Away"]); // a mode with no schedule yet may follow
     view._viewMode = "Home";
     expect(view._followSources(program)).toEqual([]); // Holiday follows Home: Home cannot follow
-    expect(flat(view.render())).toContain("Followed by: Holiday");
+    expect(flat(view.render())).toContain("Holiday uses the same schedules");
     expect(flat(view.render())).not.toContain(t("en", "follow_no_source"));
   });
   it("shows nothing to choose when no mode can be followed, and only a note when read-only", () => {
