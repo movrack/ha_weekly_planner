@@ -693,7 +693,7 @@ export class WpProgramEditor extends LitElement {
     const secondaryActions = html`
       <button class="btn danger" ?disabled=${this._isNew || !editable || this._saving} aria-disabled=${ariaDisabled(this._isNew || !editable || this._saving)}
         aria-describedby=${describedBy(this._isNew || !editable, this._isNew ? "why-delete" : "why-readonly")}
-        @click=${() => void this._askDelete()}><ha-icon icon="mdi:delete"></ha-icon>${this._tr("delete")}</button>
+        @click=${() => void this._askDelete()}><ha-icon icon="mdi:delete"></ha-icon>${this._tr("delete_schedule")}</button>
       ${whyNote("why-delete", this._tr("pe_save_first"), this._isNew)}`;
     const unapplied = (this._origin
       ? JSON.stringify(this._p) !== JSON.stringify(this._origin) || this._order !== undefined
