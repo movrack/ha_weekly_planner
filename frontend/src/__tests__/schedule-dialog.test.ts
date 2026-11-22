@@ -744,11 +744,11 @@ describe("schedule screen editing", () => {
         expect(at.every((i, k) => i > 0 && (k === 0 || i > at[k - 1]))).toBe(true);
         expect(html).toContain("aria-controls=acc-mode");
         expect(html).toContain('class="wp-collapse " id=acc-mode');
-        expect(html).toContain('<span class="acc-sum">Home (Active)</span>');
-        expect(html).toContain("aria-label=Mode: Home (Active)");
+        expect(html).toContain('<span class="acc-sum">Home</span>');
+        expect(html).toContain("aria-label=Mode: Home");
         view._panel = "mode";   // open, the summary stays
-        expect(flat(view.render())).toContain('<span class="acc-sum">Home (Active)</span>');
-        expect(flat(view.render())).toContain("aria-label=Mode: Home (Active)");
+        expect(flat(view.render())).toContain('<span class="acc-sum">Home</span>');
+        expect(flat(view.render())).toContain("aria-label=Mode: Home");
         expect(flat(view.render())).toContain('class="wp-collapse open" id=acc-mode');
         view._viewMode = "Away";   // another mode than the active one
         expect(flat(view.render())).toContain(`<span class="acc-sum">Away · ${t("en", "mode_inactive_short")}</span>`);

@@ -1184,7 +1184,7 @@ export class WpSchedule extends LitElement {
     const lang = this._lang;
     const open = this._panel === "mode";
     const name = this._openMode ?? "";
-    const summary = this._modeOnly ? `${name} · ${t(lang, "mode_inactive_short")}` : `${name} (${t(lang, "mode_active_badge")})`;
+    const summary = this._modeOnly ? `${name} · ${t(lang, "mode_inactive_short")}` : name;
     return html`<section class="acc modebox ${open ? "on" : ""}">
       ${this._panelHeader("mode", t(lang, "profile"), summary, "acc-mode", summary)}
       ${collapse(open, html`<div class="acc-body" role="region" aria-labelledby="acc-mode-btn">
@@ -1521,7 +1521,7 @@ export class WpSchedule extends LitElement {
         ${whyNote("why-top", t(lang, editing ? "finish_schedule_first" : "mode_off_why"), editing || this._modeOnly)}
         <label class="switch">
           <span class="grow">${t(lang, "schedule_on")}</span>
-          <span class="state">${this._stateText()}</span>
+          ${this._enabled ? nothing : html`<span class="state">${this._stateText()}</span>`}
           <input type="checkbox" .checked=${this._enabled} ?disabled=${!this._canEdit || this._toggling || editing || this._modeOnly}
             aria-disabled=${ariaDisabled(!this._canEdit || editing || this._modeOnly)}
             aria-describedby=${describedBy(!this._canEdit || editing || this._modeOnly, this._lockId ?? "why-ro")}
@@ -1606,7 +1606,7 @@ export class WpSchedule extends LitElement {
     .tags, .tag { display: inline; }
     .tag + .tag { margin-inline-start: 12px; }
     .tags .dot { display: inline-block; width: 10px; height: 10px; border-radius: 5px; margin-inline-end: 6px; vertical-align: -1px; }
-    .row.opts small { color: var(--secondary-text-color); font-size: 0.75rem; }
+    .row.opts small { color: var(--secondary-text-color); font-size: 0.875rem; text-align: end; }
     .opts-body { margin: 0 0 12px; padding: 8px 0 0 12px; border-left: 3px solid var(--divider-color); }
     .modechip {
       display: inline-flex; align-items: center; gap: 6px; min-height: 48px; max-width: 100%; padding: 0 16px; border-radius: 24px;
