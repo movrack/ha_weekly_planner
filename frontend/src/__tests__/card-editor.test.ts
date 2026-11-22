@@ -596,3 +596,43 @@ describe("card editor: touch targets", () => {
     expect(css).toMatch(/\.callout \.btn \{[^}]*max-width: 100%[^}]*white-space: normal/);
   });
 });
+
+describe("the programs list grouped by type", () => {
+  const progs = () => [prog("a", "Alpha", ["cover.a"]), prog("b", "Beta", ["cover.b"]), prog("c", "Gamma", ["light.c"]), prog("m", "Mixed", ["cover.m", "light.m"])];
+  const list = (el: any) => flat(el.render()).split('id="ce-all-hint"')[1].split("</details>")[0];
+  const group = (el: any, type: string) => list(el).split(`class="type-group" data-type=${type}`)[1].split('class="type-group"')[0];
+  it("All programs stays on top, then one fold per type, each a button with aria-expanded and aria-controls", () => {
+    const out = list(mk({ filter: {} }, progs()));
+    expect(out.indexOf("type-group")).toBeGreaterThan(-1);
+    expect(out).toMatch(/type-head"[^>]*id=ce-type-cover-btn aria-expanded=false aria-controls=ce-type-cover-body/);
+    expect(out).toContain("class=\"wp-collapse \" id=ce-type-cover-body");
+  });
+  it("with All programs every group starts folded", () => {
+    expect(list(mk({ filter: {} }, progs())).match(/aria-expanded=true/g)).toBeNull();
+  });
+  it("with a selection, only the groups holding selected programs start open, and the count says selected of total", () => {
+    const el = mk({ filter: { programs: ["c"] } }, progs());
+    expect(group(el, "light")).toContain("aria-expanded=true");
+    expect(group(el, "light")).toContain("1 of 2");
+    expect(group(el, "cover")).toContain("aria-expanded=false");
+    expect(group(el, "cover")).toContain("0 of 3");
+  });
+  it("a program of two types is listed under both", () => {
+    const el = mk({ filter: {} }, progs());
+    expect(group(el, "cover")).toContain("data-program=m");
+    expect(group(el, "light")).toContain("data-program=m");
+  });
+  it("the user's fold choice wins over the default", () => {
+    const el = mk({ filter: { programs: ["c"] } }, progs());
+    eventNear(el.render(), "click", "id=ce-type-light-btn")();
+    expect(group(el, "light")).toContain("aria-expanded=false");
+    eventNear(el.render(), "click", "id=ce-type-cover-btn")();
+    expect(group(el, "cover")).toContain("aria-expanded=true");
+  });
+  it("a row switch still edits the selection", () => {
+    const el = mk({ filter: {} }, progs());
+    el._treeChange = vi.fn();
+    eventNear(el.render(), "change", "aria-label=Alpha")({ target: { checked: false } });
+    expect(el._treeChange).toHaveBeenCalledOnce();
+  });
+});

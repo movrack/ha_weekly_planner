@@ -8,14 +8,14 @@ import { syncSelectValues } from "./select-value";
 import { areaList, areaValue, roomKey, roomKeys, roomOptions } from "./program-areas";
 import { domainIcon, programDomains, type DomainLocalize } from "./domains";
 import { normalizeConfig, withDefaults } from "./config";
-import { allPrograms, isOn, toggleAllOff, toggleProgram, programRows, toggleType, typeGroups, typeState, type FilterPatch } from "./filter-editor";
+import { allPrograms, isOn, toggleAllOff, toggleProgram, programRows, toggleType, typeGroups, typeState, type FilterConfig, type FilterPatch, type ProgramRow, type TypeGroup } from "./filter-editor";
 import { t } from "./i18n";
 import { collapse, collapseStyles } from "./styles";
 import { ariaDisabled, whyNote, whyStyles } from "./reason";
 import { moveId, sortItems, sortMode, SORTS } from "./list-order";
 import { setTimeFormat } from "./time";
 import { defaultViewFor, usesScheduleList, viewAllowed, viewsFor, type View } from "./view-choice";
-import type { CardConfig, HomeAssistant, PlannerData } from "./types";
+import type { CardConfig, HomeAssistant, PlannerData, Program } from "./types";
 import { editorStyles, langOf } from "./editors/shared";
 import type { K } from "./editors/shared";
 
@@ -220,6 +220,34 @@ export class WeeklyPlannerCardEditor extends LitElement {
       <p id="ce-area-help" class="hint">${this._tr("ce_area_hint")}</p></div>`;
   }
 
+  /** Fold state of the type groups in the program list: what the user chose; absent = the default (see `_typeGroup`). */
+  @state() private _typeFolds = new Map<string, boolean>();
+
+  /**
+   * One fold per program type in the "programs to display" list: header (type icon, name, selected of total) and,
+   * under it, one row per program of that type. A program with devices of several types is listed under each of them
+   * (same grouping as the type chips). Default: folded, except when a selection exists and the type holds selected
+   * programs; with "All programs" nothing is chosen yet, so every group starts folded.
+   */
+  private _typeGroup(g: TypeGroup, rows: ProgramRow[], byId: Map<string, Program>, programs: Program[], filter: FilterConfig | undefined, all: boolean) {
+    const members = new Set(g.programs.map((x) => x.id));
+    const on = g.programs.filter((x) => isOn(byId.get(x.id)!, filter, programs)).length;
+    const open = this._typeFolds.get(g.type) ?? (!all && on > 0);
+    const id = `ce-type-${g.type}`;
+    const counter = this._tr("ce_type_count", { on: String(on), total: String(g.programs.length) });
+    return html`<div class="type-group" data-type=${g.type}>
+      <button type="button" class="type-head" id=${`${id}-btn`} aria-expanded=${String(open)} aria-controls=${`${id}-body`}
+        @click=${() => { this._typeFolds = new Map(this._typeFolds).set(g.type, !open); }}>
+        <ha-icon class="type-icon" icon=${this._typeIcons.get(g.type) ?? "mdi:shape-outline"}></ha-icon>
+        <span class="grow type-title">${g.label}</span><span class="count">${counter}</span>
+        <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>
+      ${collapse(open, html`<div role="group" aria-labelledby=${`${id}-btn`}>${rows.filter((p) => members.has(p.id)).map((p) => html`<div class="switch-row program-row" data-program=${p.id}>
+          <span class="grow titles"><span class="type-title">${p.name}</span>
+            <span class="type-names">${p.domains.map((d) => html`<ha-icon class="mini" icon=${this._typeIcons.get(d) ?? "mdi:shape-outline"}></ha-icon>`)}${p.devices.length ? p.devices.join(", ") : this._tr("ce_no_device")}</span></span>
+          ${this._switch(isOn(byId.get(p.id)!, filter, programs), p.name, (v) => this._treeChange(toggleProgram(programs, filter, p.id, v)))}</div>`)}</div>`, `${id}-body`)}
+    </div>`;
+  }
+
   private _displayPrograms() {
     const filter = this._filter;
     const programs = this._data?.programs ?? [];
@@ -259,10 +287,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
         <div class="switch-row"><span class="grow">${this._tr("ce_all_programs")}</span>
           ${this._switch(all, this._tr("ce_all_programs"), (on) => this._treeChange(on ? allPrograms() : toggleAllOff(programs, filter, visible)), false, false, "ce-all-hint")}</div>
         <p id="ce-all-hint" class="hint" role="status">${this._tr(all ? "ce_all_programs_hint" : "ce_all_programs_hint_off")}</p>
-        ${rows.map((p) => html`<div class="switch-row program-row" data-program=${p.id}>
-          <span class="grow titles"><span class="type-title">${p.name}</span>
-            <span class="type-names">${p.domains.map((d) => html`<ha-icon class="mini" icon=${this._typeIcons.get(d) ?? "mdi:shape-outline"}></ha-icon>`)}${p.devices.length ? p.devices.join(", ") : this._tr("ce_no_device")}</span></span>
-          ${this._switch(isOn(byId.get(p.id)!, filter, programs), p.name, (v) => this._treeChange(toggleProgram(programs, filter, p.id, v)))}</div>`)}
+        ${groups.filter((g) => g.programs.length).map((g) => this._typeGroup(g, rows, byId, programs, filter, all))}
         ${orphans.length ? html`<div class="label">${this._tr("ce_other_programs")}</div>${orphans.map((id) => html`<div class="switch-row"><span class="grow">${id}</span>
           ${this._switch(true, id, () => this._treeChange({ programs: (filter?.programs ?? []).filter((x) => x !== id) }))}</div>`)}` : nothing}
       </div>
@@ -389,7 +414,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
 
   }
 
-  static styles = [editorStyles, whyStyles, collapseStyles, css`:host { display: block; padding: 4px 0; } .hint { line-height: 1.5; } .display-programs { margin: 12px 0; border: 1px solid var(--wp-field-border); border-radius: 8px; padding: 8px 12px; } summary { min-height: 44px; align-content: center; cursor: pointer; } .display-programs .check { min-height: 44px; overflow-wrap: anywhere; } .switch-row { display: flex; align-items: center; gap: 8px; min-height: 48px; overflow-wrap: anywhere; } .type-head { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; min-height: 48px; border: 0; background: none; color: inherit; text-align: start; cursor: pointer; } .type-body[hidden] { display: none; } ha-switch { padding: 12px 8px; margin: -12px -8px; flex: none; } ha-switch.partial { --mdc-theme-secondary: var(--warning-color, #ffa600); } .type-icon { flex: none; color: var(--secondary-text-color); } .titles { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; } .type-title { font-size: 1rem; overflow-wrap: normal; word-break: keep-all; } .type-names { font-size: 0.875rem; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .mini { --mdc-icon-size: 16px; vertical-align: -3px; margin-inline-end: 4px; } .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; } .chip { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 12px; border: 1px solid var(--wp-field-border); border-radius: 22px; background: none; color: var(--primary-text-color); font: inherit; cursor: pointer; } .chip.on { background: var(--wp-primary-fill); border-color: var(--wp-primary-fill); color: #fff; } .chip.partial { border: 2px dashed var(--wp-primary-text); } .chip .count { font-size: 0.8125rem; opacity: .85; color: inherit; } .chip.on .count { opacity: 1; color: #fff; } .quick .hint { margin: 4px 0 0; } .count { font-size: 0.875rem; color: var(--secondary-text-color); } .count b { color: var(--primary-text-color); } .type-head.static { cursor: default; } .chev-space { flex: none; width: 24px; } .order-list { list-style: none; margin: 0 0 12px; padding: 0; } .order-row { display: flex; align-items: center; gap: 4px; min-height: 56px; border-bottom: 1px solid var(--divider-color); } .order-row.target { border-top: 2px solid var(--wp-primary-text); } .order-row.moved { background: var(--wp-field-border); box-shadow: inset 4px 0 0 var(--wp-primary-text); } .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } .order-row button.move { width: 48px; height: 48px; } .order-row button { flex: none; width: 44px; height: 48px; display: inline-flex; align-items: center; justify-content: center; border: 0; background: none; color: var(--primary-text-color); cursor: pointer; } .order-row button[disabled] { opacity: .35; cursor: default; } .order-row .handle { touch-action: none; cursor: grab; } .order-row .grow { flex: 1 1 0; min-width: 0; } .manage-programs { margin-bottom: 12px; text-decoration: none; } button.manage-programs[disabled] { opacity: .5; cursor: default; margin-bottom: 0; }`];
+  static styles = [editorStyles, whyStyles, collapseStyles, css`:host { display: block; padding: 4px 0; } .hint { line-height: 1.5; } .display-programs { margin: 12px 0; border: 1px solid var(--wp-field-border); border-radius: 8px; padding: 8px 12px; } summary { min-height: 44px; align-content: center; cursor: pointer; } .display-programs .check { min-height: 44px; overflow-wrap: anywhere; } .switch-row { display: flex; align-items: center; gap: 8px; min-height: 48px; overflow-wrap: anywhere; } .type-head { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; min-height: 48px; border: 0; background: none; color: inherit; text-align: start; cursor: pointer; } .type-group { border-top: 1px solid var(--divider-color); } .type-head { width: 100%; padding: 0; } .type-head .count { flex: none; } ha-switch { padding: 12px 8px; margin: -12px -8px; flex: none; } ha-switch.partial { --mdc-theme-secondary: var(--warning-color, #ffa600); } .type-icon { flex: none; color: var(--secondary-text-color); } .titles { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; } .type-title { font-size: 1rem; overflow-wrap: normal; word-break: keep-all; } .type-names { font-size: 0.875rem; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .mini { --mdc-icon-size: 16px; vertical-align: -3px; margin-inline-end: 4px; } .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; } .chip { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 12px; border: 1px solid var(--wp-field-border); border-radius: 22px; background: none; color: var(--primary-text-color); font: inherit; cursor: pointer; } .chip.on { background: var(--wp-primary-fill); border-color: var(--wp-primary-fill); color: #fff; } .chip.partial { border: 2px dashed var(--wp-primary-text); } .chip .count { font-size: 0.8125rem; opacity: .85; color: inherit; } .chip.on .count { opacity: 1; color: #fff; } .quick .hint { margin: 4px 0 0; } .count { font-size: 0.875rem; color: var(--secondary-text-color); } .count b { color: var(--primary-text-color); } .type-head.static { cursor: default; } .chev-space { flex: none; width: 24px; } .order-list { list-style: none; margin: 0 0 12px; padding: 0; } .order-row { display: flex; align-items: center; gap: 4px; min-height: 56px; border-bottom: 1px solid var(--divider-color); } .order-row.target { border-top: 2px solid var(--wp-primary-text); } .order-row.moved { background: var(--wp-field-border); box-shadow: inset 4px 0 0 var(--wp-primary-text); } .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } .order-row button.move { width: 48px; height: 48px; } .order-row button { flex: none; width: 44px; height: 48px; display: inline-flex; align-items: center; justify-content: center; border: 0; background: none; color: var(--primary-text-color); cursor: pointer; } .order-row button[disabled] { opacity: .35; cursor: default; } .order-row .handle { touch-action: none; cursor: grab; } .order-row .grow { flex: 1 1 0; min-width: 0; } .manage-programs { margin-bottom: 12px; text-decoration: none; } button.manage-programs[disabled] { opacity: .5; cursor: default; margin-bottom: 0; }`];
 }
 
 declare global {
