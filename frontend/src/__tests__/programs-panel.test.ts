@@ -172,6 +172,16 @@ describe("programs panel: priority order", () => {
     expect(out).toContain("the top one wins.");
   });
 
+  it("a program with no competition keeps greyed up and down buttons, with the reason shown", () => {
+    const p = open([shared("1", 1), shared("2", 2), program("3", { entities: [{ entity_id: "light.z" }] })]);
+    const out = flat(p._priorities(p._data));
+    expect(out).toContain('id=why-alone role="status">Nothing to rank here');
+    expect(out.match(/aria-describedby=why-alone/g)).toHaveLength(2);
+    expect(out.match(/aria-disabled=true/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(out).toContain("Move Prog 3 up");
+    expect(out).toContain("Move Prog 3 down");
+  });
+
   it("says so when no program shares a device", () => {
     const out = flat(open([program("1")])._priorities(data([program("1")])));
     expect(out).toContain("No program shares a device.");

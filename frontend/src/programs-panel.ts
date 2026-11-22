@@ -229,8 +229,12 @@ export class WpProgramsPanel extends LitElement {
           @priority-change=${(e: CustomEvent<string[]>) => this._reorder(group, e)}
           @priority-moved=${(e: CustomEvent<{ id: string; text: string }>) => this._moved(e)}></wp-priority-list></div>`)}
       ${alone.length ? html`<div class="block"><h3>${t(lang, "prio_alone")}</h3>
-        <ul class="alone">${alone.map((p) => html`<li class=${p.enabled ? "" : "off"}><span class="name">${p.name}</span>
-          <span class="sub">${names(p.entities.map((e) => e.entity_id))}${p.enabled ? "" : ` · ${t(lang, "paused")}`}</span></li>`)}</ul></div>` : nothing}
+        ${whyNote("why-alone", t(lang, "prio_alone_why"))}
+        <ul class="alone">${alone.map((p) => html`<li class=${p.enabled ? "" : "off"}>
+          <div class="txt"><span class="name">${p.name}</span>
+            <span class="sub">${names(p.entities.map((e) => e.entity_id))}${p.enabled ? "" : ` · ${t(lang, "paused")}`}</span></div>
+          ${(["up", "down"] as const).map((dir) => html`<button class="mv" disabled aria-disabled="true" aria-describedby="why-alone"
+            aria-label=${t(lang, dir === "up" ? "prio_up" : "prio_down", { name: p.name })}><ha-icon icon=${dir === "up" ? "mdi:arrow-up" : "mdi:arrow-down"}></ha-icon></button>`)}</li>`)}</ul></div>` : nothing}
       ${this._undo ? html`<div class="undo-bar"><span>${t(lang, "prio_saved")}</span>
         <button class="link" aria-label=${t(lang, "prio_undo_label")} @click=${() => void this._undoOrder()}><ha-icon icon="mdi:undo"></ha-icon>${t(lang, "prio_undo")}</button></div>` : nothing}
       <div class="done-row"><button class="done" @click=${() => this._leavePriorities()}>${t(lang, "prio_done")}</button></div>
@@ -447,7 +451,9 @@ export class WpProgramsPanel extends LitElement {
     .prio .hint { margin: 0 0 12px; }
     .block { margin: 0 0 16px; padding: 12px; border-radius: 12px; background: var(--secondary-background-color); }
     .alone { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-    .alone li { display: flex; flex-direction: column; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--divider-color); background: var(--card-background-color); }
+    .alone li { display: flex; flex-direction: row; align-items: center; gap: 4px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--divider-color); background: var(--card-background-color); }
+    .alone .txt { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+    .alone .mv { flex: none; width: 48px; height: 48px; display: inline-flex; align-items: center; justify-content: center; border: 0; background: none; color: var(--primary-text-color); opacity: .35; cursor: default; }
     .alone li.off .name { color: var(--secondary-text-color); }
     .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     .undo-bar { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 12px calc(12px + env(safe-area-inset-bottom, 0px)); margin-bottom: 8px; border-radius: 12px; background: var(--card-background-color); border: 1px solid var(--divider-color); box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15); }
