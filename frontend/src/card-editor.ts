@@ -403,14 +403,6 @@ export class WeeklyPlannerCardEditor extends LitElement {
       <div class="switch-row"><span class="grow">${this._tr("ce_show_schedule_list")}</span>
         ${this._switch(c.show_schedule_list === true, this._tr("ce_show_schedule_list"), (on) => this._set("show_schedule_list", on), false, !listUsed, listUsed ? "" : "why-schedule-list")}</div>
       ${whyNote("why-schedule-list", this._tr("ce_show_schedule_list_why"), !listUsed)}
-      <fieldset class="group"><legend>${this._tr("ce_chart_group")}</legend>
-        <div class="switch-row"><span class="grow">${this._tr("ce_show_chart")}</span>
-          ${this._switch(chartOn, this._tr("ce_show_chart"), (on) => this._set("show_chart", on), false, false, "ce-show-chart-hint", { expanded: chartOn, controls: "ce-chart-more" })}</div>
-        <p id="ce-show-chart-hint" class="hint">${this._tr("ce_show_chart_hint")}</p>
-        ${collapse(chartOn, html`<div class="switch-row"><span class="grow">${this._tr("ce_chart_open")}</span>
-          ${this._switch(c.chart_collapsed === false, this._tr("ce_chart_open"), (on) => this._set("chart_collapsed", !on), false, false, "ce-chart-open-hint")}</div>
-        <p id="ce-chart-open-hint" class="hint">${this._tr("ce_chart_open_hint")}</p>`, "ce-chart-more")}
-      </fieldset>
       <fieldset class="group"><legend>${this._tr("ce_week_group")}</legend>
         <div class="switch-row"><span class="grow">${this._tr("ce_show_week")}</span>
           ${this._switch(weekOn, this._tr("ce_show_week"), (on) => this._set("show_week_button", on), false, false, "ce-show-week-hint", { expanded: weekOn, controls: "ce-week-more" })}</div>
@@ -418,6 +410,14 @@ export class WeeklyPlannerCardEditor extends LitElement {
         ${collapse(weekOn, html`<div class="switch-row"><span class="grow">${this._tr("ce_week_open")}</span>
           ${this._switch(c.week_collapsed === false, this._tr("ce_week_open"), (on) => this._set("week_collapsed", !on), false, false, "ce-week-open-hint")}</div>
         <p id="ce-week-open-hint" class="hint">${this._tr("ce_week_open_hint")}</p>`, "ce-week-more")}
+      </fieldset>
+      <fieldset class="group"><legend>${this._tr("ce_chart_group")}</legend>
+        <div class="switch-row"><span class="grow">${this._tr("ce_show_chart")}</span>
+          ${this._switch(chartOn, this._tr("ce_show_chart"), (on) => this._set("show_chart", on), false, false, "ce-show-chart-hint", { expanded: chartOn, controls: "ce-chart-more" })}</div>
+        <p id="ce-show-chart-hint" class="hint">${this._tr("ce_show_chart_hint")}</p>
+        ${collapse(chartOn, html`<div class="switch-row"><span class="grow">${this._tr("ce_chart_open")}</span>
+          ${this._switch(c.chart_collapsed === false, this._tr("ce_chart_open"), (on) => this._set("chart_collapsed", !on), false, false, "ce-chart-open-hint")}</div>
+        <p id="ce-chart-open-hint" class="hint">${this._tr("ce_chart_open_hint")}</p>`, "ce-chart-more")}
       </fieldset>
     `;
 

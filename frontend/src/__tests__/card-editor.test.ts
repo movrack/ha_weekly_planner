@@ -649,9 +649,9 @@ describe("the programs list grouped by type", () => {
 });
 
 describe("the Week fieldset", () => {
-  it("a Week fieldset follows the Chart one with the Week button switch and its hint, on by default", () => {
+  it("a Week fieldset comes before the Chart one (owner, 2026-11-22), with the Week button switch and its hint, on by default", () => {
     const out = flat(mk({}).render());
-    expect(out.indexOf(`<legend>${t("en", "ce_week_group")}</legend>`)).toBeGreaterThan(out.indexOf(`<legend>${t("en", "ce_chart_group")}</legend>`));
+    expect(out.indexOf(`<legend>${t("en", "ce_week_group")}</legend>`)).toBeLessThan(out.indexOf(`<legend>${t("en", "ce_chart_group")}</legend>`));
     expect(out).toContain(`aria-label=${t("en", "ce_show_week")} aria-describedby=ce-show-week-hint`);
     expect(out).toContain(t("en", "ce_show_week_hint"));
     expect(out).not.toContain("aria-disabled=true aria-label=Week button");
