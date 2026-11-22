@@ -316,6 +316,18 @@ describe("tooltip targets, handles and day properties", () => {
     handlers(tpl).find(h => h.event === "keydown")!.fn({ key: "ArrowRight", preventDefault: vi.fn() });
     expect(el._draft[0].start).toEqual({ time: "06:15" });
   });
+  it("tabbing through the handles keeps the strip on the slot being edited", () => {
+    const el = editor();
+    el.spans = [{ slotId: "a", start: 360, end: 720, label: "Open", color: "#0" }];
+    const overlay = el._overlay_();
+    const repeat = overlay.values.find((v: any) => v?._$litDirective$ && v.values?.length === 3);
+    const tpl = repeat.values[2](repeat.values[0][0], 0);
+    el._selected = { kind: "slot", id: "other" };
+    handlers(tpl).find(h => h.event === "focus")!.fn();
+    expect(el._selected).toEqual({ kind: "slot", id: "other" });
+    handlers(tpl).find(h => h.event === "keydown")!.fn({ key: "ArrowRight", preventDefault: vi.fn() });
+    expect(el._selected).toEqual({ kind: "slot", id: "a" });
+  });
   it("renders radial day properties and shows an hours axis only below a linear bar", () => {
     const el = editor(); el.view = "radial_12h"; el.hours = true; el.deviceName = "Kitchen"; el.rest = "Closed";
     el._selected = { kind: "slot", id: "a" };

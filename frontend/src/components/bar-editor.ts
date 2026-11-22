@@ -400,7 +400,7 @@ export class WpBarEditor extends LitElement {
         return html`<button class="hd dot" style="left:${p.x / 3.2}%;top:${p.y / 3.2}%" role="slider"
           aria-valuemin="0" aria-valuemax="1440" aria-valuenow=${b.m} aria-valuetext=${this._clock(b.m)}
           aria-label=${t(this.lang, "handle", { time: this._clock(b.m) })} data-h=${`${ref.id}:${ref.edge}`}
-          @keydown=${(e: KeyboardEvent) => this._key(e, ref)} @focus=${() => { this._hsel = ref; this._selected = { kind: "slot", id: ref.id }; this._focusSlotTip(ref.id); }} @blur=${() => { this._tip = null; }}><i></i></button>`;
+          @keydown=${(e: KeyboardEvent) => this._key(e, ref)} @focus=${() => this._handleFocus(ref)} @blur=${() => { this._tip = null; }}><i></i></button>`;
       })}
       ${this._showBubble && this._bubble ? html`<div class="polar-time">${this._bubble.text ?? this._clock(this._bubble.m)}</div>` : nothing}
     </div>`;
@@ -640,9 +640,18 @@ export class WpBarEditor extends LitElement {
 
   /* ---- keyboard ---- */
 
+  /** Focus alone never changes the selection (WCAG 3.2.1): tabbing through the handles must not move the strip to another
+   *  slot. Only the first focus of an editing session (nothing selected yet) selects the slot of the focused handle. */
+  private _handleFocus(ref: Handle): void {
+    this._hsel = ref;
+    this._selected ??= { kind: "slot", id: ref.id };
+    this._focusSlotTip(ref.id);
+  }
+
   private _key(e: KeyboardEvent, ref: Handle): void {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     e.preventDefault();
+    this._selected = { kind: "slot", id: ref.id };
     const profileId = activeProfile(this._live, this.data).id;
     if (this._nudge && this._nudge.profileId !== profileId) {
       this._flushNudge();
@@ -1063,7 +1072,7 @@ export class WpBarEditor extends LitElement {
           role="slider" aria-orientation="horizontal" aria-valuemin="0" aria-valuemax="1440" aria-valuenow=${b.m}
           aria-valuetext=${this._clock(b.m)} aria-label=${t(this.lang, "handle", { time: this._clock(b.m) })}
           data-h=${b.refs.map((r) => `${r.id}:${r.edge}`).join(" ")} title=${this._sunTitle(ref, b.m)}
-          @keydown=${(e: KeyboardEvent) => this._key(e, ref)} @focus=${() => { this._hsel = ref; this._selected = { kind: "slot", id: ref.id }; this._focusSlotTip(ref.id); }} @blur=${() => { this._tip = null; }}
+          @keydown=${(e: KeyboardEvent) => this._key(e, ref)} @focus=${() => this._handleFocus(ref)} @blur=${() => { this._tip = null; }}
           ><i></i></button>`;
       })}
       ${this._showBubble && this._bubble ? html`<div class="bubble" style="left:clamp(44px, ${pct(this._bubble.m)}, calc(100% - 44px))">${this._bubble.text ?? this._clock(this._bubble.m)}</div>` : nothing}
