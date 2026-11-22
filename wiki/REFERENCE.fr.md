@@ -136,7 +136,7 @@ Exemple : 18 °C de 10:00 à 20:00, puis 17 °C de 20:00 à 21:00 ; un réglage 
 jusqu’à 20:00, puis 17 °C est envoyé.
 
 - **Avec fin** : action au début, puis défaut éligible ou action du programme qui reprend la main à la fin.
-- **Une seule action** : action lancée une seule fois, aucun événement de fin, jamais rejouée après son heure. Un horaire borné prioritaire peut la supprimer.
+- **À cette heure seulement** : action lancée une seule fois, aucun événement de fin, jamais rejouée après son heure. Un horaire borné prioritaire peut la supprimer.
 - **Priorité** : c’est un rang (1, 2, 3…, sans plafond) dans un groupe de programmes qui partagent un appareil ; le rang 1 gagne entre les horaires éligibles actifs, le programme le plus ancien départage les égalités. L’interface ne la saisit pas (glisser-déposer) ; `priority` reste dans le YAML et l’API. Commande `weekly_planner/program/priorities` : liste `{id, revision}` dans le nouvel ordre d’un groupe, tout ou rien ; `weekly_planner/program/save` accepte aussi `group_order`. Sans horaire actif, le programme activé le plus prioritaire contenant l’entité fournit son défaut facultatif.
 - **Conditions** : toutes les conditions du programme doivent être satisfaites pour ses horaires. Une condition fausse n’est pas une commande d’arrêt générique ; les règles des défauts comptent encore.
 - **Redémarrage** : stabilisation de 30 s, puis réapplication facultative de l’action bornée ou du défaut en cours après un redémarrage, une activation ou une modification. Les fins manquées sont rattrapées, pas les actions ponctuelles passées.

@@ -785,7 +785,10 @@ export class WpBarEditor extends LitElement {
         } else this._dropDraft();
         if (!silent) {
           const at = this._ctx().at;
+          const count = (days: Slot[][]) => changed.reduce((n, i) => n + (days[i]?.length ?? 0), 0);
+          const what = count(merged) > count(before) ? "edited_added" : count(merged) < count(before) ? "edited_deleted" : "edited_changed";
           this._emit("edited", {
+            what,
             undo: () => this._commit((days) => {
               // only the slots this edit wrote come back: another device's change made meanwhile is kept; a slot of
               // this edit changed since cannot be undone and the user is told (never a silent refusal)

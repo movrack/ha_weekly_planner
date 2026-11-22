@@ -9,7 +9,7 @@ describe("quantity legend #41", () => {
     const h = hass(language);
     h.localize = (key: string) => key === "component.custom.entity_component.novel_quantity.name" ? "Flux" : key;
     expect(chartQuantity(h, "custom.probe", "quanta")).toBe("Flux (quanta)");
-    for (const role of ["planned", "measured", "set"] as const)
+    for (const role of ["planned", "measured"] as const)
       expect(chartLegend(h, "custom.probe", "quanta", role)).toContain("Flux (quanta)");
     expect(chartQuantity(h, "custom.probe", "")).toBe("Flux");
   });
@@ -43,6 +43,6 @@ it("connects plotted attributes to the rendered planned/measured/requested legen
     markers: [{}], planned: {steps:[], zones:[]}, shade:[], manual:[] }));
   expect(out).toContain("Prévu · Température cible (°F)");
   expect(out).toContain("Mesuré · Température actuelle (°F)");
-  expect(out).toContain("Demandé · Température cible (°F)");
+  expect(out).toContain("Demandé à l’appareil");
   expect(out).not.toContain("°C");
 });

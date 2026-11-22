@@ -87,7 +87,7 @@ export class WeeklyPlannerCard extends LitElement {
   @state() private _charts = loadChartChoices();
   /** Bar being edited in place (null: none), and the "Changed · Undo" bar. */
   @state() private _edit: string | null = null;
-  @state() private _snack: { undo: () => Promise<boolean> } | null = null;
+  @state() private _snack: { undo: () => Promise<boolean>; what: "edited" | "edited_added" | "edited_deleted" | "edited_changed" } | null = null;
   private _snackTimer?: number;
   private _ticks = 0;
   private _unsub?: () => void;
@@ -191,8 +191,8 @@ export class WeeklyPlannerCard extends LitElement {
     }
   }
 
-  private _showSnack(undo: () => Promise<boolean>): void {
-    this._snack = { undo };
+  private _showSnack(undo: () => Promise<boolean>, what: "edited" | "edited_added" | "edited_deleted" | "edited_changed" = "edited"): void {
+    this._snack = { undo, what };
     window.clearTimeout(this._snackTimer);
     this._snackTimer = window.setTimeout(() => (this._snack = null), 6000);
   }
@@ -727,7 +727,7 @@ export class WeeklyPlannerCard extends LitElement {
       @edit-request=${() => (this._edit = key)} @edit-exit=${() => { if (this._edit === key) this._edit = null; }}
       locked-reason=${offset === 0 ? this._lockedText(program) : ""}
       @locked-request=${() => this._say(this._lockedText(program))}
-      @edited=${(e: CustomEvent<{ undo: () => Promise<boolean> }>) => this._showSnack(e.detail.undo)}></wp-bar-editor>`;
+      @edited=${(e: CustomEvent<{ undo: () => Promise<boolean>; what?: "edited_added" | "edited_deleted" | "edited_changed" }>) => this._showSnack(e.detail.undo, e.detail.what)}></wp-bar-editor>`;
   }
 
   /** A bar is edited in place when editing is allowed, the mode is not followed, and no day off replaces today's schedule. */
@@ -958,7 +958,7 @@ export class WeeklyPlannerCard extends LitElement {
             ${whyNote("why-manage", t(lang, "read_only"))}`) : nothing}
         ${data ? this._list(programs) : nothing}
       </ha-card>
-      ${this._snack ? html`<div class="snack" role="status"><span>${t(lang, "edited")} ·</span>
+      ${this._snack ? html`<div class="snack" role="status"><span>${t(lang, this._snack.what)} ·</span>
         <button @click=${() => void this._undo()}>${t(lang, "undo")}</button></div>` : nothing}
       ${this._renderDialog()}`;
   }

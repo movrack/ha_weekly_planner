@@ -279,12 +279,12 @@ dans **Le reste du temps**, choisir le réglage d’ouverture.
 
 L’heure du coucher suit le soleil du lieu enregistré dans Home Assistant.
 L’action part à la minute exacte calculée (par exemple 17 h 17), décalage compris.
-Pour garder l’action entre deux heures, cocher **Limiter l’heure (au plus tôt / au plus tard)**,
+Pour garder l’action entre deux heures, cocher **Pas avant / pas après une heure fixe**,
 puis renseigner **Au plus tôt à**, **Au plus tard à**, ou les deux. Cette option se règle
 séparément pour le début et la fin solaires. Décocher la case retire les deux limites.
 Voir [l’écran solaire S09](SCREENS.fr.md#s09).
 
-**Une seule action** sert à lancer une action une seule fois à son début, sans action de
+**À cette heure seulement** sert à lancer une action une seule fois à son début, sans action de
 fin : [S10](SCREENS.fr.md#s10). Une action ponctuelle passée n’est pas rejouée après
 un redémarrage.
 

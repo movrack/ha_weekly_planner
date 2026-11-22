@@ -487,6 +487,7 @@ describe("bar editor: per device", () => {
     const { b, emitted, live, set } = bar(p, CLIMATE, 0);
     await b._commit((all: Slot[][]) => all.map((d, i) => (i ? d : d.map((s) => (s.id === "s1" ? { ...s, end: { time: "21:00" } } : s)))), [0]);
     const undo = emitted.find((e) => e.name === "edited").detail.undo;
+    expect(emitted.find((e) => e.name === "edited").detail.what).toBe("edited_changed"); // same number of slots: changed
     const other = structuredClone(live());
     other.profiles[0].days[0] = other.profiles[0].days[0].map((s: Slot) => (s.id === "s2" ? { ...s, start: { time: "07:30" } } : s));
     set(other);

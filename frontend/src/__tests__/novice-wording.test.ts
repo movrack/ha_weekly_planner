@@ -37,7 +37,7 @@ describe("novice review 2026-11-22 wording", () => {
   it("explains the shared setting, the random delay and the single action in plain words", () => {
     expect(t("fr", "used_by", { names: "Maison" })).toBe("Attention : modifier ce réglage modifie aussi Maison.");
     expect(t("fr", "random_time")).toContain("quelques minutes");
-    expect(t("fr", "no_end")).toBe("Une seule action");
+    expect(t("fr", "no_end")).toBe("À cette heure seulement");
     expect(t("fr", "with_end")).toBe("Jusqu’à une heure");
     expect(t("fr", "pause_none")).toBe("Jusqu’à ce que je la reprenne");
     expect(t("fr", "mode_followed_by", { modes: "Vacances" })).toBe("Vacances utilise les mêmes horaires");

@@ -38,7 +38,7 @@ describe("messages and undo", () => {
     const c = card([]);
     const undo = vi.fn(async () => true);
     c._showSnack(undo);
-    expect(c._snack).toEqual({ undo });
+    expect(c._snack).toEqual({ undo, what: "edited" });
     vi.advanceTimersByTime(5999);
     expect(c._snack).not.toBeNull();
     vi.advanceTimersByTime(1);
@@ -180,8 +180,13 @@ describe("card frame", () => {
     }
     expect(shown(true, { read_only: true })).toContain(`id=why-manage role="status">${t("en", "read_only")}</p>`);
   });
+  it("the undo snackbar says what was done", () => {
+    const c = frame({}, {}, (x) => { x._snack = { what: "edited_deleted" }; });
+    expect(flat(c.render())).toContain(`<span>${t("en", "edited_deleted")} ·</span>`);
+    expect(t("fr", "edited_deleted")).toBe("Horaire supprimé");
+  });
   it("the undo snackbar", () => {
-    const c = frame({}, {}, (x) => { x._snack = true; x._undo = vi.fn(); });
+    const c = frame({}, {}, (x) => { x._snack = { what: "edited" }; x._undo = vi.fn(); });
     const html = flat(c.render());
     expect(html).toContain(`<span>${t("en", "edited")} ·</span>`);
     expect(html).toContain(`>${t("en", "undo")}</button>`);

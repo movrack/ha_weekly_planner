@@ -164,7 +164,7 @@ Dans **Options avancées**, les choix Lever et Coucher remplacent l’heure fixe
 
 ## S10 — Action sans fin
 
-**Une seule action** crée une action lancée une seule fois : elle est lancée au début, sans retour automatique à « Le reste du temps ».
+**À cette heure seulement** crée une action lancée une seule fois : elle est lancée au début, sans retour automatique à « Le reste du temps ».
 
 <a href="images/guide/s10-one-shot.png"><img src="images/guide/s10-one-shot.png" width="320" alt="S10 — Action sans fin" /></a>
 
@@ -392,7 +392,7 @@ La liste **Mode** de l’écran des horaires montre un mode qui a les mêmes hor
 
 ### S49 — Éditeur d’horaire avec les options avancées
 
-L’éditeur d’horaire avec le repli **Options avancées** ouvert : lever ou coucher du soleil, limite d’heure (**Limiter l’heure (au plus tôt / au plus tard)**) et **Délai aléatoire**.
+L’éditeur d’horaire avec le repli **Options avancées** ouvert : lever ou coucher du soleil, limite d’heure (**Pas avant / pas après une heure fixe**) et **Délai aléatoire**.
 
 <a href="images/guide/s49-advanced-options.png"><img src="images/guide/s49-advanced-options.png" width="320" alt="S49 — Éditeur d’horaire avec les options avancées" /></a>
 
