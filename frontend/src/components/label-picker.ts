@@ -363,11 +363,11 @@ export class WpLabelPicker extends LitElement {
           <button class="pen ${this._form ? "on" : ""}" aria-label=${t(lang, "rename_label")} title=${t(lang, "rename_label")}
             aria-pressed=${this._form} ?disabled=${this.disabled || this.readonlySettings} aria-disabled=${ariaDisabled(this.readonlySettings)}
             aria-describedby=${describedBy(this.readonlySettings, "why-manage")}
-            @click=${() => (this._form && this._editId ? this._close() : this._open(true))}><ha-icon icon="mdi:pencil"></ha-icon></button>
+            @click=${() => (this._form && this._editId ? this._close() : this._open(true))}><ha-icon icon="mdi:pencil"></ha-icon><span>${t(lang, "lb_edit_short")}</span></button>
           <button class="pen ${this._confirmDel ? "on" : ""}" aria-label=${t(lang, "lb_delete")} title=${t(lang, "lb_delete")}
             aria-expanded=${this._confirmDel} ?disabled=${this.disabled || this.readonlySettings} aria-disabled=${ariaDisabled(this.readonlySettings)}
             aria-describedby=${describedBy(this.readonlySettings, "why-manage")}
-            @click=${() => { this._confirmDel = !this._confirmDel; this._delError = ""; }}><ha-icon icon="mdi:delete-outline"></ha-icon></button>
+            @click=${() => { this._confirmDel = !this._confirmDel; this._delError = ""; }}><ha-icon icon="mdi:delete-outline"></ha-icon><span>${t(lang, "lb_delete")}</span></button>
           `}
         </div>
         ${(() => {
@@ -423,7 +423,7 @@ export class WpLabelPicker extends LitElement {
       margin-top: 10px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--lc);
       border-left-width: 4px; background: color-mix(in srgb, var(--lc) 10%, transparent);
     }
-    .dhead { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+    .dhead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 40px; }
     .dhead b { flex: 1; min-width: 0; overflow-wrap: anywhere; }
     .details .k { color: var(--secondary-text-color); }
     .chip {
@@ -437,8 +437,8 @@ export class WpLabelPicker extends LitElement {
     .chip:disabled { opacity: 0.5; cursor: default; }
     .edit { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
     .pen {
-      width: 48px; height: 48px; border: none; border-radius: 24px; background: none; color: var(--secondary-text-color);
-      cursor: pointer; --mdc-icon-size: 20px; display: inline-flex; align-items: center; justify-content: center;
+      min-width: 48px; height: 48px; padding: 0 12px; gap: 6px; border: none; border-radius: 24px; background: none; color: var(--secondary-text-color);
+      cursor: pointer; --mdc-icon-size: 20px; display: inline-flex; align-items: center; justify-content: center; font: inherit; font-size: 0.875rem;
     }
     .pen.on { background: var(--secondary-background-color); color: var(--wp-primary-text); }
     .pen:hover { background: var(--secondary-background-color); }

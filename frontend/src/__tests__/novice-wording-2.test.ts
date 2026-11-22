@@ -36,4 +36,17 @@ describe("novice review 2: plain wording", () => {
     expect(t("fr", "schedule_on")).toBe("Programme en marche");
     expect(t("en", "schedule_on")).toBe("Program running");
   });
+
+  it("the program sheet title is not the word of the Comfort / Night settings", () => {
+    expect(t("fr", "panel_settings")).toBe("Fiche du programme");
+    expect(t("en", "panel_settings")).toBe("Program details");
+    expect(t("fr", "panel_settings")).not.toBe(t("fr", "settings_legend"));
+    expect(t("fr", "action_none_allowed")).toContain("Fiche du programme");
+  });
+
+  it("the pencil and the bin of a shared setting carry a visible text", () => {
+    expect(t("fr", "lb_edit_short")).toBe("Modifier");
+    expect(t("fr", "lb_delete")).toBe("Supprimer ce réglage");
+    expect(t("en", "lb_delete")).toBe("Delete this setting");
+  });
 });

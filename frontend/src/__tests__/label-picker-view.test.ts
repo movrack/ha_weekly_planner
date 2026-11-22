@@ -87,6 +87,7 @@ describe("the chosen setting's summary", () => {
     const view = mk()._renderDetails(open);
     const names = [t("en", "rename_label"), t("en", "lb_delete")];
     expect(flat(view).match(/class="pen "/g)).toHaveLength(2);
+    expect(flat(view)).toContain("<span>Edit</span>"); expect(flat(view)).toContain("<span>Delete this setting</span>");
     expect(values(view, "aria-label=")).toEqual(names);
     expect(values(view, "title=")).toEqual(names);
   });

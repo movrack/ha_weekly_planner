@@ -633,18 +633,18 @@ describe("programs panel: overview (Aperçu)", () => {
     expect(flat(make({ data: data([]) })._editor(data([])))).not.toContain("wp-overview");
   });
 
-  it("titles the pane Settings above the editor of a program or of a new one, and says Aperçu / Réglages in French", () => {
+  it("titles the pane Program details above the editor of a program or of a new one, and says Aperçu / Fiche du programme in French", () => {
     const p = make({ data: set() });
     p._selected = "1";
     let out = flat(p._editor(p._data));
-    expect(out).toContain('<h2 class="pane-title">Settings</h2>'); expect(out).toContain("wp-program-editor");
+    expect(out).toContain('<h2 class="pane-title">Program details</h2>'); expect(out).toContain("wp-program-editor");
     expect(out.indexOf("pane-title")).toBeLessThan(out.indexOf("wp-program-editor"));
     p._selected = "new";
-    expect(flat(p._editor(p._data))).toContain("Settings");
+    expect(flat(p._editor(p._data))).toContain("Program details");
     const fr = make({ data: set() }); fr.hass.language = "fr";
     expect(flat(fr._editor(fr._data))).toContain('<h2 class="pane-title">Aperçu</h2>');
     fr._selected = "1";
-    expect(flat(fr._editor(fr._data))).toContain('<h2 class="pane-title">Réglages</h2>');
+    expect(flat(fr._editor(fr._data))).toContain('<h2 class="pane-title">Fiche du programme</h2>');
   });
 
   it("keeps the old invitation when there is no program to show an overview of", () => {
