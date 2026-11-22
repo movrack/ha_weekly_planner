@@ -463,7 +463,7 @@ describe("program editor: an element never disappears", () => {
   it("Cancel of an intact draft stays, greyed, with 'No changes.'; it is usable once the draft changed", () => {
     const { e } = make(prog(), { embedded: true });
     expect(shown(e)).toMatch(/class="btn" \?disabled=\S* aria-disabled=true aria-describedby=why-cancel/);
-    expect(shown(e)).toContain('id=why-cancel role="status">No changes.</p>');
+    expect(shown(e)).toContain('id=why-cancel role="status">Nothing to cancel: no changes.</p>');
     e._p = { ...e._p, name: "Changed" };
     const out = shown(e);
     expect(out).not.toContain("why-cancel");
@@ -484,7 +484,7 @@ describe("program editor: an element never disappears", () => {
     expect(shown(e)).toContain("Nothing to undo.");
     expect(t("fr", "pe_nothing_both")).toBe("Rien à annuler ni à rétablir.");
     expect(t("fr", "pe_save_first")).toBe("Enregistrez d’abord le programme.");
-    expect(t("fr", "pe_no_changes")).toBe("Aucun changement.");
+    expect(t("fr", "pe_no_changes")).toBe("Rien à annuler : aucun changement.");
   });
   it("in read only, Save and Delete point to the read-only notice", () => {
     const { e } = make(prog(), { embedded: true }); e.data.read_only = true;

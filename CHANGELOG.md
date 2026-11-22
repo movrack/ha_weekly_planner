@@ -34,6 +34,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Rights: everybody keeps their own Home Assistant rights, no more list of sensitive domains (owner decision, 2026-11-21). Saving a setting, a program, priorities or a day off is allowed only if the user could make each call in plain Home Assistant: control of every targeted entity, read access to value sources, and, for a non-administrator, no service registered as administrator-only. A plain user can now schedule a lock (as in Home Assistant); a user whose permissions deny a device is refused it. The error says “Your Home Assistant rights do not allow this action.”
 
 ### Fixed
+- Card: the next change of the day always says “at 23:00” (not just “23:00”), so a novice cannot read it as a duration; the delete confirmation of a whole program now says it deletes the program and all its schedules; the greyed Cancel of the program editor says “Nothing to cancel: no changes.” (novice review, 2026-11-22).
 - Accessibility (review 2026-11-22), Programs panel: the selected **List / Overview** button and the **Done** button use the white-text fill colour (contrast 3.3:1 became at least 4.5:1).
 - Accessibility, card editor: the switches are a real 48 px target (the label part of the switch itself, so a tap on the padding toggles it).
 - Accessibility, program sheet: the icon picker is named **Icon** (not the raw `mdi:desk`); it now shows a clear button (HA's own).

@@ -767,7 +767,7 @@ export class WeeklyPlannerCard extends LitElement {
   private _whenText(iso: string): string {
     const when = formatWhen(iso, this._tz, this._lang, this._now);
     const today = localDateIso(new Date(iso), this._tz) === localDateIso(this._now, this._tz);
-    return currentTimeFormat() === "12" && today ? t(this._lang, "at_time", { time: when }) : when;
+    return today ? t(this._lang, "at_time", { time: when }) : when;
   }
 
   private _line(entityId: string, programs: Program[], opts: { name: string | null; icon?: string; button: Scope | null; open: Scope }) {

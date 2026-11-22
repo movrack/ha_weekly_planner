@@ -146,7 +146,7 @@ describe("12 h helpers on the card and in the slot editor", () => {
     expect(flat(f._hint("start", "22:30"))).toBe("");
     expect(typeof f._hintId("start", "22:30")).not.toBe("string");
   });
-  it("'at' only before a time of today, in 12 h", async () => {
+  it("'at' only before a time of today, in 12 h and in 24 h", async () => {
     const { WeeklyPlannerCard } = await import("../weekly-planner-card");
     const c = new WeeklyPlannerCard() as any;
     c.hass = { language: "en", config: { time_zone: "UTC" } };
@@ -155,6 +155,7 @@ describe("12 h helpers on the card and in the slot editor", () => {
     expect(plain(c._whenText("2026-11-02T19:00:00Z"))).toBe("at 7 pm");
     expect(plain(c._whenText("2026-11-03T19:00:00Z"))).toBe("tomorrow 7 pm");
     setTimeFormat(hass("24"));
-    expect(c._whenText("2026-11-02T19:00:00Z")).toBe("19:00");
+    expect(plain(c._whenText("2026-11-02T19:00:00Z"))).toBe("at 19:00");
+    expect(plain(c._whenText("2026-11-03T19:00:00Z"))).toBe("tomorrow 19:00");
   });
 });
