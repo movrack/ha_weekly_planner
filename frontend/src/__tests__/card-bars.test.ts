@@ -63,7 +63,7 @@ describe("a bar of the list", () => {
     expect(c._say).toHaveBeenCalledWith("locked!");
     const undo = vi.fn();
     hs.find((h) => h.event === "edited")!.fn({ detail: { undo } });
-    expect(c._snack).toEqual({ undo, what: "edited" });
+    expect(c._snack).toEqual({ undo, what: "edited", key: "p1|cover.a|today|2" }); // the undo bar knows its bar
   });
   it("a bar is not editable when read only, when the mode is followed, or when today is locked", () => {
     const { c, p } = setup();

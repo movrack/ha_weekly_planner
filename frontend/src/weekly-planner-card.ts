@@ -42,6 +42,7 @@ import type { CardConfig, HomeAssistant, PlannerData, PreviewResponse, Program, 
 
 /** How long a confirmation message stays (ms), counted from the end of any hover or focus on it. */
 const INFO_MS = 8000;
+const SNACK_MS = 20_000;
 
 type Dialog =
   | { kind: "schedule"; scope: Scope; day?: { weekday: number; offset: number }; create?: boolean; slotId?: string }
@@ -87,7 +88,7 @@ export class WeeklyPlannerCard extends LitElement {
   @state() private _charts = loadChartChoices();
   /** Bar being edited in place (null: none), and the "Changed · Undo" bar. */
   @state() private _edit: string | null = null;
-  @state() private _snack: { undo: () => Promise<boolean>; what: "edited" | "edited_added" | "edited_deleted" | "edited_changed" } | null = null;
+  @state() private _snack: { undo: () => Promise<boolean>; what: "edited" | "edited_added" | "edited_deleted" | "edited_changed"; key?: string } | null = null;
   private _snackTimer?: number;
   private _ticks = 0;
   private _unsub?: () => void;
@@ -191,10 +192,35 @@ export class WeeklyPlannerCard extends LitElement {
     }
   }
 
-  private _showSnack(undo: () => Promise<boolean>, what: "edited" | "edited_added" | "edited_deleted" | "edited_changed" = "edited"): void {
-    this._snack = { undo, what };
+  /** The undo bar stays at least 20 s (WCAG 2.2.1) and is paused while the pointer or the focus is on it. `key` is the edited
+   *  bar: the bar is rendered right after it, so the next Tab stop of a keyboard user is the Undo button. */
+  private _showSnack(undo: () => Promise<boolean>, what: "edited" | "edited_added" | "edited_deleted" | "edited_changed" = "edited", key?: string): void {
+    this._snack = { undo, what, key };
+    this._armSnack();
+  }
+
+  /** The undo bar sits in the DOM right after the bar being edited (the bar exists while `_edit` is its key). */
+  private _snackInBar(): boolean {
+    return this._snack?.key !== undefined && this._edit === this._snack.key;
+  }
+
+  private _armSnack(): void {
     window.clearTimeout(this._snackTimer);
-    this._snackTimer = window.setTimeout(() => (this._snack = null), 6000);
+    this._snackTimer = window.setTimeout(() => (this._snack = null), SNACK_MS);
+  }
+
+  /** Hover or focus on the undo bar pauses its timer; leaving it starts a fresh one. */
+  private _holdSnack(hold: boolean): void {
+    if (!this._snack) return;
+    if (hold) window.clearTimeout(this._snackTimer);
+    else this._armSnack();
+  }
+
+  private _snackView(lang: string) {
+    const snack = this._snack!;
+    return html`<div class="snack" role="status" @pointerenter=${() => this._holdSnack(true)} @pointerleave=${() => this._holdSnack(false)}
+      @focusin=${() => this._holdSnack(true)} @focusout=${() => this._holdSnack(false)}><span>${t(lang, snack.what)} ·</span>
+      <button @click=${() => void this._undo()}>${t(lang, "undo")}</button></div>`;
   }
 
   private async _undo(): Promise<void> {
@@ -727,7 +753,8 @@ export class WeeklyPlannerCard extends LitElement {
       @edit-request=${() => (this._edit = key)} @edit-exit=${() => { if (this._edit === key) this._edit = null; }}
       locked-reason=${offset === 0 ? this._lockedText(program) : ""}
       @locked-request=${() => this._say(this._lockedText(program))}
-      @edited=${(e: CustomEvent<{ undo: () => Promise<boolean>; what?: "edited_added" | "edited_deleted" | "edited_changed" }>) => this._showSnack(e.detail.undo, e.detail.what)}></wp-bar-editor>`;
+      @edited=${(e: CustomEvent<{ undo: () => Promise<boolean>; what?: "edited_added" | "edited_deleted" | "edited_changed" }>) => this._showSnack(e.detail.undo, e.detail.what, key)}></wp-bar-editor>
+      ${this._snack?.key === key && this._snackInBar() ? this._snackView(this._lang) : nothing}`;
   }
 
   /** A bar is edited in place when editing is allowed, the mode is not followed, and no day off replaces today's schedule. */
@@ -958,8 +985,7 @@ export class WeeklyPlannerCard extends LitElement {
             ${whyNote("why-manage", t(lang, "read_only"))}`) : nothing}
         ${data ? this._list(programs) : nothing}
       </ha-card>
-      ${this._snack ? html`<div class="snack" role="status"><span>${t(lang, this._snack.what)} ·</span>
-        <button @click=${() => void this._undo()}>${t(lang, "undo")}</button></div>` : nothing}
+      ${this._snack && !this._snackInBar() ? this._snackView(lang) : nothing}
       ${this._renderDialog()}`;
   }
 

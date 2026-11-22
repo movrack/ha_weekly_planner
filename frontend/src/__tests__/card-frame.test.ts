@@ -34,12 +34,12 @@ describe("messages and undo", () => {
     c._holdInfo(true);
     expect(vi.getTimerCount()).toBe(0);
   });
-  it("the undo bar lasts 6 s, restarts with a newer edit, and undo calls it once and closes the bar", async () => {
+  it("the undo bar lasts 20 s, restarts with a newer edit, and undo calls it once and closes the bar", async () => {
     const c = card([]);
     const undo = vi.fn(async () => true);
     c._showSnack(undo);
     expect(c._snack).toEqual({ undo, what: "edited" });
-    vi.advanceTimersByTime(5999);
+    vi.advanceTimersByTime(19_999);
     expect(c._snack).not.toBeNull();
     vi.advanceTimersByTime(1);
     expect(c._snack).toBeNull();
@@ -54,6 +54,27 @@ describe("messages and undo", () => {
     expect(vi.getTimerCount()).toBe(0);
     await expect(c._undo()).resolves.toBeUndefined(); // nothing to undo
     expect(undo).toHaveBeenCalledTimes(1);
+  });
+  it("the undo bar waits while the pointer or the focus is on it, and gets a new 20 s when they leave", () => {
+    const c = card([]);
+    c._showSnack(vi.fn(async () => true));
+    c._holdSnack(true);
+    vi.advanceTimersByTime(60_000);
+    expect(c._snack).not.toBeNull();
+    c._holdSnack(false);
+    vi.advanceTimersByTime(19_999);
+    expect(c._snack).not.toBeNull();
+    vi.advanceTimersByTime(1);
+    expect(c._snack).toBeNull();
+  });
+  it("the undo bar of a bar being edited is rendered right after that bar, not at the end of the card", () => {
+    const c = card([]);
+    c._showSnack(vi.fn(async () => true), "edited", "p|e|today|1");
+    c._edit = "p|e|today|1";
+    expect(c._snackInBar()).toBe(true);
+    expect(flat(c._snackView("en"))).toContain('class="snack"');
+    c._edit = null;
+    expect(c._snackInBar()).toBe(false);
   });
 });
 
