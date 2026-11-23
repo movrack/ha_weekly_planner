@@ -1148,6 +1148,10 @@ describe("schedule screen editing", () => {
     expect(c.view.hass.callWS.mock.calls[0][0].type).toBe("weekly_planner/program/delete");
     expect(confirmAction).toHaveBeenLastCalledWith(c.view, t("en", "confirm_delete_schedule", { name: "Office" }), t("en", "slot_delete_yes"), t("en", "slot_delete_no"));
     expect(closed).toHaveBeenCalledOnce();
+    // the button says what it does: the whole program, or only the schedules of one device of several
+    expect(c.view._deletesOnlyDevice).toBe(false);
+    expect(t("en", "delete_schedule")).toBe("Delete this program");
+    expect(t("fr", "delete_device_schedules")).toBe("Supprimer les horaires de cet appareil");
     c.view.hass.callWS.mockRejectedValueOnce(new Error("x")); await c.view._deleteAll();
     expect(c.view._error).toContain("x");
     vi.mocked(confirmAction).mockResolvedValue(false);

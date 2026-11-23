@@ -812,9 +812,15 @@ export class WpSchedule extends LitElement {
     }
   }
 
+  /** One device of a program that has several: deleting then removes only that device's schedules, not the program. */
+  private get _deletesOnlyDevice(): boolean {
+    const owner = this._programs[0];
+    return this.scope.kind === "program" && Boolean(owner) && owner.entities.length > 1 && Boolean(this._eid);
+  }
+
   private async _deleteAll(): Promise<void> {
     const owner = this._programs[0];
-    if (this.scope.kind === "program" && owner && owner.entities.length > 1 && this._eid) {
+    if (this._deletesOnlyDevice && owner) {
       // one device of several: only its schedules go (every mode); the program and the other devices stay
       const eid = this._eid;
       if (!(await confirmAction(this, t(this._lang, "confirm_delete_device", { name: friendlyName(this.hass, eid) }), t(this._lang, "slot_delete_yes"), t(this._lang, "slot_delete_no")))) return;
@@ -1541,7 +1547,7 @@ export class WpSchedule extends LitElement {
         <div class="area-chart" aria-disabled=${ariaDisabled(editing)} aria-describedby=${describedBy(editing, "why-top")}>${chart === nothing ? nothing : collapse(scheduled, this._dim(editing, chart), "acc-chart")}</div>
         <div class="area-options" aria-disabled=${ariaDisabled(editing)} aria-describedby=${describedBy(editing, "why-top")}>${options === nothing ? nothing : collapse(scheduled, this._dim(editing, options), "acc-options")}</div>
         <div class="area-delete"><button class="btn danger-line alone" ?disabled=${!this._canEdit || editing || this._modeOnly} aria-disabled=${ariaDisabled(editing || this._modeOnly)} aria-describedby=${describedBy(editing || this._modeOnly, this._lockId ?? "")} @click=${() => void this._deleteAll()}>
-          <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete_schedule")}</button></div>
+          <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, this._deletesOnlyDevice ? "delete_device_schedules" : "delete_schedule")}</button></div>
         </div>
       </wp-dialog>`;
   }
