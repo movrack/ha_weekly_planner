@@ -2,12 +2,12 @@ Français
 
 # Désinstaller
 
-Testée avec la version 0.29.0.
+Testée avec la version 0.30.0. <!-- VERSION : numéro à confirmer à la publication -->
 
 1. Ouvrir **Paramètres → Appareils et services → Weekly Planner**, puis le menu à trois points et
    **Supprimer**. Les interrupteurs des programmes sont retirés, les programmes enregistrés sont effacés, ainsi
-   que le fichier `/config/www/weekly_planner.yml`. Weekly Planner n’envoie plus rien aux appareils : ils
-   gardent leur dernier réglage.
+   que le fichier `/config/www/weekly_planner.yml`. L’entrée **Weekly Planner** disparaît de la barre latérale.
+   Weekly Planner n’envoie plus rien aux appareils : ils gardent leur dernier réglage.
 2. Retirer la carte **Weekly Planner** de chaque tableau de bord : modifier le tableau de bord, ouvrir la
    carte, la supprimer. Sans l’intégration, la carte ne montre plus rien d’utile.
 3. Dans **HACS**, ouvrir **Weekly Planner** et le supprimer, puis redémarrer Home Assistant.

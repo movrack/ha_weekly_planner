@@ -2,12 +2,13 @@ Français
 
 # Weekly Planner
 
-Testée avec la version 0.29.0.
+Testée avec la version 0.30.0. <!-- VERSION : numéro à confirmer à la publication -->
 
 ## Ce que fait Weekly Planner
 
 Weekly Planner donne à chaque appareil de la maison une semaine d’horaires : volets, chauffage, lumières,
-prises, scènes… Vous voyez sur une seule carte du tableau de bord ce qui est prévu et ce qui s’est passé.
+prises, scènes… Vous créez vos programmes dans le panneau **Weekly Planner** de la barre latérale. Vous voyez
+sur une carte du tableau de bord ce qui est prévu et ce qui s’est passé.
 
 <!-- CAPTURE: accueil-carte-ensemble | La carte Weekly Planner avec plusieurs programmes (vue Barres) | maison de démonstration, aujourd’hui au milieu de la journée -->
 
@@ -33,7 +34,7 @@ Tout est calculé dans votre Home Assistant : aucun service en ligne n’est uti
 
 ## Version décrite et compatibilité
 
-- Ces pages décrivent la dernière version publiée : **0.29.0**.
+- Ces pages décrivent la dernière version publiée.
 - Home Assistant **2026.10.0 ou plus récent**.
 - Installation par [HACS](https://hacs.xyz) ou à la main.
 - L’historique de Home Assistant (Recorder) sert à la partie « enregistré » du graphique. Les horaires
