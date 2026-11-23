@@ -1,19 +1,29 @@
+Français
+
 # Jour travaillé ou jour de congé
 
-**À quoi ça sert :** le chauffage, les volets et les lumières suivent une semaine « Jour travaillé » ou « Jour de congé », sans rien faire à la main.
+Testée avec la version 0.30.0. <!-- VERSION : numéro à confirmer à la publication -->
 
-## Ce qu'il faut
+**À quoi ça sert :** le chauffage, les volets et les lumières suivent une semaine « Jour travaillé » les jours où
+l’on travaille, et une semaine « Jour de congé » le week-end et les jours fériés, sans rien faire à la main.
 
-- [le sélecteur de mode préparé](RECETTES.fr.md#avant-une-recette-avec-les-modes), avec les options `Jour travaillé` et `Jour de congé`.
-- L'intégration **Jour ouvré** (Workday : Paramètres → Appareils et services → Ajouter une intégration).
-  Elle fournit un `binary_sensor` à `on` un jour travaillé et à `off` le week-end et les jours fériés de
-  votre pays ou région. Ci-dessous, il s'appelle `binary_sensor.workday_sensor`.
+## Ce qu’il faut
+
+- [Le sélecteur de mode préparé](RECETTES.fr.md#avant-une-recette-avec-les-modes), avec les choix `Jour travaillé` et
+  `Jour de congé`. Prenez `Jour travaillé` comme **Mode par défaut** : les horaires que vos programmes ont déjà lui
+  sont donnés.
+- L’intégration **Jour ouvré** (**Paramètres → Appareils et services → Ajouter une intégration**, puis chercher
+  « Jour ouvré »), réglée sur votre pays ou votre région. Elle crée un capteur (`binary_sensor`) allumé (`on`) un jour
+  travaillé, éteint (`off`) le week-end et les jours fériés. Ci-dessous il s’appelle `binary_sensor.workday_sensor` :
+  **le nom de votre capteur peut être différent, à adapter**.
 
 ## Étapes
 
-1. Dans l'écran des horaires de chaque programme, donnez des horaires aux modes `Jour travaillé` et
-   `Jour de congé`.
-2. Créez cette automatisation :
+1. Sur la carte, pour chaque programme, toucher **Modifier**, ouvrir **Mode**, choisir `Jour travaillé`, puis
+   donner ses horaires dans **Horaires**. Faire de même avec `Jour de congé`
+   ([Des horaires selon le mode](GUIDE_MODES.fr.md)). Si les deux semaines se ressemblent, une semaine peut
+   reprendre l’autre (**Mêmes horaires que :**).
+2. Dans **Paramètres → Automatisations et scènes**, créer cette automatisation (en YAML) :
 
    ```yaml
    alias: Weekly Planner – mode jour travaillé / jour de congé
@@ -36,16 +46,21 @@
            {{ 'Jour travaillé' if is_state('binary_sensor.workday_sensor', 'on') else 'Jour de congé' }}
    ```
 
-3. Testez en changeant le sélecteur à la main : la carte affiche **Mode : …** et les appareils suivent.
+3. Tester : changer le sélecteur à la main. La carte affiche **Mode : …** et les appareils suivent.
 
 ## Résultat
 
-Un jour travaillé, les programmes suivent la semaine « Jour travaillé » ; le week-end et les jours fériés, la semaine « Jour de congé ».
+Un jour travaillé, les programmes suivent la semaine « Jour travaillé ». Le week-end et les jours fériés, ils suivent
+la semaine « Jour de congé ». Le changement se fait quand le capteur change, en général à minuit.
 
 ## À savoir
 
-- Le déclencheur `homeassistant: start` remet le bon mode après un redémarrage.
-- La condition évite de changer de mode quand le capteur est indisponible ([pièges](RECETTES.fr.md#pièges-des-modes)).
+- Le déclencheur `homeassistant: start` remet le bon mode après un redémarrage de Home Assistant.
+- La condition évite de changer de mode quand le capteur est indisponible
+  ([Les pièges des modes](RECETTE_PLUSIEURS_CAPTEURS.fr.md#les-pièges-des-modes)).
+- Pour seulement donner **les horaires d’un dimanche aux jours fériés**, sans mode : [Les jours fériés](GUIDE_JOUR_FERIE.fr.md).
+- Avec plusieurs capteurs (vacances scolaires, maison vide) : une seule automatisation, voir
+  [Plusieurs capteurs, un seul ordre de priorité](RECETTE_PLUSIEURS_CAPTEURS.fr.md).
 
 ---
 
