@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-11-23
+
 ### Added
 - Card option `show_group_labels` (default on, switch “Show the type names” in the card editor, EN and FR): the Comparison view sorted by type or room shows the type (or room) name above each group of devices when there are two groups or more; off keeps the small gap. The switch stays visible, greyed with its reason, when it has no effect (owner, 2026-11-23).
 - Card, bars editor: when **Split in two** is greyed while something is selected, its own visible reason now says why (a single moment, no end time, no default setting for the empty space, or too short: 15 minutes per part), EN and FR (owner rule: nothing disappears, greyed with a reason).
