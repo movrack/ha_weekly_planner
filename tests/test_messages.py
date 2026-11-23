@@ -1,10 +1,14 @@
 """Notification texts follow the Home Assistant language."""
 
+import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from custom_components.weekly_planner.messages import message
+
+TRANSLATIONS = Path(__file__).parent.parent / "custom_components" / "weekly_planner" / "translations"
 
 
 def _hass(language):
@@ -37,3 +41,13 @@ def test_failed_placeholders():
 def test_storage_languages():
     assert "Restaurez" in message(_hass("fr"), "storage")
     assert "Restore" in message(_hass("en"), "storage")
+
+
+def test_resync_texts_use_the_names_of_the_screen_not_one_shot_jargon():
+    """The schedule without an end time is **At this time only** / **À cette heure seulement** everywhere."""
+    for language, word in (("fr", "ponctuel"), ("en", "one-shot")):
+        text = message(_hass(language), "resync_reason_too_old")
+        assert word not in text
+        assert ("À cette heure seulement" if language == "fr" else "At this time only") in text
+        options = json.loads((TRANSLATIONS / f"{language}.json").read_text(encoding="utf-8"))
+        assert word not in options["options"]["step"]["resync"]["description"]

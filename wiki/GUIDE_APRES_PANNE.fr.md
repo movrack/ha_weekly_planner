@@ -42,7 +42,7 @@ Les appareils laissés tels quels, et pourquoi :
 | tous les programmes sont suspendus | La **Suspension de tous les programmes** est allumée. |
 | son programme est en pause, son programme est éteint | Un programme en pause n’envoie rien. |
 | rien à envoyer | Aucune action n’est prévue pour cet appareil maintenant. |
-| son dernier ponctuel date de plus de 24 h | Un horaire **À cette heure seulement** plus ancien que 24 heures n’est pas rejoué. |
+| son dernier horaire « À cette heure seulement » date de plus de 24 h | Un horaire **À cette heure seulement** plus ancien que 24 heures n’est pas rejoué. |
 | modifié par une personne depuis | Quelqu’un a changé l’appareil à la main depuis : on ne l’écrase pas. |
 | indisponible | L’appareil ne répond pas encore. |
 | même commande déjà envoyée à cet appareil | Un autre horaire lui envoie déjà la même chose. |
