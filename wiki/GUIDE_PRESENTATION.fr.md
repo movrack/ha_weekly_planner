@@ -78,6 +78,8 @@ mêmes programmes dans le même ordre ; on peut y modifier les horaires. Sur un 
 partie de droite tant qu’aucun programme n’est ouvert. Ce tri et ces filtres ne changent pas la carte du tableau
 de bord.
 
+Chaque option de la carte, avec son nom dans le YAML et sa valeur de départ : [Configuration](CONFIGURATION.fr.md#options-de-la-carte).
+
 ## Le format de l’heure
 
 Weekly Planner n’a pas de réglage d’heure à lui : il suit votre profil Home Assistant (réglage de format de

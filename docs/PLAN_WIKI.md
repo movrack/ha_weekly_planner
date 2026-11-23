@@ -77,17 +77,17 @@ programmes (distincte du mode Vacances).
 4.1 Lire la carte. 4.2 Affichages. 4.3 Graphique du jour. 4.4 Fenêtre des horaires. 4.5 Options avancées. 4.6 Au
 téléphone. 4.7 Clavier et lecteur d'écran.
 
-### 5. Réglages
+### 5. Réglages (**fait** : `REGLAGES.fr.md`)
 5.1 Créer et modifier un réglage et ses actions (consigne, position, valeur d'une entité, automatisation,
 séquence). 5.2 Horaires aléatoires. 5.3 Soleil et limites. 5.4 Zone du programme. 5.5 Réappliquer, vérifier et
 réessayer. 5.6 Renommer un mode (avec « Annuler »), modes sans option, état en lecture seule, limites.
 
-### 6. Configuration (référence, un seul endroit chacune)
+### 6. Configuration (référence, un seul endroit chacune) (**fait** : `CONFIGURATION.fr.md`)
 6.1 Options de la carte (tableau unique, YAML et éditeur). 6.2 Réglages de l'intégration. 6.3 Sélecteur de mode.
 6.4 Qui peut modifier quoi. 6.5 Fichier de configuration YAML (export, import, confidentialité). 6.6 Sauvegarde et
 restauration. 6.7 Où trouver `program_id`.
 
-### 7. Entités, services et automatisations (pour l'utilisateur)
+### 7. Entités, services et automatisations (pour l'utilisateur) (**fait** : `ENTITES_SERVICES.fr.md`)
 7.1 Entités. 7.2 Services utiles à une automatisation (ce qu'on envoie, ce qu'on reçoit). 7.3 Notifications et liste
 des réparations.
 
@@ -95,7 +95,7 @@ des réparations.
 Index + une page par recette (gabarit existant : « À quoi ça sert », « Ce qu'il faut », « Étapes », « Résultat »,
 « À savoir », retour à l'index). Liste dans la section suivante.
 
-### 9. Dépannage
+### 9. Dépannage (**reporté**, décision du propriétaire du 2026-11-23 : ne pas écrire, ne lier depuis aucune page)
 9.1 Mon appareil n'a pas bougé. 9.2 La carte ne s'affiche pas ou est ancienne. 9.3 Heures décalées. 9.4 Messages
 d'erreur. 9.5 Journaux. 9.6 Signaler un bug (lien vers les issues).
 
@@ -152,12 +152,12 @@ Chaque nouvelle recette est vérifiée contre la carte publiée (menus, noms de 
 | Existant | Place |
 |---|---|
 | Home | 0 Accueil |
-| Guide utilisateur (`GUIDE.fr.md`) | **Section 2 faite** : `GUIDE.fr.md` est l'index « Je veux… » et les 11 tâches sont les pages `GUIDE_*.fr.md` (liste en fin de section 2). Le reste (4, 5, 6, 7, « Pour la personne qui installe ») attend dans `GUIDE_A_REPARTIR.fr.md`, à vider puis supprimer |
+| Guide utilisateur (`GUIDE.fr.md`) | **Section 2 faite** : `GUIDE.fr.md` est l'index « Je veux… » et les 11 tâches sont les pages `GUIDE_*.fr.md` (liste en fin de section 2). Les sections 4 à 7 sont écrites (`CARTE`, `REGLAGES`, `CONFIGURATION`, `ENTITES_SERVICES`) ; `GUIDE_A_REPARTIR.fr.md` est vidé et supprimé |
 | Atlas des écrans (`SCREENS.fr.md` + `images/guide/`) | Annexe A |
-| Modes (`MODES.md`, anglais) | 3.4, 5.6, 6.3, 2.6 ; texte repris en français, fichier sans suffixe supprimé du wiki |
+| Modes (`MODES.md`, anglais) | 3.4, 5.6, 6.3, 2.6 ; **fait** : texte repris en français (`GUIDE_MODES`, `REGLAGES`, `CONFIGURATION`), fichier sans suffixe supprimé du wiki |
 | Recettes (`RECETTES.fr.md`) et 9 `RECETTE_*.fr.md` | 8 (voir revue ci-dessus) |
 | Priorités (`PRIORITES.fr.md`) | 3.3 |
-| Actions génériques (`GENERIC_ACTIONS.md`, anglais) | **parties utiles à l'utilisateur** en 5.1 (choisir les commandes, préréglages, position favorite, valeur d'une entité, automatisation, séquence) ; la partie purement technique reste dans le dépôt (README, `AGENTS.md` « Model ») |
+| Actions génériques (`GENERIC_ACTIONS.md`, anglais) | **parties utiles à l'utilisateur** en 5.1 (choisir les commandes, préréglages, position favorite, valeur d'une entité, automatisation, séquence) ; la partie purement technique reste dans le dépôt (README, `AGENTS.md` « Model ») ; **fait** : repris dans `REGLAGES.fr.md`, fichier supprimé du wiki |
 | Configuration-YAML-de-la-carte (`REFERENCE.fr.md` « Configuration de la carte », « Sources complémentaires du graphique ») | 6.1 |
 | Intégrateurs (`REFERENCE.fr.md` depuis « Modèle et exécution », `REFERENCE.md`, README.fr.md « Entités et actions ») | **retiré du wiki** : `REFERENCE*.md` restent dans le dépôt comme référence d'intégrateur (README les relie), jamais publiés comme guide. Y sont aussi les parties « Stockage, API et concurrence », « Modèle et exécution », « Limites ». Ne passent au wiki que les parties utilisateur : permissions (6.4), fichier YAML (6.5), services pour automatisations (7.2), jour férié (3.5), limites visibles (5.6) |
 | Page `Recettes-pour-les-modes` (ancienne) | supprimée du wiki publié ; redirection vers Recettes |

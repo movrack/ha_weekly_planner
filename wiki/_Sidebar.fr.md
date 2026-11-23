@@ -26,6 +26,11 @@
 - [Priorités](PRIORITES.fr.md)
 - [La carte](CARTE.fr.md)
 
+**Régler et configurer**
+- [Les réglages et leurs actions](REGLAGES.fr.md)
+- [Configuration](CONFIGURATION.fr.md)
+- [Entités, services et automatisations](ENTITES_SERVICES.fr.md)
+
 **Utiliser**
 - [Recettes](RECETTES.fr.md)
 - [Atlas des écrans](SCREENS.fr.md)

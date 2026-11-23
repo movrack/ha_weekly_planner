@@ -66,6 +66,6 @@ service must be accepted by the target entity.
 - README (installation, options, entities, actions): https://github.com/movrack/ha_weekly_planner#readme
 - Reference (card options, model, modes, API, YAML file, limits): https://github.com/movrack/ha_weekly_planner/blob/main/wiki/REFERENCE.md
 - User guide (French, with screenshots): https://github.com/movrack/ha_weekly_planner/blob/main/wiki/GUIDE.fr.md
-- Modes: https://github.com/movrack/ha_weekly_planner/blob/main/wiki/MODES.md
-- Generic actions (any service): https://github.com/movrack/ha_weekly_planner/blob/main/wiki/GENERIC_ACTIONS.md
+- Modes and mode selector (French): https://github.com/movrack/ha_weekly_planner/blob/main/wiki/CONFIGURATION.fr.md
+- Setting actions, any service (French): https://github.com/movrack/ha_weekly_planner/blob/main/wiki/REGLAGES.fr.md
 - Index for agents: https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/llms.txt

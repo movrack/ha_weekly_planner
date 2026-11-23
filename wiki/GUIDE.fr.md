@@ -23,7 +23,10 @@ Choisissez ce que vous voulez faire. Chaque page se lit seule, en quelques étap
 | Comprendre ce qui s’est passé | [Comprendre ce qui s’est passé](GUIDE_COMPRENDRE.fr.md) |
 | Remettre les appareils d’aplomb après une panne | [Après une panne](GUIDE_APRES_PANNE.fr.md) |
 
-Pour créer un premier programme, voir [Premier programme](PREMIER_PROGRAMME.fr.md). Pour copier un exemple
+Pour créer un premier programme, voir [Premier programme](PREMIER_PROGRAMME.fr.md). Pour ce que peut faire un
+réglage, les horaires aléatoires et les nouveaux essais, voir [Les réglages et leurs actions](REGLAGES.fr.md) ; pour
+les options de la carte et de l’intégration, les droits et le fichier YAML, voir [Configuration](CONFIGURATION.fr.md) ;
+pour vos automatisations, voir [Entités, services et automatisations](ENTITES_SERVICES.fr.md). Pour copier un exemple
 complet, voir les [Recettes](RECETTES.fr.md). Pour comprendre quel programme commande un appareil quand
 plusieurs le visent, voir les [Priorités](PRIORITES.fr.md). Pour le sens d’un mot, voir le [Lexique](LEXIQUE.fr.md) ;
 pour tout savoir de la carte (affichages, gestes, boutons), voir [La carte](CARTE.fr.md).

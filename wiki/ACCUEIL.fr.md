@@ -27,6 +27,9 @@ Tout est calculé dans votre Home Assistant : aucun service en ligne n’est uti
 | Installer Weekly Planner | [Installer et mettre à jour](INSTALLER_METTRE_A_JOUR.fr.md) |
 | Créer mon premier programme | [Premier programme](PREMIER_PROGRAMME.fr.md) |
 | Régler un horaire, un réglage, un mode, un jour férié, une pause… | [Guide : je veux…](GUIDE.fr.md) |
+| Choisir ce que fait un appareil, régler un délai aléatoire, comprendre l’envoi et les nouveaux essais | [Les réglages et leurs actions](REGLAGES.fr.md) |
+| Régler la carte, les options de l’intégration, le sélecteur de mode, les droits, le fichier YAML | [Configuration](CONFIGURATION.fr.md) |
+| Utiliser Weekly Planner dans une automatisation, lire ses entités | [Entités, services et automatisations](ENTITES_SERVICES.fr.md) |
 | Copier un exemple qui marche | [Recettes](RECETTES.fr.md) |
 | Comprendre un mot de l’interface | [Lexique](LEXIQUE.fr.md) |
 | Comprendre la carte, ses affichages et ses gestes | [La carte](CARTE.fr.md) |

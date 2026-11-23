@@ -58,7 +58,7 @@ personne a modifié l’appareil depuis.
 2. Ouvrir **Outils de développement → Actions** et choisir **Weekly Planner : Appliquer maintenant**.
 3. Dans **Programme**, saisir l’identifiant, puis lancer l’action.
 
-En YAML : `action: weekly_planner.apply_now` avec `program_id`.
+En YAML : `action: weekly_planner.apply_now` avec `program_id` ([Entités, services et automatisations](ENTITES_SERVICES.fr.md#services-pour-vos-automatisations)).
 
 ## À savoir
 

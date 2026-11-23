@@ -224,7 +224,7 @@ data:
   option: Away
 ```
 
-See the [mode reference](MODES.md) and [native-action examples](GENERIC_ACTIONS.md).
+See the mode selector ([CONFIGURATION.fr.md](CONFIGURATION.fr.md#le-sélecteur-de-mode), in French) and the setting actions ([REGLAGES.fr.md](REGLAGES.fr.md#ce-que-peut-faire-un-réglage), in French).
 
 ### Day off
 

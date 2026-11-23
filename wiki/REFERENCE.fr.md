@@ -36,7 +36,7 @@ Les exemples de cartes sont dans le [README](../README.fr.md#exemples).
 | `show_chart` | Booléen, `true` par défaut. Actif : un bouton **Graphique du jour** sous chaque appareil sur la carte, et le graphique dans la fenêtre des horaires. Éteint : ni bouton ni graphique nulle part sur cette carte. Dans l’éditeur : « Bouton Graphique sous chaque appareil ». |
 | `show_schedule_list` | Booléen, `false` par défaut. Actif : sous les barres, le cadran 24 h et le double cadran 12 h de chaque programme (et appareil), une liste **Horaires** montre la journée d’aujourd’hui comme **Horaires du jour**, entre le graphique principal et les boutons Semaine et Graphique du jour. Toujours visible, sans repli. Une ligne ouvre son horaire par un appui long (souris aussi) ou Entrée ou Espace, jamais par un simple clic (un rappel dit comment faire), et seulement quand la modification est permise. Absente de la liste compacte, de **Comparateur** et de **Horaires du jour**. Dans l’éditeur : « Afficher les horaires ». |
 | `show_week_button` | Booléen, `true` par défaut. Actif : un bouton **Semaine** sous chaque appareil sur la carte. Éteint : plus de bouton Semaine sur la carte ; la fenêtre des horaires garde sa semaine. Dans l’éditeur : « Bouton Semaine ». L’ancienne clé `show_week` reste ignorée. |
-| `week_collapsed` | Booléen, `true` par défaut : la semaine sous chaque appareil démarre repliée (`false` : ouverte). N’a d’effet que si `show_week_button` est actif. Dans l’éditeur : l’interrupteur « Semaine ouverte par défaut » (l’inverse). Un clic sur le bouton Semaine l’ouvre ou la replie ; le navigateur ne retient pas ce choix. |
+| `week_collapsed` | Booléen, `true` par défaut : la semaine sous chaque appareil démarre repliée (`false` : ouverte). N’a d’effet que si `show_week_button` est actif. Dans l’éditeur : l’interrupteur « Semaine ouverte par défaut » (l’inverse). Un clic sur le bouton Semaine l’ouvre ou la replie ; le navigateur mémorise ce choix par carte et par appareil, et il prime ensuite. |
 | `chart_collapsed` | Booléen, `true` par défaut : le graphique sous chaque appareil démarre fermé (`false` : ouvert). N’a d’effet que si `show_chart` est actif. Dans l’éditeur : l’interrupteur « Graphique ouvert par défaut » (l’inverse). Un choix fait avec le bouton du graphique est mémorisé par navigateur, par carte et par appareil, et prime ensuite. |
 
 **Référence YAML.** Toutes les options de l’éditeur visuel se règlent aussi dans l’éditeur de code YAML,
@@ -219,8 +219,8 @@ data:
   option: Absent
 ```
 
-Voir les [modes](MODES.md), les [exemples de modes](RECETTES.fr.md) et les
-[exemples d’actions natives](GENERIC_ACTIONS.md).
+Voir le [sélecteur de mode](CONFIGURATION.fr.md#le-sélecteur-de-mode), les [exemples de modes](RECETTES.fr.md) et les
+[actions des réglages](REGLAGES.fr.md#ce-que-peut-faire-un-réglage).
 
 ### Jour férié
 

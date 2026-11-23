@@ -103,6 +103,8 @@ fenêtre des horaires, **Options du graphique**, et sont enregistrées pour le p
 l’état aux appareils** ([Après une panne](GUIDE_APRES_PANNE.fr.md)), avec en tête le lien vers le panneau
 **Weekly Planner**. Cet écran est réservé aux administrateurs de Home Assistant. **Réglages** contient :
 
+<!-- CAPTURE: config-options-integration | La fenêtre Réglages de l’intégration : les cinq premiers réglages et la section « Mode et jour férié » | 1440 ; démo : instance de démonstration, un sélecteur de mode choisi -->
+
 | Réglage | Défaut | Ce que ça fait |
 |---|---|---|
 | **Seuls les administrateurs peuvent modifier les programmes** | éteint | Les autres personnes voient **Lecture seule** ([Qui peut modifier quoi](#qui-peut-modifier-quoi)). |
@@ -230,6 +232,8 @@ ne change pas quand on renomme le programme.
 1. Ouvrir **Outils de développement → États**.
 2. Chercher l’interrupteur du programme (il porte le nom du programme).
 3. Lire l’attribut **`program_id`**.
+
+<!-- CAPTURE: config-trouver-program-id | Outils de développement → États : l’interrupteur d’un programme et ses attributs, `program_id` en tête | 1440 ; démo : programme « Volet du salon » -->
 
 Pour une carte, `program` et `filter.programs` acceptent aussi le **nom** du programme.
 

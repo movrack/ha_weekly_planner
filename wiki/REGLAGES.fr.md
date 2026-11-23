@@ -35,6 +35,8 @@ pour tous les appareils. Si un programme utilise encore ce réglage, l’écran 
 et propose **Le remplacer partout par :** un autre réglage, puis **Remplacer et supprimer**. Rien n’est supprimé à
 moitié : si un programme ne peut pas être changé, le réglage reste.
 
+<!-- CAPTURE: reglages-remplacer-supprimer | La partie Réglages : un réglage choisi, le message « … sert encore : … », « Le remplacer partout par : » avec un autre réglage choisi et le bouton « Remplacer et supprimer » | 360 ; démo : deux programmes qui partagent le réglage Confort, un autre réglage Éco -->
+
 Si un formulaire a des changements non enregistrés et que vous en ouvrez un autre, l’écran demande d’abord :
 **Oui, les abandonner** ou **Non, continuer**.
 
@@ -173,6 +175,8 @@ avec deux onglets, **Général** et **Appareils** (les flèches du clavier passe
 | **Général** : **Conditions du programme** | Le programme ne marche que si toutes les conditions sont vraies ([Lexique](LEXIQUE.fr.md#conditions)). |
 | **Appareils** | Les appareils du programme et leurs **Actions proposées** ([plus haut](#choisir-les-actions-proposées)). |
 | **Supprimer ce programme** | Supprime le programme et tous ses horaires, après confirmation. |
+
+<!-- CAPTURE: reglages-fiche-general | La Fiche du programme, onglet Général : Nom, Pièce (facultative), Icône, Priorité, Autres paramètres | 360 ; démo : programme « Chauffage du salon » -->
 
 La **Pièce** est un simple nom : c’est la liste des pièces de Home Assistant et celles déjà utilisées par vos
 programmes, plus **Autre pièce…** pour en écrire une nouvelle, et **Aucune pièce**. Elle ne lit pas les pièces de

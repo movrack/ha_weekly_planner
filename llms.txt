@@ -12,7 +12,7 @@ Start with the AI guide: it explains how to discover what is configured, how to 
 - [Services](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/custom_components/weekly_planner/services.yaml): apply_now, skip_next, pause, resume, reload
 
 ## Optional
-- [Generic actions](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/GENERIC_ACTIONS.md)
-- [Modes](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/MODES.md)
+- [Setting actions, any service (French)](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/REGLAGES.fr.md)
+- [Modes and mode selector (French)](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/CONFIGURATION.fr.md)
 - [User guide (French)](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/GUIDE.fr.md)
 - [Changelog](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/CHANGELOG.md)

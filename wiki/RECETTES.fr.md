@@ -5,7 +5,7 @@ Des exemples prêts à recopier, une recette par page.
 ## Le mode de la maison
 
 Home Assistant choisit le mode à votre place, et tous les programmes suivent. Weekly Planner ne change
-jamais le mode lui-même ([Modes](MODES.md)) : le mode est l'état d'un `input_select` (ou `select`), et
+jamais le mode lui-même ([Le sélecteur de mode](CONFIGURATION.fr.md#le-sélecteur-de-mode)) : le mode est l'état d'un `input_select` (ou `select`), et
 c'est une **automatisation** qui le déplace. Un capteur ne peut pas être le sélecteur : il **pilote** le
 sélecteur.
 
