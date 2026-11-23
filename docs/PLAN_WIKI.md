@@ -91,7 +91,7 @@ restauration. 6.7 Où trouver `program_id`.
 7.1 Entités. 7.2 Services utiles à une automatisation (ce qu'on envoie, ce qu'on reçoit). 7.3 Notifications et liste
 des réparations.
 
-### 8. Recettes
+### 8. Recettes (**fait** : `RECETTES.fr.md` et 17 pages `RECETTE_*.fr.md`)
 Index + une page par recette (gabarit existant : « À quoi ça sert », « Ce qu'il faut », « Étapes », « Résultat »,
 « À savoir », retour à l'index). Liste dans la section suivante.
 
@@ -99,7 +99,7 @@ Index + une page par recette (gabarit existant : « À quoi ça sert », « Ce q
 9.1 Mon appareil n'a pas bougé. 9.2 La carte ne s'affiche pas ou est ancienne. 9.3 Heures décalées. 9.4 Messages
 d'erreur. 9.5 Journaux. 9.6 Signaler un bug (lien vers les issues).
 
-### Annexes
+### Annexes (**faites** : A `SCREENS.fr.md`, B `ANNEXE_MESSAGES.fr.md` générée par `scripts/wiki_messages.py`, C `ANNEXE_COMPATIBILITE.fr.md`)
 A. Atlas des écrans (à renuméroter et à refaire à la version 1.0.0). B. Codes d'erreur et de réparation (générés
 de `translations/*.json`). C. Compatibilité par type d'appareil.
 
@@ -147,6 +147,8 @@ Fichiers sans recette : l'index `RECETTES.fr.md` garde « Avant une recette avec
   programme de base (priorités).
 
 Chaque nouvelle recette est vérifiée contre la carte publiée (menus, noms de réglages) avec une capture de `parker`.
+
+**Fait (2026-11-23)** : sept pages écrites et vérifiées par `tests/test_recipes.py` (chauffage semaine / week-end, volets lever et coucher, volets d'été, arrosage, chauffe-eau, vacances en veille, veilleuse). « Lumière de présence » est fusionnée dans « Vacances : la maison en veille » ; « Télétravail » reste l'exemple de `PRIORITES.fr.md` (lié depuis l'index).
 
 ## Correspondance avec les pages existantes
 | Existant | Place |

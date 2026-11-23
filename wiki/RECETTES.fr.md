@@ -1,18 +1,35 @@
+Français
+
 # Recettes
 
-Des exemples prêts à recopier, une recette par page.
+Testée avec la version 0.30.0. <!-- VERSION : numéro à confirmer à la publication -->
+
+Des exemples de maison réelle, à recopier : une recette par page, avec ses étapes dans l’ordre. Les noms d’entités
+(`climate.salon`, `sensor.pluviometre_24h`…) sont des exemples : mettez ceux de votre installation.
+
+## Chauffage, volets, eau et jardin
+
+- [Chauffage : la semaine et le week-end](RECETTE_CHAUFFAGE_SEMAINE_WEEKEND.fr.md) : 19 °C en semaine, 20 °C le
+  week-end, 16 °C la nuit.
+- [Volets : lever et coucher du soleil, grasse matinée le week-end](RECETTE_VOLETS_SOLEIL.fr.md)
+- [Volets d’été anti-chaleur](RECETTE_VOLETS_ETE.fr.md) : volets sud à 30 % de midi à 18 h les jours chauds.
+- [Chauffe-eau en heures creuses](RECETTE_CHAUFFE_EAU.fr.md)
+- [Arrosage du jardin](RECETTE_ARROSAGE.fr.md) : trois matins par semaine, pas les jours de pluie.
+- [Chambre d’enfant : une veilleuse la nuit](RECETTE_VEILLEUSE_ENFANT.fr.md)
 
 ## Le mode de la maison
 
-Home Assistant choisit le mode à votre place, et tous les programmes suivent. Weekly Planner ne change
-jamais le mode lui-même ([Le sélecteur de mode](CONFIGURATION.fr.md#le-sélecteur-de-mode)) : le mode est l'état d'un `input_select` (ou `select`), et
-c'est une **automatisation** qui le déplace. Un capteur ne peut pas être le sélecteur : il **pilote** le
-sélecteur.
+Home Assistant choisit le mode à votre place, et tous les programmes suivent. Weekly Planner ne change jamais le mode
+lui-même ([Le sélecteur de mode](CONFIGURATION.fr.md#le-sélecteur-de-mode)) : le mode est l’état d’un `input_select`
+(ou `select`), et c’est une **automatisation** qui le déplace. Un capteur ne peut pas être le sélecteur : il
+**pilote** le sélecteur.
 
 - [Jour travaillé ou jour de congé](RECETTE_JOUR_TRAVAILLE.fr.md)
 - [Vacances scolaires](RECETTE_VACANCES_SCOLAIRES.fr.md)
-- [Plusieurs capteurs, un seul ordre de priorité](RECETTE_PLUSIEURS_CAPTEURS.fr.md)
-- [Absent quand personne n'est à la maison](RECETTE_ABSENT.fr.md)
+- [Plusieurs capteurs, un seul ordre de priorité](RECETTE_PLUSIEURS_CAPTEURS.fr.md) (avec
+  [les pièges des modes](RECETTE_PLUSIEURS_CAPTEURS.fr.md#les-pièges-des-modes))
+- [Absent quand personne n’est à la maison](RECETTE_ABSENT.fr.md)
+- [Vacances : la maison en veille](RECETTE_VACANCES_VEILLE.fr.md) : hors gel, volets fermés, lumières de présence.
 
 ## Jours fériés et congés
 
@@ -21,47 +38,24 @@ sélecteur.
 
 ## Plusieurs programmes sur le même appareil
 
-- [Les priorités : quel programme commande l’appareil](PRIORITES.fr.md)
+- [Les priorités : quel programme commande l’appareil](PRIORITES.fr.md), avec l’exemple du
+  [télétravail](PRIORITES.fr.md#un-exemple-réel--le-télétravail) (le bureau à 21 °C les jours de télétravail).
 - [Garde alternée des enfants](RECETTE_GARDE_ALTERNEE.fr.md)
 - [Réduire le chauffage pendant les heures de pointe](RECETTE_HEURES_DE_POINTE.fr.md)
 
 ## Avant une recette avec les modes
 
-1. Créez le sélecteur : **Paramètres → Appareils et services → Entrées → Créer une entrée → Liste
-   déroulante**. Exemple : `input_select.mode_maison` avec les options utilisées dans la recette
-   (ici `Jour travaillé`, `Jour de congé`, `Vacances scolaires`).
-2. Choisissez-le dans **Paramètres → Appareils et services → Weekly Planner → Configurer →
-   Réglages → Mode et jour férié → Sélecteur de mode**, puis le mode par défaut.
-3. Dans l'écran des horaires de chaque programme, donnez des horaires à chaque mode. Les noms
-   doivent être **exactement** les options du sélecteur.
-4. Créez l'automatisation de la recette. Testez d'abord en changeant le sélecteur à la main : la
-   carte affiche **Mode : …** et les appareils suivent.
+1. Créer le sélecteur : **Paramètres → Appareils et services → Entrées → Créer une entrée → Liste déroulante**.
+   Exemple : `input_select.mode_maison` avec les options utilisées dans la recette (ici `Jour travaillé`,
+   `Jour de congé`, `Vacances scolaires`).
+2. Le choisir dans **Paramètres → Appareils et services → Weekly Planner → Configurer → Réglages → Mode et jour
+   férié → Sélecteur de mode (facultatif)**, puis le **Mode par défaut**.
+3. Sur la carte, pour chaque programme, **Modifier**, **Mode** : donner des horaires à chaque mode. Les noms doivent
+   être **exactement** les options du sélecteur ([Des horaires selon le mode](GUIDE_MODES.fr.md)).
+4. Créer l’automatisation de la recette. Tester d’abord en changeant le sélecteur à la main : la carte affiche
+   **Mode : …** et les appareils suivent.
 
-À savoir : un changement de mode recalcule le réglage de l'heure courante. Il ne rejoue pas le
-passé, n'active pas un programme en pause et ne saute pas ses conditions.
+À savoir : un changement de mode recalcule le réglage de l’heure courante. Il ne rejoue pas le passé, n’active pas un
+programme en pause et ne saute pas ses conditions.
 
-## Pièges des modes
-
-- **Les noms ne correspondent pas** : une option écrite `Jour de Congé` n'utilise pas les horaires
-  de `Jour de congé`. Copiez les noms.
-- **Deux automatisations sur le même sélecteur** : la dernière qui s'exécute gagne. Gardez une
-  automatisation par sélecteur.
-- **Un changement manuel est écrasé** au prochain changement d'un capteur. Pour garder un choix
-  manuel, ajoutez une condition à l'automatisation (par exemple un `input_boolean` « mode manuel »).
-- **Un capteur `unavailable` ou `unknown` change le mode** : Weekly Planner ne garde le dernier mode
-  valide que lorsque c'est le **sélecteur** qui est indisponible. Un capteur qui passe à `unavailable`
-  déclenche l'automatisation, et dans les modèles ci-dessus il n'est pas `on` : la branche « sinon » est
-  choisie et le sélecteur change réellement (par exemple vers « Jour de congé »). Pour l'éviter, ajoutez
-  une condition qui laisse passer seulement les états utiles, après `triggers:` :
-
-  ```yaml
-  conditions:
-    - condition: template
-      value_template: >-
-        {{ not is_state('binary_sensor.workday_sensor', 'unavailable')
-           and not is_state('binary_sensor.workday_sensor', 'unknown') }}
-  ```
-
-  Avec plusieurs capteurs ([Plusieurs capteurs](RECETTE_PLUSIEURS_CAPTEURS.fr.md)), testez chacun de la même façon. Au démarrage, la branche
-  `homeassistant: start` peut s'exécuter avant que les capteurs soient prêts : la même condition évite
-  alors un mauvais mode jusqu'au prochain changement du capteur.
+[Accueil](ACCUEIL.fr.md) · [Guide : je veux…](GUIDE.fr.md)
