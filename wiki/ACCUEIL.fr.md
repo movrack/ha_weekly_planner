@@ -28,6 +28,8 @@ Tout est calculé dans votre Home Assistant : aucun service en ligne n’est uti
 | Créer mon premier programme | [Premier programme](PREMIER_PROGRAMME.fr.md) |
 | Régler un horaire, un réglage, un mode, un jour férié, une pause… | [Guide : je veux…](GUIDE.fr.md) |
 | Copier un exemple qui marche | [Recettes](RECETTES.fr.md) |
+| Comprendre un mot de l’interface | [Lexique](LEXIQUE.fr.md) |
+| Comprendre la carte, ses affichages et ses gestes | [La carte](CARTE.fr.md) |
 | Comprendre quel programme commande un appareil | [Priorités](PRIORITES.fr.md) |
 | Voir tous les écrans | [Atlas des écrans](SCREENS.fr.md) |
 | Retirer Weekly Planner | [Désinstaller](DESINSTALLER.fr.md) |
