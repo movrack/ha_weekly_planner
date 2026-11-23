@@ -1,21 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { WpSlotForm } from "../components/slot-form";
 import { flat, handlers, find } from "./helpers/tpl";
+import { form } from "./helpers/slot-form";
 
 beforeEach(() => {
   (globalThis as any).CustomEvent ??= class { type: string; detail: unknown; constructor(t: string, i: any) { this.type = t; this.detail = i?.detail; } };
 });
 
-const form = (slot: any, days = [0, 1, 2, 3, 4, 5, 6], props: Record<string, unknown> = {}) => {
-  const el = new WpSlotForm() as any;
-  const seen: any[] = [];
-  el.dispatchEvent = (e: any) => { seen.push(e.detail); return true; };
-  Object.assign(el, { hass: { language: "en", config: {}, states: {} }, data: { labels: [], programs: [] }, program: { id: "p", entities: [], profiles: [] },
-    entityIds: [], dayOnly: null, group: { slot: { id: "s", label: "l", start: { time: "08:00" }, end: { time: "09:00" }, ...slot }, days, ids: {} } }, props);
-  return { el, seen };
-};
 /** Clicks the "Advanced options" button of a rendered form. */
-const openFold = (el: any) => find(el.render(), "click", "advanced_options".length ? "opts" : "").fn();
+const openFold = (el: any, i = 0) => handlers(el.render()).filter((h) => h.event === "click" && h.before.slice(-200).includes('class="row opts"'))[i].fn();
 const sel = (r: any, ev: string, i: number, mark = "") => handlers(r).filter((h) => h.event === ev && h.before.includes(mark))[i];
 
 describe("slot form: advanced options fold", () => {
@@ -24,20 +17,29 @@ describe("slot form: advanced options fold", () => {
     const html = flat(form({}).el.render());
     expect(html).toContain("aria-expanded=");
     expect(html).toContain('class="row opts"');
-    expect(html).not.toContain(SUN);
-    expect(html).not.toContain('type="checkbox"');
+    expect(html).toContain('class="wp-collapse "'); expect(html).not.toContain("wp-collapse open");   // the sun choice, random delay and limits are drawn but folded
     expect(html).toContain('type="time"');
     expect(html).toContain("chip small");
   });
-  it("lays out days first, then start and end times, then the advanced fold", () => {
+  it("lays out days first, then the start with its own advanced fold, then the end with its own, then the action", () => {
     const html = flat(form({ end: { time: "09:00" } }).el.render());
     const at = (s: string) => html.indexOf(s);
+    const folds = [...html.matchAll(/class="row opts"/g)].map((m) => m.index as number);
+    const times = [...html.matchAll(/type="time"/g)].map((m) => m.index as number);
     expect(at('class="days"')).toBeGreaterThan(-1);
-    expect(at('class="days"')).toBeLessThan(at('type="time"'));
-    expect(at("chip small")).toBeLessThan(at('type="time"'));
-    expect(at('type="time"')).toBeLessThan(at('class="row opts"'));
-    expect(html.lastIndexOf('type="time"')).toBeLessThan(at('class="row opts"'));
-    expect(at('class="row opts"')).toBeLessThan(at("<wp-label-picker"));
+    expect(at('class="days"')).toBeLessThan(times[0]);
+    expect(at("chip small")).toBeLessThan(times[0]);
+    expect(folds).toHaveLength(2);
+    // start time, its fold, then the end chips and time, then the end fold, then the action
+    expect(times[0]).toBeLessThan(folds[0]);
+    expect(folds[0]).toBeLessThan(at("class=\"chip \"")); // “At this time only” chip comes after the start fold
+    expect(folds[0]).toBeLessThan(times[times.length - 1]);
+    expect(times[times.length - 1]).toBeLessThan(folds[1]);
+    expect(folds[1]).toBeLessThan(at("<wp-label-picker"));
+  });
+  it("has one fold only for a slot without end, right under the start", () => {
+    const html = flat(form({ end: null }).el.render());
+    expect([...html.matchAll(/class="row opts"/g)]).toHaveLength(1);
   });
   it("has no day-off section: the day off is set under the week, never inside one schedule", () => {
     const html = flat(form({ end: { time: "09:00" } }).el.render());
@@ -47,12 +49,16 @@ describe("slot form: advanced options fold", () => {
   it("opens by clicking and then shows the sun choice and random delay for start and end", () => {
     const { el } = form({});
     openFold(el);
-    const html = flat(el.render());
+    let html = flat(el.render());
     expect(html).toContain('class="opts-body"');
     expect(html).toContain(SUN);
-    expect((html.match(/type="checkbox"/g) ?? []).length).toBe(2);
+    expect((html.match(/wp-collapse open/g) ?? []).length).toBe(1); // the start fold only
+    openFold(el, 1);
+    html = flat(el.render());
+    expect((html.match(/wp-collapse open/g) ?? []).length).toBe(2); // and the end
     openFold(el);
-    expect(flat(el.render())).not.toContain(SUN);
+    openFold(el, 1);
+    expect(flat(el.render())).not.toContain("wp-collapse open");   // both folded again
   });
   it.each([
     ["a sun time", { start: { sun: "sunset", offset: 0 } }],
@@ -128,7 +134,7 @@ describe("slot form", () => {
     el._random("start", 30); expect(seen[1].slot.start.random_minutes).toBe(30);
     el._random("start", 999); el._random("start", 1.5); expect(seen).toHaveLength(2);
     const plain = form({});
-    expect(flat(plain.el.render())).not.toContain("checkbox");
+    expect(flat(plain.el.render())).not.toContain("wp-collapse open");
     openFold(plain.el);
     sel(plain.el.render(), "change", 0, "checkbox").fn({ target: { checked: true } });
     expect(plain.seen[0].slot.start.random_minutes).toBe(15);
@@ -137,8 +143,10 @@ describe("slot form", () => {
     const { el, seen } = form({ end: null });
     const r = el.render();
     const clicks = handlers(r).filter((h) => h.event === "click");
-    // days (7) + shortcuts (3) come first, then the start steps (2), then the two end chips
-    const chips = clicks.slice(12, 14);
+    // days (7) + shortcuts (3) come first, then the start steps (2) and the start fold (1), then the two end chips
+    // days (7) + shortcuts (3), the start steps (2) and the start fold (1), the folded sun chips of the start (2, drawn but closed), then the two end chips
+    const fold = clicks.findIndex((h) => h.before.includes('class="row opts"'));
+    const chips = clicks.slice(fold + 3, fold + 5);
     chips[0].fn(); expect(seen[0].slot.end).toBeNull();
     chips[1].fn(); expect(seen[1].slot.end).toEqual({ time: "09:00" });
     form({ start: { sun: "sunrise" }, end: null }).el._toggleEnd(true);
@@ -176,5 +184,13 @@ describe("slot form: noDays", () => {
     expect(html).not.toContain("chip small");
     expect(html).toContain('type="time"');
     expect(flat(form({}).el.render())).toContain('class="days"');
+  });
+});
+
+describe("slot form touch targets", () => {
+  it("the day buttons share the row and stay 48 px tall and at least 44 px wide", () => {
+    const css = [WpSlotForm.styles].flat(Infinity).map((x: any) => x?.cssText ?? "").join("\n");
+    expect(css).toMatch(/\.day \{[^}]*min-height: 48px; min-width: 44px/);
+    expect(css).toMatch(/\.days \{[^}]*minmax\(44px, 1fr\)/);
   });
 });

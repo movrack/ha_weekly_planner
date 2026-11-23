@@ -6,7 +6,6 @@
 [![Version](https://img.shields.io/github/v/release/movrack/ha_weekly_planner?label=version)](https://github.com/movrack/ha_weekly_planner/releases/latest)
 [![Validation](https://github.com/movrack/ha_weekly_planner/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/movrack/ha_weekly_planner/actions/workflows/validate.yml)
 [![Licence : MIT](https://img.shields.io/badge/Licence-MIT-yellow.svg)](https://github.com/movrack/ha_weekly_planner/blob/main/LICENSE)
-[![Échelle de qualité : Bronze (auto-déclaré)](https://img.shields.io/badge/Échelle%20de%20qualité-Bronze%20(auto--déclaré)-cd7f32.svg)](https://github.com/movrack/ha_weekly_planner/blob/main/custom_components/weekly_planner/quality_scale.yaml)
 
 Un planificateur hebdomadaire pour Home Assistant, avec sa propre carte de tableau de bord. Donnez à
 chaque appareil une semaine d’horaires (volets, chauffage, lumières, ou tout ce qu’une action ou une
@@ -14,8 +13,6 @@ scène Home Assistant peut commander) et voyez sur une seule carte ce qui est pr
 
 ![Vue d’ensemble de Weekly Planner](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s01-overview.png)
 ![Cadran de 24 heures d’un programme](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s03-radial.png)
-
-Niveau de qualité : Bronze auto-déclaré sur l’échelle de qualité des intégrations Home Assistant (intégration personnalisée, sans badge officiel) ; voir [`quality_scale.yaml`](https://github.com/movrack/ha_weekly_planner/blob/main/custom_components/weekly_planner/quality_scale.yaml).
 
 Ce projet a été réalisé avec l’aide d’agents d’intelligence artificielle.
 
@@ -30,7 +27,8 @@ Ce projet a été réalisé avec l’aide d’agents d’intelligence artificiel
 - **Modes** : une semaine d’horaires par mode de la maison (Maison, Absent, Vacances…), lu sur une
   entité sélecteur que vous choisissez.
 - **Jour férié** : une autre journée d’horaires un jour férié ou de congé, lu sur une entité que vous choisissez.
-- **Une carte, cinq affichages** : barres, liste compacte, cadran 24 h, cadrans 12 h ou horaires du jour,
+- **Une carte, six affichages** : barres, liste compacte (groupée par type, deux lignes par appareil), cadran 24 h,
+  cadrans 12 h, horaires du jour ou comparateur de tous les appareils, un jour à la fois,
   avec un graphique du jour qui compare ce qui est prévu et l’historique enregistré.
 - **Commandes de tous les jours** : sauter le prochain changement, mettre un programme en pause pour des
   heures ou des jours, suspendre tous les programmes, resynchroniser les appareils après une panne.
@@ -69,9 +67,9 @@ sont prises en charge aussi.
 
 ### À la main
 
-1. Télécharger la [dernière version](https://github.com/movrack/ha_weekly_planner/releases/latest).
-2. Copier son dossier `custom_components/weekly_planner` dans le dossier `custom_components` de votre
-   configuration Home Assistant.
+1. Télécharger `weekly_planner.zip` depuis la [dernière version](https://github.com/movrack/ha_weekly_planner/releases/latest).
+2. Le décompresser dans un nouveau dossier `custom_components/weekly_planner` de votre configuration
+   Home Assistant (`manifest.json` directement dans ce dossier).
 3. Redémarrer Home Assistant.
 
 ### Ajouter l’intégration
@@ -91,10 +89,10 @@ Home Assistant.
 
 ## Premier programme
 
-1. Modifier le tableau de bord et ouvrir l’éditeur de la carte **Weekly Planner**.
-2. Sous **Réglages des programmes**, choisir **Nouveau programme** (administrateurs seulement).
+1. Ouvrir **Weekly Planner** dans la barre latérale.
+2. Choisir **Nouveau programme**.
 3. Nommer le programme, ajouter ses appareils et choisir les actions proposées pour chaque appareil.
-4. **Appliquer au programme** enregistre tout de suite, pour toutes les cartes qui montrent ce programme.
+4. **Créer le programme** enregistre tout de suite, pour toutes les cartes qui montrent ce programme.
 5. **Définir les horaires** ouvre les horaires du programme. Ajouter un horaire : les jours, les heures
    de début et de fin, puis le réglage.
 
@@ -110,7 +108,8 @@ Le [guide illustré](https://github.com/movrack/ha_weekly_planner/wiki/Guide-uti
 | Option | Défaut | Effet |
 |---|---|---|
 | Seuls les administrateurs peuvent modifier les programmes | non | Réserve aux administrateurs les modifications des programmes et des réglages. |
-| Refaire le réglage en cours après un redémarrage ou une modification | oui | Valeur de départ de la case **Réappliquer le réglage en cours après un redémarrage ou une modification** pour chaque nouveau programme. |
+| Renvoyer le réglage en cours après un redémarrage ou un changement | oui | Valeur de départ de la case **Renvoyer le réglage en cours après un redémarrage ou un changement** pour chaque nouveau programme. |
+| Afficher le lien Weekly Planner dans la barre latérale | oui | Éteint, le lien de la barre latérale disparaît ; le panneau reste ouvert depuis le menu des options. |
 | Alerte si un appareil est indisponible depuis | 30 min | Délai avant la notification, de 1 à 1440 minutes. |
 | Attendre avant d’appliquer un changement de condition | 2 min | Délai de stabilité des conditions du programme, de 0 à 60 minutes. |
 | Sélecteur de mode (facultatif) | aucun | Une entité `input_select` ou `select` dont l’état est le mode de la maison ; un mode par défaut est demandé ensuite. |
@@ -118,7 +117,7 @@ Le [guide illustré](https://github.com/movrack/ha_weekly_planner/wiki/Guide-uti
 | Cette entité est allumée les jours travaillés, pas les jours fériés | non | À cocher seulement pour une entité allumée les jours travaillés, comme un capteur Workday. |
 
 Le mode a priorité sur le jour férié, qui ne s’applique qu’au mode en cours. Les options proposent
-aussi **Resynchroniser les appareils** (administrateurs seulement) : la liste de ce qui serait envoyé
+aussi **Renvoyer l’état aux appareils** (administrateurs seulement) : la liste de ce qui serait envoyé
 s’affiche, et rien n’est envoyé avant votre confirmation.
 Détails : [permissions et options](https://github.com/movrack/ha_weekly_planner/blob/main/wiki/REFERENCE.fr.md#permissions-et-options),
 [modes](https://github.com/movrack/ha_weekly_planner/blob/main/wiki/REFERENCE.fr.md#modes-et-sélecteur-de-mode),
@@ -132,12 +131,25 @@ Chaque option se règle dans l’éditeur visuel ou en YAML. Les principales :
 |---|---|
 | `program` | Affiche un seul programme (son identifiant ou son nom). |
 | `filter` | Sans `program` : garde les programmes selon `types`, `area` ou `programs`. Sans filtre, tous les programmes sont affichés. |
-| `schedule_view` | `bars` (par défaut), `list`, `radial`, `radial_12h` ou `times`. |
+| `schedule_view` | `bars` (par défaut), `list`, `radial`, `radial_12h`, `times` ou `compare` (tous les appareils, un jour à la fois avec une rangée de puces de jours). |
 | `sort`, `order` | Ordre de la liste : par `type` (par défaut), `area`, `name`, ou votre propre ordre. |
 | `show_chart`, `chart_collapsed` | Bouton du graphique sous chaque appareil, et graphique fermé ou ouvert au départ. |
+| `show_week_button` | Bouton Semaine sous chaque appareil (actif par défaut). |
+| `show_group_labels` | Vue Comparaison triée par type ou par pièce : le nom du type au-dessus de chaque groupe (actif par défaut). |
+| `show_schedule_list` | Liste des horaires d’aujourd’hui sous les barres ou les cadrans (désactivée par défaut). |
 | `title` | Titre de la carte. |
 
 Tableau complet et types YAML : [options de la carte](https://github.com/movrack/ha_weekly_planner/blob/main/wiki/REFERENCE.fr.md#configuration-de-la-carte).
+
+### Vues de la carte
+
+Choisissez l’apparence avec `schedule_view` :
+
+| | |
+|---|---|
+| **Barres**<br>`bars`<br>![Barres](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s01-overview.png) | **Cadran 24 h**<br>`radial`<br>![Cadran 24 h](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s03-radial.png) |
+| **Cadran 12 h**<br>`radial_12h`<br>![Cadran 12 h](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s03-radial-12h.png) | **Liste compacte**<br>`list`<br>![Liste compacte](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s04-compact-list.png) |
+| **Horaires du jour**<br>`times`<br>![Horaires du jour](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s52-times.png) | **Comparateur**<br>`compare`<br>![Comparateur](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s54-compare.png) |
 
 ## Entités et actions
 
@@ -152,7 +164,7 @@ un identifiant anglais généré sur une autre installation.
 
 | Action | Champs | Qui peut l’appeler |
 |---|---|---|
-| `weekly_planner.apply_now` | `program_id` (obligatoire) ; renvoie `sent` et `skipped` (avec la raison) ; envoie aussi de nouveau le dernier ponctuel de moins de 24 h, sauf intervention d’une personne sur l’appareil depuis | Tout le monde ; administrateurs seulement si `admin_only` est actif |
+| `weekly_planner.apply_now` | `program_id` (obligatoire) ; renvoie `sent` et `skipped` (avec la raison) ; envoie aussi de nouveau le dernier horaire « À cette heure seulement » de moins de 24 h, sauf intervention d’une personne sur l’appareil depuis | Tout le monde ; administrateurs seulement si `admin_only` est actif |
 | `weekly_planner.skip_next` | `program_id` (obligatoire), `cancel` (facultatif, `false` par défaut) | Comme `apply_now` |
 | `weekly_planner.pause` | `program_id` (obligatoire), `days` et/ou `hours` (entiers, au moins un ; de 1 heure à 365 jours au total) | Comme `apply_now` |
 | `weekly_planner.resume` | `program_id` (obligatoire) ; annule seulement une pause temporisée (un programme arrêté avec son interrupteur reste arrêté) | Comme `apply_now` |
@@ -239,7 +251,7 @@ data:
   option: Absent
 ```
 
-D’autres exemples : [recettes pour les modes](https://github.com/movrack/ha_weekly_planner/wiki/Recettes-pour-les-modes)
+D’autres exemples : [recettes](https://github.com/movrack/ha_weekly_planner/wiki/Recettes)
 et [actions des réglages](https://github.com/movrack/ha_weekly_planner/wiki/Actions-generiques).
 
 ## Fonctionnement
@@ -258,7 +270,7 @@ repos, quand son fichier a changé.
 
 ## Limites connues
 
-- Un changement fait à la main sur un appareil n’est ni détecté ni annulé ; il peut apparaître sur le graphique.
+- Un changement fait à la main sur un appareil n’est ni détecté ni annulé ; il peut apparaître sur le graphique. Il reste jusqu’à la prochaine frontière d’horaire, où le programme reprend la main. Exemple : 18 °C de 10:00 à 20:00, puis 17 °C de 20:00 à 21:00 ; un réglage à 20 °C à 12:00 reste jusqu’à 20:00, puis 17 °C est envoyé.
 - Un horaire sans fin est envoyé une fois et n’est pas rejoué une fois son heure passée.
 - Le filtre Pièce de la carte vise la pièce donnée au programme, pas les pièces Home Assistant de ses appareils.
 - Le formulaire ne propose pas de conditions par horaire ; les conditions se règlent pour tout le programme.

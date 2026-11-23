@@ -64,6 +64,5 @@ jobs:
           name: coverage-card
           path: frontend/coverage
           retention-days: 14
+      # the bundle is not committed (the release builds it); the build must still succeed
       - run: npm run build
-      - name: Bundle is up to date
-        run: git diff --exit-code -- ../custom_components/weekly_planner/frontend/weekly-planner-card.js

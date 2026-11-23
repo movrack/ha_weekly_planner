@@ -30,7 +30,7 @@ Le mode se choisit en dehors de Weekly Planner. Les horaires de chaque mode se p
 
 ### S39 — Choisir l’entité qui donne le mode
 
-Le sélecteur de mode se règle une fois dans les options de l’intégration ([S35](#s35)) et ses options sont les modes. Une entité qui change d’état, comme un capteur, ne donne pas le mode directement : une automatisation change le sélecteur ([recettes](MODES_COOKBOOK.fr.md)).
+Le sélecteur de mode se règle une fois dans les options de l’intégration ([S35](#s35)) et ses options sont les modes. Une entité qui change d’état, comme un capteur, ne donne pas le mode directement : une automatisation change le sélecteur ([recettes](RECETTES.fr.md)).
 
 <a href="images/guide/s39-modes-external.png"><img src="images/guide/s39-modes-external.png" width="320" alt="Choisir l’entité qui donne le mode" /></a>
 
@@ -38,7 +38,7 @@ Le sélecteur de mode se règle une fois dans les options de l’intégration ([
 
 ### S40 — Pièce du programme
 
-Définir la pièce dans Général (« Pièce du programme ») puis Appliquer au programme. Elle ne vient pas automatiquement des pièces des appareils.
+Choisir la pièce dans la liste de Général (« Pièce du programme » : pièces de Home Assistant, pièces déjà utilisées ou « Autre pièce… ») puis enregistrer. Elle ne vient pas automatiquement des pièces des appareils.
 
 <a href="images/guide/s40-program-area.png"><img src="images/guide/s40-program-area.png" width="320" alt="Zone du programme" /></a>
 
@@ -46,7 +46,7 @@ Définir la pièce dans Général (« Pièce du programme ») puis Appliquer au 
 
 ### S41 — Filtres et présentation
 
-Choisir la pièce, les programmes à afficher et la présentation de la journée. Les interrupteurs « Bouton Graphique sous chaque appareil » et « Graphique ouvert d’office » règlent le graphique.
+Choisir les programmes à afficher (dont la pièce) et l’affichage. L’interrupteur « Afficher les horaires » ajoute la liste « Horaires » sous les barres ou le cadran ; il est grisé sur les autres affichages. Le groupe « Graphique » réunit « Bouton Graphique » et, dessous, « Graphique ouvert par défaut » (replié tant que le bouton est désactivé). Le groupe « Semaine » contient « Bouton Semaine » (actif par défaut) : désactivé, la carte n’a plus de bouton Semaine sous les appareils, la fenêtre des horaires garde sa semaine.
 
 <a href="images/guide/s41-card-filter.png"><img src="images/guide/s41-card-filter.png" width="320" alt="Filtres et présentation" /></a>
 
@@ -104,7 +104,7 @@ Une carte fixée sur le chauffage du salon donne accès à ses horaires sans pas
 
 ## S03 — Cadran de 24 heures
 
-Le cadran présente les horaires du jour et leur légende. Un clic ou un appui long permet de modifier les arcs avec leurs poignées.
+Le cadran présente les horaires du jour et leur légende. Un appui long (doigt ou souris) permet de modifier les arcs avec leurs poignées ; un simple clic ne modifie rien.
 
 <a href="images/guide/s03-radial.png"><img src="images/guide/s03-radial.png" width="320" alt="S03 — Cadran de 24 heures" /></a>
 
@@ -128,7 +128,7 @@ Le bouton Semaine affiche les sept jours. Le nom d’un jour ouvre ses horaires.
 
 ## S06 — Tous les horaires
 
-La fenêtre des horaires rassemble l’interrupteur **Programme actif**, le cadre **Mode** (avec un sélecteur de mode), le cadre **Horaires** (la ligne **Le reste du temps** au-dessus de la liste des horaires, puis la section repliable **Jour férié** quand une entité jour férié est réglée) et le schéma de la semaine ; quand le jour férié du mode est activé, une ligne **Férié** y montre ses horaires sous le dimanche.
+La fenêtre des horaires rassemble l’interrupteur **Programme actif**, le panneau **Mode** (avec un sélecteur de mode ; replié, son titre montre le mode et s’il est actif), le panneau **Horaires** (la ligne **Le reste du temps** au-dessus de la liste des horaires, puis la section repliable **Jour férié** quand une entité jour férié est réglée) et le schéma de la semaine ; quand le jour férié du mode est activé, une ligne **Férié** y montre ses horaires sous le dimanche.
 
 <a href="images/guide/s06-schedules.png"><img src="images/guide/s06-schedules.png" width="320" alt="S06 — Tous les horaires" /></a>
 
@@ -164,7 +164,7 @@ Dans **Options avancées**, les choix Lever et Coucher remplacent l’heure fixe
 
 ## S10 — Action sans fin
 
-Sans fin crée une action ponctuelle : elle est lancée au début, sans retour automatique à « Le reste du temps ».
+**À cette heure seulement** crée une action lancée une seule fois : elle est lancée au début, sans retour automatique à « Le reste du temps ».
 
 <a href="images/guide/s10-one-shot.png"><img src="images/guide/s10-one-shot.png" width="320" alt="S10 — Action sans fin" /></a>
 
@@ -172,7 +172,7 @@ Sans fin crée une action ponctuelle : elle est lancée au début, sans retour a
 
 ## S11 — Créer un réglage
 
-Le formulaire intégré (**Nouveau réglage**) définit le nom, la couleur et l’action. L’enregistrement se fait avec celui de l’horaire.
+**Mode**, **Réglages** et **Horaires** forment un accordéon : un seul panneau est ouvert, et seul lui se modifie. **Horaires** est ouvert à l’arrivée ; toucher le titre **Réglages** l’ouvre (un titre fermé garde un résumé d’une ligne). **Nouveau réglage** y définit le nom, la couleur et l’action, avec son propre **Enregistrer** / **Annuler**.
 
 <a href="images/guide/s11-new-label.png"><img src="images/guide/s11-new-label.png" width="320" alt="S11 — Créer un réglage" /></a>
 
@@ -180,7 +180,7 @@ Le formulaire intégré (**Nouveau réglage**) définit le nom, la couleur et l�
 
 ## S12 — Modifier un réglage partagé
 
-Le crayon ouvre le réglage sélectionné. La mention « Aussi utilisé par : » nomme les autres programmes qu’une modification concernerait. La corbeille voisine supprime le réglage pour tous les appareils après confirmation ; elle est refusée, avec les noms des programmes concernés, tant que le réglage sert.
+Dans le panneau **Réglages** ouvert, le crayon ouvre le réglage sélectionné. La mention « Attention : modifier ce réglage modifie aussi… » nomme les autres programmes qu’une modification concernerait. La corbeille voisine supprime le réglage pour tous les appareils après confirmation ; elle est refusée, avec les noms des programmes concernés, tant que le réglage sert.
 
 <a href="images/guide/s12-edit-shared-label.png"><img src="images/guide/s12-edit-shared-label.png" width="320" alt="S12 — Modifier un réglage partagé" /></a>
 
@@ -228,7 +228,7 @@ Le bouton **Agrandir / réduire** (flèches, à côté de la croix) élargit la 
 
 ## S18 — Édition directe sur une barre
 
-Un clic à la souris ou un appui long au doigt affiche les poignées et les actions de l’horaire sélectionné : **Couper en deux**, **Copier sur d’autres jours**, **Effacer** et le choix du réglage.
+Un appui long, au doigt ou à la souris, affiche les poignées et les actions de l’horaire sélectionné : **Couper en deux**, **Copier sur d’autres jours**, **Supprimer** et le choix du réglage.
 
 <a href="images/guide/s18-bar-edit.png"><img src="images/guide/s18-bar-edit.png" width="320" alt="S18 — Édition directe sur une barre" /></a>
 
@@ -260,7 +260,7 @@ Après l’enregistrement au relâcher, le bandeau Enregistré · Annuler permet
 
 ## S24 — Affichage : liste filtrée
 
-Choix de la pièce, présentation de la journée et réglages du graphique pour « Plusieurs programmes ».
+Choix des programmes à afficher (dont la pièce), de l’affichage (liste compacte ou comparateur dès 2 programmes, les autres vues pour un seul) et réglages du graphique.
 
 <a href="images/guide/s24-card-filter-settings.png"><img src="images/guide/s24-card-filter-settings.png" width="320" alt="S24 — Affichage : liste filtrée" /></a>
 
@@ -292,7 +292,7 @@ Choisir les appareils avant l’icône. Les réglages ne sont envoyés qu’avec
 
 ## S28 — Réglages généraux et historique local
 
-Les boutons Annuler la modification et Rétablir parcourent le brouillon local. Les avertissements indiquent les autres programmes utilisant les appareils sélectionnés.
+Les boutons Annuler la modification et Refaire parcourent le brouillon local. Les avertissements indiquent les autres programmes utilisant les appareils sélectionnés.
 
 <a href="images/guide/s28-program-general-history.png"><img src="images/guide/s28-program-general-history.png" width="320" alt="S28 — Réglages généraux et historique local" /></a>
 
@@ -356,7 +356,7 @@ Ces options Home Assistant concernent l’intégration entière : droits d’éd
 
 ## S36 — Une seule intégration suffit
 
-Home Assistant refuse une seconde configuration de Weekly Planner. Pour ajouter un programme, utiliser Réglages des programmes dans la carte ; il n’est pas nécessaire d’ajouter une autre intégration.
+Home Assistant refuse une seconde configuration de Weekly Planner. Pour ajouter un programme, utiliser le panneau Programmes (barre latérale) ; il n’est pas nécessaire d’ajouter une autre intégration.
 
 <a href="images/guide/s36-single-instance.png"><img src="images/guide/s36-single-instance.png" width="320" alt="S36 — Une seule intégration suffit" /></a>
 
@@ -368,7 +368,7 @@ Home Assistant refuse une seconde configuration de Weekly Planner. Pour ajouter 
 
 ### S46 — Fenêtre Pause
 
-La fenêtre **Pause** demande **Jusqu’à quand ?** avec deux choix, **Jusqu’à la reprise** et **Pour une durée**. Avec **Pour une durée**, vous choisissez **1 heure**, **1 jour** ou **7 jours**, ou vous remplissez les champs **Nombre d’heures** et **Nombre de jours**, puis **Confirmer**.
+La fenêtre **Pause** demande **Jusqu’à quand ?** avec deux choix, **Jusqu’à ce que je la reprenne** et **Pour une durée**. Avec **Pour une durée**, vous choisissez **1 heure**, **1 jour** ou **7 jours**, ou vous remplissez les champs **Nombre d’heures** et **Nombre de jours**, puis **Confirmer**.
 
 <a href="images/guide/s46-pause-dialog.png"><img src="images/guide/s46-pause-dialog.png" width="320" alt="S46 — Fenêtre Pause" /></a>
 
@@ -392,7 +392,7 @@ La liste **Mode** de l’écran des horaires montre un mode qui a les mêmes hor
 
 ### S49 — Éditeur d’horaire avec les options avancées
 
-L’éditeur d’horaire avec le repli **Options avancées** ouvert : lever ou coucher du soleil, limite d’heure (**Limiter l’heure (au plus tôt / au plus tard)**) et **Délai aléatoire**.
+L’éditeur d’horaire avec le repli **Options avancées** ouvert : lever ou coucher du soleil, limite d’heure (**Pas avant / pas après une heure fixe**) et **Délai aléatoire**.
 
 <a href="images/guide/s49-advanced-options.png"><img src="images/guide/s49-advanced-options.png" width="320" alt="S49 — Éditeur d’horaire avec les options avancées" /></a>
 
@@ -408,7 +408,7 @@ L’éditeur d’un réglage (nom, couleur, réglage à appliquer) avec ses **Op
 
 ### S51 — Les trois sortes de notice côte à côte
 
-Les trois sortes de notice côte à côte (montage de trois fragments, pas un seul écran). Toutes partagent le même aspect : succès (**Mode actif : ces horaires s’appliquent maintenant**), information (**Ce mode n’est pas actif**) et erreur.
+Les trois sortes de notice côte à côte (montage de trois fragments, pas un seul écran). Toutes partagent le même aspect : succès (une confirmation, par exemple après une modification), information (**Ce mode n’est pas actif**) et erreur.
 
 <a href="images/guide/s51-notifications.png"><img src="images/guide/s51-notifications.png" width="320" alt="S51 — Les trois sortes de notice côte à côte" /></a>
 

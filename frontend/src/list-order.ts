@@ -3,7 +3,7 @@
 
 export const SORTS = ["type", "area", "name", "custom"] as const;
 export type SortMode = (typeof SORTS)[number];
-export const DEFAULT_SORT: SortMode = "type";
+const DEFAULT_SORT: SortMode = "type";
 
 export interface Sortable { id: string; name: string; type: string; area?: string | null }
 export interface SortOptions { order?: string[]; typeLabel?: (type: string) => string; lang?: string }

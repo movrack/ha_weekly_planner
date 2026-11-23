@@ -4,6 +4,7 @@
 import { tokenStyles } from "../styles";
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
+import { HoldPress } from "../hold-hint";
 import { t } from "../i18n";
 import { fmtClock } from "../time";
 import { sunRuleText } from "../times-list";
@@ -16,16 +17,27 @@ export class WpTimesDay extends LitElement {
   @property() state: "ready" | "loading" | "failed" = "ready";
   /** Name of the setting applied the rest of the time (shown when the day is empty). */
   @property() rest = "";
+  /** The program is paused: an empty day says so instead of "Nothing planned today" (the engine applies no schedule while paused). */
+  @property({ type: Boolean }) paused = false;
   @property({ type: Boolean }) editable = false;
-  /** A day off runs today: the rows are only read and the empty state offers no "Add a schedule" button. */
+  /** A day off runs today: the rows are only read. */
   @property({ type: Boolean }) locked = false;
   @property() lang = "en";
   /** Program (and device) the list belongs to: names the rows when several lists share the screen. */
   @property({ attribute: "device-name" }) deviceName = "";
 
-  private _open(): void {
+  /** Schedules list of the card: a row opens its schedule by a long press or the keyboard, never by a plain click (like the bars). */
+  @property({ type: Boolean }) hold = false;
+  private readonly _hold = new HoldPress(this);
+
+  private _open(slotId?: string): void {
     if (!this.editable) return;
-    this.dispatchEvent(new CustomEvent("open-day", { bubbles: true, composed: true }));
+    this.dispatchEvent(new CustomEvent("open-day", { detail: slotId ? { slotId } : undefined, bubbles: true, composed: true }));
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this._hold.dispose();
   }
 
   private _retry(): void {
@@ -60,16 +72,21 @@ export class WpTimesDay extends LitElement {
   }
 
   private _row(r: TimesRow) {
+    const holdable = this.hold && this.editable && !this.locked;
+    const go = () => this._open(r.slotId);
     const content = html`
-      <span class="dot" style="background:${r.color}" aria-hidden="true"></span>
+      <span class="dot" style="background:${r.color}" aria-hidden="true"></span>${holdable && this.deviceName ? html`<span class="sr">${this.deviceName},</span>` : nothing}
       <span class="text">
         <span class="main"><span class="time">${this._primary(r)}</span><span class="label">${r.label}</span>
           ${r.now ? html`<span class="now"><ha-icon icon="mdi:clock-outline"></ha-icon>${t(this.lang, "times_now")}</span>` : nothing}</span>
         ${this._details(r)}
       </span>`;
-    const name = this.deviceName ? `${this.deviceName}, ${r.label}` : r.label;
-    return html`<li class=${r.now ? "current" : r.done ? "done" : ""} aria-current=${r.now ? "time" : nothing}>${this.editable && !this.locked
-      ? html`<button class="row" title=${t(this.lang, "times_row_open", { name })} @click=${() => this._open()}>${content}</button>`
+    return html`<li class=${r.now ? "current" : r.done ? "done" : ""} aria-current=${r.now ? "time" : nothing}>${holdable
+      ? html`<div class="row press" role="button" tabindex="0" aria-description=${t(this.lang, "times_row_action")}
+        @keydown=${(e: KeyboardEvent) => this._hold.key(e, go)} @click=${(e: MouseEvent) => this._hold.click(e, go)}
+        @pointerdown=${(e: PointerEvent) => this._hold.down(e, go)} @pointermove=${(e: PointerEvent) => this._hold.move(e)}
+        @pointerup=${(e: PointerEvent) => this._hold.up(e)} @pointercancel=${() => this._hold.cancel()}
+        @contextmenu=${(e: Event) => { if (this._hold.active) e.preventDefault(); }}>${content}</div>`
       : html`<div class="row">${content}</div>`}</li>`;
   }
 
@@ -77,10 +94,12 @@ export class WpTimesDay extends LitElement {
   private _message() {
     if (this.state === "loading") return html`<p class="msg">${t(this.lang, "times_loading")}</p>`;
     if (this.state === "failed") return html`<p class="msg">${t(this.lang, "times_failed")}</p>`;
+    if (!this.rows.length && this.paused) return html`<p class="msg"><strong>${t(this.lang, "times_paused")}</strong></p>`;
     if (!this.rows.length) {
       return html`<p class="msg"><strong>${t(this.lang, "times_none")}</strong>
         ${this.rest ? html`<span>${t(this.lang, "times_rest", { name: this.rest })}</span>` : nothing}</p>`;
     }
+    if (this.paused) return html`<p class="msg"><strong>${t(this.lang, "times_paused")}</strong></p>`;
     return nothing;
   }
 
@@ -88,9 +107,9 @@ export class WpTimesDay extends LitElement {
     // the status region stays in the page and only its content changes, so a screen reader announces it
     const shown = this.state === "ready" && this.rows.length > 0;
     return html`<div class="status" role="status" aria-live="polite" tabindex="-1">${this._message()}</div>
+      ${shown && this.hold && this.editable && !this.locked ? html`<p class="hint" role="status">${this._hold.hint ? t(this.lang, "hold_hint") : nothing}</p>` : nothing}
       ${shown ? html`<ul role="list" aria-label=${t(this.lang, "times_list_label")}>${this.rows.map((r) => this._row(r))}</ul>`
       : this.state === "failed" ? this._button(t(this.lang, "times_retry"), "mdi:refresh", () => this._retry())
-      : this.state === "ready" && this.editable && !this.locked ? this._button(t(this.lang, "times_add"), "mdi:plus", () => this._open())
       : nothing}`;
   }
 
@@ -100,12 +119,15 @@ export class WpTimesDay extends LitElement {
     ul { list-style: none; margin: 0; padding: 0; }
     li + li { border-top: 1px solid var(--divider-color, rgba(127, 127, 127, 0.2)); }
     .row {
-      display: flex; align-items: flex-start; gap: 12px; width: 100%; min-height: 44px; box-sizing: border-box; padding: 8px 4px;
+      display: flex; align-items: flex-start; gap: 12px; width: 100%; min-height: 48px; box-sizing: border-box; padding: 8px 4px;
       margin: 0; border: 0; background: none; color: var(--primary-text-color); font: inherit; text-align: left;
     }
-    button.row { cursor: pointer; border-radius: 8px; }
-    button.row:hover { background: var(--secondary-background-color); }
-    button.row:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
+    .sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .hint { margin: 0; padding: 4px; color: var(--wp-times-detail); }
+    .hint:empty { display: none; }
+    .row.press { cursor: pointer; border-radius: 8px; user-select: none; -webkit-touch-callout: none; }
+    .row.press:hover { background: var(--secondary-background-color); }
+    .row.press:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
     .dot { flex: none; width: 14px; height: 14px; margin-top: 5px; border-radius: 7px; box-shadow: 0 0 0 1px var(--divider-color, rgba(127, 127, 127, 0.5)); }
     .text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
     .main { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 10px; line-height: 1.5; font-size: 1rem; }

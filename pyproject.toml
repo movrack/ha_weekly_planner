@@ -1,6 +1,6 @@
 [project]
 name = "weekly-planner"
-version = "0.29.0"
+version = "0.30.0"
 description = "Weekly time-slot planner for Home Assistant"
 requires-python = ">=3.14.2,<3.15"
 license = "MIT"
@@ -15,6 +15,9 @@ lint = [
 ]
 mutation = [
     "mutmut>=3.8.1",
+]
+deadcode = [
+    "vulture>=2.16",
 ]
 
 [tool.pytest.ini_options]
@@ -53,12 +56,13 @@ source_paths = [
   "custom_components/weekly_planner/timeline.py",
   "custom_components/weekly_planner/resolver.py",
   "custom_components/weekly_planner/validation.py",
+  "custom_components/weekly_planner/websocket.py",
 ]
 pytest_add_cli_args_test_selection = [
   "tests/test_timeline.py",
   "tests/test_resolver.py",
   "tests/test_random_times.py",
-  "tests/test_mutation_survivors.py",
+  "tests/test_holiday.py",
   "tests/test_action_sources.py",
   "tests/test_action_targets.py",
   "tests/test_actions.py",
@@ -67,6 +71,9 @@ pytest_add_cli_args_test_selection = [
   "tests/test_slot_entities_validation.py",
   "tests/test_per_device_engine.py",
   "tests/test_chart_sources.py",
+  "tests/test_websocket.py",
+  "tests/test_websocket_per_device.py",
+  "tests/test_preview_sun_base.py",
 ]
 also_copy = ["custom_components/", "tests/", "pyproject.toml"]
 

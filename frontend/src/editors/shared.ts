@@ -3,7 +3,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { t } from "../i18n";
-import { calloutStyles } from "../styles";
+import { calloutStyles, collapse } from "../styles";
 import { entityDomain, friendlyName } from "../planner";
 import type { Condition, HassEntity, HomeAssistant } from "../types";
 
@@ -16,7 +16,7 @@ export function foldSection(lang: string, open: boolean, toggle: () => void, bod
   return html`<button class="row opts" aria-expanded=${open} @click=${toggle}>
       <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
       <span class="txt">${t(lang, "advanced_options")}</span></button>
-    ${open ? html`<div class="opts-body">${body}</div>` : nothing}`;
+    ${collapse(open, html`<div class="opts-body">${body}</div>`)}`;
 }
 
 export const editorStyles = css`
@@ -27,8 +27,13 @@ export const editorStyles = css`
   .opts-body { margin: 0 0 12px; padding: 8px 0 0 12px; border-left: 3px solid var(--divider-color); }
   :host { display: block; color: var(--primary-text-color); font-size: 0.875rem; }
   * { box-sizing: border-box; }
-  .field { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; min-width: 0; }
-  .field > label, .label { font-size: 0.75rem; color: var(--secondary-text-color); }
+  .field { display: flex; flex-direction: column; gap: 4px; margin: 16px 0 0; min-width: 0; }
+  /* one size for every form label and help text (owner, 2026-11-14): 14 px. A label is told from its help text by weight and
+     colour (600, primary text) against (400, secondary text), and by its place: 4 px above its field, the help 4 px below it. */
+  .field > label, .label, fieldset.group > legend { font-size: 0.875rem; font-weight: 600; line-height: 1.3; color: var(--primary-text-color); }
+  fieldset.group { border: 0; margin: 16px 0 0; padding: 0; min-width: 0; }
+  fieldset.group > legend { padding: 0; margin-bottom: 4px; }
+  .field > .hint { margin: 0; }
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .row > .field { flex: 1 1 140px; }
   input[type="text"], input[type="number"], input[type="time"], input[type="date"], input:not([type]),
@@ -41,6 +46,10 @@ export const editorStyles = css`
   input[type="color"] { width: 56px; height: 48px; padding: 2px; border: 1px solid var(--wp-field-border);
     border-radius: 8px; background: none; }
   input[type="checkbox"], input[type="radio"] { width: 20px; height: 20px; min-width: 20px; flex: none; margin: 0; accent-color: var(--primary-color); }
+  /* a radio drawn with the field border colour, so that an unselected one stays visible on a dark surface (WCAG 1.4.11) */
+  input[type="radio"] { appearance: none; -webkit-appearance: none; width: 24px; height: 24px; min-width: 24px; border: 2px solid var(--wp-field-border); border-radius: 50%; background: none; }
+  input[type="radio"]:checked { border-color: var(--wp-primary-text); background: radial-gradient(circle, var(--wp-primary-text) 0 45%, transparent 50%); }
+  input[type="radio"]:focus-visible, input[type="checkbox"]:focus-visible, ha-switch:focus-within { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
   label.check { display: flex; align-items: center; gap: 10px; min-height: 48px; cursor: pointer; }
   button { font: inherit; }
   .btn {
@@ -62,7 +71,7 @@ export const editorStyles = css`
     font-size: 1rem; font-weight: 500; margin: 8px 0; }
   .field-error { margin: 2px 0 4px; }
   input[aria-invalid="true"] { border-color: var(--wp-danger-text); border-width: 2px; }
-  .hint { display: flex; align-items: center; gap: 4px; --mdc-icon-size: 16px; color: var(--secondary-text-color); font-size: 0.75rem; margin: 4px 0; }
+  .hint { display: flex; align-items: center; gap: 4px; --mdc-icon-size: 16px; color: var(--secondary-text-color); font-size: 0.875rem; margin: 4px 0; }
   .card {
     border: 1px solid var(--divider-color); border-radius: 12px; padding: 8px 12px; margin: 8px 0;
   }
@@ -82,6 +91,7 @@ export class WpEntityPicker extends LitElement {
   @property({ attribute: false }) hass!: HomeAssistant;
   @property() value = "";
   @property() label = "";
+  @property() placeholder = "";
   @property({ type: Boolean }) disabled = false;
   @property({ type: Boolean }) required = false;
   @property({ attribute: false }) domains: string[] = [];
@@ -105,7 +115,7 @@ export class WpEntityPicker extends LitElement {
     if (customElements.get("ha-entity-picker")) {
       const filter = this.filter;
       return html`<ha-entity-picker
-        .hass=${this.hass} .value=${this.value} .label=${this.label} .disabled=${this.disabled} .required=${this.required}
+        .hass=${this.hass} .value=${this.value} .label=${this.label} .placeholder=${this.placeholder || undefined} .disabled=${this.disabled} .required=${this.required}
         .includeDomains=${this.domains.length ? this.domains : undefined}
         .excludeEntities=${this.exclude}
         .entityFilter=${filter ? (e: HassEntity) => filter(e.entity_id) : undefined}
@@ -119,7 +129,7 @@ export class WpEntityPicker extends LitElement {
       <div class="field">
         ${this.label ? html`<label>${this.label}</label>` : nothing}
         <input type="text" ?disabled=${this.disabled} ?required=${this.required} list=${this._listId} .value=${this.value} autocomplete="off"
-          aria-label=${this.label || "entity"} placeholder="domain.entity"
+          aria-label=${this.label || "entity"} placeholder=${this.placeholder || "domain.entity"}
           @change=${(ev: Event) => {
             const v = (ev.target as HTMLInputElement).value.trim();
             if (v === "" || this.hass.states[v]) this._emit(v);
@@ -134,7 +144,9 @@ export class WpEntityPicker extends LitElement {
       </div>`;
   }
 
-  static styles = [editorStyles, css`:host { display: block; min-width: 0; } ha-entity-picker { display: block; }`];
+  /* The placeholder of the HA picker is drawn in --secondary-text-color (4.35:1 on the dark picker surface): HA's own secondary text token is 7.5:1 there. */
+  static styles = [editorStyles, css`:host { display: block; min-width: 0; --wp-picker-secondary: var(--ha-color-text-secondary, var(--secondary-text-color)); }
+    ha-entity-picker { display: block; --secondary-text-color: var(--wp-picker-secondary); }`];
 }
 
 /* ------------------------------------------------------------------ conditions */
@@ -168,12 +180,12 @@ export class WpConditionsEditor extends LitElement {
       ${this.conditions.map(
         (c, i) => html`
           <div class="card">
-            <wp-entity-picker .hass=${this.hass} .value=${c.entity_id} .label=${this._tr("entity")}
+            <wp-entity-picker .hass=${this.hass} .value=${c.entity_id} .label=${this._tr("entity")} .placeholder=${this._tr("choose_device")}
               @wp-change=${(e: CustomEvent) => { e.stopPropagation(); this._patch(i, { entity_id: e.detail }); }}></wp-entity-picker>
             <div class="row">
               <div class="field">
                 <label>${this._tr("cond_attribute")}</label>
-                <input type="text" .value=${c.attribute ?? ""} placeholder="—"
+                <input type="text" .value=${c.attribute ?? ""} placeholder=${this._tr("cond_attribute_example")}
                   @change=${(e: Event) => this._patch(i, { attribute: (e.target as HTMLInputElement).value.trim() || null })} />
               </div>
               <div class="field" style="flex:0 1 110px">
@@ -181,7 +193,7 @@ export class WpConditionsEditor extends LitElement {
                 <select aria-label=${this._tr("cond_op")}
                   @change=${(e: Event) => this._patch(i, { op: (e.target as HTMLSelectElement).value as Condition["op"] })}>
                   ${(["eq", "ne", "lt", "gt"] as const).map(
-                    (op) => html`<option value=${op} ?selected=${(c.op ?? "eq") === op}>${{ eq: "=", ne: "≠", lt: "<", gt: ">" }[op]}</option>`,
+                    (op) => html`<option value=${op} ?selected=${(c.op ?? "eq") === op}>${this._tr(`cond_op_${op}` as K)}</option>`,
                   )}
                 </select>
               </div>
@@ -190,7 +202,7 @@ export class WpConditionsEditor extends LitElement {
                 <input type="text" .value=${String(c.value ?? "")}
                   @change=${(e: Event) => this._patch(i, { value: this._parse((e.target as HTMLInputElement).value, Boolean(c.attribute)) })} />
               </div>
-              <button class="ibtn" aria-label=${this._tr("delete")}
+              <button class="ibtn" aria-label=${this._tr("cond_remove")} title=${this._tr("cond_remove")}
                 @click=${() => this._set(this.conditions.filter((_, j) => j !== i))}><ha-icon icon="mdi:delete"></ha-icon></button>
             </div>
           </div>`,

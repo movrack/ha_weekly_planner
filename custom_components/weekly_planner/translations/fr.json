@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Weekly Planner",
-        "description": "Ajouter Weekly Planner. Les programmes se créent ensuite depuis la carte Weekly Planner."
+        "description": "Ajouter Weekly Planner. Les programmes se créent ensuite dans le panneau Weekly Planner."
       }
     },
     "abort": {
@@ -14,17 +14,18 @@
     "step": {
       "init": {
         "title": "Weekly Planner",
-        "description": "Que voulez-vous faire ?",
+        "description": "## [Ouvrir le panneau Weekly Planner]({panel_url})\n\nCréez, modifiez et supprimez vos programmes dans ce panneau.\n\nOu choisissez :",
         "menu_options": {
           "settings": "Réglages",
-          "resync": "Resynchroniser les appareils"
+          "resync": "Renvoyer l'état aux appareils"
         }
       },
       "settings": {
         "title": "Weekly Planner",
         "data": {
           "admin_only": "Seuls les administrateurs peuvent modifier les programmes",
-          "reapply_default": "Refaire le réglage en cours après un redémarrage ou une modification (valeur par défaut des nouveaux programmes)",
+          "reapply_default": "Renvoyer le réglage en cours après un redémarrage ou un changement (valeur par défaut des nouveaux programmes)",
+          "show_sidebar": "Afficher le lien Weekly Planner dans la barre latérale",
           "notify_delay_min": "Alerte si un appareil est indisponible depuis",
           "debounce_min": "Attendre avant d'appliquer un changement de condition"
         },
@@ -42,16 +43,16 @@
               "holiday_invert": "Cette entité est allumée les jours travaillés, pas les jours fériés"
             },
             "data_description": {
-              "mode_selector": "Un sélecteur de Home Assistant (input_select ou select) dont le choix actuel est le Mode actif de la maison, par exemple Maison, Absent ou Vacances. Weekly Planner le lit seulement, il ne le change jamais. Laisser vide pour n'avoir qu'un seul Mode.",
+              "mode_selector": "Une liste de choix de Home Assistant dont le choix actuel est le Mode de la maison (Maison, Absent, Vacances…). Weekly Planner la lit seulement, jamais il ne la change. Laisser vide pour n'avoir qu'un seul Mode.",
               "holiday_entity": "Une entité de Home Assistant qui est allumée (« on ») un jour férié ou de congé : par exemple un interrupteur que vous allumez vous-même, ou un calendrier des jours fériés. Ce jour-là, un Mode qui a un réglage Jour férié l'utilise à la place du jour de la semaine. Laisser vide pour ignorer les jours fériés.",
-              "holiday_invert": "À cocher seulement si l'entité choisie est allumée (« on ») les jours où l'on travaille, comme le capteur Jour ouvré (Workday). Dans le doute, laissez décoché : une coche à tort échange les jours fériés et les jours normaux. Avec un capteur Jour ouvré, les week-ends comptent aussi comme jours fériés : préférez un calendrier des jours fériés (intégration Jours fériés, « Holiday »)."
+              "holiday_invert": "À cocher seulement si l'appareil choisi est allumé les jours où l'on travaille (capteur Jour ouvré). Dans le doute, laissez décoché : une coche à tort échange les jours fériés et les jours normaux. Avec ce capteur, les week-ends comptent aussi comme jours fériés : préférez un calendrier des jours fériés."
             }
           }
         }
       },
       "resync": {
-        "title": "Resynchroniser les appareils",
-        "description": "À utiliser après une panne. Tous les programmes sont examinés. Rien n'a encore été envoyé. Appuyer sur Valider envoie réellement les commandes ci-dessous à vos appareils (volets, chauffage, lumières…), un appareil à la fois, et ils agiront tout de suite. Les programmes en pause ou éteints, et les appareils modifiés par une personne depuis leur dernier ponctuel, sont laissés tels quels.\n\n{plan}"
+        "title": "Renvoyer l'état aux appareils",
+        "description": "À utiliser après une panne. Tous les programmes sont examinés. Rien n'a encore été envoyé. Appuyer sur Valider envoie réellement les commandes ci-dessous à vos appareils (volets, chauffage, lumières…), un appareil à la fois, et ils agiront tout de suite. Les programmes en pause ou éteints, et les appareils modifiés par une personne depuis leur dernier horaire « À cette heure seulement », sont laissés tels quels.\n\n{plan}"
       },
       "default_mode": {
         "title": "Mode par défaut",
@@ -90,7 +91,7 @@
   "services": {
     "apply_now": {
       "name": "Appliquer maintenant",
-      "description": "Envoie tout de suite ce que les appareils du programme doivent faire, même s'ils sont déjà dans cet état ; envoie aussi le dernier ponctuel commencé il y a moins de 24 heures, sauf si une personne a modifié l'appareil depuis. Renvoie les appareils envoyés et laissés tels quels.",
+      "description": "Envoie tout de suite ce que les appareils du programme doivent faire, même s'ils sont déjà dans cet état ; envoie aussi le dernier horaire « À cette heure seulement » commencé il y a moins de 24 heures, sauf si une personne a modifié l'appareil depuis. Renvoie les appareils envoyés et laissés tels quels.",
       "fields": {
         "program_id": {
           "name": "Programme",
@@ -148,7 +149,7 @@
   "issues": {
     "missing_entities": {
       "title": "Weekly Planner : entités supprimées",
-      "description": "Des programmes utilisent des entités qui n'existent plus : {details}. Modifiez ces programmes dans la carte Weekly Planner."
+      "description": "Des programmes utilisent des entités qui n'existent plus : {details}. Modifiez ces programmes dans le panneau Weekly Planner."
     },
     "yaml_invalid": {
       "title": "Weekly Planner : fichier YAML ignoré",

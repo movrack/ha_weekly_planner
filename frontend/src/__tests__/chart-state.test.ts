@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cardIdentity, chartKey, isChartOpen, loadChartChoices, saveChartChoices } from "../chart-state";
+import { cardIdentity, chartKey, isChartOpen, loadChartChoices, saveChartChoices, WEEK_KEY } from "../chart-state";
 import { scopeKey } from "../components/schedule-dialog";
 
 describe("card chart state", () => {
@@ -21,6 +21,17 @@ describe("card chart state", () => {
     expect(isChartOpen(c, "a", true)).toBe(true);
     expect(isChartOpen(c, "b", false)).toBe(false);
     expect(isChartOpen(c, "other", false)).toBe(true);
+  });
+  it("week choices live under their own key, apart from the charts and without the legacy list", () => {
+    store({ "weekly-planner:open-charts": '["a|switch.x"]' });
+    expect(loadChartChoices(WEEK_KEY).size).toBe(0);
+    saveChartChoices(new Map([["w", true]]), WEEK_KEY);
+    expect(isChartOpen(loadChartChoices(WEEK_KEY), "w", true)).toBe(true);
+    expect(loadChartChoices().has("w")).toBe(false);
+  });
+  it("week_epoch changes the week identity only", () => {
+    expect(cardIdentity({ title: "A", week_epoch: 1 }, "week_epoch")).not.toBe(cardIdentity({ title: "A" }, "week_epoch"));
+    expect(cardIdentity({ title: "A", week_epoch: 1 })).toBe(cardIdentity({ title: "A" }));
   });
   it("reads the legacy list of open charts", () => {
     store({ "weekly-planner:open-charts": '["a|switch.x"]' });
@@ -60,9 +71,29 @@ describe("chart under the week on the card", () => {
     expect(out).toContain("mdi:chevron-down");
     expect(out).not.toContain("wp-chart");
   });
-  it("keeps the week and chart buttons on one row", async () => {
-    const out = flat((await card())._extras(scope, "switch.x", [program]));
-    expect(out).toMatch(/class="toggles"[\s\S]*Week[\s\S]*Today’s chart/);
+  it("puts each panel directly under its own button (week, week panel, chart, chart panel)", async () => {
+    const c = await card();
+    c._week = new Map([[chartKey(cardIdentity(c._config, "week_epoch"), scopeKey(scope), "switch.x"), true]]);
+    c._charts = new Map([[keyOf(c), true]]);
+    const out = flat(c._extras(scope, "switch.x", [program]));
+    expect(out).not.toContain("toggles");
+    const at = (s: string) => out.indexOf(s);
+    expect(at("mdi:calendar-week")).toBeGreaterThan(-1);
+    expect(at("mdi:calendar-week")).toBeLessThan(at('class="week wp-appear"'));
+    expect(at('class="week wp-appear"')).toBeLessThan(at("mdi:chart-line"));
+    expect(at("mdi:chart-line")).toBeLessThan(at("<wp-chart"));
+  });
+  it("keeps the week and the chart independent", async () => {
+    const c = await card();
+    c._week = new Map([[chartKey(cardIdentity(c._config, "week_epoch"), scopeKey(scope), "switch.x"), true]]);
+    const out = flat(c._extras(scope, "switch.x", [program]));
+    expect(out).toContain('class="week wp-appear"');
+    expect(out).not.toContain("<wp-chart");
+    const c2 = await card();
+    c2._charts = new Map([[keyOf(c2), true]]);
+    const out2 = flat(c2._extras(scope, "switch.x", [program]));
+    expect(out2).toContain("<wp-chart");
+    expect(out2).not.toContain('class="week wp-appear"');
   });
   it("renders the chart only when expanded", async () => {
     const c = await card();
@@ -97,6 +128,10 @@ describe("card identity", () => {
     expect(cardIdentity({ title: "A", filter: {} })).not.toBe(cardIdentity({ title: "B", filter: {} }));
     expect(cardIdentity({ filter: { area: "x" } })).not.toBe(cardIdentity({ filter: {} }));
     expect(cardIdentity({ program: "p1" })).not.toBe(cardIdentity({ program: "p2" }));
+    // each change of the default raises the epoch and starts afresh; no epoch keeps the identity it always had
+    expect(cardIdentity({ title: "A", chart_epoch: 1 })).not.toBe(cardIdentity({ title: "A" }));
+    expect(cardIdentity({ title: "A", chart_epoch: 2 })).not.toBe(cardIdentity({ title: "A", chart_epoch: 1 }));
+    expect(cardIdentity({ title: "A", chart_epoch: 0 })).toBe(cardIdentity({ title: "A" }));
     expect(cardIdentity({ title: "A", program: "p1", filter: { area: "x" } })).toBe(cardIdentity({ title: "A", program: "p1" }));
   });
 });

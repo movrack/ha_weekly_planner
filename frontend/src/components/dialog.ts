@@ -19,19 +19,33 @@ function deepActive(): HTMLElement | null {
 const FOCUSABLE = 'a[href], button, input:not([type="hidden"]), select, textarea, summary, [tabindex], [contenteditable="true"]';
 const SKIP_TAGS = new Set(["HEAD", "SCRIPT", "STYLE", "LINK", "META", "TEMPLATE"]);
 
-function isFocusable(el: HTMLElement): boolean {
-  if (!el.matches(FOCUSABLE) || el.hasAttribute("disabled") || el.hasAttribute("hidden") || el.hasAttribute("inert")) return false;
-  const tab = el.getAttribute("tabindex");
-  if (tab !== null && Number(tab) < 0) return false;
-  return typeof el.checkVisibility === "function" ? el.checkVisibility() : true;
+/** An element that takes nothing below it out of reach: `inert` or `hidden` covers its whole subtree. */
+const closed = (el: Element): boolean => el.hasAttribute("inert") || el.hasAttribute("hidden");
+
+/** The element or one of its composed ancestors (across shadow roots, through the host) is inert or hidden. */
+function underClosed(el: Element): boolean {
+  for (let node: Element | null | undefined = el; node; node = node.parentElement ?? (node.getRootNode?.() as ShadowRoot | undefined)?.host) {
+    if (closed(node)) return true;
+  }
+  return false;
 }
 
-/** Tab stops under `root` in document order, looking through shadow roots and slots (the flattened tree). */
+function isFocusable(el: HTMLElement): boolean {
+  if (!el.matches(FOCUSABLE) || el.hasAttribute("disabled") || underClosed(el)) return false;
+  const tab = el.getAttribute("tabindex");
+  if (tab !== null && Number(tab) < 0) return false;
+  // a folded `collapse` keeps its content drawn but `visibility: hidden`
+  return typeof el.checkVisibility === "function" ? el.checkVisibility({ visibilityProperty: true }) : true;
+}
+
+/** Tab stops under `root` in document order, looking through shadow roots and slots (the flattened tree); an inert or hidden subtree is skipped. */
 export function collectFocusable(root: ParentNode, out: HTMLElement[] = []): HTMLElement[] {
   for (const el of Array.from(root.children) as HTMLElement[]) {
+    if (closed(el)) continue;
     if (el instanceof HTMLSlotElement) {
       const assigned = el.assignedElements({ flatten: true }) as HTMLElement[];
       for (const a of assigned.length ? assigned : (Array.from(el.children) as HTMLElement[])) {
+        if (closed(a)) continue;
         if (isFocusable(a)) out.push(a);
         collectFocusable(a.shadowRoot ?? a, out);
       }
@@ -107,11 +121,27 @@ export class WpDialog extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     this.addEventListener("keydown", this._onKey);
+    this._markPopover();
+  }
+
+  /** Top layer: a dialog opened from a pop-up (Bubble Card) or any transformed / clipped ancestor is no longer cut off or hidden under its header. */
+  private _markPopover(): void {
+    if (typeof this.showPopover === "function" && !this.hasAttribute("popover")) this.setAttribute("popover", "manual");
+  }
+
+  /** Puts the dialog in (or takes it out of) the browser's top layer. Older browsers keep the plain fixed layer. */
+  private _layer(on: boolean): void {
+    try {
+      const open = this.matches(":popover-open");
+      if (on && !open) this.showPopover();
+      else if (!on && open) this.hidePopover();
+    } catch { /* no popover support: the fixed layer is used */ }
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
     this.removeEventListener("keydown", this._onKey);
+    this._layer(false);
     this._release();
   }
 
@@ -161,7 +191,16 @@ export class WpDialog extends LitElement {
   private _escape(): void {
     const ev = new CustomEvent("escape", { cancelable: true });
     this.dispatchEvent(ev);
-    if (!ev.defaultPrevented) this.close();
+    if (!ev.defaultPrevented) void this.requestClose();
+  }
+
+  /** The owner may refuse a close from the user (Escape, backdrop, close button, swipe) while there are unsaved changes. */
+  @property({ attribute: false }) beforeClose?: () => boolean | Promise<boolean>;
+
+  /** Closes unless the owner's guard says no (an unsaved form it asked the user about). */
+  async requestClose(): Promise<void> {
+    if (this.beforeClose && !(await this.beforeClose())) return;
+    this.close();
   }
 
   // Swipe down from the header closes the dialog on phones (button equivalent: the close button).
@@ -203,7 +242,7 @@ export class WpDialog extends LitElement {
       panel.style.transition = "";
       panel.style.transform = "";
     }
-    if (sw.dy >= 100 && dx < sw.dy) this.close();
+    if (sw.dy >= 100 && dx < sw.dy) void this.requestClose();
   }
 
   private _hcancel(): void {
@@ -215,22 +254,32 @@ export class WpDialog extends LitElement {
     }
   }
 
-  /** Tab and Shift+Tab stay inside the dialog: wrap at both ends, and come back in when the focus fell out. */
+  /**
+   * Tab and Shift+Tab stay inside the dialog: wrap at both ends, and come back in when the focus fell out. A stop that
+   * does not take the focus is passed over; when none does, the browser moves the focus itself (never stuck).
+   */
   private _trap(ev: KeyboardEvent): void {
     const panel = this._panel();
     if (!panel) return;
     const list = collectFocusable(panel);
-    ev.preventDefault();
-    if (!list.length) { panel.focus(); return; }
+    if (!list.length) { ev.preventDefault(); panel.focus(); return; }
+    const n = list.length;
+    const step = ev.shiftKey ? -1 : 1;
     const at = list.indexOf(deepActive() as HTMLElement);
-    if (ev.shiftKey) list[at <= 0 ? list.length - 1 : at - 1].focus();
-    else list[at < 0 || at === list.length - 1 ? 0 : at + 1].focus();
+    let i = at < 0 ? (ev.shiftKey ? n - 1 : 0) : (at + step + n) % n;
+    for (let tries = 0; tries < n; tries++, i = (i + step + n) % n) {
+      list[i].focus();
+      if (deepActive() === list[i]) { ev.preventDefault(); return; }
+    }
   }
 
-  /** The first control of the content (no text field on a phone: it would raise the keyboard), else the dialog itself. */
+  /** The control marked `data-initial-focus` (the safe choice of a dialog whose first control is destructive), else the first control of
+   *  the content (no text field on a phone: it would raise the keyboard), else the dialog itself. */
   private _focusFirst(): void {
     const panel = this._panel();
     if (!panel) return;
+    const chosen = this.querySelector?.<HTMLElement>("[data-initial-focus]");
+    if (chosen) { chosen.focus(); return; }
     const content = panel.querySelector<HTMLElement>(".content");
     const first = content ? collectFocusable(content).find((el) => !(this._isPhone() && el.matches('input:not([type="checkbox"]):not([type="radio"]), textarea'))) : undefined;
     (first ?? panel).focus();
@@ -250,13 +299,15 @@ export class WpDialog extends LitElement {
   updated(changed: Map<string, unknown>): void {
     if (!changed.has("open")) return;
     if (this.open) {
+      this._layer(true);
       this._track();
       requestAnimationFrame(() => { if (this.open) this._focusFirst(); });
-    } else this._release();
+    } else { this._layer(false); this._release(); }
   }
 
   close(): void {
     this.open = false;
+    this._layer(false);
     this._release();
     this.dispatchEvent(new CustomEvent("closed", { bubbles: true, composed: true }));
   }
@@ -264,8 +315,8 @@ export class WpDialog extends LitElement {
   render() {
     if (!this.open) return html``;
     return html`
-      <div class="backdrop" @click=${() => this.close()}></div>
-      <div class="panel ${this._expanded ? "expanded" : this.wide ? "wide" : this.columns ? "columns" : ""}" role=${this.dialogRole} aria-modal="true"
+      <div class="backdrop" @click=${() => void this.requestClose()}></div>
+      <div class="panel ${this._expanded ? "expanded" : this.wide ? "wide" : this.columns ? "columns" : ""} ${this.columns ? "top" : ""}" role=${this.dialogRole} aria-modal="true"
         aria-label=${this.heading} aria-describedby=${this.description ? "wp-desc" : nothing} tabindex="-1">
         ${this.description ? html`<span id="wp-desc" class="sr-only">${this.description}</span>` : nothing}
         <header @pointerdown=${this._hdown} @pointermove=${this._hmove} @pointerup=${this._hup}
@@ -273,7 +324,7 @@ export class WpDialog extends LitElement {
           <slot name="header-start"></slot>
           <h2>${this.heading}</h2>
           <slot name="header-actions"></slot>
-          <button class="icon" @click=${() => this.close()} aria-label=${document.documentElement.lang?.startsWith("fr") ? "Fermer" : "Close"}><ha-icon icon="mdi:close"></ha-icon></button>
+          <button class="icon" @click=${() => void this.requestClose()} aria-label=${document.documentElement.lang?.startsWith("fr") ? "Fermer" : "Close"}><ha-icon icon="mdi:close"></ha-icon></button>
         </header>
         <div class="content"><slot></slot></div>
         <footer><slot name="footer"></slot></footer>
@@ -288,17 +339,22 @@ export class WpDialog extends LitElement {
     ${tokenStyles}
     :host { position: fixed; inset: 0; z-index: 9; pointer-events: none; }
     :host([open]) { pointer-events: auto; }
+    /* in the top layer the browser's popover defaults must not shrink or frame the dialog */
+    :host([popover]) { margin: 0; padding: 0; border: 0; background: none; color: inherit; overflow: visible; width: 100%; height: 100%; max-width: none; max-height: none; }
     .backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); }
     .panel {
       position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-      width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 64px);
+      width: min(560px, calc(100% - 32px)); max-height: calc(100% - 64px);
+      container: wpdlg / inline-size; /* the editor inside answers to this box, not to the screen (a pop-up bubble is narrower) */
       display: flex; flex-direction: column; outline: none;
       background: var(--card-background-color, #fff); color: var(--primary-text-color);
       border-radius: var(--ha-card-border-radius, 16px); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
     }
-    .panel.wide { width: min(880px, calc(100vw - 32px)); }
-    @media (min-width: 768px) { .panel.columns { width: min(960px, calc(100vw - 32px)); } }
-    .panel.expanded { width: min(1400px, calc(100vw - 32px)); }
+    .panel.wide { width: min(880px, calc(100% - 32px)); }
+    .panel.columns { width: min(960px, calc(100% - 32px)); }
+    .panel.expanded { width: min(1400px, calc(100% - 32px)); }
+    /* the schedule window keeps its top edge when its height changes (a panel of its accordion opens): no jump */
+    .panel.top { top: 32px; transform: translateX(-50%); }
     .expand {
       position: absolute; top: 16px; right: 68px; width: 48px; height: 48px; border: none; background: none; color: inherit;
       --mdc-icon-size: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: 24px; cursor: pointer;
@@ -307,11 +363,11 @@ export class WpDialog extends LitElement {
     .expand:focus-visible, button.icon:focus-visible { outline: 2px solid var(--wp-primary-text); outline-offset: 2px; }
     .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     h2 { padding-right: 52px; }
-    header { display: flex; align-items: center; gap: 12px; padding: 16px 16px 8px 20px; }
+    header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 16px 8px 20px; }
     header { touch-action: none; }
     h2 {
-      flex: 1; min-width: 0; margin: 0; font-size: 1.25rem; font-weight: 500;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      flex: 1 1 0; min-width: 0; margin: 0; font-size: 1.25rem; font-weight: 500;
+      overflow-wrap: anywhere; /* wraps instead of being cut at 200 % zoom (WCAG 1.4.4 / 1.4.10) */
     }
     .content { padding: 8px 20px 16px; overflow-y: auto; }
     footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 8px 20px 20px; }
@@ -324,11 +380,11 @@ export class WpDialog extends LitElement {
     @media (max-width: 600px) {
       h2 { font-size: 1.125rem; padding-right: 0; }
       .expand { display: none; }
-      .panel, .panel.wide, .panel.expanded {
-        left: 0; top: 0; transform: none; width: 100vw; height: 100vh; max-height: none; border-radius: 0;
+      .panel, .panel.wide, .panel.columns, .panel.expanded {
+        left: 0; top: 0; transform: none; width: 100%; height: 100%; max-height: none; border-radius: 0;
       }
       /* confirmation / choice: content-sized bottom sheet over the backdrop instead of a full screen */
-      :host([compact]) .panel, :host([compact]) .panel.wide, :host([compact]) .panel.expanded {
+      :host([compact]) .panel, :host([compact]) .panel.wide, :host([compact]) .panel.columns, :host([compact]) .panel.expanded {
         left: 0; right: 0; top: auto; bottom: 0; width: 100%; height: auto; max-height: 90vh; max-height: 90dvh;
         border-radius: var(--ha-card-border-radius, 16px) var(--ha-card-border-radius, 16px) 0 0;
       }

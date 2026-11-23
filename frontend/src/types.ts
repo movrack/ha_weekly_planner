@@ -8,6 +8,9 @@ export interface HomeAssistant {
   user?: { is_admin: boolean; name: string };
   themes?: { darkMode?: boolean };
   services?: Record<string, Record<string, unknown>>;
+  areas?: Record<string, { area_id: string; name: string }>;
+  entities?: Record<string, { entity_id: string; device_id?: string | null }>;
+  devices?: Record<string, { id: string; name?: string | null; name_by_user?: string | null }>;
   localize?: (key: string, ...args: unknown[]) => string;
   loadBackendTranslation?: (category: string, integration?: string | string[], configFlow?: boolean) =>
     Promise<(key: string, ...args: unknown[]) => string>;
@@ -47,6 +50,8 @@ export interface Label {
   name: string;
   color: string;
   action: Action;
+  /** Display only: add the temperature of a preset-mode setting to its name ("Comfort (19 °C)"). */
+  show_value?: boolean;
 }
 
 export interface Condition {
@@ -120,7 +125,7 @@ export interface Program {
   profiles: Profile[];
 }
 
-export interface ProgramStatus {
+interface ProgramStatus {
   program_id: string;
   /** Present only when today is a day off that changes this program's day: a copied weekday, or its own day. */
   holiday?: { copy: number } | { own: true };
@@ -135,7 +140,7 @@ export interface ProgramStatus {
 }
 
 /** The global mode (one for the whole house), read from an external selector. */
-export interface ModeInfo {
+interface ModeInfo {
   /** Entity read for the mode; null when there is a single mode. */
   selector: string | null;
   default: string | null;
@@ -179,6 +184,9 @@ export interface PreviewSlot {
   end: string | null;
   ignored: string | null;
   sun: boolean;
+  /** With a random delay on a sun time: that time before the delay (ISO), as the server resolved it. */
+  start_base?: string;
+  end_base?: string;
   /** Devices the slot targets, when the program uses per-device schedules (absent: every device). */
   entities?: string[];
 }
@@ -197,17 +205,29 @@ export interface CardConfig {
   type: string;
   title?: string;
   program?: string;
-  filter?: { types?: string[]; area?: string; programs?: string[] };
+  filter?: { types?: string[]; area?: string | string[]; programs?: string[] };
   /** Order of the list: by type (default), room, name, or the personal `order`. */
   sort?: "type" | "area" | "name" | "custom";
   /** Personal order (`sort: custom`): program ids; unknown ids are ignored, missing ones go last. */
   order?: string[];
-  schedule_view?: "bars" | "radial" | "radial_12h" | "list" | "times";
+  schedule_view?: "bars" | "radial" | "radial_12h" | "list" | "times" | "compare";
   /** Deprecated: accepted and ignored (the week list is always collapsible); kept so existing YAML never breaks. */
   show_week?: boolean;
   show_chart?: boolean;
+  /** Show the Week button (the next days, one bar each) under each device. Default true; off hides it on the card only, never in the schedule window. */
+  show_week_button?: boolean;
+  /** Optional: list today's schedules (Daily times rows) under the bars / circular graphic. Default false. */
+  show_schedule_list?: boolean;
+  /** Comparison view sorted by type or room, with several groups: show the type or room name above each group. Default true. */
+  show_group_labels?: boolean;
   /** Optional: start with the day chart collapsed. */
   chart_collapsed?: boolean;
+  /** Raised by the editor each time `chart_collapsed` changes, so devices drop their saved open/closed choice. Do not edit by hand. */
+  chart_epoch?: number;
+  /** Week bars under each device start folded (default) or open (`false`). */
+  week_collapsed?: boolean;
+  /** Raised by the editor each time `week_collapsed` changes (same role as `chart_epoch`). Do not edit by hand. */
+  week_epoch?: number;
   /** Deprecated: accepted and ignored; kept so existing YAML never breaks. */
   show_advanced?: boolean;
 }

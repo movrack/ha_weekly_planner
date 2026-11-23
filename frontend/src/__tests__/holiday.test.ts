@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
+import { cardIdentity, chartKey } from "../chart-state";
+import { scopeKey } from "../components/schedule-dialog";
 import { allSlots, dayInText, holidayApplies, holidayChoice, holidayDayToday, holidayKind, holidayLine, holidayOwnSlots, holidayReplaces } from "../holiday";
-import { t } from "../i18n";
+import { strings, t } from "../i18n";
 import { specText } from "../actions";
 import { WeeklyPlannerCard } from "../weekly-planner-card";
 import { WpHoliday, passesMidnight } from "../components/holiday-section";
@@ -9,7 +11,7 @@ import { WpTimesDay } from "../components/times-day";
 import { syncPreviewCache, fetchPreviewResponse, clearPreviewCache } from "../preview-cache";
 import { WpBarEditor } from "../components/bar-editor";
 import { confirmAction } from "../components/confirm";
-import { flat, handlers } from "./helpers/tpl";
+import { bindings, flat, handlers } from "./helpers/tpl";
 
 vi.mock("../components/confirm", async (orig) => ({ ...(await orig<typeof import("../components/confirm")>()), confirmAction: vi.fn(async () => true) }));
 
@@ -105,18 +107,10 @@ describe("card on a day off", () => {
     const el = new WpTimesDay() as any;
     el.lang = "en"; el.editable = true; el.state = "ready";
     el.rows = [{ startMin: 600, label: "Open", color: "#0f0", until: null, now: false, done: false }];
-    expect(flat(el.render())).toContain('<button class="row"');
+    expect(flat(el.render())).not.toContain('<button class="row"'); // a row never opens the editor (owner, 2026-11-15)
     el.locked = true;
     const t = flat(el.render());
-    expect(t).not.toContain('<button class="row"');
     expect(t).not.toContain('class="action"');
-  });
-  it("a locked empty day shows no Add a schedule button, an unlocked one does", () => {
-    const el = new WpTimesDay() as any;
-    el.lang = "en"; el.editable = true; el.state = "ready"; el.rows = [];
-    expect(flat(el.render())).toContain('class="action"');
-    el.locked = true;
-    expect(flat(el.render())).not.toContain('class="action"');
   });
 });
 
@@ -125,17 +119,37 @@ const fakeRoot = (el: any) => {
   const h = el.profile.holiday;
   const kind = !h || h.off ? "none" : "copy" in h ? "copy" : "own";
   const root: any = { activeElement: null };
-  Object.defineProperty(el, "updateComplete", { value: Promise.resolve(true) }); // an element that is not connected never finishes its first update
+  Object.defineProperty(el, "updateComplete", { value: Promise.resolve(true), configurable: true }); // an element that is not connected never finishes its first update
   const ctl = (extra: object) => ({ focus() { root.activeElement = this; }, ...extra });
   root.sw = ctl({ checked: kind !== "none" });
   root.radios = ["copy", "own"].map((v) => ctl({ dataset: { v }, checked: v === kind }));
   root.day = ctl({ value: String(h && "copy" in h ? h.copy : 6) });
   root.head = ctl({});
-  root.querySelectorAll = () => root.radios;
-  root.querySelector = (sel: string) => sel === 'input[role="switch"]' ? root.sw : sel === ".day" ? root.day : sel === ".head" ? root.head
-    : root.radios.find((r: any) => sel === `input[data-v="${r.dataset.v}"]`) ?? null;
+  root.add = ctl({});
+  root.opens = new Map((h?.day ?? []).map((s: any) => [s.id, ctl({})]));
+  root.deletes = new Map((h?.day ?? []).map((s: any) => [s.id, ctl({})]));
+  root.querySelectorAll = (sel: string) => sel === 'input[type="radio"]' ? root.radios : [];
+  root.querySelector = (sel: string) => sel === 'input[role="switch"]' ? root.sw : sel === ".day" ? (kind === "copy" ? root.day : null) : sel === ".head" ? root.head
+    : sel === ".add" ? root.add
+    : root.opens.get(/^\.open\[data-slot="(.*)"\]$/.exec(sel)?.[1]) ?? root.deletes.get(/^\.del\[data-slot="(.*)"\]$/.exec(sel)?.[1])
+    ?? root.radios.find((r: any) => sel === `input[data-v="${r.dataset.v}"]`) ?? null;
   return root;
 };
+
+/** A day-off section on a profile with this setting, as the program editor builds it, with no shadow root. */
+const sectionOf = (holiday?: any, extra: any = {}) => {
+  const el = new WpHoliday() as any;
+  el.hass = { ...hass, callWS: vi.fn(async () => ({ program: { id: "p" } })) };
+  el.data = { labels: [label], programs: [], status: {} };
+  el.program = program();
+  el.profile = profile(holiday);
+  el.canEdit = true;
+  Object.defineProperty(el, "updateComplete", { value: Promise.resolve(true), configurable: true });
+  el.renderRoot = { querySelectorAll: () => [], querySelector: () => null };
+  Object.assign(el, extra);
+  return el;
+};
+const on = (tpl: any, event: string) => handlers(tpl).filter((h) => h.event === event);
 
 describe("day-off section", () => {
   const make = (extra: any = {}) => {
@@ -155,20 +169,30 @@ describe("day-off section", () => {
     expect(el._open).toBe(false);
     expect(t).toContain("aria-expanded=");
     expect(t).toContain("aria-controls=");
-    // the only booleans bound are aria-expanded (closed) and the hidden body
-    expect(tpl.values.filter((v: unknown) => v === false || v === true)).toEqual([false, true]);
+    // the only boolean bound here is aria-expanded; the body is an animated fold that is closed (not inert-free) until opened
+    expect(tpl.values.filter((v: unknown) => v === false || v === true)).toEqual([false]);
+    expect(flat(tpl)).toContain('class="wp-collapse "');
     el._open = true;
-    expect(el.render().values.filter((v: unknown) => v === false || v === true)).toEqual([true, false]);
+    expect(el.render().values.filter((v: unknown) => v === false || v === true)).toEqual([true]);
+    expect(flat(el.render())).toContain('class="wp-collapse open"');
     expect(t).toContain('role="switch"');
-    expect(t).toContain("Different schedule on days off");
+    expect(t).toContain("Special schedule on days off");
+    expect(t).toContain("mdi:chevron-down");
+    expect(flat(el.render())).toContain("mdi:chevron-up");
+    expect(bindings(tpl, "aria-controls")).toEqual(["holiday-p"]);
+    expect(bindings(tpl, "id")).toEqual(["holiday-p"]);
+    expect(t).toContain(strings("en").holiday_title);
     expect(t).not.toContain('type="radio"'); // off: no radios
     const on = flat(make({ profile: profile({ copy: 6 }) }).render());
-    for (const w of ["Same as:", "My own schedule"]) expect(on).toContain(w);
+    for (const w of ["Use the schedule of:", "My own schedule"]) expect(on).toContain(w);
   });
-  it("switch on with no setting writes Sunday (copy 6)", async () => {
+  it("switch on with no setting writes Sunday (copy 6), also through the switch's change event", async () => {
     const el = make();
     await el._toggle(true);
     expect(el.hass.callWS).toHaveBeenLastCalledWith(expect.objectContaining({ holiday: { copy: 6 } }));
+    const wired = sectionOf();
+    await on(wired.render(), "change")[0].fn({ target: { checked: true } });
+    expect(wired.hass.callWS).toHaveBeenCalledWith(expect.objectContaining({ holiday: { copy: 6 } }));
   });
   it("switch off keeps the setting with off: true and asks nothing; on gives the same choice back", async () => {
     (confirmAction as any).mockClear();
@@ -218,6 +242,7 @@ describe("day-off section", () => {
   it("the head says normal day when the setting is off", () => {
     expect(flat(make({ profile: profile({ copy: 2, off: true }) }).render())).toContain(t("en", "holiday_what_none"));
     expect(flat(make({ profile: profile({ copy: 2 }) }).render())).toContain(t("en", "holiday_what_copy", { day: dayInText("en", 2) }));
+    expect(flat(make({ profile: profile({ day: [] }) }).render())).toContain(t("en", "holiday_what_own"));
   });
   it("a failed write puts the switch, the radios and the select back on the saved state and keeps the draft", async () => {
     const el = make({ profile: profile({ copy: 2, day: [slot("h")] }) });
@@ -289,34 +314,62 @@ describe("day-off section", () => {
     expect(t).not.toContain('type="radio"');
     expect(t).not.toContain('role="switch"');
   });
-  it("deleting an own-day slot asks first; No writes nothing, Yes writes", async () => {
-    const el = make({ profile: profile({ day: [slot("h", "08:00", "09:00")] }) });
+  it.each([
+    ["with an end", slot("h", "08:00", "09:00"), `${specText("en", { time: "08:00" })}–${specText("en", { time: "09:00" })}`],
+    ["without an end", slot("g", "10:00", null), specText("en", { time: "10:00" })],
+  ])("deleting an own-day slot %s asks first; No writes nothing, Yes writes and keeps the other slots", async (_name, deleted, when) => {
+    const other = slot("o", "12:00", "13:00");
+    const el = make({ profile: profile({ day: [deleted, other] }) });
+    const root = fakeRoot(el);
+    el.renderRoot = root;
     (confirmAction as any).mockClear();
     (confirmAction as any).mockResolvedValueOnce(false);
-    await el._delete(slot("h", "08:00", "09:00"));
-    expect(confirmAction).toHaveBeenCalledWith(el, `${t("en", "w_confirm_slot")} ${specText("en", { time: "08:00" })}–${specText("en", { time: "09:00" })}`, t("en", "slot_delete_yes"), t("en", "slot_delete_no"));
+    on(el.render(), "click")[2].fn();
+    await vi.waitFor(() => expect(root.activeElement).toBe(root.deletes.get(deleted.id)));
+    expect(confirmAction).toHaveBeenCalledWith(el, `${t("en", "w_confirm_slot")} ${when}`, t("en", "slot_delete_yes"), t("en", "slot_delete_no"));
     expect(el.hass.callWS).not.toHaveBeenCalled();
-    await el._delete(slot("h", "08:00", "09:00"));
-    expect(el.hass.callWS).toHaveBeenLastCalledWith(expect.objectContaining({ holiday: { day: [] } }));
+    on(el.render(), "click")[2].fn();
+    await vi.waitFor(() => expect(root.activeElement).toBe(root.add));
+    expect(el.hass.callWS).toHaveBeenLastCalledWith(expect.objectContaining({ holiday: { day: [other] } }));
   });
-  it("C: the own-day form has the title and hides the Days section", () => {
+  it.each([
+    [["cover.b", "light.c"], "cover.b"],
+    [[], ""],
+  ])("C: the own-day form has the title and hides the Days section", (entityIds, device) => {
     const el = make({ profile: profile({ day: [slot("h")] }) });
     expect(flat(el.render())).not.toContain("Day-off schedule");
     el._add();
     const open = flat(el.render());
     expect(open).toContain("Day-off schedule");
     expect(open).toContain(".noDays=");
+    el.program = { ...el.program, entities: entityIds.map((entity_id) => ({ entity_id })) };
+    const tpl = el.render();
+    expect(bindings(tpl, ".noDays")).toEqual([true]);
+    expect(bindings(tpl, ".entityIds")).toEqual([entityIds]);
+    expect(bindings(tpl, ".device")).toEqual([device]);
+    expect(flat(tpl)).toContain(t("en", "save"));
   });
-  it("warns on a slot that passes midnight", () => {
-    expect(passesMidnight(hass, slot("x", "22:00", "02:00") as any)).toBe(true);
-    expect(passesMidnight(hass, slot("x", "08:00", "09:00") as any)).toBe(false);
-    expect(passesMidnight(hass, slot("x", "08:00", null) as any)).toBe(false);
+  it.each([
+    ["22:00", "02:00", true],
+    ["08:00", "08:00", true],
+    ["08:00", "09:00", false],
+    ["08:00", null, false],
+  ])("warns on a slot that passes midnight", (start, end, warned) => {
+    const edited = slot("x", start, end);
+    expect(passesMidnight(hass, edited as any)).toBe(warned);
+    const el = sectionOf({ day: [edited] });
+    on(el.render(), "click")[1].fn();
+    expect(flat(el.render()).match(/<div class="warn"[^>]*>(.*?)<\/div>/s)?.[1]).toBe(warned ? t("en", "holiday_midnight") : "");
   });
   it("shows an error from the server", async () => {
     const el = make();
     el.hass.callWS = vi.fn(async () => { throw { code: "conflict", message: "conflict" }; });
     await el._choose("copy");
-    expect(el._error).not.toBe("");
+    expect(flat(el.render())).toContain('role="alert"');
+    expect(flat(el.render())).toContain("conflict");
+    el.hass.callWS = vi.fn(async () => ({ program: { id: "p" } }));
+    await el._choose("copy");
+    expect(flat(el.render())).not.toContain('role="alert"');
   });
   it("the schedules window shows it only with a day-off entity, one per program", () => {
     const w = new WpSchedule() as any;
@@ -330,21 +383,287 @@ describe("day-off section", () => {
   });
 });
 
+describe("day-off section: rendered choices", () => {
+  it.each([
+    [undefined, [false], [], false],
+    [{ copy: 2 }, [true, true, false], ["copy", "own"], true],
+    [{ day: [] }, [true, false, true], ["copy", "own"], false],
+    [{ copy: 2, off: true }, [false], [], false],
+  ])("the controls reflect the saved choice %j", (setting, checked, choices, hasSelect) => {
+    const el = sectionOf(setting);
+    const tpl = el.render();
+    expect(bindings(tpl, ".checked")).toEqual(checked);
+    expect(bindings(tpl, "data-v")).toEqual(choices);
+    expect(bindings(tpl, "name")).toEqual(choices.map(() => "holiday-p"));
+    expect(flat(tpl).includes('<select class="day"')).toBe(hasSelect);
+    expect(flat(tpl).includes('class="hlist"')).toBe(!!setting && "day" in setting);
+    expect(flat(tpl)).not.toContain('role="alert"');
+    expect(flat(tpl).match(/<p class="sr-only" role="status">(.*?)<\/p>/s)?.[1]).toBe("");
+    if (choices.length) {
+      expect(flat(tpl)).toContain(t("en", "holiday_own"));
+      expect(flat(tpl)).toContain(t("en", "holiday_title"));
+      expect(flat(tpl).match(/<legend\b[^>]*>(.*?)<\/legend>/s)?.[1]).toBe(t("en", "holiday_title"));
+      expect(bindings(tpl, "?disabled").every((v) => v === false)).toBe(true);
+    }
+  });
+  it.each(["en", "fr"])("the weekday selector lists translated days and selects only the saved one (%s)", (lang) => {
+    const el = sectionOf({ copy: 2 });
+    el.hass = { ...el.hass, language: lang };
+    const tpl = el.render();
+    expect(bindings(tpl, "value")).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(bindings(tpl, "?selected")).toEqual([false, false, true, false, false, false, false]);
+    expect(bindings(tpl, "aria-label")).toEqual([lang === "en" ? "Use the schedule of" : "Prendre les horaires de"]);
+    for (const day of strings(lang).days) expect(flat(tpl)).toContain(day);
+    expect(flat(tpl)).toContain(t(lang, "holiday_copy"));
+    expect(flat(tpl)).toContain(t(lang, "holiday_own"));
+  });
+  it("a section is read-only until editing is permitted", () => {
+    const el = new WpHoliday();
+    Object.assign(el, { hass, data: { labels: [label] }, program: program(), profile: profile({ copy: 2 }) });
+    expect(bindings(el.render(), "?disabled")).toEqual([true, true, true, true]);
+  });
+});
+
+describe("day-off section: wiring and guards", () => {
+  it("the head opens and closes the section", () => {
+    const el = sectionOf();
+    on(el.render(), "click")[0].fn();
+    expect(el._open).toBe(true);
+    on(el.render(), "click")[0].fn();
+    expect(el._open).toBe(false);
+  });
+  it("the radios and the day select write through their change events", async () => {
+    const el = sectionOf({ copy: 6, day: [slot("h")] });
+    let ch = on(el.render(), "change"); // switch, copy radio, day select, own radio
+    await ch[2].fn({ target: { value: "2" } });
+    expect(el.hass.callWS).toHaveBeenLastCalledWith(expect.objectContaining({ holiday: { copy: 2, day: [slot("h")] } }));
+    await ch[3].fn();
+    expect(el.hass.callWS).toHaveBeenLastCalledWith(expect.objectContaining({ holiday: { day: [slot("h")] } }));
+    el.profile = profile({ day: [slot("h")] });
+    ch = on(el.render(), "change");
+    await ch[1].fn(); // copy radio
+    expect(el.hass.callWS).toHaveBeenLastCalledWith(expect.objectContaining({ holiday: { copy: 6, day: [slot("h")] } }));
+  });
+  it("picking a day does nothing without a setting or while busy", async () => {
+    const el = sectionOf();
+    await el._pickDay(3);
+    expect(el.hass.callWS).not.toHaveBeenCalled();
+    const busy = sectionOf({ copy: 6 }, { _busy: true });
+    await busy._pickDay(3);
+    expect(busy.hass.callWS).not.toHaveBeenCalled();
+  });
+  it("a write is refused while another is running, and a result without a program still counts", async () => {
+    const busy = sectionOf({ copy: 6 }, { _busy: true });
+    expect(await busy._write({ copy: 1 })).toBe(false);
+    const el = sectionOf({ copy: 6 });
+    el.hass.callWS = vi.fn(async () => ({}));
+    const seen = vi.fn(); el.dispatchEvent = seen;
+    expect(await el._write({ copy: 1 })).toBe(true);
+    expect(seen).not.toHaveBeenCalled();
+    el.hass.callWS = vi.fn(async () => null);
+    expect(await el._write({ copy: 1 })).toBe(true);
+  });
+  it("a successful write publishes the returned program to enclosing components", async () => {
+    const el = sectionOf();
+    const saved = { ...program(), revision: 4 };
+    el.hass.callWS = vi.fn(async () => ({ program: saved }));
+    const dispatch = vi.spyOn(el, "dispatchEvent");
+    await on(el.render(), "change")[0].fn({ target: { checked: true } });
+    await vi.waitFor(() => expect(dispatch).toHaveBeenCalledTimes(1));
+    const event = dispatch.mock.calls[0][0] as CustomEvent;
+    expect(event.type).toBe("holiday-saved");
+    expect(event.detail).toBe(saved);
+    expect(event.bubbles).toBe(true);
+    expect(event.composed).toBe(true);
+  });
+  it("a pending save disables own-day controls and refuses another write", async () => {
+    const el = sectionOf({ day: [slot("h")] });
+    el.hass.callWS = vi.fn(() => new Promise(() => {}));
+    on(el.render(), "click").slice(-1)[0].fn(); // Add
+    on(el.render(), "click").slice(-2)[0].fn(); // Save
+    expect(bindings(el.render(), "?disabled")).toEqual([false, false, false, true, true, true, true]);
+    await on(el.render(), "change")[1].fn(); // choose copy while save is pending
+    expect(el.hass.callWS).toHaveBeenCalledTimes(1);
+  });
+  it("a failed enable restores the off switch without a weekday selector", async () => {
+    const el = sectionOf({ copy: 2, off: true });
+    const root = fakeRoot(el);
+    el.renderRoot = root;
+    root.sw.checked = true;
+    el.hass.callWS = vi.fn(async () => { throw new Error("offline"); });
+    await on(el.render(), "change")[0].fn({ target: root.sw });
+    await vi.waitFor(() => expect(root.sw.checked).toBe(false));
+    expect(flat(el.render())).toContain("offline");
+  });
+  it("a toggle that changes nothing, or in read-only, does nothing", async () => {
+    const el = sectionOf();
+    await el._toggle(false); // already off
+    const locked = sectionOf({ copy: 6 }, { canEdit: false });
+    await on(locked.render(), "change")[0].fn({ target: { checked: false } });
+    expect(locked.hass.callWS).not.toHaveBeenCalled();
+    const unchanged = sectionOf({ copy: 6 });
+    await on(unchanged.render(), "change")[1].fn(); // already that choice
+    expect(unchanged.hass.callWS).not.toHaveBeenCalled();
+    expect(el.hass.callWS).not.toHaveBeenCalled();
+  });
+});
+
+describe("day-off section: own day", () => {
+  const open = (holiday: any = { day: [slot("h", "08:00", "09:00"), slot("g", "10:00", null)] }) => sectionOf(holiday, { _open: true });
+  it("lists the own slots with a button to edit and one to delete each", () => {
+    const el = open();
+    const tpl = el.render();
+    const text = flat(tpl);
+    expect(text).toContain('class="hrow"');
+    expect(text).toContain("Open");
+    expect(text).toContain('class="del"');
+    expect(on(tpl, "click").length).toBeGreaterThan(5);
+    expect(bindings(tpl, "?disabled")).toEqual([false, false, false, false, false, false, false, false]);
+    expect([...text.matchAll(/<span class="txt">([^<]*)<\/span>/g)].map((m) => m[1])).toEqual([
+      t("en", "holiday_switch"),
+      `${specText("en", { time: "08:00" })}–${specText("en", { time: "09:00" })} · Open`,
+      `${specText("en", { time: "10:00" })} · Open`,
+    ]);
+    expect(bindings(tpl, "aria-label")).toEqual([
+      `${t("en", "delete")} ${specText("en", { time: "08:00" })}–${specText("en", { time: "09:00" })}`,
+      `${t("en", "delete")} ${specText("en", { time: "10:00" })}`,
+    ]);
+    expect(bindings(tpl, "title")).toEqual([t("en", "delete"), t("en", "delete")]);
+    expect([...text.matchAll(/style="background:([^"]*)"/g)].map((m) => m[1])).toEqual(["#0f0", "#0f0"]);
+    expect(text).toContain(t("en", "w_add"));
+    expect(text).not.toContain(t("en", "w_none"));
+  });
+  it("edit opens the form on a copy of the slot, Cancel closes it and the Add button comes back", async () => {
+    const el = open();
+    const root = fakeRoot(el);
+    el.renderRoot = root;
+    on(el.render(), "click").find((h) => h.before.endsWith("data-slot=h ?disabled=") === false && /class="open"/.test(h.before.slice(-200)))!.fn();
+    expect(el._editing).toBe("h");
+    expect(el._group.slot).toEqual(slot("h", "08:00", "09:00"));
+    expect(el._group.slot).not.toBe(el.profile.holiday.day[0]);
+    const form = el.render();
+    expect(flat(form)).toContain("wp-slot-form");
+    expect(bindings(form, ".group")).toEqual([{ slot: slot("h"), days: [0], ids: { 0: "h" } }]);
+    expect(flat(form)).toContain(t("en", "cancel"));
+    expect(flat(form)).not.toContain("class=\"btn add\"");
+    const cancel = on(form, "click").slice(-1)[0];
+    cancel.fn();
+    expect(el._editing).toBeNull();
+    expect(el._group).toBeNull();
+    expect(flat(el.render())).toContain('class="btn add"');
+    await vi.waitFor(() => expect(root.activeElement).toBe(root.opens.get("h")));
+  });
+  it("Cancel on a new slot returns to the Add button", async () => {
+    const el = open();
+    const root = fakeRoot(el);
+    el.renderRoot = root;
+    el._add();
+    expect(el._editing).toBe("new");
+    expect(el._group.slot.label).toBe("l");
+    const cancel = on(el.render(), "click").slice(-1)[0];
+    cancel.fn();
+    expect(el._editing).toBeNull();
+    await vi.waitFor(() => expect(root.activeElement).toBe(root.add));
+  });
+  it("the Add button opens the form, with no label when the data has none", () => {
+    const el = open({ day: [] });
+    expect(flat(el.render())).toContain(t("en", "w_none"));
+    on(el.render(), "click").slice(-1)[0].fn(); // Add
+    expect(el._editing).toBe("new");
+    expect(bindings(el.render(), ".group")[0].days).toEqual([0]);
+    expect(flat(el.render())).not.toContain(t("en", "w_none"));
+    const none = open({ day: [] });
+    none.data = { labels: [], programs: [], status: {} };
+    none._add();
+    expect(none._group.slot.label).toBe("");
+  });
+  it("the form's changes replace the draft and clear the error; Save writes the changed slot", async () => {
+    const el = open();
+    const root = fakeRoot(el);
+    el.renderRoot = root;
+    el._edit(slot("h", "08:00", "09:00"));
+    el._error = "old";
+    const changed = { ...el._group, slot: slot("h", "08:30", "09:30") };
+    const stop = vi.fn();
+    handlers(el.render()).find((h) => h.event === "group-change")!.fn({ stopPropagation: stop, detail: changed });
+    expect(stop).toHaveBeenCalled();
+    expect(el._group).toBe(changed);
+    expect(el._error).toBe("");
+    await on(el.render(), "click").slice(-2)[0].fn();
+    expect(el.hass.callWS).toHaveBeenLastCalledWith(expect.objectContaining({ holiday: { day: [slot("h", "08:30", "09:30"), slot("g", "10:00", null)] } }));
+    await vi.waitFor(() => expect(flat(el.render())).toContain(t("en", "holiday_saved")));
+    await vi.waitFor(() => expect(root.activeElement).toBe(root.opens.get("h")));
+    expect(el._editing).toBeNull();
+  });
+  it("Save does nothing without a draft, and a failed save keeps the draft", async () => {
+    const el = open();
+    await el._save();
+    expect(el.hass.callWS).not.toHaveBeenCalled();
+    el._add();
+    el.hass.callWS = vi.fn(async () => { throw new Error("nope"); });
+    await el._save();
+    expect(el._group).not.toBeNull();
+    expect(el._error).not.toBe("");
+  });
+  it("a slot whose label no longer exists shows its id, and a read-only section disables the buttons", () => {
+    const el = open({ day: [{ ...slot("h"), label: "gone" }] });
+    expect(flat(el.render())).toContain("gone");
+    el.canEdit = false;
+    expect(flat(el.render())).not.toContain("class=\"btn add\"");
+    expect(el._readOnly).toBe(true);
+    expect(bindings(el.render(), "?disabled")).toEqual([true, true, true, true, true]);
+    expect(flat(el.render()).match(/style="background:([^"]*)"/)?.[1]).toBe("transparent");
+  });
+  it("the status message clears itself after 3 seconds", () => {
+    vi.useFakeTimers();
+    const el = open();
+    el._say("holiday_saved");
+    expect(el._status).toBe("Saved");
+    vi.advanceTimersByTime(1000);
+    el._say("holiday_deleted"); // restarts the timer
+    vi.advanceTimersByTime(2999);
+    expect(el._status).toBe("Deleted");
+    vi.advanceTimersByTime(1);
+    expect(el._status).toBe("");
+    vi.useRealTimers();
+  });
+  it("the focus goes to the wanted control, else to the head, and nowhere without a root", async () => {
+    const el = open();
+    const focus = vi.fn(), head = vi.fn();
+    el.renderRoot = { querySelector: (s: string) => (s === ".add" ? { focus } : s === ".head" ? { focus: head } : null) };
+    await el._focus(".add");
+    expect(focus).toHaveBeenCalledOnce();
+    await el._focus(".missing");
+    expect(head).toHaveBeenCalledOnce();
+    el.renderRoot = undefined;
+    await expect(el._focus(".add")).resolves.toBeUndefined();
+  });
+  it("syncing the controls tolerates a missing root and a day select without a copy", () => {
+    const el = open({ day: [] });
+    el.renderRoot = undefined;
+    expect(() => el._syncControls()).not.toThrow();
+    const day = { value: "x" };
+    el.renderRoot = { querySelectorAll: () => [], querySelector: (s: string) => (s === ".day" ? day : null) };
+    el._syncControls();
+    expect(day.value).toBe("x"); // an own day has no copy to restore
+  });
+});
+
 describe("a locked day", () => {
   it("shows the reason under today's bar only when a day off replaces the day", () => {
     const p = program();
     const on = card({ programs: [p], holiday_today: true, status: { p: { holiday: { own: true } } } });
-    expect(flat(on._lockedNote(p))).toContain("Day off: to change this schedule, open Schedule (calendar icon), then “Day off”.");
+    expect(flat(on._lockedNote(p))).toContain("To change this schedule, tap Edit (calendar icon), then “Day off”.");
     expect(flat(card({ programs: [p], status: { p: {} } })._lockedNote(p))).toBe("");
   });
   it("the note names the copied day for a copy and keeps the generic text for an own day, in both languages", () => {
     const p = program();
     const copy = card({ programs: [p], holiday_today: true, status: { p: { holiday: { copy: 6 } } } }); // today is a Monday
     expect(flat(copy._lockedNote(p))).toContain(t("en", "holiday_locked_copy", { day: dayInText("en", 6) }));
-    expect(copy._lockedText(p)).toBe("Day off: today uses Sunday’s schedule. To change it, change Sunday.");
+    expect(copy._lockedText(p)).toBe("To change this schedule, change Sunday.");
     copy._config = {};
     copy.hass = { ...hass, language: "fr" };
-    expect(copy._lockedText(p)).toBe("Jour férié : aujourd’hui suit les horaires du dimanche. Pour les changer, modifiez le dimanche.");
+    expect(copy._lockedText(p)).toBe("Pour changer ces horaires, modifiez le dimanche.");
     const own = card({ programs: [p], holiday_today: true, status: { p: { holiday: { own: true } } } });
     expect(own._lockedText(p)).toBe(t("en", "holiday_locked"));
   });
@@ -378,6 +697,17 @@ describe("a locked day", () => {
     const withSpans = found.map((spans) => spans.map((x: any) => [x.start, x.end]));
     expect(withSpans).toEqual([[[600, 660]], [[480, 540]]]);
     vi.useRealTimers();
+  });
+  it("the read-only week schematic is not seven tab stops: its day bars carry no-tab (their sun markers stay named images)", () => {
+    const p: any = program("p", profile({ day: [slot("h", "10:00", "11:00")] }));
+    const w = new WpSchedule() as any;
+    w.hass = hass;
+    w.scope = { kind: "device", entityId: "cover.b" };
+    w.data = { labels: [label], programs: [p], status: { p: { holiday: { own: true } } }, can_edit: true, holiday_today: false };
+    const out = flat(w._renderWeek());
+    const bars = out.split("<wp-day-bar").length - 1;
+    expect(bars).toBeGreaterThanOrEqual(7);
+    expect(out.split("notches no-tab").length - 1).toBe(bars);
   });
 });
 
@@ -485,14 +815,14 @@ describe("keyboard and screen reader", () => {
     expect(seen).toEqual(["locked-request"]);
     bar.lockedReason = "";
     bar._zoneKey({ key: "Enter", target: zone, currentTarget: zone, preventDefault() {} });
-    expect(seen).toEqual(["locked-request", "open-day"]);
+    expect(seen).toEqual(["locked-request"]); // nothing opens on a click or Enter any more
   });
   it("the card passes the reason to today's bar only", () => {
     const p = program();
     const c = card({ programs: [p], holiday_today: true, status: { p: { holiday: { own: true } } } });
     c._preview = {};
-    const reason = (offset: number) => c._bar("cover.b", p, offset, "today", () => {}).values.find((v: unknown) => v === "Day off: to change this schedule, open Schedule (calendar icon), then “Day off”." || v === "");
-    expect(reason(0)).toBe("Day off: to change this schedule, open Schedule (calendar icon), then “Day off”.");
+    const reason = (offset: number) => c._bar("cover.b", p, offset, "today", () => {}).values.find((v: unknown) => v === "To change this schedule, tap Edit (calendar icon), then “Day off”." || v === "");
+    expect(reason(0)).toBe("To change this schedule, tap Edit (calendar icon), then “Day off”.");
     expect(reason(1)).toBe("");
   });
 });
@@ -565,7 +895,7 @@ describe("day-off row under Sunday in the week schematics", () => {
     const out = spansOf(w._renderWeek());
     expect(out[7].map((s) => [s.start, s.end])).toEqual([[600, 660]]);
     expect(hoursAt(w._renderWeek())).toEqual([false, false, false, false, false, false, false]);
-    expect(flat(w._renderWeek()).slice(flat(w._renderWeek()).indexOf("schema-off"))).toContain("notches show-hours");
+    expect(flat(w._renderWeek()).slice(flat(w._renderWeek()).indexOf("schema-off"))).toContain("notches no-tab show-hours");
   });
   it("window: absent with no setting, with off, and without the day-off entity", () => {
     expect(rowOf(win(prof())).off).toBe(false);
@@ -621,16 +951,27 @@ describe("day-off row under Sunday in the week schematics", () => {
     const b = cardWeek(profile({ day: [slot("h", "10:00", "11:00")] }));
     expect(spansOf(b.c._holidayRow("cover.b", b.p))[0].map((s) => [s.start, s.end])).toEqual([[600, 660]]);
     // in the week, right after the seven day rows
-    b.c._week = new Set(["p:p|cover.b"]);
+    b.c._week = new Map([[chartKey(cardIdentity(b.c._config, "week_epoch"), scopeKey({ kind: "program", programId: "p" } as any), "cover.b"), true]]);
     const open = flat(b.c._extras({ kind: "program", programId: "p" }, "cover.b", [b.p]));
     expect(open).toContain("wday-off");
     expect(open.indexOf("wday-off")).toBeGreaterThan(open.lastIndexOf('class="wday"'));
   });
   it("card: absent with no setting, off, no entity; follows the source; cut at 24:00", () => {
-    for (const [h, data] of [[undefined, {}], [{ copy: 6, off: true }, {}], [{ copy: 6 }, { holiday_entity: null }]] as any[]) {
-      const x = cardWeek(profile(h), data);
-      expect(flat(x.c._holidayRow("cover.b", x.p))).toBe("");
+    // no day-off entity, no setting or switched off: no row (the Comparison view says "like a normal day" instead)
+    const none = cardWeek(profile({ copy: 6 }), { holiday_entity: null });
+    expect(flat(none.c._holidayRow("cover.b", none.p))).toBe("");
+    for (const h of [undefined, { copy: 6, off: true }] as any[]) {
+      const x = cardWeek(profile(h));
+      const out = flat(x.c._holidayRow("cover.b", x.p));
+      expect(out).toBe("");
     }
+    // a copy shows "like <day>"; an own day shows the bar alone
+    const cp = cardWeek(profile({ copy: 6 }));
+    expect(flat(cp.c._holidayRow("cover.b", cp.p))).toContain("like Sunday");
+    const ow = cardWeek(profile({ day: [slot("h", "10:00", "11:00")] }));
+    const owh = flat(ow.c._holidayRow("cover.b", ow.p));
+    expect(owh).not.toContain("like ");
+    expect(owh).not.toContain(t("en", "compare_not_set"));
     const src = { id: "pa", name: "A", days: days(), holiday: { day: [slot("h", "12:00", "13:00")] } };
     const p: any = { ...program("p"), profiles: [src, { id: "pb", name: "B", days: days(), follows: "A" }] };
     const f = cardWeek(null, { mode: { selector: "input_select.m", active: "B", options: ["A", "B"] } }, p);

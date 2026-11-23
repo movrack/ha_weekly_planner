@@ -3,7 +3,7 @@
 import { SORTS } from "./list-order";
 import type { CardConfig } from "./types";
 
-const VIEWS = ["bars", "radial", "radial_12h", "list", "times"] as const;
+const VIEWS = ["bars", "radial", "radial_12h", "list", "times", "compare"] as const;
 const strings = (v: unknown): string[] | undefined => {
   if (typeof v === "string") return v ? [v] : [];
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x !== "") : undefined;
@@ -13,7 +13,8 @@ export function normalizeConfig(raw: unknown): CardConfig {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Weekly Planner card: the configuration must be a YAML mapping.");
   const c = { ...(raw as Record<string, unknown>) };
   for (const k of ["title", "program"]) if (c[k] !== undefined && typeof c[k] !== "string") { if (typeof c[k] === "number") c[k] = String(c[k]); else delete c[k]; }
-  for (const k of ["show_chart", "chart_collapsed"]) if (c[k] !== undefined && typeof c[k] !== "boolean") delete c[k];
+  for (const k of ["show_chart", "show_week_button", "chart_collapsed", "week_collapsed", "show_schedule_list", "show_group_labels"]) if (c[k] !== undefined && typeof c[k] !== "boolean") delete c[k];
+  for (const k of ["chart_epoch", "week_epoch"]) if (c[k] !== undefined && !(typeof c[k] === "number" && Number.isFinite(c[k]))) delete c[k];
   if (c.schedule_view !== undefined && !(VIEWS as readonly unknown[]).includes(c.schedule_view)) delete c.schedule_view;
   if (c.sort !== undefined && !(SORTS as readonly unknown[]).includes(c.sort)) delete c.sort;
   if (c.order !== undefined) { const v = strings(c.order); if (v) c.order = v; else delete c.order; }
@@ -22,7 +23,7 @@ export function normalizeConfig(raw: unknown): CardConfig {
     else {
       const f = { ...(c.filter as Record<string, unknown>) };
       for (const k of ["types", "programs"]) if (f[k] !== undefined) { const v = strings(f[k]); if (v) f[k] = v; else delete f[k]; }
-      if (f.area !== undefined && typeof f.area !== "string") delete f.area;
+      if (f.area !== undefined) { const v = strings(f.area); if (v?.length) f.area = v.length === 1 ? v[0] : v; else delete f.area; } // one room (text) or several (list)
       c.filter = f;
     }
   }
@@ -30,8 +31,8 @@ export function normalizeConfig(raw: unknown): CardConfig {
 }
 
 /** Settings the visual editor shows, with their effective defaults (title omitted: empty). */
-export function configDefaults(): Pick<CardConfig, "schedule_view" | "show_chart" | "chart_collapsed"> {
-  return { schedule_view: "bars", show_chart: true, chart_collapsed: true };
+export function configDefaults(): Pick<CardConfig, "schedule_view" | "show_chart" | "show_week_button" | "chart_collapsed" | "week_collapsed"> {
+  return { schedule_view: "bars", show_chart: true, show_week_button: true, chart_collapsed: true, week_collapsed: true };
 }
 
 /** Full effective configuration: missing keys get the defaults shown by the editor, so YAML == visual. */

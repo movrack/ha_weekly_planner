@@ -58,7 +58,7 @@ Inclus : tout ce qui suit. **Hors v1 (v2)** : import des programmes `scheduler-c
 | D2 | Nom « Weekly Planner », interface fr + en (langue du compte HA). |
 | D3 | Programmes créés/modifiés uniquement depuis la carte, stockés par l'intégration ; un `switch` par programme. |
 | D6 | Action par défaut facultative par entité (« le reste du temps »), envoyée à la fin d'un horaire avec fin. |
-| D7 | Pas de chevauchement dans un programme ; entre programmes, **priorité numérotée**, l'autre reprend la main ; conflits signalés. |
+| D7 | Pas de chevauchement dans un programme ; entre programmes qui partagent un appareil, **rang de priorité** (1, 2, 3… ; 1 gagne ; l'ordre se règle par glisser-déposer, jamais saisi), l'autre reprend la main ; conflits signalés. Voir § 5.4 bis. |
 | D8 | 7 jours indépendants + copie (raccourcis Lun→Ven, Sam+Dim) ; toute minute ; plages passant minuit ; heures solaires (lever, coucher ± décalage ; aube et crépuscule acceptés par le serveur, non proposés) avec bornes « au plus tôt / au plus tard ». |
 | D9 | Conditions simples par programme **et par plage** ; interrupteur global « Vacances / Absence ». Condition devenue fausse = fin de plage. |
 | D10 | Réglage par programme « réappliquer en cours de plage » (oui par défaut) : redémarrage, activation, modification. |
@@ -109,11 +109,20 @@ traité par la passe suivante, dans l'ordre d'arrivée (verrou du moteur, § 21.
   **jamais refaite** (ni au redémarrage, ni après modification). Elle est **sautée** si un programme plus prioritaire
   est dans un horaire pour cette entité.
 - Exemple de référence : volet, horaire 20:00 → 08:00 « Fermer » (`cover.close_cover`), défaut « Ouvrir »
-  (`cover.open_cover`). À 20:00 il ferme ; à 08:00 il s'ouvre ; ce qui arrive entre les deux n'est pas surveillé.
+  (`cover.open_cover`). À 20:00 il ferme ; à 08:00 il s'ouvre ; ce qui arrive entre les deux n'est pas surveillé (§ 5.3).
 
 ### 5.3 Changements manuels
 Le moteur ne détecte aucun changement fait à la main : pas de dérogation, pas de comparaison à une cible, pas de
 service `override` ni `resume`. Seul l'**affichage** du graphique montre les changements manuels (§ 10.4).
+Un changement extérieur (utilisateur, autre automatisation) reste donc en place **jusqu'à la prochaine frontière** de segment, où le moteur envoie l'action du nouveau segment sans lire l'état de l'appareil, même si sa valeur égale la précédente ; après la fin du dernier horaire, l'action par défaut est envoyée s'il y en a une, sinon rien. Exemple : 18 °C de 10:00 à 20:00, puis 17 °C de 20:00 à 21:00. Un réglage extérieur à 20 °C à 12:00 reste jusqu'à 20:00 ; alors le programme reprend la main et envoie 17 °C. Test : `test_external_change_stays_until_the_next_boundary` (#76).
+
+### 5.4 bis Concurrence et rang de priorité (#60)
+- **Concurrents** = programmes qui partagent au moins un appareil, regroupés transitivement (A–B partagent un appareil, B–C un autre : un seul groupe). Horaires et modes sont ignorés : ils sont en concurrence avant même tout horaire.
+- La priorité est un **rang** 1, 2, 3… sans plafond (la validation 1–100 est levée, minimum 1) ; 1 gagne ; à égalité, le plus ancien (`created_at`). `priority` reste inchangé dans le YAML et l'API WebSocket ; l'interface n'a plus de champ de saisie.
+- Migration (stockage 3.3) : chaque groupe existant est renuméroté 1..n dans son ordre actuel (priorité, puis ancienneté) ; comportement inchangé.
+- Enregistrement d'un programme : un programme qui entre en concurrence passe **dernier** de son groupe ; s'il fusionne des groupes, ceux-ci sont entrelacés par rang (tous les 1, puis les 2… ; à égalité le plus ancien), le programme fusionnant en dernier ; puis le groupe est renuméroté 1..n. Supprimer un programme ou retirer un appareil laisse les trous (pas de renumérotation).
+- WebSocket `weekly_planner/program/priorities` : liste `{id, revision}` dans le nouvel ordre d'un groupe ; tout ou rien, révision contrôlée pour chacun, mêmes droits que `program/save` ; rangs 1..n, une seule écriture, recalcul du moteur. `program/save` accepte aussi `group_order` (ids du groupe, `"new"` pour le programme non encore enregistré), appliqué atomiquement avec l'enregistrement.
+- Panneau : écran « Ordre des priorités » (un bloc par groupe titré par ses appareils partagés, puis « Seuls sur leurs appareils » non réordonnable ; poignée mdi:drag + boutons ↑/↓ de 48 px ; enregistré au lâcher ; bandeau fixe en bas « Ordre enregistré · Remettre comme avant », bouton « Terminé » en fin d’écran, sans minuterie, jusqu'au déplacement suivant, la sortie de l'écran ou son bouton ; une seule zone annoncée aux lecteurs d'écran). Éditeur : bloc repliable dans Général, ouvert d'office comme avertissement quand la concurrence est nouvelle ; l'ordre part avec Enregistrer, Annuler l'abandonne ; l'onglet Appareils garde « Aussi piloté par… » avec un lien vers le bloc.
 
 ### 5.4 Action par défaut
 - Facultative, par entité d'un programme, choisie avec le même sélecteur que les actions d'un horaire (service ou scène).
@@ -295,7 +304,7 @@ service `override` ni `resume`. Seul l'**affichage** du graphique montre les cha
   (défaut des nouveaux appareils), une liste vide signifie **aucune** commande ; sans ce drapeau
   (configurations existantes), une liste vide ou absente garde **toutes** les commandes. Une
   réglage dont le service n'est pas autorisé pour un appareil est incompatible pour lui (ignorée, avertissement).
-- Cadre du réglage choisi : lecture seule ; un crayon ouvre un seul formulaire (nom, couleur, action, valeur pour
+- Cadre du réglage choisi (dans le panneau Réglages ouvert) : lecture seule ; un crayon ouvre un seul formulaire (nom, couleur, action, valeur pour
   cet appareil). Jamais plus d'une paire Enregistrer / Annuler visible.
 - Exemples : chauffage `climate.set_temperature {temperature: 18}` ; volet `cover.set_cover_position {position: 30}` ;
   lampe `light.turn_on {brightness_pct: 60}` ; prise `switch.turn_off` ; aspirateur `vacuum.start`.
@@ -322,7 +331,7 @@ racine
 ├─ mode_selector?, default_mode? : sélecteur de mode global et mode par défaut (§ 37.2)
 ├─ holiday_entity? : entité jour férié (§ 5.11) ; holiday_invert : bool
 ├─ labels[]        : id, name (1–30 car.), color, action
-└─ programs[]      : id, revision, created_at, name (1–60 car.), icon?, area?, priority (1–100, défaut 10), enabled, reapply,
+└─ programs[]      : id, revision, created_at, name (1–60 car.), icon?, area?, priority (rang ≥ 1, sans plafond ; défaut 10 pour un programme seul ; § 5.4 bis), enabled, reapply,
                      entities[] (1–100) : entity_id, default_label? (id de réglage), label_overrides{ label_id: action },
                                           allowed_services[], restrict_services
                      conditions[] : entity_id, attribute?, op (eq|ne|lt|gt), value
@@ -375,7 +384,7 @@ avant la 1.0 : les deux champs sont facultatifs, les données existantes restent
 - **Moteur** : `applies` est testé AVANT `resolve` dans `running_slot` (l'arbitrage de priorité ne compare que les
   horaires qui s'appliquent à l'appareil) ; les ponctuels (`_fire_one_shots`, y compris le rattrapage
   `last_tick < start <= now`) parcourent les occurrences rognées PAR APPAREIL ; `_next_action_in` et `used` de
-  `checks.py` sont calculés par appareil ; `next_transition` = union des sous-ensembles (`subsets`), aussi pour
+  `checks.py` sont calculés par appareil ; `next_transition` = union des sous-ensembles, aussi pour
   `_program_status` et `skip_next` (la carte dit quel appareil et quelle action sont sautés). Le réglage par défaut
   appartient toujours au programme de plus haute priorité qui contient l'appareil : les listes ne changent que les horaires qui s'exécutent, jamais le réglage par défaut (décision confirmée). Renvoi à
   l'enregistrement limité aux appareils dont le segment ou la cible a changé (D2).
@@ -452,7 +461,7 @@ Planner » (`integration_type: service`) ; un `select` par programme nommé « M
   (heures résolues, raison d'ignorance § 5.7 ; `holiday` : la date est aujourd'hui et aujourd'hui est férié, les horaires
   sont alors ceux qui tournent vraiment, § 5.11).
 - `program/holiday {program_id, profile_id, holiday: null | {copy} | {day}, revision?}` (#54) : règle ou efface le férié
-  d'un mode ; mêmes droits et contrôles que `program/save` (`admin_only`, actions sensibles, validation, `conflict`).
+  d'un mode ; mêmes droits et contrôles que `program/save` (`admin_only`, droits Home Assistant, validation, `conflict`).
   `program/save` sans clé `holiday` dans un profil garde le réglage stocké ; `holiday: null` l'efface.
 - `journal {entity_id?, days? (1–14, défaut 1)}` → `{segments: […]}` (les deux sortes d'entrées du journal, § 8).
 - Codes d'erreur : `conflict` (révision changée), `invalid` (validation), `unauthorized`, `not_found`, `in_use`, `not_loaded`.
@@ -466,8 +475,14 @@ Planner » (`integration_type: service`) ; un `select` par programme nommé « M
 **Droits**
 - `admin_only` (option globale, désactivée par défaut) : si actif, seule l'édition des programmes et réglages est réservée
   aux admins.
-- **Toujours réservé aux admins** : toute action visant un domaine sensible (`homeassistant`, `hassio`,
-  `alarm_control_panel`, `lock`, `alarmo`, `shell_command`, `python_script`, `pyscript`, `rest_command`).
+- **Chacun garde ses droits Home Assistant** (propriétaire, 2026-11-21) : Weekly Planner n'ajoute aucun droit. À
+  l'enregistrement (réglage, programme, priorités, jour férié), chaque action doit être un appel que l'utilisateur
+  pourrait faire lui-même : contrôle (`POLICY_CONTROL`) de chaque entité visée (appareil du programme,
+  `target_entity_id`, scène), lecture (`POLICY_READ`) des entités sources, et pour un non-administrateur aucun service
+  enregistré comme réservé aux administrateurs (`async_register_admin_service` ou service d'entité `admin_only`).
+  Sinon `unauthorized`. Le moteur appelle ensuite les services sans utilisateur (contexte système) : c'est ce contrôle
+  à l'enregistrement qui empêche de dépasser ses droits. Limite : un service qui vérifie lui-même les droits dans son
+  code (par exemple `verify_domain_control`) n'est pas reconnu ; seules ses entités visées sont contrôlées.
 
 **Avertissements** affichés dans la carte (jamais bloquants), `{entity_id, code, detail}` : `other_program` (autre programme
 actif sur la même entité), `automation` (automatisation active qui la vise), `scheduler` (`switch.schedule_*` actif),
@@ -484,23 +499,40 @@ l'entrée. Instance unique.
 ### 10.1 Configuration de la carte (éditeur visuel)
 Options réelles : `title` ; `program: <id>` **ou** `filter: {types: [domaines], area: <zone du programme>, programs:
 [ids]}` (`programs` absent = tous, futurs compris ; liste vide = aucun ; intersection avec type et zone) ;
-`schedule_view: bars | radial | radial_12h | list | times` (défaut `bars`) ; `show_chart` (défaut vrai).
+`schedule_view: bars | radial | radial_12h | list | times | compare` (défaut `bars`) ; `show_chart` (défaut vrai) ;
+`show_schedule_list` (booléen, défaut faux, #65) : liste « Horaires » (composant `wp-times-day`, lignes ≥ 48 px) sous le
+graphique principal et au-dessus des boutons Semaine / Graphique, sur barres, cadran 24 h et 12 h seulement (ni liste
+compacte, ni comparateur, ni Horaires du jour) ; toujours visible, sans repli ; une ligne ouvre son horaire par appui long (souris aussi) ou Entrée / Espace, jamais par simple clic (rappel « Gardez le doigt appuyé »), seulement si la
+modification est permise ; interrupteur « Afficher les horaires » dans l'éditeur. Éditeur : un seul choix « Programmes à afficher » (plus de question un seul / plusieurs ; `program` toujours lu par la carte, converti en `filter.programs` seulement quand la sélection change) ; selon le nombre de programmes affichés, `list` et `compare` à partir de 2, `bars`, `radial`, `radial_12h` et `times` pour un seul (aucun : toutes les vues) ; une vue enregistrée qui ne convient plus est remplacée au changement de sélection (première vue proposée, note visible) ou, déjà enregistrée ainsi, reste sélectionnée avec une note ; « Afficher les horaires » grisé (raison visible) quand il n'a pas d'effet ; « Ordre de la liste » (et la liste d'ordre personnel) replié sous 2 programmes. La liste des programmes est groupée par type (un repli par type : icône, nom, « x sur y » ; replié sauf les types qui contiennent des programmes choisis).
+- [x] #65 liste « Horaires » facultative sous le graphique principal.
 `sort: type | area | name | custom` (défaut `type`) et `order: [ids de programmes]` règlent l'ordre de la liste (#55) :
 `type` = domaine HA du premier appareil, nommé par HA (domaine brut à défaut), types A→Z dans la langue de la carte,
 puis nom ; `area` = pièce du programme A→Z, puis nom, sans pièce ou type inconnu en dernier groupe « Autres » ;
 `name` = A→Z ; `custom` = `order`, un identifiant absent va à la fin (type puis nom), un inconnu est ignoré sans
 erreur ni réécriture. Petit titre non interactif au-dessus de chaque groupe pour `type` et `area` seulement. Ordre
 personnalisé réglé dans l'éditeur (poignée de glissement et boutons monter/descendre). Valeur invalide : défaut.
-`chart_collapsed` (défaut vrai) donne l'état initial du graphique. Les clés inconnues ou obsolètes (`show_week`,
-`show_advanced`) sont acceptées et ignorées ; la semaine est toujours repliable.
-Éditeur visuel Lovelace : onglets « Affichage de la carte » et « Réglages des programmes » (ce dernier pour les
-administrateurs) ; filtres de types dynamiques (§ 14.12), zone, programmes à afficher (section repliable), vue, graphique.
+`chart_collapsed` (défaut vrai) donne l'état initial du graphique. `week_collapsed` (défaut vrai = repliée) donne l'état initial de la semaine sous chaque appareil (toutes les vues) ; le bouton « Semaine » l'ouvre ou la replie, sans mémoire entre deux chargements. Les clés inconnues ou obsolètes (`show_week`,
+`show_advanced`) sont acceptées et ignorées ; la semaine est toujours repliable. `show_week_button` (défaut vrai) affiche ou cache le bouton « Semaine » sous chaque appareil de la carte (toutes les vues) ; la semaine de la fenêtre des horaires reste toujours.
+Le libellé du champ de vue suit le nombre de programmes choisis (« Affichage d'un programme », « Affichage de plusieurs programmes », « Affichage » si aucun). Éditeur visuel Lovelace : onglets « Affichage de la carte » et « Réglages des programmes » (ce dernier ouvert à tous) ; filtres de types dynamiques (§ 14.12), zone, programmes à afficher (section repliable), vue, graphique.
 
 ### 10.2 Consultation (par défaut)
 - **Format de l'heure** : toute heure affichée suit `hass.locale.time_format` (aucune option propre à la carte). « 12 » : am/pm (« 7 pm », « 6:05 am ») dans toutes les langues ; « 24 » : « 19:00 » (français : « 19 h », « 6 h 05 ») ; « language » ou absent : selon la langue (français « 22 h », autres Intl). Fin de journée : « 24 h », « 12 am » en 12 h. Graphique : repères « 7 am » en 12 h, moins nombreux sous l'heure. Le stockage et les calculs restent en 24 h / UTC / fuseau du serveur.
 - Cinq vues : barres (défaut), cadran 24 h, double cadran 12 h, liste compacte (un programme déplié à la fois, chevron), horaires du jour (§ 10.2.1).
+- **Séparation des horaires (#66)** : deux horaires contigus gardent un petit trait de séparation, même avec le même réglage et la même couleur : vertical sur les barres, radial sur les cadrans 24 h et 12 h. Les composants partagés l’affichent aussi dans la fenêtre des horaires et l’édition rapide. Un horaire continu ne reçoit aucun faux trait au découpage à midi du double cadran ; les plages passant minuit gardent leur continuité. Le trait ne prend ni le pointeur ni le focus.
+
+- [x] #66 : horaires contigus de même réglage distingués sur les barres et les deux cadrans ; tests de régression et contrôle navigateur à 360 × 780 et 1400 × 780, clair/sombre.
 
 - **Jour férié (#54, carte)** : le serveur décide (`status[pid].holiday` = `{copy: n}` ou `{own: true}`, présent seulement quand le férié change le jour du programme ; `holiday_today` ; `preview.holiday`), la carte ne recalcule rien (repli : le jour nommé par le statut tant qu'un aperçu n'est pas arrivé). Une ligne sous « Mode : … » (« Aujourd'hui férié : horaires du dimanche » / « Aujourd'hui férié : horaires propres »), masquée quand le jour copié est le vrai jour, une ligne par programme seulement si les textes diffèrent. Barre d'aujourd'hui, ligne d'aujourd'hui de la semaine et vue « Horaires du jour » montrent ce qui tourne ; leur modification directe est désactivée ce jour-là pour les programmes concernés (lignes de la vue « Horaires du jour » non cliquables, bouton « Modifier la journée » actif). Le cache d'aperçus est vidé quand `holiday_today` change. Écran d'horaires : section repliable « Jour férié » (fermée, `aria-expanded`, masquée si `holiday_entity` est nul), placée à la fin du cadre « Horaires », après la liste des horaires et le bouton d'ajout (masquée pendant l'édition d'un horaire ; jamais dans le formulaire d'un horaire, car un jour férié peut contenir plusieurs horaires), un interrupteur « Horaires différents les jours fériés » (`role="switch"`, désactivé écrit `off: true` : le réglage reste en mémoire et le jour normal s'applique, sans question ; réactivé, le réglage gardé revient ; sans réglage, activé écrit `{copy: 6}`, le dimanche) puis deux choix (« Mêmes horaires que : » un des 7 jours, copie vivante, « Mes propres horaires » avec la liste d'horaires habituelle et avertissement « coupé à minuit »), écrite par `weekly_planner/program/holiday` avec la révision ; un mode qui en suit un autre montre celui de sa source en lecture seule. Schémas de la semaine (fenêtre des horaires et bloc « Semaine » de la carte) : quand le mode affiché a un réglage de jour férié activé (et qu'une entité jour férié est choisie), une huitième ligne « Férié » (EN « Off », nom accessible « Jour férié ») est dessinée sous le dimanche avec les horaires du jour copié ou les horaires propres, coupés à 24 h ; elle est en lecture seule. La section s'affiche pour tout mode ouvert, actif ou non (chaque mode a son réglage, comme ses jours de semaine). Passer à « Mêmes horaires que » garde les horaires propres en mémoire. Un jour férié qui copie le vrai jour de la semaine ne remplace rien : ce jour-là, ni verrou ni note. Sous la barre verrouillée, la note dit où changer les horaires : le jour copié (« modifiez le dimanche ») ou la section « Jour férié » (horaires propres).
+
+#### 10.2.0 Comparateur (`schedule_view: compare`, #58)
+Vue qui compare tous les appareils de la carte, un jour à la fois (décisions du propriétaire, 2026-11-14, après un prototype).
+- Contenu : la ligne « Mode : … » (et la ligne du jour férié sous elle), puis **un seul jour à la fois pour toute la carte** (décision du propriétaire du 2026-11-21, qui remplace la semaine entière du 2026-11-20 : « trop long » sur un téléphone) : une rangée de puces de jours (lundi à dimanche, puis « Jour férié »), **aujourd'hui choisi par défaut**, un seul choix, rien retenu entre deux rechargements ; le jour choisi est montré avec son nom en titre, aujourd'hui en gras ; pas de bouton « Semaine », pas d'en-tête par programme (ni interrupteur ni « Ensuite »), pas de graphique. Puces : `role="radiogroup"` / `role="radio"` + `aria-checked`, une seule dans l'ordre de tabulation (flèches, Début, Fin déplacent le choix en sautant une puce grisée), au moins 44 px de haut, retour à la ligne à 360 px. Aucun élément ne disparaît : la puce « Jour férié » est toujours là ; sans `holiday_entity` ou sans jour férié activé pour un programme de la carte elle est **grisée** (`aria-disabled`, opacité réduite, avec, sous la rangée, un court message **visible** « Aucun jour férié réglé. » lié par `aria-describedby`, texte plein contraste ; ni `title` ni description qui répète le nom) et ne choisit rien ; si elle disparaissait pendant qu'elle est choisie, la vue revient à aujourd'hui.
+- Le jour choisi est montré à sa prochaine occurrence (aujourd'hui compris), comme le bloc « Semaine » ; seules les barres d'aujourd'hui portent le trait « maintenant » (l'horloge seulement sur la première barre). Un jour férié en cours : le groupe d'aujourd'hui montre ce qui tourne vraiment.
+- Une barre de 28 px par appareil (tous programmes mélangés), le nom de l'appareil devant (une ligne, coupé par « … », nom complet en `title`), lignes de 28 px (plus hautes si le nom tient sur deux lignes), 4 px entre deux barres. Ordre = options `sort` / `order` de la carte (défaut : type puis nom) ; les appareils d'un même programme restent ensemble, dans l'ordre du programme ; en mode `type` ou `area`, un écart supplémentaire de 8 px sépare deux groupes, sans sous-titre ; même ordre pour chaque jour choisi.
+- Ouverture (décision du 2026-11-20, règle du 2026-11-15) : une barre ou un titre de jour ouvre **ce jour** dans la fenêtre des horaires (programme et appareil de la barre ; le titre : le premier appareil de la carte pour lequel la modification est permise) par un **appui long de 450 ms** (souris comprise) ou Entrée / Espace, jamais par un simple clic ou toucher, qui affiche seulement l'aide « Gardez le doigt appuyé pour modifier » (une bulle posée sur la barre ou le titre touché, comme sur les barres, 6 s, annoncée par une ligne `role="status"` cachée) ; un clic sans pointeur (lecteur d'écran) ouvre comme Entrée. Mécanisme commun `HoldPress` (`hold-hint.ts`), le même que la liste « Horaires » (`wp-times-day`) ; les barres de la vue Barres gardent le leur. Une ligne et un titre ne sont focalisables (`role="button"`, `tabindex="0"`, nom accessible = appareil + jour + « en pause » ; `aria-description` clé `compare_row_action`) que si la modification est permise (`can_edit`, pas `read_only`, mode non suivi) ; sinon ils sont inertes (`role="img"`, pas de gestionnaire, pas de ligne d'aide) ; la barre d'aujourd'hui est inerte quand un jour férié remplace aujourd'hui. Cibles : titres de jour de 44 px ; barres de 32 px (28 px + la moitié de l'écart de 4 px de chaque côté), jamais superposées : 44 px sur des barres espacées de 4 px obligerait à se chevaucher. Une icône en haut à droite ouvre l'écran intermédiaire « Modifier un programme » (la liste des programmes de la carte ; directement les horaires s'il n'y en a qu'un), puis la fenêtre des horaires du programme choisi. Aucun composant d'édition sur la carte. Sur les autres vues, un simple clic ou toucher n'édite pas : appui long = édition rapide sur place, icône = fenêtre des horaires.
+- Programme en pause (`!enabled`) ou tous les programmes suspendus (`vacation`) : barres grisées (`opacity: 0.45`), nom de l'appareil suivi de « en pause » sur une seconde ligne.
+- Groupe « Jour férié » (montré par la puce « Jour férié » ; puce grisée sinon), utilisable seulement si `holiday_entity` est réglée **et** qu'un programme de la carte a un jour férié activé pour son mode en cours ; il liste **tous** les appareils : jour férié copié = la barre du jour copié (coupée à 24 h) avec dessous « comme dimanche » (le jour copié) ; horaires propres = la barre seule, sans texte ; appareil sans jour férié = barre vide avec « non configuré » (décision du propriétaire du 2026-11-15, avant : « jour normal »). Une barre (ou le titre du groupe) ouvre, comme ci-dessus, la fenêtre des horaires de son programme, sans jour.
+- Échelle des heures une seule fois sous le dernier groupe. Un programme d'un seul appareil fonctionne aussi. Clés : `ce_compare` (« Comparateur » / « Comparison »), `compare_day` (« Jour affiché » / « Day shown »), `compare_day_off_none` (« aucun jour férié réglé » / « no day off set »), `compare_paused` (« en pause » / « paused »), `compare_row_action` (« Ouvre ce jour pour le modifier » / « Opens this day for editing »).
 
 #### 10.2.1 Horaires du jour (`schedule_view: times`)
 Vue de **lecture** de la journée d'aujourd'hui ; elle remplace la barre / le cadran du jour (la semaine et le graphique restent en barres).
@@ -508,7 +540,7 @@ Vue de **lecture** de la journée d'aujourd'hui ; elle remplace la barre / le ca
 - Report de minuit : une ligne « depuis hier 22 h » en tête ; « jusqu'à demain 6 h » sur la ligne de départ. Horaire ponctuel : sans fin, jamais « maintenant ».
 - Absents : programme désactivé (comme les barres), horaires ignorés, et tronçons de priorité plus basse entièrement recouverts par un gagnant.
 - Repère « Maintenant » (texte + `aria-current`, pas la couleur seule) sur une seule ligne et seulement aujourd'hui.
-- Journée vide, **seulement quand l'aperçu est arrivé** : « Rien de prévu aujourd'hui » + « Le reste du temps : {réglage} » + bouton « Ajouter un horaire » (si l'édition est permise) qui ouvre l'écran d'horaires sur aujourd'hui. **Exception décidée par le propriétaire (2026-11-12)** : c'est le seul bouton texte qui double l'icône de l'en-tête, parce qu'une journée vide ne montre rien d'autre à toucher.
+- Journée vide, **seulement quand l'aperçu est arrivé** : « Rien de prévu aujourd'hui » + « Le reste du temps : {réglage} » ; **aucun bouton** (propriétaire, 2026-11-21) : on ajoute un horaire par l'icône « Modifier » de l'en-tête.
 - Lisibilité : tout texte de la vue (détails, « Maintenant », messages, boutons) ≥ 16 px ; gris secondaire = texte du thème mélangé à 75 % avec le fond de la carte (jetons existants), pas `--secondary-text-color`. Bouton visible « Modifier la journée » (même libellé que le bouton de la barre) sous la liste quand l'édition est permise ; les lignes restent touchables, leur infobulle dit « Modifier la journée, {nom} ».
 - Plusieurs appareils : onglets comme pour les barres, une liste par appareil. Vraie liste `<ul>` ; une ligne est un bouton (≥ 44 px) **seulement** si l'édition est permise (ni lecture seule, ni mode qui en suit un autre) ; elle ouvre l'écran d'horaires sur aujourd'hui.
 - **Heure variable** : l'heure résolue du jour est précédée de « vers » (« vers 7 h 05 », EN « around 7:05 am ») ; la ligne secondaire « heure variable, quelques minutes d'écart » reste. Une ligne reportée d'hier (« depuis hier 22 h ») garde son heure réelle, sans « vers ».
@@ -532,11 +564,11 @@ Vue de **lecture** de la journée d'aujourd'hui ; elle remplace la barre / le ca
   aussi par un `get` toutes les 5 min et au retour de la page visible (`visibilitychange`).
 
 ### 10.3 Écran d'horaires et réglages
-- **Éditeur visuel Lovelace, onglet « Réglages des programmes »** (administrateurs) : choix du programme à modifier
-  (« Nouveau programme » en tête), onglets **Général** (nom, icône, zone, priorité, conditions, réappliquer),
+- **Éditeur visuel Lovelace, onglet « Réglages des programmes »** (tout le monde, sans réserve aux administrateurs) : choix du programme à modifier
+  (rubrique « Actions » : « Nouveau programme », « Dupliquer un programme », « Ordre des priorités » ; rubrique « Liste des programmes » : sur petit écran, une bascule **Liste | Aperçu** à côté du titre remplace les lignes par l'**aperçu** (la carte elle-même en liste compacte, `schedule_view: list`, `sort: custom`) sans quitter l'écran, les Actions, « Trier » et « Filtrer » restant visibles ; l'aperçu montre les programmes de la liste (mêmes filtres et même ordre ; tous les programmes, y compris les futurs, sans filtre), édition possible ; sur grand écran il n'y a pas de bascule, l'aperçu occupe la colonne de droite tant qu'aucun programme n'est sélectionné ; le haut de cette colonne porte un titre : « Aperçu » pour l'aperçu, « Réglages » pour l'éditeur d'un programme (sans programme, l'invite « Choisissez un programme » reste) ; rubrique « Liste des programmes » avec deux boutons séparés, chacun ouvrant sa fenêtre : « Trier » (ordre de création par défaut, la copie arrive en bas ; nom ; priorité, rang 1 d'abord ; le tri choisi s'affiche sur le bouton et sert aussi à l'écran « Dupliquer ») et « Filtrer » (type, pièce dont « Sans pièce », appareil, chacun étant une section d'un **accordéon** : en ouvrir une referme les autres, toutes fermées à l'ouverture de la fenêtre, le titre indiquant le nombre de filtres actifs de la section ; une section à un seul choix n'est pas proposée ; un programme passe s'il correspond à l'une des valeurs choisies dans chaque filtre, les filtres se combinent en ET ; compteur « n programmes affichés sur N » ; « Réinitialiser » efface les filtres et garde le tri) ; § 5.4 bis), onglets **Général** (nom, pièce choisie dans une liste : pièces de Home Assistant, pièces déjà utilisées, « Autre pièce… » pour en saisir une ; icône, rubrique « Priorité » avec le bloc repliable « Partage un appareil avec N programmes · passe en 2e », rubrique « Autres paramètres » avec réappliquer, conditions),
   **Appareils** (défaut, actions proposées par appareil avec descriptions HA) et **Modes** (modes, mode actif, source de
   mode et associations repliables) ; création courte (nom + appareils) avec reprise du brouillon ; Annuler / Rétablir
-  (Ctrl/Cmd+Z, Ctrl/Cmd+Maj+Z, Ctrl/Cmd+Y) ; dupliquer, supprimer (confirmé).
+  (Ctrl/Cmd+Z, Ctrl/Cmd+Maj+Z, Ctrl/Cmd+Y) ; supprimer (confirmé). **Dupliquer un programme** est un écran du panneau (liste en radios, puis « Dupliquer ») : la copie s'appelle « Copie <nom> » (« Copie <nom> 2 » si le nom est pris, 60 caractères au plus), garde appareils, réglages et horaires avec de nouveaux identifiants, est enregistrée aussitôt, passe en dernier rang de priorité et apparaît tout en bas de la liste ; l'éditeur n'a plus de bouton Dupliquer.
 - **Écran d'horaires** : schéma des 7 jours (reflète le brouillon), sélecteur du mode à éditer, lignes d'horaires (pastille
   de la couleur du réglage + nom) ; formulaire d'horaire (début, fin facultative, jours, pastilles Lever / Coucher,
   décalage, « Au plus tôt à » / « Au plus tard à », délai aléatoire, pas ±15 min, « Appliquer à d'autres jours ») dont la
@@ -544,7 +576,49 @@ Vue de **lecture** de la journée d'aujourd'hui ; elle remplace la barre / le ca
   « Rien » ; interrupteur de pause, dupliquer, supprimer (§ 18, confirmé, bouton rouge isolé) ; fermeture par glissement
   vers le bas sur téléphone.
 - **Réglages** : modifiés uniquement par programme, dans la fenêtre d'horaires (pas de fenêtre globale sur la carte).
-  « + Nouveau réglage » ouvre un mini-formulaire en ligne (nom, couleur de la palette de 12, action par le sélecteur
+  Toute la gestion (ajouter, modifier, supprimer, remplacer puis supprimer) est dans le panneau **Réglages**. Sous
+  l'interrupteur « Programme actif », **Mode** (seulement avec un sélecteur de mode), **Réglages** et **Horaires** sont
+  les trois panneaux d'un **accordéon** (propriétaire, 2026-11-21 ; Mode ajouté le même jour) : un seul est ouvert à la
+  fois, en ouvrir un referme les autres, et seul le panneau ouvert est modifiable. Le panneau **Mode** contient le choix
+  du mode, l'avis « Ce mode n'est pas actif » et les options avancées du mode (suivre un mode, reprendre les horaires d'un
+  autre) ; son en-tête montre toujours, ouvert ou replié, le mode ouvert et s'il est actif (« Présent (Actif) »,
+  « Absent · pas actif »). L'avis d'un mode qui n'existe plus (`wp-mode-notice`) reste au-dessus de l'accordéon. À
+  l'ouverture de la fenêtre, **Horaires** est ouvert, **Mode** et **Réglages** repliés (la configuration des horaires reste l'essentiel) ; exceptions :
+  « Ajouter un horaire » de l'écran vide, ou aucun réglage encore (modification permise et fenêtre non ouverte depuis un
+  jour), ouvrent **Réglages**. Le panneau **Horaires** comprend les appareils, « Le reste du temps », la liste des horaires
+  et le jour férié ; la semaine, le graphique et ses options lui appartiennent aussi et se replient avec lui sur petit écran ; sur grand
+  écran (deux colonnes) ils restent affichés à droite quel que soit le panneau ouvert (propriétaire, 2026-11-21 : la colonne
+  de droite n'est plus vide quand Mode ou Réglages est ouvert), dans leurs propres cases de la grille. Un panneau fermé garde son en-tête (il ne disparaît jamais) : titre,
+  chevron (`mdi:chevron-down` / `mdi:chevron-up`) et un court résumé (Mode : voir plus haut, aussi quand il est ouvert ;
+  Réglages : points colorés et noms des réglages, ou « Aucun réglage » ; Horaires : « N horaires », ou « Aucun
+  horaire. ») sur une seule ligne, coupé par des points de suspension, le texte complet formant le nom accessible de
+  l'en-tête ; tous les en-têtes, ouverts ou fermés, gardent la même hauteur (56 px au moins) ; l'en-tête est un bouton (Entrée / Espace,
+  `aria-expanded`, `aria-controls`), le contenu un repli animé `collapse` (sans animation si l'utilisateur la réduit) ;
+  l'en-tête du panneau ouvert ne fait rien. Un panneau qui se replie alors que le focus est dans son contenu (mode choisi
+  dans sa liste, formulaire fermé) renvoie le focus sur son en-tête. Ordre de tabulation : interrupteur, en-têtes Mode,
+  Réglages, Horaires (les contrôles du panneau ouvert après son en-tête), puis Supprimer et Fermer. Ouvrir un autre panneau quand le formulaire ouvert (réglage, horaire ou
+  « Le reste du temps ») a des changements non enregistrés demande d'abord, une seule question, avec le composant de
+  confirmation existant (« Abandonner les changements… ? », « Oui, les abandonner » / « Non, continuer ») : « Non » garde
+  le panneau et la saisie, « Oui » abandonne les changements (non enregistrés) et ouvre le panneau demandé ; sans changement, la
+  bascule est immédiate et ferme le formulaire ouvert. Le panneau Mode n'a rien à abandonner : ses choix s'appliquent
+  aussitôt. Jamais deux paires Enregistrer / Annuler actives. Choisir un autre mode pose la même question si besoin, puis
+  rouvre **Horaires**. Mode non actif : **Horaires** ouvert ; **Réglages** peut
+  être ouvert pour consulter, ses contrôles grisés (« Ce n'est pas le mode actif. »). Lecture seule : **Horaires** ouvert ;
+  **Réglages** consultable, contrôles désactivés, avis de lecture seule. Cet accordéon remplace le verrou à deux sens du
+  2026-11-21 (« Terminez d'abord le réglage. », section Horaires `inert` pendant un réglage, contrôles des Réglages grisés
+  pendant un horaire). Règle « un élément ne disparaît jamais » (2026-11-21) : un élément inutilisable reste affiché,
+  grisé, `disabled` + `aria-disabled`, avec un message court lié par `aria-describedby` et affiché hors de la zone grisée,
+  contraste ≥ 4,5:1 ; helpers communs dans `reason.ts`. Horaire ouvert → un message en tête « Terminez d'abord
+  l'horaire. » ; grisés : interrupteur « Programme actif », Ajouter, Supprimer, graphique et ses options, jour férié,
+  options du mode, « Toute la semaine », pastilles d'appareils. Autres éléments toujours affichés : « Dupliquer » d'un
+  nouvel horaire (« Enregistrez d'abord l'horaire. »), « Reprendre les horaires d'un autre mode » et « Suivre un mode »
+  sans choix possible, en lecture seule ou si le mode en suit un autre ; mode non actif : interrupteur, contrôles des
+  Réglages, « Le reste du temps » et Supprimer grisés (« Ce n'est pas le mode actif. ») ; dans les sélecteurs de réglage
+  du formulaire d'horaire, crayon, corbeille et « Nouveau réglage » grisés (« Les réglages se gèrent dans la section
+  Réglages. ») ; corbeille d'un réglage utilisé grisée avec la raison. Lecture seule : l'interrupteur renvoie à l'avis
+  de lecture seule. La fermeture de la fenêtre (Échap, fond, croix, glissement) demande confirmation, une seule fois, si
+  le formulaire ouvert est modifié. Le formulaire d'horaire et « Reste du temps » ne
+  font que choisir un réglage (`readonly-settings`). « + Nouveau réglage » ouvre un mini-formulaire en ligne (nom, couleur de la palette de 12, action par le sélecteur
   générique ou une scène) qui crée le réglage et le sélectionne ; pour le réglage choisi, « Valeur pour cet appareil »
   modifie la valeur propre de l'appareil (même sélecteur) avec « Revenir à la valeur commune ».
 - **Supprimer un réglage** : à côté du crayon du réglage choisi, une corbeille (`mdi:delete-outline`, cible 48 px, clavier
@@ -603,7 +677,9 @@ seule) ; Échap ferme toujours la fenêtre ouverte la plus récente, même si le
 focus revient à l'élément qui l'avait ouverte ; boutons de jour ≥ 44 px.
 
 ### 10.6 Livraison du JS
-Lit + TypeScript, bundle `custom_components/weekly_planner/frontend/weekly-planner-card.js` (commité). Servi par
+Lit + TypeScript, bundle `custom_components/weekly_planner/frontend/weekly-planner-card.js` (non commité : construit à la
+release dans `weekly_planner.zip`, que HACS installe ; absent = avertissement au journal, ni ressource ni panneau, les
+programmes tournent, #63). Servi par
 `async_register_static_paths` ; **ressource Lovelace** (mode storage) avec `?v=<hash>` ; `add_extra_js_url` seulement
 en mode YAML ; garde `customElements.get()` avant `define`.
 
@@ -620,7 +696,7 @@ Barre « Auj. » et sept barres de la semaine, doigt et souris (événements poi
 - **Enregistrer** au relâcher, **pour ce jour seulement** (jour de la semaine de la date dans le profil actif) ; changement refait sur les
   données COURANTES, un conflit de révision est retenté une fois, jamais de « rechargez ». Bandeau « Modifié · Annuler » ~6 s ;
   « Annuler » remet les horaires précédents de ces jours. Deux horaires voisins de même réglage (fin == début) sont fusionnés.
-- **Sélection** (toucher un horaire ou un trou) : bande sous la barre : « Rien », « Couper en deux »
+- **Sélection** (toucher un horaire ou un trou) : bande sous la barre (affichée dès que la barre est en édition : sans sélection, ou pendant la question « Cet appareil / Tous », ses boutons et ses réglages sont grisés avec la raison « Touchez un espace vide ou un horaire dans la barre au-dessus. » / « Répondez d’abord à la question. » ; seul le glisser d’une plage la masque, voir plus bas) : « Rien », « Couper en deux »
   (`mdi:arrow-split-vertical`, libellé visible, groupe « dans le temps » ; coupe au milieu, pas de 15 min : la partie gauche garde le réglage, la partie droite devient « Rien ») et « Copier vers… » (`mdi:content-copy`, groupe « sur d'autres jours »), chacun avec `title` / `aria-label` explicites, puis les réglages compatibles (choix seulement, sans crayon). Copie : pastilles Lun…Dim sans le jour courant ;
   sans chevauchement la copie est directe ; sinon petite fenêtre listant les jours en conflit, chacun « Remplacer » (défaut) ou
   « Ne pas copier ce jour ». « Remplacer » rogne ou coupe les horaires existants autour de la plage (mer. 8 h 45–17 h 18 °C + copie de
@@ -635,12 +711,12 @@ Barre « Auj. » et sept barres de la semaine, doigt et souris (événements poi
 - **Logique pure** (`edits.ts`, tests vitest) : `moveBoundary`, `splitAt`, `setLabel`, `removeSlot`, `copyConflicts` / `copyToDays`, `mergeAdjacent`.
 - **Icônes solaires** : `mdi:weather-sunset-up` / `-down` à la position de toute frontière ou repère dépendant du soleil.
 - **Trait « maintenant »** : icône `mdi:clock-outline` (12–14 px) centrée au-dessus, hors de la barre, `aria-label` « Maintenant » ; aussi sur le graphique.
-- **Renommer un réglage sur place** (écran d'horaires) : crayon `mdi:pencil`, nom + couleur + action, `weekly_planner/label/save`, « Partagé » si utilisée ailleurs.
+- **Renommer un réglage sur place** (panneau Réglages de l'écran d'horaires) : crayon `mdi:pencil`, nom + couleur + action, `weekly_planner/label/save`, « Partagé » si utilisée ailleurs.
 - **Mise à jour automatique de la carte** : `card_version` dans `get` / `subscribe` ; différent de celui du bundle chargé et page au repos → rechargement
   unique (mémorisé dans `sessionStorage`) ; `get` interrogé aussi toutes les 5 min et au retour de la page visible.
 - Les éditions sur barre, les reprises de conflit et « Annuler » restent attachées au mode d'origine (§ 17) ; la
   fenêtre de conflit de « Copier vers… » bloque Échap tant qu'elle est ouverte.
-- **Astuce** « Restez appuyé pour modifier » : affichée aux 3 premiers appuis courts, compteur par appareil (§ 21.2).
+- **Astuce** « Gardez le doigt appuyé pour modifier » : affichée aux 5 premiers appuis courts pendant 6 s, compteur par appareil (§ 21.2).
 
 ## 11. Compatibilité
 
@@ -657,8 +733,9 @@ comme n'importe quelle autre ; les **pilotes concurrents** sont signalés (§ 9)
 - Python des tests aligné sur HA (3.14, via `uv`) ; `pytest-homeassistant-custom-component` aligné 2026.10 ; temps simulé.
 - `manifest.json` : `dependencies` = `http`, `websocket_api` ; `after_dependencies` = `frontend`, `logbook`, `lovelace`,
   `repairs` ; `single_config_entry: true`.
-- CI (`.github/workflows`) : `hacs/action`, `hassfest`, pytest, et pour la carte `tsc --noEmit`, vitest, build et
-  vérification que le bundle commité est à jour. Pas de test Playwright ni de lint de la carte en CI.
+- CI (`.github/workflows`) : `hacs/action`, `hassfest`, pytest, et pour la carte `tsc --noEmit`, vitest et build.
+  Release (`release.yml`) : construit la carte, emballe et contrôle `weekly_planner.zip` avant de créer la release ;
+  version finale depuis `main` (latest), pré-release bêta `X.Y.Z-beta.N` lancée à la main depuis toute branche. Pas de test Playwright ni de lint de la carte en CI.
 - `hacs.json`, `manifest.json` (`domain`, `name`, `version`, `documentation`, `issue_tracker`, `codeowners`,
   `config_flow`, `iot_class: calculated`, `integration_type: service`, `dependencies: [http, websocket_api]`).
 - Docs : README (en) + `README.fr.md`, captures, CHANGELOG ; releases GitHub. Dernière release GitHub : `v0.7.10` ;

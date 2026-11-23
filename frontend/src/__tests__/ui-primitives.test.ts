@@ -1,15 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SwipeTracker, LongPress, displayName, trackScrollHints } from "../components/gestures";
+import { displayName, trackScrollHints } from "../components/gestures";
 import { WpTip } from "../components/tip";
 import { WpRadialDay } from "../components/radial-day";
 import { WpEntityPicker, WpConditionsEditor, langOf } from "../editors/shared";
-import { syncSelectValues } from "../select-value";
 import { flat, handlers, find, target } from "./helpers/tpl";
 
 class FakeEl { tagName: string; constructor(t = "DIV") { this.tagName = t; } }
 beforeEach(() => { vi.stubGlobal("HTMLElement", FakeEl); });
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
-const ev = (o: Record<string, unknown>) => ({ pointerType: "touch", isPrimary: true, pointerId: 1, clientX: 0, clientY: 0, button: 0, composedPath: () => [], ...o }) as any;
 
 describe("displayName", () => {
   const hass = { states: { "light.a": { attributes: { friendly_name: "Lamp" } } } } as any;
@@ -17,46 +15,6 @@ describe("displayName", () => {
     expect(displayName(hass, "light.a")).toBe("Lamp");
     expect(displayName(hass, "light.living_room")).toBe("Living room");
     expect(displayName(hass, "weird")).toBe("weird");
-  });
-});
-
-describe("SwipeTracker", () => {
-  it("detects a horizontal swipe in both directions", () => {
-    const s = new SwipeTracker(60);
-    s.down(ev({ clientX: 200, clientY: 100 }));
-    expect(s.up(ev({ clientX: 100, clientY: 105 }))).toBe(1);
-    s.down(ev({ clientX: 100, clientY: 100 }));
-    expect(s.up(ev({ clientX: 200, clientY: 100 }))).toBe(-1);
-  });
-  it("ignores short, steep, mouse, foreign-pointer and interactive-start gestures", () => {
-    const s = new SwipeTracker(60);
-    s.down(ev({ clientX: 100 })); expect(s.up(ev({ clientX: 130 }))).toBe(0);
-    s.down(ev({ clientX: 100 })); expect(s.up(ev({ clientX: 200, clientY: 120 }))).toBe(0);
-    s.down(ev({ pointerType: "mouse" })); expect(s.up(ev({ clientX: 300 }))).toBe(0);
-    s.down(ev({ composedPath: () => [new FakeEl("INPUT")] })); expect(s.up(ev({ clientX: 300 }))).toBe(0);
-    s.down(ev({})); expect(s.up(ev({ pointerId: 2, clientX: 300 }))).toBe(0);
-    s.down(ev({})); s.cancel(); expect(s.up(ev({ clientX: 300 }))).toBe(0);
-  });
-});
-
-describe("LongPress", () => {
-  beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal("window", { setTimeout, clearTimeout }); vi.stubGlobal("navigator", { vibrate: vi.fn() }); });
-  it("fires after the delay and is cancelled by a large move", () => {
-    const fire = vi.fn();
-    const lp = new LongPress(fire, 500);
-    lp.down(ev({})); vi.advanceTimersByTime(499); expect(fire).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1); expect(fire).toHaveBeenCalledTimes(1); expect(lp.fired).toBe(true);
-    lp.down(ev({})); lp.move(ev({ clientX: 5 })); vi.advanceTimersByTime(600); expect(fire).toHaveBeenCalledTimes(2);
-    lp.down(ev({})); lp.move(ev({ clientX: 30 })); vi.advanceTimersByTime(600); expect(fire).toHaveBeenCalledTimes(2);
-  });
-  it("does not start on buttons, interactive targets or a secondary mouse button", () => {
-    const fire = vi.fn();
-    const lp = new LongPress(fire);
-    lp.down(ev({ composedPath: () => [new FakeEl("BUTTON")] }));
-    lp.down(ev({ composedPath: () => [new FakeEl("SELECT")] }));
-    lp.down(ev({ pointerType: "mouse", button: 2 }));
-    vi.advanceTimersByTime(1000);
-    expect(fire).not.toHaveBeenCalled();
   });
 });
 
@@ -77,14 +35,6 @@ describe("trackScrollHints", () => {
   });
 });
 
-describe("syncSelectValues", () => {
-  it("sets a select to its data-value without emitting", () => {
-    const a: any = { value: "x", dataset: { value: "y" } }, b: any = { value: "z", dataset: {} };
-    syncSelectValues({ querySelectorAll: () => [a, b] } as any);
-    expect(a.value).toBe("y"); expect(b.value).toBe("");
-  });
-});
-
 describe("wp-tip", () => {
   const tip = (props: Record<string, unknown> = {}) => { const el = new WpTip() as any; Object.assign(el, { text: "Hi" }, props); return el; };
   it("shows on hover and focus, hides on leave, blur and Escape", () => {
@@ -99,13 +49,14 @@ describe("wp-tip", () => {
     find(el.render(), "focus", "hit").fn();
     find(el.render(), "keydown", "hit").fn({ key: "Escape" }); expect(view()).toBe(false);
   });
-  it("a touch tap shows the text for 2 s; a mouse press only stops propagation", () => {
+  it("a touch tap shows the text for 6 s; a mouse press only stops propagation", () => {
     vi.useFakeTimers();
     const el = tip();
     const stop = vi.fn();
     find(el.render(), "pointerdown", "hit").fn({ pointerType: "touch", stopPropagation: stop });
     expect(el._show).toBe(true); expect(stop).toHaveBeenCalled();
-    vi.advanceTimersByTime(2000); expect(el._show).toBe(false);
+    vi.advanceTimersByTime(5999); expect(el._show).toBe(true);
+    vi.advanceTimersByTime(1); expect(el._show).toBe(false);
     find(el.render(), "pointerdown", "hit").fn({ pointerType: "mouse", stopPropagation: stop });
     expect(el._show).toBe(false);
   });
@@ -122,6 +73,14 @@ describe("wp-tip", () => {
     find(plain.render(), "pointerup", "hit").fn({ stopPropagation: stop });
     find(plain.render(), "contextmenu", "hit").fn({ preventDefault: stop });
     expect(stop).toHaveBeenCalledTimes(3);
+  });
+  it("a tip is a tab stop named by its text, unless no-tab is set: then it leaves the tab order and says its label", () => {
+    const el = tip({ text: "Now · 2:45 pm" });
+    expect(flat(el.render())).toContain("tabindex=0");
+    el.noTab = true; el.label = "Now · 2:45 pm, Office";
+    const html = flat(el.render());
+    expect(html).toContain("tabindex=-1");
+    expect(html).toContain("aria-label=Now · 2:45 pm, Office");
   });
   it("keeps the bubble inside the window", () => {
     vi.stubGlobal("window", { innerWidth: 400 });

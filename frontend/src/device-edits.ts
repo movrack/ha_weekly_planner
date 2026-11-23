@@ -29,21 +29,11 @@ function patched(slot: Slot, change: SlotPatch): Slot {
   return { ...slot, ...structuredClone(clean) };
 }
 
-/** The slot for every device of the program (field removed). */
-export function applyToAll(slot: Slot): Slot {
-  return setEntities(slot, undefined);
-}
-
 /** The slot for exactly these devices, normalised (D5). Null: no device left, the slot must be deleted. */
 export function forDevices(slot: Slot, eids: readonly string[], program: Pick<Program, "entities">): Slot | null {
   const list = normaliseEntities(eids, devicesOf(program));
   if (list && !list.length) return null;
   return setEntities(slot, list);
-}
-
-/** "Also for: …": the slot also runs for these devices, normalised (D5). Null only for a program without devices. */
-export function alsoFor(slot: Slot, eids: readonly string[], program: Pick<Program, "entities">): Slot | null {
-  return forDevices(slot, [...applicable(slot, devicesOf(program)), ...eids], program);
 }
 
 /**
@@ -140,48 +130,6 @@ export function editForDevice(
   const merged = remergeIdentical(day, opts.devices);
   if (id && merged.absorbed.has(id)) id = merged.absorbed.get(id)!;
   return { days: days.map((x, i) => (i === d ? merged.day : x)), id };
-}
-
-/* ------------------------------------------------------------------ conflict retry by intent */
-
-/**
- * What the user asked, kept to be replayed on fresh data after a revision conflict (never a precomputed list of
- * slots, which would overwrite a concurrent change made on another device). `eid` null: every device of the slot.
- */
-export interface EditIntent {
-  profileId: string;
-  slotId: string;
-  eid: string | null;
-  change: SlotChange;
-}
-
-export type IntentResult =
-  | { program: Program; id: string | null }
-  | { error: "gone" | "device" | "overlap" };
-
-/**
- * Replays an intent on the fresh program: "gone" when the mode or slot no longer exists, "device" when the slot
- * no longer runs for the device (someone else split it), "overlap" when the result collides with a fresh slot.
- */
-export function applyIntent(fresh: Program, intent: EditIntent, newId?: () => string): IntentResult {
-  const profile = fresh.profiles.find((p) => p.id === intent.profileId);
-  if (!profile || !profile.days.some((day) => day.some((s) => s.id === intent.slotId))) return { error: "gone" };
-  let days: Slot[][];
-  let id: string | null;
-  if (intent.eid === null) {
-    const change = intent.change;
-    days = profile.days.map((day) => (change
-      ? day.map((s) => (s.id === intent.slotId ? patched(s, change) : s))
-      : day.filter((s) => s.id !== intent.slotId)));
-    id = change ? intent.slotId : null;
-  } else {
-    const res = editForDevice(profile.days, intent.slotId, intent.eid, intent.change, { devices: devicesOf(fresh), newId });
-    if (!res) return { error: "device" };
-    ({ days, id } = res);
-  }
-  if (days.some((day) => findOverlap(day))) return { error: "overlap" };
-  const next = { ...profile, days };
-  return { program: { ...fresh, profiles: fresh.profiles.map((p) => (p.id === profile.id ? next : p)) }, id };
 }
 
 /* ------------------------------------------------------------------ helpers of the card screens (LOT 5) */

@@ -1,0 +1,414 @@
+{
+  "expected": [],
+  "false_positives": [
+    {
+      "symbol": "async_setup",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "async_setup_entry",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "async_unload_entry",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "async_remove_entry",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "CONFIG_SCHEMA",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "WeeklyPlannerConfigFlow",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "VERSION",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "async_get_options_flow",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "async_added_to_hass",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "async_describe_events",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "_async_migrate_func",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "suggested_object_id",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "is_on",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "icon",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "extra_state_attributes",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "async_turn_on",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "async_turn_off",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "async_step_*",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "_attr_*",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "hass",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "entry",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "config",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "kwargs",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "user_input",
+      "reason": "Home Assistant calls this hook or entity member."
+    },
+    {
+      "symbol": "d",
+      "file": "custom_components/weekly_planner/validation.py",
+      "line": 443,
+      "reason": "Required callback signature."
+    },
+    {
+      "symbol": "WeeklyPlannerCard",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpProgramsPanel",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WeeklyPlannerCardEditor",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpEntityPicker",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpConditionsEditor",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpProgramEditor",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpConfirm",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpChoice",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpPauseChoice",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpPriorityList",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpSchedule",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpDayBar",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpBarEditor",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpActionPicker",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpModeNotice",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpSlotForm",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpRadialDay",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpChart",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpTip",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpDialog",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpLabelPicker",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpChartOptions",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpHoliday",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "WpTimesDay",
+      "reason": "Lit customElement registration exposes the class by HTML tag."
+    },
+    {
+      "symbol": "sun_*",
+      "category": "translation",
+      "reason": "Translation prefix constructed dynamically in production."
+    },
+    {
+      "symbol": "ce_sort_*",
+      "category": "translation",
+      "reason": "Translation prefix constructed dynamically in production."
+    },
+    {
+      "symbol": "move_err_*",
+      "category": "translation",
+      "reason": "Translation prefix constructed dynamically in production."
+    },
+    {
+      "symbol": "chart_quantity_*",
+      "category": "translation",
+      "reason": "Translation prefix constructed dynamically in production."
+    },
+    {
+      "symbol": "set_*",
+      "category": "translation",
+      "reason": "Translation prefix constructed dynamically in production."
+    },
+    {
+      "file": "frontend/src/i18n.ts",
+      "symbol": "err_overlap_device",
+      "category": "translation",
+      "reason": "Used by slotDeviceError() in i18n.ts, called by production program and bar editors."
+    },
+    {
+      "file": "frontend/src/i18n.ts",
+      "symbol": "err_slot_duplicate",
+      "category": "translation",
+      "reason": "Used by slotDeviceError() in i18n.ts, called by production program and bar editors."
+    },
+    {
+      "file": "frontend/src/i18n.ts",
+      "symbol": "err_slot_entities",
+      "category": "translation",
+      "reason": "Used by slotDeviceError() in i18n.ts, called by production program and bar editors."
+    },
+    {
+      "file": "frontend/src/i18n.ts",
+      "symbol": "err_slot_unknown",
+      "category": "translation",
+      "reason": "Used by slotDeviceError() in i18n.ts, called by production program and bar editors."
+    },
+    {
+      "symbol": "async_recompute",
+      "file": "custom_components/weekly_planner/engine.py",
+      "category": "test-only",
+      "reason": "Locked entry point of a pass, kept as the test entry point (26 calls in 10 test files; the latency tests need its lock)."
+    },
+    {
+      "symbol": "SKIP_REASONS",
+      "file": "custom_components/weekly_planner/resync.py",
+      "category": "test-only",
+      "reason": "The list of resync skip reasons, checked against messages.py by test_resync (every reason has a text)."
+    },
+    {
+      "symbol": "comment@*",
+      "category": "commented-code",
+      "file": "custom_components/weekly_planner/resync.py",
+      "reason": "Section divider (\"# ---- history (recorder)\"), not commented-out code."
+    },
+    {
+      "symbol": "stable",
+      "file": "frontend/src/actions.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit test (actions.test.ts)."
+    },
+    {
+      "symbol": "parseSourceHistory",
+      "file": "frontend/src/chart-history.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit test (chart-history.test.ts)."
+    },
+    {
+      "symbol": "chartQuantity",
+      "file": "frontend/src/chart-sources.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit test (chart-quantity.test.ts)."
+    },
+    {
+      "symbol": "SHADE_MIN",
+      "file": "frontend/src/components/chart.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit test (chart-shade.test.ts)."
+    },
+    {
+      "symbol": "SHADE_EDGE",
+      "file": "frontend/src/components/chart.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit test (chart-shade.test.ts)."
+    },
+    {
+      "symbol": "solarMeaningText",
+      "file": "frontend/src/components/slot-form.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit tests (random-time, slot-form-time-field)."
+    },
+    {
+      "symbol": "solarTodayText",
+      "file": "frontend/src/components/slot-form.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit test (random-time.test.ts)."
+    },
+    {
+      "symbol": "randomDelayRangeText",
+      "file": "frontend/src/components/slot-form.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit test (random-time.test.ts)."
+    },
+    {
+      "symbol": "keptRest",
+      "file": "frontend/src/edits.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit test (edits-group.test.ts)."
+    },
+    {
+      "symbol": "holidayKind",
+      "file": "frontend/src/holiday.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit test (holiday.test.ts)."
+    },
+    {
+      "symbol": "presetTemperature",
+      "file": "frontend/src/labels.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit test (label-preset-value.test.ts)."
+    },
+    {
+      "symbol": "linkedValueText",
+      "file": "frontend/src/labels.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit test (label-preset-value.test.ts)."
+    },
+    {
+      "symbol": "compatible",
+      "file": "frontend/src/labels.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit test (labels.test.ts)."
+    },
+    {
+      "symbol": "isActive",
+      "file": "frontend/src/planned.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit test (planned.test.ts)."
+    },
+    {
+      "symbol": "normalizeName",
+      "file": "frontend/src/planner.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit test (planner.test.ts, dynamic import)."
+    },
+    {
+      "symbol": "clearPreviewCache",
+      "file": "frontend/src/preview-cache.ts",
+      "category": "unused-export",
+      "reason": "Test hook: resets the module cache between tests (6 test files)."
+    },
+    {
+      "symbol": "components",
+      "file": "frontend/src/priority-groups.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit test (priority-groups.test.ts)."
+    },
+    {
+      "symbol": "normalizeRoom",
+      "file": "frontend/src/program-areas.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit test (program-areas.test.ts)."
+    },
+    {
+      "symbol": "fixedInterval",
+      "file": "frontend/src/slots.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit tests (slots-intervals-entities, performance)."
+    },
+    {
+      "symbol": "tokenFormulas",
+      "file": "frontend/src/styles.ts",
+      "category": "unused-export",
+      "reason": "Exported for the contrast test of the colour tokens (contrast-tokens.test.ts)."
+    },
+    {
+      "symbol": "timeFormat",
+      "file": "frontend/src/time.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit test (time-format.test.ts)."
+    },
+    {
+      "symbol": "runningVersion",
+      "file": "frontend/src/update.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit test (update.test.ts)."
+    },
+    {
+      "symbol": "shouldReload",
+      "file": "frontend/src/update.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit test (update.test.ts)."
+    },
+    {
+      "symbol": "commonWordPrefix",
+      "file": "frontend/src/weekly-planner-card.ts",
+      "category": "unused-export",
+      "reason": "Exported for its unit test (compare.test.ts)."
+    }
+  ]
+}

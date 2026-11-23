@@ -22,7 +22,7 @@ import type { At, DayCtx, Handle, Target } from "../edits";
 import { editorStyles } from "../editors/shared";
 import { callout } from "../styles";
 import { devicesOf, isShared, isolateForDevice, remergeIdentical, undoSlots } from "../device-edits";
-import { dismissHoldHint, HOLD_HINT_MS, takeHoldHint } from "../hold-hint";
+import { HOLD_HINT_MS, LONG_PRESS_MS, MOVE_PX } from "../hold-hint";
 import { slotDeviceError, strings, t } from "../i18n";
 import { appliedAction, labelName, labelOf, labelsFor } from "../labels";
 import { onServiceNames } from "../services";
@@ -30,11 +30,10 @@ import { activeProfile, newId } from "../planner";
 import { applicable, applies, normaliseEntities, shiftTimeSpec, specMinutes } from "../slots";
 import { DAY, clockToMinutes, fmtClock, fmtDayEnd, localMinutes } from "../time";
 import { selectedTimeText } from "../selected-time";
+import { ariaDisabled, describedBy, whyNote, whyStyles } from "../reason";
 import type { HomeAssistant, PlannerData, PreviewSlot, Program, Slot } from "../types";
 
-const LONG_PRESS_MS = 450;
 const GRAB_PX = 22; // half of the 44 px hit target
-const MOVE_PX = 8;
 const COMMIT_DELAY_MS = 700; // keyboard: wait for the last key press
 
 /** Newest known version of each program saved from any bar (the pushed data may be a moment late). */
@@ -246,13 +245,12 @@ export class WpBarEditor extends LitElement {
     if (this.editing || e.button !== 0) return;
     const mouse = e.pointerType === "mouse";
     this._press = { id: e.pointerId, x: e.clientX, y: e.clientY, fired: false, mouse };
-    if (this.editable && !mouse) {
+    if (this.editable) {
       this._press.timer = window.setTimeout(() => {
         if (!this._press) return;
         this._press.fired = true;
         navigator.vibrate?.(12);
         this._clearHint();
-        dismissHoldHint();
         this._emit("edit-request");
       }, LONG_PRESS_MS);
     }
@@ -288,28 +286,18 @@ export class WpBarEditor extends LitElement {
       this._mvUp(e);
       return;
     }
-    if (p.mouse && this.editable) this._emit("edit-request");
-    else if (this.editable && !p.mouse) this._tapHint();
+    // a plain click or tap never edits (owner, 2026-11-15): it only says how, or why the day cannot be edited
+    if (this.editable) this._tapHint();
     else if (this.lockedReason) this._emit("locked-request");
-    else this._emit("open-day");
   }
 
-  /** A plain touch on an editable bar: tell how to edit for 2 s, then open the day screen as before (a second tap opens it at once). */
+  /** A plain click or tap on an editable bar: tell how to edit for 2 s (long press, or the icon at the top right). */
   private _tapHint(): void {
-    if (this._hint) {
-      this._clearHint();
-      this._emit("open-day");
-      return;
-    }
-    if (!takeHoldHint()) {
-      this._emit("open-day");
-      return;
-    }
+    window.clearTimeout(this._hintTimer);
     this._hint = true;
     this._hintTimer = window.setTimeout(() => {
       this._hint = false;
       this._hintTimer = undefined;
-      this._emit("open-day");
     }, HOLD_HINT_MS);
   }
 
@@ -327,10 +315,18 @@ export class WpBarEditor extends LitElement {
     if (this.editable) {
       this._kbd = true;
       this._clearHint();
-      dismissHoldHint();
       this._emit("edit-request");
     } else if (this.lockedReason) this._emit("locked-request");
-    else this._emit("open-day");
+  }
+
+  /** A click with no pointer behind it (screen reader, Switch Access, voice "click") opens the edit mode like Enter does. */
+  private _zoneClick(e: MouseEvent): void {
+    if (e.detail !== 0 || this.editing || e.target !== e.currentTarget) return;
+    if (this.editable) {
+      this._kbd = true;
+      this._clearHint();
+      this._emit("edit-request");
+    } else if (this.lockedReason) this._emit("locked-request");
   }
 
   private _zoneCancel(): void {
@@ -404,9 +400,9 @@ export class WpBarEditor extends LitElement {
         return html`<button class="hd dot" style="left:${p.x / 3.2}%;top:${p.y / 3.2}%" role="slider"
           aria-valuemin="0" aria-valuemax="1440" aria-valuenow=${b.m} aria-valuetext=${this._clock(b.m)}
           aria-label=${t(this.lang, "handle", { time: this._clock(b.m) })} data-h=${`${ref.id}:${ref.edge}`}
-          @keydown=${(e: KeyboardEvent) => this._key(e, ref)} @focus=${() => { this._hsel = ref; this._selected = { kind: "slot", id: ref.id }; this._focusSlotTip(ref.id); }} @blur=${() => { this._tip = null; }}><i></i></button>`;
+          @keydown=${(e: KeyboardEvent) => this._key(e, ref)} @focus=${() => this._handleFocus(ref)} @blur=${() => { this._tip = null; }}><i></i></button>`;
       })}
-      ${!this._selectedTime && this._bubble ? html`<div class="polar-time">${this._bubble.text ?? this._clock(this._bubble.m)}</div>` : nothing}
+      ${this._showBubble && this._bubble ? html`<div class="polar-time">${this._bubble.text ?? this._clock(this._bubble.m)}</div>` : nothing}
     </div>`;
   }
 
@@ -644,9 +640,18 @@ export class WpBarEditor extends LitElement {
 
   /* ---- keyboard ---- */
 
+  /** Focus alone never changes the selection (WCAG 3.2.1): tabbing through the handles must not move the strip to another
+   *  slot. Only the first focus of an editing session (nothing selected yet) selects the slot of the focused handle. */
+  private _handleFocus(ref: Handle): void {
+    this._hsel = ref;
+    this._selected ??= { kind: "slot", id: ref.id };
+    this._focusSlotTip(ref.id);
+  }
+
   private _key(e: KeyboardEvent, ref: Handle): void {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     e.preventDefault();
+    this._selected = { kind: "slot", id: ref.id };
     const profileId = activeProfile(this._live, this.data).id;
     if (this._nudge && this._nudge.profileId !== profileId) {
       this._flushNudge();
@@ -771,7 +776,7 @@ export class WpBarEditor extends LitElement {
       });
       const sel = this._selected;
       if (sel?.kind === "slot" && absorbed.has(sel.id)) this._selected = { kind: "slot", id: absorbed.get(sel.id)! };
-      const changed = merged.map((day, i) => i).filter((i) => JSON.stringify(merged[i]) !== JSON.stringify(before[i]));
+      const changed = merged.map((_, i) => i).filter((i) => JSON.stringify(merged[i]) !== JSON.stringify(before[i]));
       if (!changed.length) {
         this._dropDraft();
         return true;
@@ -789,7 +794,10 @@ export class WpBarEditor extends LitElement {
         } else this._dropDraft();
         if (!silent) {
           const at = this._ctx().at;
+          const count = (days: Slot[][]) => changed.reduce((n, i) => n + (days[i]?.length ?? 0), 0);
+          const what = count(merged) > count(before) ? "edited_added" : count(merged) < count(before) ? "edited_deleted" : "edited_changed";
           this._emit("edited", {
+            what,
             undo: () => this._commit((days) => {
               // only the slots this edit wrote come back: another device's change made meanwhile is kept; a slot of
               // this edit changed since cannot be undone and the user is told (never a silent refusal)
@@ -931,7 +939,7 @@ export class WpBarEditor extends LitElement {
       out.push({
         start: e.start, end: e.end ?? e.start + 10, color: label.color, label: labelName(this.hass, label), slotId: slot.id,
         marker: e.end === null, startSun: sunDir(slot.start), endSun: slot.end ? sunDir(slot.end) : null,
-        startSpec: slot.start, endSpec: slot.end ?? null,
+        startSpec: slot.start, endSpec: slot.end ?? null, ...(this.program.enabled ? {} : { paused: true }),
       });
     }
     return out;
@@ -960,6 +968,13 @@ export class WpBarEditor extends LitElement {
       : endSpec && "time" in endSpec ? clockToMinutes(endSpec.time)
       : resolved?.end ? localMinutes(resolved.end, this.tz) : slot?.end ? this._at(slot.end) : span.end;
     return `${span.label} · ${selectedTimeText(this.lang, start, end, slot?.start ?? span.startSpec ?? undefined, slot?.end ?? span.endSpec)}`;
+  }
+
+  /** The time bubble, unless the hover tip already says the same words (two stacked bubbles hid the next change). */
+  private get _showBubble(): boolean {
+    const b = this._bubble;
+    if (this._selectedTime || !b) return false;
+    return !this._tipText.includes(b.text ?? this._clock(b.m));
   }
 
   private get _tipText(): string {
@@ -1053,38 +1068,52 @@ export class WpBarEditor extends LitElement {
       ${repeat(bnds, (b) => b.refs.map((r) => `${r.id}:${r.edge}`).join("+"), (b) => {
         const ref = b.refs[0];
         const on = this._hsel && b.refs.some((r) => r.id === this._hsel?.id && r.edge === this._hsel?.edge);
-        return html`<button class="hd ${b.oneShot ? "dot" : ""} ${on ? "on" : ""}" style="left:clamp(0px, ${pct(b.m)}, 100%)"
+        return html`<button class="hd ${b.oneShot ? "dot" : ""} ${on ? "on" : ""}" style="left:clamp(8px, ${pct(b.m)}, calc(100% - 8px))"
           role="slider" aria-orientation="horizontal" aria-valuemin="0" aria-valuemax="1440" aria-valuenow=${b.m}
           aria-valuetext=${this._clock(b.m)} aria-label=${t(this.lang, "handle", { time: this._clock(b.m) })}
           data-h=${b.refs.map((r) => `${r.id}:${r.edge}`).join(" ")} title=${this._sunTitle(ref, b.m)}
-          @keydown=${(e: KeyboardEvent) => this._key(e, ref)} @focus=${() => { this._hsel = ref; this._selected = { kind: "slot", id: ref.id }; this._focusSlotTip(ref.id); }} @blur=${() => { this._tip = null; }}
+          @keydown=${(e: KeyboardEvent) => this._key(e, ref)} @focus=${() => this._handleFocus(ref)} @blur=${() => { this._tip = null; }}
           ><i></i></button>`;
       })}
-      ${!this._selectedTime && this._bubble ? html`<div class="bubble" style="left:clamp(44px, ${pct(this._bubble.m)}, calc(100% - 44px))">${this._bubble.text ?? this._clock(this._bubble.m)}</div>` : nothing}
+      ${this._showBubble && this._bubble ? html`<div class="bubble" style="left:clamp(44px, ${pct(this._bubble.m)}, calc(100% - 44px))">${this._bubble.text ?? this._clock(this._bubble.m)}</div>` : nothing}
     </div>`;
   }
 
+  /** The strip under the bar. It stays on screen whenever the bar is being edited (owner rule: an element never disappears): without a
+   *  selection, or while the "This device / All" question is open, its buttons are greyed with the reason. Only the drag of a slot
+   *  hides it (see `render`: the other day bars, the drop targets, must stay within reach). */
   private _strip() {
     const sel = this._sel;
-    if (!sel) return nothing;
     const lang = this.lang;
     const ctx = this._ctx();
-    const canCut = sel.end !== null && (sel.slot ? Boolean(sel.slot.end) : Boolean(ctx.defaultLabel)) && middle(sel.start, sel.end) !== null;
+    // why nothing can be done now: nothing chosen on the bar, or a question to answer first
+    const why = !sel ? t(lang, "strip_no_sel") : this._ask ? t(lang, "strip_ask_first") : !sel.slot ? t(lang, "strip_no_slot") : null;
+    const idle = !sel || Boolean(this._ask);
+    const noSlot = !sel?.slot || idle;
+    const canCut = !idle && sel.end !== null && (sel.slot ? Boolean(sel.slot.end) : Boolean(ctx.defaultLabel)) && middle(sel.start, sel.end) !== null;
+    // why "Split in two" alone is greyed while something is selected
+    const cutWhy = idle || canCut ? null
+      : sel.end === null ? t(lang, "strip_cut_point")
+      : sel.slot && !sel.slot.end ? t(lang, "strip_cut_open")
+      : !sel.slot && !ctx.defaultLabel ? t(lang, "strip_cut_nodefault")
+      : t(lang, "strip_cut_short");
     const days = strings(lang).days_short;
     return html`<div class="strip" role="group">
       <div class="acts">
-        ${sel.slot ? html`<button class="act" @click=${() => void this._nothing()}><ha-icon icon="mdi:close-circle-outline"></ha-icon>${t(lang, "strip_erase")}</button>` : nothing}
+        <button class="act" ?disabled=${noSlot} aria-disabled=${ariaDisabled(noSlot)} aria-describedby=${describedBy(noSlot, "why-strip")} @click=${() => void this._nothing()}><ha-icon icon="mdi:close-circle-outline"></ha-icon>${t(lang, "strip_erase")}</button>
         <div class="grp" role="group" aria-label=${t(lang, "grp_time")}>
-          <button class="act" ?disabled=${!canCut} aria-label=${`${t(lang, "cut")}. ${t(lang, "cut_hint")}`} title=${t(lang, "cut_hint")} @click=${() => this._cut()}>
+          <button class="act" ?disabled=${!canCut} aria-disabled=${ariaDisabled(!canCut)} aria-label=${`${t(lang, "cut")}. ${t(lang, "cut_hint")}`} title=${t(lang, "cut_hint")} aria-describedby=${cutWhy ? "why-cut" : describedBy(idle, "why-strip")} @click=${() => this._cut()}>
             <ha-icon icon="mdi:arrow-split-vertical"></ha-icon>${t(lang, "cut")}</button>
         </div>
-        ${sel.slot ? html`<div class="grp" role="group" aria-label=${t(lang, "grp_days")}>
-          <button class="act ${this._copyOpen ? "on" : ""}" aria-expanded=${this._copyOpen}
+        <div class="grp" role="group" aria-label=${t(lang, "grp_days")}>
+          <button class="act ${this._copyOpen && !noSlot ? "on" : ""}" aria-expanded=${this._copyOpen && !noSlot} ?disabled=${noSlot} aria-disabled=${ariaDisabled(noSlot)} aria-describedby=${describedBy(noSlot, "why-strip")}
             aria-label=${`${t(lang, "copy_to")} ${t(lang, "copy_hint")}`} title=${t(lang, "copy_hint")}
             @click=${() => { this._copyOpen = !this._copyOpen; this._copyDays = []; }}><ha-icon icon="mdi:content-copy"></ha-icon>${t(lang, "copy_to")}</button>
-        </div>` : nothing}
+        </div>
       </div>
-      ${this._copyOpen && sel.slot ? html`<div class="copy">
+      ${whyNote("why-strip", why ?? "", why !== null)}
+      ${whyNote("why-cut", cutWhy ?? "", cutWhy !== null)}
+      ${this._copyOpen && !noSlot ? html`<div class="copy wp-appear">
         ${days.map((name, d) => d === this.weekday ? nothing : html`<button class="dchip ${this._copyDays.includes(d) ? "on" : ""}"
           role="checkbox" aria-checked=${this._copyDays.includes(d)} @click=${() => this._toggleDay(d)}>${name}</button>`)}
         <button class="act go" ?disabled=${!this._copyDays.length} aria-label=${t(lang, "copy_go")} title=${t(lang, "copy_go")}
@@ -1092,8 +1121,8 @@ export class WpBarEditor extends LitElement {
         ${this._copyDays.length ? nothing : html`<span class="copy-hint" role="status">${t(lang, "copy_pick_days")}</span>`}
       </div>` : nothing}
       <div class="pick">
-        <wp-label-picker compact readonly-settings .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${[this.entityId]}
-          .value=${sel.slot?.label ?? null} @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._pickLabel(e.detail); }}></wp-label-picker>
+        <wp-label-picker compact readonly-settings ?disabled=${idle} .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${[this.entityId]}
+          .value=${sel?.slot?.label ?? null} @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._pickLabel(e.detail); }}></wp-label-picker>
       </div>
     </div>`;
   }
@@ -1128,7 +1157,7 @@ export class WpBarEditor extends LitElement {
     const ctx = this._ctx();
     const bar = (title: string, slots: Slot[]) => html`<div class="cfbar"><span>${title}</span>
       <wp-day-bar lang=${this.lang} notches .spans=${this._spansOf(slots)} .now=${null}></wp-day-bar></div>`;
-    return html`<wp-dialog open heading=${t(lang, "conflict_title")} @closed=${(e: Event) => { e.stopPropagation(); this._conflict = null; }}>
+    return html`<wp-dialog open heading=${c.days.length === 1 ? t(lang, "conflict_title_one", { day: days[c.days[0]] }) : t(lang, "conflict_title")} @closed=${(e: Event) => { e.stopPropagation(); this._conflict = null; }}>
       <div class="cf">
         ${c.days.map((d) => html`<div class="cfrow"><strong>${days[d]}</strong>
           ${bar(t(lang, "cf_before"), all[d] ?? [])}
@@ -1138,7 +1167,7 @@ export class WpBarEditor extends LitElement {
             <button role="radio" aria-checked=${c.skip.includes(d)} class=${c.skip.includes(d) ? "on" : ""} @click=${() => set(d, true)}>${t(lang, "skip_day")}</button>
           </div></div>`)}
       </div>
-      <button slot="footer" class="btn" @click=${() => (this._conflict = null)}>${t(lang, "cancel")}</button>
+      <button slot="footer" class="btn" data-initial-focus @click=${() => (this._conflict = null)}>${t(lang, "cancel")}</button>
       <button slot="footer" class="btn primary" ?disabled=${allSkipped} @click=${() => void this._doCopy(c.id, c.to, c.skip)}>${t(lang, "copy_go")}</button>
     </wp-dialog>`;
   }
@@ -1153,8 +1182,9 @@ export class WpBarEditor extends LitElement {
     return html`
       <div class="zone ${this.editing ? "editing" : ""}" title=${this._tipText || (this.editing ? this._selectedTime : "")} tabindex=${ifDefined(this.editing ? undefined : 0)}
         role=${ifDefined(this.editing ? undefined : "button")} aria-label=${ifDefined(this.editing ? undefined : this._zoneLabel())}
+        aria-description=${ifDefined(this.editing || !this.editable ? undefined : t(this.lang, "zone_action"))}
         aria-disabled=${ifDefined(this.lockedReason ? "true" : undefined)} aria-describedby=${ifDefined(this.lockedReason ? "locked-reason" : undefined)}
-        @keydown=${this._zoneKey}
+        @keydown=${this._zoneKey} @click=${this._zoneClick}
         @pointerdown=${(e: PointerEvent) => { this._tip = null; this._zoneDown(e); }}
         @pointermove=${(e: PointerEvent) => { this._zoneMove(e); this._tipMove(e); }} @pointerup=${this._zoneUp}
         @pointerleave=${() => { this._tip = null; }}
@@ -1171,17 +1201,17 @@ export class WpBarEditor extends LitElement {
         <div class="hold-hint" role="status">${this._hint ? t(this.lang, "hold_hint") : nothing}</div>
       </div>
       ${this.hours && !this._radial ? this._hoursAxis() : nothing}
-      ${this.editing && !this._moving && !this._ask ? this._strip() : nothing}
+      ${this.editing && !this._moving ? this._strip() : nothing}
       ${this._askBox()}
       ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
       ${this._conflictDialog()}`;
   }
 
-  static styles = [editorStyles, css`
+  static styles = [editorStyles, whyStyles, css`
     .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     :host { display: block; min-width: 0; }
     .zone { position: relative; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: pointer; }
-    .hours { position: relative; height: 20px; font-size: 0.75rem; color: var(--secondary-text-color); }
+    .hours { pointer-events: none; /* the zone's 48 px tap area reaches under the axis */ position: relative; height: 20px; font-size: 0.75rem; color: var(--secondary-text-color); }
     .hours span { position: absolute; transform: translateX(-50%); top: 2px; white-space: nowrap; }
     .hours span:first-child { transform: none; }
     .hours span:last-child { transform: translateX(-100%); }

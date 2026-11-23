@@ -45,15 +45,11 @@ function dropProgram(programId: string): void {
 }
 
 /**
- * Resolved slots of a program for a date and mode; concurrent and repeated calls share one request. `profileId` is
- * the mode the answer is for (part of the key); with `send` false the request leaves the mode to the server, which
- * answers for the active one (the card passes the active mode so a mode change never reuses a stale answer).
+ * Preview answer of a program for a date and mode (`by_entity` included when the program has per-device slots);
+ * concurrent and repeated calls share one request. `profileId` is the mode the answer is for (part of the key); with
+ * `send` false the request leaves the mode to the server, which answers for the active one (the card passes the
+ * active mode so a mode change never reuses a stale answer).
  */
-export function fetchPreview(hass: HomeAssistant, programId: string, revision: number, date: string, profileId?: string, send = true): Promise<PreviewSlot[]> {
-  return fetchPreviewResponse(hass, programId, revision, date, profileId, send).then((res) => res.slots);
-}
-
-/** Same as `fetchPreview`, whole answer (`by_entity` included when the program has per-device slots). */
 export function fetchPreviewResponse(
   hass: HomeAssistant, programId: string, revision: number, date: string, profileId?: string, send = true,
 ): Promise<PreviewResponse> {

@@ -12,9 +12,14 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
 from . import services, websocket, yaml_file
-from .const import DOMAIN
+from .const import CONF_SHOW_SIDEBAR, DEFAULT_SHOW_SIDEBAR, DOMAIN
 from .engine import PlannerEngine
-from .frontend import async_register_card, async_unregister_card
+from .frontend import (
+    async_register_card,
+    async_register_panel,
+    async_unregister_card,
+    async_unregister_panel,
+)
 from .messages import message
 from .registry import async_finish_mode_migration
 from .store import ConfigStoreError, PlannerStore
@@ -59,7 +64,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: WeeklyPlannerConfigEntry
     await yaml_sync.async_start()  # a hand-edited file is imported before the entities exist
     store.on_config_saved = yaml_sync.schedule_write
     entry.async_on_unload(yaml_sync.async_stop)
-    await async_register_card(hass)
+    if await async_register_card(hass):  # without the built card, the schedules still run
+        await async_register_panel(hass, bool(entry.options.get(CONF_SHOW_SIDEBAR, DEFAULT_SHOW_SIDEBAR)))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await engine.async_start()
     yaml_sync.async_go_live()
@@ -74,6 +80,7 @@ async def _async_options_updated(hass: HomeAssistant, entry: WeeklyPlannerConfig
 async def async_unload_entry(hass: HomeAssistant, entry: WeeklyPlannerConfigEntry) -> bool:
     """Unload a config entry."""
     await entry.runtime_data.async_stop()
+    async_unregister_panel(hass)
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 

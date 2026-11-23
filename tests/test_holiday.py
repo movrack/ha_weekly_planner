@@ -5,8 +5,10 @@ No real device is commanded: every service is the test Recorder.
 
 from __future__ import annotations
 
+import logging
 from copy import deepcopy
 from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 import voluptuous as vol
@@ -31,20 +33,23 @@ from custom_components.weekly_planner.resolver import (
     NO_HOLIDAY,
     Holiday,
     OccurrenceCache,
+    _cut,
     day_slots,
     next_transition,
     occurrences_around,
     resolve_entity,
 )
+from custom_components.weekly_planner.rights import program_actions
 from custom_components.weekly_planner.slots import remove_device_from_slots
+from custom_components.weekly_planner.timeline import Occurrence
 from custom_components.weekly_planner.validation import (
     ProgramError,
-    admin_required,
     check_holiday_config,
     check_program,
     driven_entities,
     label_users,
 )
+from custom_components.weekly_planner.websocket import _keep_holidays
 
 from .helpers import (
     CLIMATE,
@@ -259,12 +264,12 @@ def test_a_following_mode_cannot_have_its_own_day_off():
         check_program(prog, LABELS)
 
 
-def test_labels_used_by_a_day_off_are_in_use_and_checked_for_admin():
+def test_labels_used_by_a_day_off_are_in_use_and_checked_for_rights():
     lock = label("unlock", act("lock.unlock"))
     labs = {**LABELS, "unlock": lock}
     prog = with_holiday({"day": [slot("x", "08:00", "09:00", "unlock")]})
     assert label_users([prog], "unlock") == ["office"]
-    assert admin_required(prog, labs) is True
+    assert ("climate.office", lock["action"]) in list(program_actions(prog, labs))
     assert label_users([with_holiday({"copy": 2})], "unlock") == []
 
 
@@ -788,7 +793,7 @@ async def test_storage_without_day_off_is_migrated_to_the_new_minor(hass, hass_s
     Recorder(hass)
     engine = await setup(hass, hass_storage, freezer, [program()], local(27, 9))
     await engine.store.async_flush_config()
-    assert hass_storage[DOMAIN]["version"] == 3 and hass_storage[DOMAIN]["minor_version"] == 2
+    assert hass_storage[DOMAIN]["version"] == 3 and hass_storage[DOMAIN]["minor_version"] == 3
     assert engine.store.programs[0]["profiles"][0]["days"][0][0]["id"] == "s1"
     assert engine.holiday_today is False
 
@@ -806,19 +811,6 @@ async def test_storage_of_a_newer_minor_is_refused_cleanly(hass, hass_storage, f
 
 
 # -- small paths ----------------------------------------------------------------------------------
-
-
-def test_cut_keeps_ignored_and_drops_what_starts_after_the_boundary():
-    from custom_components.weekly_planner.resolver import _cut
-    from custom_components.weekly_planner.timeline import Occurrence
-
-    boundary = utc(local(28, 0))
-    ignored = Occurrence("a", utc(local(27, 23)), utc(local(28, 2)), "overlap")
-    assert _cut(ignored, boundary) is ignored
-    late = Occurrence("b", utc(local(28, 0, 3)), None)  # a one-shot pushed past midnight by its delay
-    assert _cut(late, boundary).ignored == "holiday_cut"
-    early = Occurrence("c", utc(local(27, 23)), None)
-    assert _cut(early, boundary) is early
 
 
 async def test_first_reading_of_the_day_and_programs_without_setting(hass, hass_storage, freezer):
@@ -922,3 +914,283 @@ async def test_scene_members_are_driven(hass):
     assert driven_entities([], labs, hass) == {"switch.x"}
     hass.states.async_set("scene.night", "scening", {"entity_id": "switch.x"})
     assert driven_entities([], labs, hass) == set()
+
+
+MIDNIGHT = datetime(2026, 10, 28, 0, 0, tzinfo=UTC)
+
+
+# -- how a slot is cut at the midnight next to a day off ----------------------------------------------------
+
+
+def test_a_slot_starting_at_or_after_the_cut_is_ignored_and_keeps_its_times():
+    for start in (MIDNIGHT, MIDNIGHT + timedelta(hours=1)):
+        occ = Occurrence("s", start, start + timedelta(hours=2))
+        assert _cut(occ, MIDNIGHT) == Occurrence("s", start, start + timedelta(hours=2), "holiday_cut")
+    one_shot = Occurrence("o", MIDNIGHT, None)
+    assert _cut(one_shot, MIDNIGHT) == Occurrence("o", MIDNIGHT, None, "holiday_cut")
+
+
+def test_a_slot_that_already_ignored_or_ending_by_the_cut_is_left_as_it_is():
+    ignored = Occurrence("i", MIDNIGHT - timedelta(hours=2), MIDNIGHT + timedelta(hours=1), "overlap")
+    assert _cut(ignored, MIDNIGHT) is ignored
+    inside = Occurrence("a", MIDNIGHT - timedelta(hours=3), MIDNIGHT - timedelta(hours=1))
+    assert _cut(inside, MIDNIGHT) is inside
+    shot = Occurrence("o", MIDNIGHT - timedelta(hours=1), None)
+    assert _cut(shot, MIDNIGHT) is shot
+    touching = Occurrence("t", MIDNIGHT - timedelta(minutes=4), MIDNIGHT)
+    assert _cut(touching, MIDNIGHT) is touching  # it ends exactly at the cut: nothing to cut, even though it is short
+
+
+def test_a_slot_crossing_the_cut_stops_there_and_a_rest_under_five_minutes_is_ignored():
+    long = Occurrence("l", MIDNIGHT - timedelta(hours=2), MIDNIGHT + timedelta(hours=3))
+    assert _cut(long, MIDNIGHT) == Occurrence("l", MIDNIGHT - timedelta(hours=2), MIDNIGHT)
+    exactly = Occurrence("e", MIDNIGHT - timedelta(minutes=5), MIDNIGHT + timedelta(hours=1))
+    assert _cut(exactly, MIDNIGHT) == Occurrence("e", MIDNIGHT - timedelta(minutes=5), MIDNIGHT)  # five minutes is enough
+    short = Occurrence("s", MIDNIGHT - timedelta(minutes=4), MIDNIGHT + timedelta(hours=1))
+    assert _cut(short, MIDNIGHT) == Occurrence("s", MIDNIGHT - timedelta(minutes=4), MIDNIGHT, "too_short")
+
+
+def test_the_cut_is_the_local_midnight_of_the_house_not_of_the_server():
+    new_york = ZoneInfo("America/New_York")
+    wed = date(2026, 10, 28)
+    profile = {"id": "p", "name": "Base", "days": [[{"id": "n", "start": {"time": "22:00"}, "end": {"time": "06:00"}}] for _ in range(7)],
+               "holiday": {"day": [{"id": "n2", "start": {"time": "22:00"}, "end": {"time": "06:00"}}]}}
+    moment = datetime(2026, 10, 28, 12, 0, tzinfo=new_york)
+    placed = occurrences_around(profile, moment, new_york, lambda e, d: None, days=(0,), program_id="p", holiday=Holiday(day=wed))
+    occ = next(o for o, slot in placed if slot["id"] == "n2")
+    assert occ.start == datetime(2026, 10, 28, 22, 0, tzinfo=new_york).astimezone(UTC)
+    assert occ.end == datetime(2026, 10, 29, 0, 0, tzinfo=new_york).astimezone(UTC)
+
+
+TUE = date(2026, 10, 27)
+
+
+async def day_off_engine(hass, hass_storage, freezer, state="off", moment=None, config=CONFIG):
+    Recorder(hass)
+    if state is not None:
+        hass.states.async_set(DAY_OFF, state)
+    return await setup(hass, hass_storage, freezer, [hprog()], moment or local(27, 9), config=config)
+
+
+# -- the stored flags ---------------------------------------------------------------------------
+
+
+async def test_the_flag_of_a_day_is_stored_with_its_date_and_the_earlier_flag_becomes_previous(hass, hass_storage, freezer):
+    engine = await day_off_engine(hass, hass_storage, freezer)
+    runtime = engine.store.runtime
+    runtime.pop("holiday", None)
+    engine._store_holiday(TUE, True)
+    assert runtime["holiday"] == {"date": "2026-10-27", "on": True}
+    engine._store_holiday(TUE, True)  # same value: nothing changes
+    assert runtime["holiday"] == {"date": "2026-10-27", "on": True}
+    engine._store_holiday(date(2026, 10, 28), False)  # the next day: today's flag becomes the previous one
+    assert runtime["holiday"] == {"date": "2026-10-28", "on": False, "previous": {"date": "2026-10-27", "on": True}}
+    engine._store_holiday(date(2026, 10, 28), True)  # same day, another value: the previous flag is kept
+    assert runtime["holiday"] == {"date": "2026-10-28", "on": True, "previous": {"date": "2026-10-27", "on": True}}
+    engine._store_holiday(date(2026, 10, 28), True)
+    assert runtime["holiday"]["previous"] == {"date": "2026-10-27", "on": True}
+
+
+async def test_a_stored_flag_of_the_same_day_with_the_same_value_does_not_save_again(hass, hass_storage, freezer):
+    engine = await day_off_engine(hass, hass_storage, freezer)
+    engine.store.runtime["holiday"] = {"date": "2026-10-27", "on": True}
+    saved = []
+    engine.store.save_runtime = lambda: saved.append(1)
+    engine._store_holiday(TUE, True)
+    assert saved == []
+    engine._store_holiday(TUE, False)
+    assert saved == [1] and engine.store.runtime["holiday"] == {"date": "2026-10-27", "on": False}
+
+
+# -- the wait of a new day -----------------------------------------------------------------------
+
+
+async def test_a_new_day_waits_for_the_entity_in_the_zone_of_the_house_until_the_limit(hass, hass_storage, freezer):
+    engine = await day_off_engine(hass, hass_storage, freezer, state=None)
+    engine.store.runtime.pop("holiday", None)
+    engine._holiday_started = None
+    midnight = datetime(2026, 10, 27, 0, 0, tzinfo=engine.tz).astimezone(UTC)
+    limit = midnight + timedelta(seconds=120)
+    assert engine._holiday_settles_at(midnight + timedelta(seconds=10)) == limit
+    assert engine._holiday_settles_at(limit - timedelta(seconds=1)) == limit
+    assert engine._holiday_settles_at(limit) is None  # the wait ends exactly at the limit
+    engine._holiday_started = TUE
+    assert engine._holiday_settles_at(midnight + timedelta(seconds=10)) is None  # its start was taken
+    engine._holiday_started = None
+    engine.store.runtime["holiday"] = {"date": "2026-10-27", "on": False}
+    assert engine._holiday_settles_at(midnight + timedelta(seconds=10)) is None  # it has a flag
+
+
+async def test_the_wait_is_read_in_the_zone_of_the_house_not_of_the_server(hass, hass_storage, freezer):
+    engine = await day_off_engine(hass, hass_storage, freezer, state=None)
+    await hass.config.async_update(time_zone="America/New_York")
+    engine.store.runtime.pop("holiday", None)
+    engine._holiday_started = None
+    midnight = datetime(2026, 10, 28, 0, 0, tzinfo=engine.tz).astimezone(UTC)  # 04:00 UTC
+    assert engine._holiday_settles_at(midnight + timedelta(seconds=30)) == midnight + timedelta(seconds=120)
+
+
+# -- changes during the day ---------------------------------------------------------------------
+
+
+async def test_a_settled_change_is_stored_logged_and_ignored_when_it_is_not_one(hass, hass_storage, freezer, caplog):
+    engine = await day_off_engine(hass, hass_storage, freezer, state="off")
+    caplog.set_level(logging.INFO)
+    hass.states.async_set(DAY_OFF, "on")
+    today = engine._holiday_started
+    assert today is not None
+    await engine._async_holiday_settled()
+    assert engine.store.runtime["holiday"]["on"] is True and "Day off today: True" in caplog.text
+    caplog.clear()
+    await engine._async_holiday_settled()  # no change any more
+    assert "Day off today" not in caplog.text
+    hass.states.async_set(DAY_OFF, "unavailable")
+    await engine._async_holiday_settled()  # unavailable: the known flag stays
+    assert engine.store.runtime["holiday"]["on"] is True
+    engine._holiday_started = date(2000, 1, 1)
+    engine._holiday_raw = lambda: False
+    await engine._async_holiday_settled()  # a new day began meanwhile
+    assert engine.store.runtime["holiday"]["on"] is True
+    engine._holiday_started = today
+    engine._stopped = True
+    await engine._async_holiday_settled()
+    assert engine.store.runtime["holiday"]["on"] is True
+
+
+async def test_a_change_clears_the_pending_skip_of_the_programs_with_a_day_off_and_recomputes_them(hass, hass_storage, freezer):
+    engine = await day_off_engine(hass, hass_storage, freezer, state="off")
+    engine.store.runtime["programs"].setdefault("office", {})["skip_at"] = "2026-10-27T10:00:00+00:00"
+    seen = []
+    original = engine._async_recompute
+
+    async def spy(kind, **kwargs):
+        seen.append((kind, kwargs))
+        return await original(kind, **kwargs)
+
+    engine._async_recompute = spy
+    await engine._async_holiday_changed()
+    assert "skip_at" not in engine.store.runtime["programs"]["office"]
+    assert seen == [("profile", {"profile_program_ids": {"office"}})]
+
+
+async def test_the_event_of_a_new_day_starts_it_and_a_flip_back_is_ignored(hass, hass_storage, freezer):
+    engine = await day_off_engine(hass, hass_storage, freezer, state="off")
+    calls = []
+
+    async def recompute(kind, **kwargs):
+        calls.append(kind)
+
+    engine._async_recompute = recompute
+    engine._holiday_started = date(2000, 1, 1)
+    await engine._async_holiday_event()
+    assert calls == ["timer"]
+    engine._holiday_started = engine.holiday_view and dt_today(engine)
+    engine.store.runtime["holiday"] = {"date": dt_today(engine).isoformat(), "on": False}
+    hass.states.async_set(DAY_OFF, "on")
+    await engine._async_holiday_event()
+    assert engine._holiday_timer is not None  # a change waits for its debounce
+    hass.states.async_set(DAY_OFF, "off")
+    await engine._async_holiday_event()
+    assert engine._holiday_timer is None  # back to the applied value
+    engine.store.runtime.pop("holiday")
+    await engine._async_holiday_event()
+    assert engine.store.runtime["holiday"]["on"] is False  # the first valid reading of the day is stored
+
+
+def dt_today(engine):
+    from homeassistant.util import dt as dt_util
+
+    return dt_util.utcnow().astimezone(engine.tz).date()
+
+
+async def test_the_programs_with_a_day_off_are_found_from_a_pass_or_from_the_store(hass, hass_storage, freezer):
+    engine = await day_off_engine(hass, hass_storage, freezer)
+    assert engine._holiday_programs() == {"office"}
+    fake = type("Ctx", (), {"programs": [], "profiles": {}})()
+    assert engine._holiday_programs(fake) == set()
+    assert engine._holiday_programs(type("Ctx", (), {"programs": engine.store.programs, "profiles": {}})()) == {"office"}
+
+
+async def test_the_raw_flag_reads_the_entity_only_when_there_is_one_and_inverts_it(hass, hass_storage, freezer):
+    engine = await day_off_engine(hass, hass_storage, freezer, state="on")
+    assert engine._holiday_raw() is True
+    hass.states.async_set(DAY_OFF, "unknown")
+    assert engine._holiday_raw() is None
+    engine.store.config["holiday_entity"] = None
+    assert engine._holiday_raw() is None
+
+
+# -- configuration ----------------------------------------------------------------------------
+
+
+async def test_a_renamed_entity_keeps_its_inversion_and_only_the_watched_one_is_renamed(hass, hass_storage, freezer):
+    engine = await day_off_engine(hass, hass_storage, freezer, config={"holiday_entity": DAY_OFF, "holiday_invert": True})
+    assert engine._holiday_key == (DAY_OFF, True)
+    engine.note_holiday_rename("input_boolean.other", "input_boolean.x")
+    assert engine._holiday_key == (DAY_OFF, True)
+    engine.note_holiday_rename(DAY_OFF, "input_boolean.new")
+    assert engine._holiday_key == ("input_boolean.new", True)
+
+
+async def test_another_entity_is_read_again_and_the_pending_skip_of_the_changed_programs_is_cleared(hass, hass_storage, freezer):
+    engine = await day_off_engine(hass, hass_storage, freezer, state="off")
+    hass.states.async_set("input_boolean.other", "on")
+    engine.store.runtime["programs"].setdefault("office", {})["skip_at"] = "2026-10-27T10:00:00+00:00"
+    engine._holiday_timer = lambda: None
+    engine.store.config["holiday_entity"] = "input_boolean.other"
+    changed = engine._sync_holiday_config()
+    assert changed == {"office"} and engine._holiday_key == ("input_boolean.other", False)
+    assert "skip_at" not in engine.store.runtime["programs"]["office"]
+    assert engine._holiday_timer is None and engine.holiday_today is True
+    assert engine._holiday_started is not None
+    assert engine._sync_holiday_config() == set()  # nothing changed since
+
+
+async def test_before_the_engine_is_ready_a_new_entity_is_not_read_yet_and_an_unchanged_day_changes_no_program(hass, hass_storage, freezer):
+    engine = await day_off_engine(hass, hass_storage, freezer, state="off")
+    engine._ready = False
+    engine.store.config["holiday_entity"] = "input_boolean.other"
+    hass.states.async_set("input_boolean.other", "off")
+    assert engine._sync_holiday_config() == set() and engine._holiday_started is None
+    engine._ready = True
+    engine.store.config["holiday_invert"] = True
+    hass.states.async_set("input_boolean.other", "off")
+    assert engine._sync_holiday_config() == {"office"}  # inverted: off is a day off
+
+
+async def test_setting_the_day_off_config_does_not_reapply_and_a_same_config_is_a_no_op(hass, hass_storage, freezer):
+    engine = await day_off_engine(hass, hass_storage, freezer, state="off")
+    seen = []
+
+    async def changed(**kwargs):
+        seen.append(kwargs)
+
+    engine._async_config_changed = changed
+    await engine.async_set_holiday_config(DAY_OFF, False)
+    assert seen == []
+    await engine.async_set_holiday_config("input_boolean.other", True)
+    assert seen == [{"reapply": False}]
+    assert engine.store.config["holiday_entity"] == "input_boolean.other" and engine.store.config["holiday_invert"] is True
+
+
+# -- websocket: the day off kept when a card sends a program without it ----------------------------
+
+
+def test_a_profile_sent_without_the_day_off_keeps_the_stored_one_unless_it_follows_or_names_none():
+    stored = {"profiles": [{"id": "a", "holiday": {"copy": 1}}, {"id": "b"}, {"id": "c", "holiday": {"copy": 2}},
+                           {"id": "d", "holiday": {"copy": 3}}]}
+    sent = {"name": "x", "profiles": [{"id": "a"}, {"id": "b"}, {"id": "c", "follows": "a"},
+                                      {"id": "d", "holiday": None}, "not a dict", {"id": "new"}]}
+    kept = _keep_holidays(stored, sent)
+    assert kept["profiles"][0] == {"id": "a", "holiday": {"copy": 1}}
+    assert kept["profiles"][1] == {"id": "b"}
+    assert kept["profiles"][2] == {"id": "c", "follows": "a"}
+    assert kept["profiles"][3] == {"id": "d", "holiday": None}
+    assert kept["profiles"][4:] == ["not a dict", {"id": "new"}]
+    assert kept["name"] == "x" and sent["profiles"][0] == {"id": "a"}  # the input is not changed
+    assert _keep_holidays(None, sent) is sent and _keep_holidays({}, sent) is sent
+    assert _keep_holidays({"profiles": [{"id": "a"}]}, sent) is sent  # nothing stored
+    assert _keep_holidays({"name": "n"}, sent) is sent
+    assert _keep_holidays(stored, {"profiles": "x"})["profiles"] == "x"
+    deep = _keep_holidays({"profiles": [{"id": "a", "holiday": {"day": [{"id": "s"}]}}]}, {"profiles": [{"id": "a"}]})
+    assert deep["profiles"][0]["holiday"] == {"day": [{"id": "s"}]}

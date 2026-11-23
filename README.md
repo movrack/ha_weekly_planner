@@ -6,7 +6,6 @@ English | [Français](https://github.com/movrack/ha_weekly_planner/blob/main/REA
 [![Release](https://img.shields.io/github/v/release/movrack/ha_weekly_planner)](https://github.com/movrack/ha_weekly_planner/releases/latest)
 [![Validate](https://github.com/movrack/ha_weekly_planner/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/movrack/ha_weekly_planner/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/movrack/ha_weekly_planner/blob/main/LICENSE)
-[![Quality scale: Bronze (self-declared)](https://img.shields.io/badge/Quality%20scale-Bronze%20(self--declared)-cd7f32.svg)](https://github.com/movrack/ha_weekly_planner/blob/main/custom_components/weekly_planner/quality_scale.yaml)
 
 A weekly scheduler for Home Assistant with its own dashboard card. Give each device a week of
 schedules (shutters, heating, lights, or anything a Home Assistant action or scene can drive) and see
@@ -14,8 +13,6 @@ on one card what is planned and what happened.
 
 ![Weekly Planner overview](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s01-overview.png)
 ![Single-program 24-hour dial](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s03-radial.png)
-
-Quality level: self-declared Bronze on the Home Assistant Integration Quality Scale (custom integration, no official badge); see [`quality_scale.yaml`](https://github.com/movrack/ha_weekly_planner/blob/main/custom_components/weekly_planner/quality_scale.yaml).
 
 This project was developed with the assistance of AI agents.
 
@@ -30,7 +27,8 @@ This project was developed with the assistance of AI agents.
 - **Modes**: one week of schedules per mode of the house (Home, Away, Vacation…), read from a selector
   entity that you choose.
 - **Day off**: another day of schedules on a holiday or day off, read from an entity that you choose.
-- **One card, five views**: bars, compact list, 24-hour dial, 12-hour dials, or today’s times, with a
+- **One card, six views**: bars, compact list (grouped by type, two lines per device), 24-hour dial, 12-hour dials,
+  today’s times, or a comparison of every device, one day at a time, with a
   chart of the day that compares the plan with the recorded history.
 - **Everyday controls**: skip the next change, pause a program for hours or days, suspend all programs,
   resynchronise the devices after an outage.
@@ -68,9 +66,9 @@ and you choose which actions a program may use. Scenes are supported as well.
 
 ### Manually
 
-1. Download the [latest release](https://github.com/movrack/ha_weekly_planner/releases/latest).
-2. Copy its `custom_components/weekly_planner` folder into the `custom_components` folder of your
-   Home Assistant configuration.
+1. Download `weekly_planner.zip` from the [latest release](https://github.com/movrack/ha_weekly_planner/releases/latest).
+2. Unzip it into a new `custom_components/weekly_planner` folder of your Home Assistant configuration
+   (`manifest.json` directly in that folder).
 3. Restart Home Assistant.
 
 ### Add the integration
@@ -89,10 +87,10 @@ loads the module through Home Assistant’s extra-JavaScript mechanism.
 
 ## First program
 
-1. Edit the dashboard and open the **Weekly Planner** card editor.
-2. Under **Program settings**, choose **New program** (administrators only).
+1. Open **Weekly Planner** in the sidebar.
+2. Choose **New program**.
 3. Name the program, add its devices and choose the actions offered for each device.
-4. **Apply to program** saves it at once, for every card that shows this program.
+4. **Create program** saves it at once, for every card that shows this program.
 5. **Set schedules** opens the schedules of the program. Add a schedule: the days, the start and end times, then the setting.
 
 The [illustrated guide](https://github.com/movrack/ha_weekly_planner/wiki/Guide-utilisateur) (in French)
@@ -107,7 +105,8 @@ shows every step with screenshots.
 | Option | Default | What it does |
 |---|---|---|
 | Only administrators can edit programs | off | Reserves program and setting changes to administrators. |
-| Send the current setting again after a restart or a change | on | Starting value of the **Re-apply the current setting after a restart or a change** box for every new program. |
+| Send the current setting again after a restart or a change | on | Starting value of the **Send the current setting again after a restart or a change** box for every new program. |
+| Show the Weekly Planner link in the sidebar | on | Off hides the sidebar link; the panel stays reachable from the options menu. |
 | Alert when a device has been unavailable for | 30 min | Delay before the notification, 1 to 1440 minutes. |
 | Wait before applying a change of condition | 2 min | Stability delay of the program conditions, 0 to 60 minutes. |
 | Mode selector (optional) | none | An `input_select` or `select` entity whose state is the mode of the house; a default mode is asked next. |
@@ -115,7 +114,7 @@ shows every step with screenshots.
 | This entity is on during working days, not on days off | off | Tick it only for an entity that is on on working days, such as a Workday sensor. |
 
 The mode has priority over the day off, which only applies to the current mode. The options also offer
-**Resynchronise the devices** (administrators only): it lists what would be sent and sends nothing
+**Send the state to the devices again** (administrators only): it lists what would be sent and sends nothing
 before you confirm.
 Details: [permissions and options](https://github.com/movrack/ha_weekly_planner/blob/main/wiki/REFERENCE.md#permissions-and-integration-options),
 [modes](https://github.com/movrack/ha_weekly_planner/blob/main/wiki/REFERENCE.md#modes-and-the-mode-selector),
@@ -129,12 +128,25 @@ Every option can be set in the visual editor or in YAML. The main ones:
 |---|---|
 | `program` | Shows one program (its ID or its name). |
 | `filter` | Without `program`: keeps programs by `types`, `area` or `programs`. No filter shows every program. |
-| `schedule_view` | `bars` (default), `list`, `radial`, `radial_12h` or `times`. |
+| `schedule_view` | `bars` (default), `list`, `radial`, `radial_12h`, `times` or `compare` (every device, one day at a time with a row of day chips). |
 | `sort`, `order` | Order of the list: by `type` (default), `area`, `name`, or your own order. |
 | `show_chart`, `chart_collapsed` | Chart button under each device, and whether the chart starts closed. |
+| `show_week_button` | Week button under each device (on by default). |
+| `show_group_labels` | Comparison view sorted by type or room: the type name above each group (on by default). |
+| `show_schedule_list` | Lists today’s schedules under the bars or the dials (default off). |
 | `title` | Card title. |
 
 Full table and YAML types: [card options](https://github.com/movrack/ha_weekly_planner/blob/main/wiki/REFERENCE.md#dashboard-configuration).
+
+### Card views
+
+Choose the look with `schedule_view`:
+
+| | |
+|---|---|
+| **Bars**<br>`bars`<br>![Bars](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s01-overview.png) | **24-hour dial**<br>`radial`<br>![24-hour dial](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s03-radial.png) |
+| **12-hour dial**<br>`radial_12h`<br>![12-hour dial](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s03-radial-12h.png) | **Compact list**<br>`list`<br>![Compact list](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s04-compact-list.png) |
+| **Times of the day**<br>`times`<br>![Times of the day](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s52-times.png) | **Comparison**<br>`compare`<br>![Comparison](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s54-compare.png) |
 
 ## Entities and actions
 
@@ -149,7 +161,7 @@ do not assume a generated English entity ID on another installation.
 
 | Action | Fields | Who can call it |
 |---|---|---|
-| `weekly_planner.apply_now` | `program_id` (required); returns `sent` and `skipped` (with the reason); also resends the last one-shot of less than 24 h unless a person changed the device since | Anyone; administrators only if `admin_only` is on |
+| `weekly_planner.apply_now` | `program_id` (required); returns `sent` and `skipped` (with the reason); also resends the last “At this time only” schedule of less than 24 h unless a person changed the device since | Anyone; administrators only if `admin_only` is on |
 | `weekly_planner.skip_next` | `program_id` (required), `cancel` (optional, default `false`) | Same as `apply_now` |
 | `weekly_planner.pause` | `program_id` (required), `days` and/or `hours` (whole numbers, at least one; 1 hour to 365 days in total) | Same as `apply_now` |
 | `weekly_planner.resume` | `program_id` (required); cancels a timed pause only (a program switched off with its switch stays off) | Same as `apply_now` |
@@ -236,7 +248,7 @@ data:
   option: Away
 ```
 
-More, in French: [mode recipes](https://github.com/movrack/ha_weekly_planner/wiki/Recettes-pour-les-modes)
+More, in French: [recipes](https://github.com/movrack/ha_weekly_planner/wiki/Recettes)
 and [setting actions](https://github.com/movrack/ha_weekly_planner/wiki/Actions-generiques).
 
 ## How it runs
@@ -254,7 +266,7 @@ restart Home Assistant. An open card reloads by itself once idle when its bundle
 
 ## Known limitations
 
-- A manual change on a device is not detected or undone; it may be shown on the chart.
+- A manual change on a device is not detected or undone; it may be shown on the chart. It stays until the next schedule boundary, where the planner takes control back. Example: 18 °C from 10:00 to 20:00, then 17 °C from 20:00 to 21:00; a change to 20 °C at 12:00 stays until 20:00, then 17 °C is sent.
 - A schedule that has no end is sent once and is not replayed after its time has passed.
 - The room filter of the card matches the room given to a program, not the Home Assistant rooms of its devices.
 - Schedules cannot have their own conditions in the form; conditions are set for the whole program.

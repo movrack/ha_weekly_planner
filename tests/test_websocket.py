@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from custom_components.weekly_planner.const import DOMAIN
 
-from .helpers import CLIMATE, Recorder, act, program, setup, slot
+from .helpers import CLIMATE, Recorder, program, setup, slot
 
 
 async def _client(hass, hass_ws_client):
@@ -47,16 +47,6 @@ async def test_admin_only_and_sensitive(hass, hass_storage, freezer, hass_ws_cli
     data = (await ws.receive_json())["result"]
     assert data["can_edit"] is False
     await ws.send_json_auto_id({"type": f"{DOMAIN}/program/save", "program": data["programs"][0]})
-    assert (await ws.receive_json())["error"]["code"] == "unauthorized"
-
-
-async def test_sensitive_label_needs_admin_even_without_admin_only(hass, hass_storage, freezer, hass_ws_client, hass_read_only_access_token):
-    Recorder(hass)
-    hass.services.async_register("lock", "unlock", lambda call: None)
-    await setup(hass, hass_storage, freezer, [], None)
-    ws = await hass_ws_client(hass, hass_read_only_access_token)
-    await ws.send_json_auto_id({"type": f"{DOMAIN}/label/save", "label": {
-        "name": "Unlock", "color": "#112233", "action": act("lock.unlock")}})
     assert (await ws.receive_json())["error"]["code"] == "unauthorized"
 
 

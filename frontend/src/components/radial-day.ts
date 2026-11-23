@@ -2,7 +2,7 @@
 import { tokenStyles } from "../styles";
 import { LitElement, css, html, svg, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
-import { sunTip, nowTip, type BarSpan } from "./day-bar";
+import { sunTip, nowTip, scheduleBoundaries, type BarSpan } from "./day-bar";
 import { radialSegments } from "../radial";
 import { fmtClock, fmtDayEnd } from "../time";
 import { t } from "../i18n";
@@ -78,14 +78,21 @@ export class WpRadialDay extends LitElement {
     const nowTurn = now === null ? 0 : (now - nowRing * period) / period;
     return html`<div class="dial"><button tabindex=${this.passive ? -1 : 0} @click=${this._open} aria-label=${t(this.lang, "hours")}>
       <svg viewBox="0 0 320 320" aria-hidden="true">
+        ${this.spans.some((x) => x.paused) ? svg`<defs><pattern id="wp-paused-stripes" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width="5" height="10" fill="#fff" /></pattern><mask id="wp-paused-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="320" height="320">
+          <rect width="320" height="320" fill="url(#wp-paused-stripes)" /></mask></defs>` : nothing}
         ${(this.double ? [0, 1] : [0]).map((ring) => svg`<circle class="track" cx="160" cy="160" r=${radius(ring)} fill="none" stroke=${TRACK} stroke-width=${width} />`)}
         ${segments.map((s) => {
           if (s.source.marker) {
             const p = point(s.offset, radius(s.ring));
             return svg`<circle cx=${p.x} cy=${p.y} r="7" fill=${s.source.color} stroke="var(--primary-text-color)" stroke-width="2" />`;
           }
-          return svg`<circle cx="160" cy="160" r=${radius(s.ring)} fill="none" stroke=${s.source.color} stroke-width=${width}
+          if (!s.source.paused) return svg`<circle cx="160" cy="160" r=${radius(s.ring)} fill="none" stroke=${s.source.color} stroke-width=${width}
             pathLength="100" stroke-dasharray="${s.fraction * 100} ${100 - s.fraction * 100}" stroke-dashoffset=${-s.offset * 100} transform="rotate(-90 160 160)" />`;
+          // paused: planned, not applied: a faint ground of the colour under 45° stripes of it
+          const arc = (cls: string, mask?: string) => svg`<circle class=${cls} cx="160" cy="160" r=${radius(s.ring)} fill="none" stroke=${s.source.color} stroke-width=${width}
+            mask=${mask ?? nothing} pathLength="100" stroke-dasharray="${s.fraction * 100} ${100 - s.fraction * 100}" stroke-dashoffset=${-s.offset * 100} transform="rotate(-90 160 160)" />`;
+          return svg`${arc("paused-ground")}${arc("paused", "url(#wp-paused-mask)")}`;
         })}
         ${(this.double ? [0, 1] : [0]).map((ring) => Array.from({ length: period / 60 }, (_, h) => {
           const major = h % (this.double ? 3 : 6) === 0;
@@ -93,6 +100,15 @@ export class WpRadialDay extends LitElement {
           const q = point(h * 60 / period, radius(ring) + width / 2 - (major ? width : 6));
           return svg`<line class="tick" x1=${p.x} y1=${p.y} x2=${q.x} y2=${q.y} stroke="var(--primary-text-color)" stroke-opacity=".35" stroke-width="1" />`;
         }))}
+        ${scheduleBoundaries(this.spans).flatMap((b) => {
+          const rings = this.double ? (b.minute === 720 ? [0, 1] : [b.minute < 720 ? 0 : 1]) : [0];
+          return rings.map((ring) => {
+            const turn = (b.minute - ring * period) / period;
+            const p = point(turn, radius(ring) - width / 2 + 4);
+            const q = point(turn, radius(ring) + width / 2 - 4);
+            return svg`<line class="schedule-boundary" data-minute=${b.minute} x1=${p.x} y1=${p.y} x2=${q.x} y2=${q.y} stroke=${b.color} stroke-width="2" />`;
+          });
+        })}
         ${(this.double ? [0, 1] : [0]).map((ring) =>
           (this.double ? (ring === 0 ? [12, 3, 6, 9] : [24, 15, 18, 21]) : [0, 6, 12, 18]).map((h, i) => {
             const p = point(i / 4, this.double && ring === 0 ? 53 : 145);
@@ -110,9 +126,9 @@ export class WpRadialDay extends LitElement {
       ${segments.flatMap((s) => {
         const icons = [];
         if (s.start === s.source.start && s.source.startSun) icons.push(this._icon(s.offset, radius(s.ring),
-          s.source.startSun === "up" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down", sunTip(this.lang, s.source.startSpec, s.start)));
+          s.source.startSun === "up" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down", sunTip(this.lang, s.source.startSpec, s.start, s.source.startBase)));
         if (!s.source.marker && s.end === s.source.end && s.end < 1440 && s.source.endSun) icons.push(this._icon(s.offset + s.fraction, radius(s.ring),
-          s.source.endSun === "up" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down", sunTip(this.lang, s.source.endSpec, s.end)));
+          s.source.endSun === "up" ? "mdi:weather-sunset-up" : "mdi:weather-sunset-down", sunTip(this.lang, s.source.endSpec, s.end, s.source.endBase)));
         return icons;
       })}
       ${now === null ? nothing : this._icon(nowTurn, radius(nowRing) - width / 2 - 12, "mdi:clock-outline", nowTip(this.lang, now), true)}
@@ -125,12 +141,14 @@ export class WpRadialDay extends LitElement {
       </div>`;
   }
   static styles = css`
+    .paused-ground { opacity: 0.2; }
     ${tokenStyles}
     :host { display: block; }
     .dial { position: relative; max-width: 360px; margin: auto; }
     button { display: block; width: 100%; padding: 0; color: inherit; border: 0; background: none; cursor: pointer; border-radius: 50%; }
     button:focus-visible { outline: 2px solid var(--wp-primary-text); }
     svg { display: block; width: 100%; } text { fill: var(--primary-text-color); font-size: 14px; }
+    .schedule-boundary { pointer-events: none; }
     wp-tip { position: absolute; transform: translate(-50%, -50%); }
     .icon { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: var(--card-background-color, #fff); color: var(--primary-text-color); box-shadow: 0 0 0 1px var(--divider-color); }
     ha-icon { --mdc-icon-size: 14px; }

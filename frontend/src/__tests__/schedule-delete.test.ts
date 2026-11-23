@@ -36,9 +36,8 @@ beforeEach(() => {
 });
 
 describe("delete an edited schedule slot", () => {
-  it("keeps Delete visible while the slot has a pending label draft", () => {
+  it("keeps Delete visible on an open slot and on a new one", () => {
     const { view, program, key } = setup();
-    view._labelDraft = { problem: "Unsaved label" };
     expect(templateText(view._renderEditor(program, key))).toContain("Delete");
     expect(templateText(view._renderEditor(program, "new"))).toContain("Delete");
   });
@@ -47,18 +46,15 @@ describe("delete an edited schedule slot", () => {
     const { view } = setup();
     view._open = "new";
     view._openId = null;
-    view._labelDraft = { problem: "Unsaved label" };
     await view._deleteRow();
     expect(confirmAction).not.toHaveBeenCalled();
     expect(view.hass.callWS).not.toHaveBeenCalled();
     expect(view._open).toBeNull();
     expect(view._group).toBeNull();
-    expect(view._labelDraft).toBeNull();
   });
 
-  it("deletes only the focused day and original mode without saving the label draft", async () => {
+  it("deletes only the focused day and original mode", async () => {
     const { view, program } = setup(0);
-    view._labelDraft = { problem: "Invalid label draft" };
     view.data.mode = { selector: "input_select.m", default: "Home", active: "Away", options: ["Home", "Away"], available: true };
     await view._deleteRow();
     expect(confirmAction).toHaveBeenCalledOnce();
@@ -68,17 +64,13 @@ describe("delete an edited schedule slot", () => {
     expect(message.program.profiles[0].days[0]).toEqual([]);
     expect(message.program.profiles[0].days[1]).toEqual(program.profiles[0].days[1]);
     expect(message.program.profiles[1]).toEqual(program.profiles[1]);
-    expect(view._labelDraft).toBeNull();
   });
 
-  it("preserves the edit and draft when deletion confirmation is cancelled", async () => {
+  it("preserves the edit when deletion confirmation is cancelled", async () => {
     const { view } = setup();
-    const draft = { problem: "Unsaved label" };
-    view._labelDraft = draft;
     vi.mocked(confirmAction).mockResolvedValue(false);
     await view._deleteRow();
     expect(view.hass.callWS).not.toHaveBeenCalled();
-    expect(view._labelDraft).toBe(draft);
     expect(view._openId).not.toBeNull();
   });
 

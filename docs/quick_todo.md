@@ -17,3 +17,13 @@ les détails et questions ouvertes sont dans `docs/SPEC.md` § 37 et le travail 
 ## À finir avant la v1.0.0
 
 - [ ] Refaire les captures de `wiki/images/guide`, renuméroter l’atlas, tags/releases, HACS, test réel ≥ 3 jours (SPEC § 14.6, § 14.7).
+
+
+## Suivi dans les issues GitHub (2026-11-20)
+
+Les demandes du propriétaire pour le planner sont des issues ; ce fichier ne garde que ce qui n'en a pas. Ce qui concerne la maison (Versatile Thermostat, Evohome, tableaux de bord) est suivi dans `movrack/ha-home`, pas ici.
+
+- Gestion des réglages dans un fieldset repliable entre Mode et Horaires : #75.
+- Le planner reprend-il la main après un changement extérieur ? À vérifier et documenter : #76.
+- Journal de bord des mutants dans une issue : #77.
+- Revue et triage des issues : fait (labels `testing`, `configuration`, `refactor`, `integration`, `priority-1` ajoutés).

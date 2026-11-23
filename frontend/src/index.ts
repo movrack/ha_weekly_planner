@@ -2,6 +2,7 @@
 import "./weekly-planner-card";
 import "./card-editor";
 import "./components/times-day";
+import "./programs-panel";
 
 declare global {
   interface Window {

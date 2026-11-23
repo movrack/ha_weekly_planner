@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WpBarEditor } from "../components/bar-editor";
-import { dismissHoldHint, HOLD_HINT_MS, takeHoldHint } from "../hold-hint";
+import { HOLD_HINT_MS } from "../hold-hint";
 import { t } from "../i18n";
 
-const store = new Map<string, string>();
 const bar = (editable = true) => {
   const el = new WpBarEditor() as any;
   el.editable = editable; el.lang = "en";
@@ -18,70 +17,102 @@ const tap = (el: any, pointerType = "touch") => {
 
 beforeEach(() => {
   vi.useFakeTimers();
-  store.clear();
   vi.stubGlobal("window", {
-    setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
-    localStorage: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { store.set(k, v); } },
+    setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout
   });
   vi.stubGlobal("navigator", {});
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("hold hint", () => {
-  it("shows for 2 s on a plain touch tap, then opens the day screen", () => {
-    const el = bar();
-    tap(el);
-    expect(el._hint).toBe(true);
-    expect(events(el)).toEqual([]);
-    vi.advanceTimersByTime(HOLD_HINT_MS - 1);
-    expect(el._hint).toBe(true);
-    vi.advanceTimersByTime(1);
-    expect(el._hint).toBe(false);
-    expect(events(el)).toEqual(["open-day"]);
+  it("shows for 2 s on a plain tap or click and never opens anything", () => {
+    for (const type of ["touch", "mouse"]) {
+      const el = bar();
+      tap(el, type);
+      expect(el._hint).toBe(true);
+      expect(events(el)).toEqual([]);
+      vi.advanceTimersByTime(HOLD_HINT_MS - 1);
+      expect(el._hint).toBe(true);
+      vi.advanceTimersByTime(1);
+      expect(el._hint).toBe(false);
+      expect(events(el)).toEqual([]);
+    }
   });
 
-  it("a second tap during the hint opens the day screen at once", () => {
+  it("a second tap during the hint keeps the hint and still opens nothing", () => {
     const el = bar();
     tap(el); tap(el);
-    expect(events(el)).toEqual(["open-day"]);
-    expect(el._hint).toBe(false);
+    expect(events(el)).toEqual([]);
+    expect(el._hint).toBe(true);
   });
 
-  it("shows only the first 3 times on this device", () => {
-    for (let i = 0; i < 3; i++) { const el = bar(); tap(el); expect(el._hint).toBe(true); vi.advanceTimersByTime(HOLD_HINT_MS); }
-    const el = bar();
-    tap(el);
-    expect(el._hint).toBe(false);
-    expect(events(el)).toEqual(["open-day"]);
-    expect(store.get("weekly_planner.hold_hint")).toBe("3");
+  it("shows every time, not only the first 3", () => {
+    for (let i = 0; i < 5; i++) { const el = bar(); tap(el); expect(el._hint).toBe(true); vi.advanceTimersByTime(HOLD_HINT_MS); }
   });
 
-  it("never shows for the mouse or a read-only bar", () => {
-    const mouse = bar(); tap(mouse, "mouse");
+  it("a mouse press and hold enters the edit mode; a read-only bar does nothing on a click", () => {
+    const mouse = bar();
+    const ev = { pointerId: 1, clientX: 0, clientY: 0, button: 0, pointerType: "mouse" } as PointerEvent;
+    mouse._zoneDown(ev);
+    vi.advanceTimersByTime(500);
     expect(events(mouse)).toEqual(["edit-request"]);
     const ro = bar(false); tap(ro);
-    expect(events(ro)).toEqual(["open-day"]);
-    expect(store.size).toBe(0);
+    expect(events(ro)).toEqual([]);
   });
 
-  it("a long press clears the hint for good", () => {
+  it("a long press enters the edit mode and clears the hint", () => {
     const el = bar();
     const ev = { pointerId: 1, clientX: 0, clientY: 0, button: 0, pointerType: "touch" } as PointerEvent;
     el._zoneDown(ev);
     vi.advanceTimersByTime(500);
     expect(events(el)).toEqual(["edit-request"]);
-    expect(takeHoldHint()).toBe(false);
+    expect(el._hint).toBe(false);
   });
 
-  it("works without storage", () => {
-    vi.stubGlobal("window", { setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
-      get localStorage(): never { throw new Error("denied"); } });
-    expect(takeHoldHint()).toBe(true);
-    expect(() => dismissHoldHint()).not.toThrow();
+  it("a touch long press enters the quick edit on a bar and on both dials, and a short tap does not", () => {
+    for (const view of ["bar", "radial", "radial_12h"]) {
+      const el = bar(); el.view = view;
+      const ev = { pointerId: 1, clientX: 0, clientY: 0, button: 0, pointerType: "touch" } as PointerEvent;
+      el._zoneDown(ev);
+      vi.advanceTimersByTime(449);
+      expect(events(el)).toEqual([]);
+      vi.advanceTimersByTime(1);
+      expect(events(el)).toEqual(["edit-request"]);
+      el._zoneUp(ev);
+      expect(events(el)).toEqual(["edit-request"]);
+    }
   });
 
   it("has a live status region and EN + FR texts", () => {
-    expect(t("en", "hold_hint")).toBe("Press and hold to edit");
-    expect(t("fr", "hold_hint")).toBe("Restez appuyé pour modifier");
+    expect(t("en", "hold_hint")).toBe("Keep your finger down to edit");
+    expect(t("fr", "hold_hint")).toBe("Gardez le doigt appuyé pour modifier");
+  });
+
+  it("a click without a pointer (screen reader, switch, voice) opens the edit mode; a mouse click does not", () => {
+    const el = bar();
+    const target = {};
+    el._zoneClick({ detail: 0, target, currentTarget: target });
+    expect(events(el)).toEqual(["edit-request"]);
+    const mouse = bar();
+    mouse._zoneClick({ detail: 1, target, currentTarget: target });
+    expect(events(mouse)).toEqual([]);
+    const locked = bar(false); locked.lockedReason = "x";
+    locked._zoneClick({ detail: 0, target, currentTarget: target });
+    expect(events(locked)).toEqual(["locked-request"]);
+  });
+});
+
+describe("hold hint duration", () => {
+  it("the hint stays 6 s on screen", () => {
+    expect(HOLD_HINT_MS).toBe(6000);
+  });
+
+});
+
+describe("hold hint stacking", () => {
+  it("the hint bubble is stacked above the now line (z-index above 5)", () => {
+    const css = [WpBarEditor.styles].flat(Infinity).map((s: any) => s?.cssText ?? "").join("\n");
+    const hint = css.match(/\.hold-hint \{[^}]*z-index: (\d+)/);
+    expect(Number(hint?.[1])).toBeGreaterThan(5);
   });
 });

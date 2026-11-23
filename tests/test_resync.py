@@ -3,14 +3,25 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import UTC, datetime
+from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 import pytest
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResultType
 
 from custom_components.weekly_planner import engine as engine_module
-from custom_components.weekly_planner.const import DOMAIN
-from custom_components.weekly_planner.resync import Decision, Expected, settle_manual_change
+from custom_components.weekly_planner import resync
+from custom_components.weekly_planner.actions import resolve_action
+from custom_components.weekly_planner.const import DEFAULT_PRIORITY, DOMAIN
+from custom_components.weekly_planner.resolver import OccurrenceCache
+from custom_components.weekly_planner.resync import (
+    Decision,
+    Expected,
+    expected_state,
+    settle_manual_change,
+)
 
 from .helpers import CLIMATE, Recorder, act, label, labels, local, program, setup, slot
 
@@ -340,11 +351,12 @@ async def test_options_step_with_nothing_to_send(hass, hass_storage, freezer):
 async def test_plan_text_in_french_with_reasons(hass, hass_storage, freezer):
     from custom_components.weekly_planner.messages import resync_lines
     engine, _ = await start(hass, hass_storage, freezer, [shutters(entities=["cover.s1", "cover.s2"])], local(26, 18))
-    hass.states.async_set("cover.s2", "unavailable", {})
+    hass.states.async_set("cover.s2", "unavailable", {"friendly_name": "Volet cuisine"})
     hass.config.language = "fr"
     text = resync_lines(hass, await engine.async_plan_resync(), engine.tz)
-    assert "Sera envoyé (1)" in text and "Laissé tel quel (1)" in text and "indisponible" in text
+    assert "Sera envoyé maintenant (1)" in text and "Laissé tel quel (1)" in text and "indisponible" in text
     assert "(depuis 26/10 17:00)" in text
+    assert "Volet cuisine" in text and "cover.s2" not in text  # plain device name, not the entity id
 
 
 def test_every_resync_reason_has_a_text_in_both_languages():
@@ -404,3 +416,391 @@ async def test_recorder_history_without_recorder_sees_nothing(hass):
 
     now = datetime.now(UTC)
     assert await RecorderManualChanges(hass).async_changed_by_person("cover.a", now, now) is False
+
+
+TZ = ZoneInfo("Europe/Brussels")
+E = "climate.office"
+LABELS = {
+    "comfort": {"id": "comfort", "action": {"kind": "service", "service": "climate.set_preset_mode", "data": {"preset_mode": "comfort"}}},
+    "eco": {"id": "eco", "action": {"kind": "service", "service": "climate.set_preset_mode", "data": {"preset_mode": "eco"}}},
+    "night": {"id": "night", "action": {"kind": "service", "service": "climate.set_preset_mode", "data": {"preset_mode": "night"}}},
+}
+
+
+def no_sun(_event, _day):
+    return None
+
+
+def conditions_pass(_conditions):
+    return True
+
+
+def at(h, m=0, day=28):
+    return datetime(2026, 10, day, h, m, tzinfo=TZ).astimezone(UTC)
+
+
+def rule_slot(sid, start, end=None, label="comfort", **extra):
+    item = {"id": sid, "start": {"time": start}, "label": label, **extra}
+    if end:
+        item["end"] = {"time": end}
+    return item
+
+
+def rule_prog(pid, slots, *, priority=10, created="2026-01-01", default="eco", entities=(E,), week=None, **extra):
+    days = week if week is not None else [list(slots) for _ in range(7)]
+    item = {
+        "id": pid, "priority": priority, "enabled": True, "conditions": [], "created_at": created,
+        "entities": [{"entity_id": e, "default_label": default, "label_overrides": {}} for e in entities],
+        "profiles": [{"id": "p", "name": "Base", "days": days}],
+    }
+    item.update(extra)
+    return item
+
+
+def rule_resolve(program, entity_id, label_id):
+    return resolve_action(program, entity_id, label_id, LABELS)
+
+
+def rule_decide(programs, now, **kwargs):
+    kwargs.setdefault("sun", no_sun)
+    kwargs.setdefault("conditions_ok", conditions_pass)
+    tz = kwargs.pop("tz", TZ)
+    return expected_state(E, programs, rule_resolve, now, tz, kwargs.pop("sun"), kwargs.pop("conditions_ok"), **kwargs)
+
+
+def decided_label(decision):
+    return decision.expected.action["data"]["preset_mode"]
+
+
+# -- who is considered ------------------------------------------------------------------------
+
+
+def test_vacation_is_only_skipped_when_asked():
+    programs = [rule_prog("a", [rule_slot("s", "08:00")])]
+    assert rule_decide(programs, at(9), vacation=True) == Decision(reason="vacation")
+    assert rule_decide(programs, at(9)).expected is not None
+
+
+def test_a_program_without_enabled_key_counts_as_enabled_and_off_or_paused_is_told_apart():
+    plain = rule_prog("a", [rule_slot("s", "08:00")])
+    del plain["enabled"]
+    assert rule_decide([plain], at(9)).expected.program_id == "a"
+    assert rule_decide([rule_prog("a", [], enabled=False)], at(9)) == Decision(reason="off")
+    assert rule_decide([rule_prog("a", [], enabled=False, paused_until="2026-11-01T00:00:00+00:00")], at(9)) == Decision(reason="paused")
+    assert rule_decide([rule_prog("a", [], enabled=False, paused_until=None)], at(9)) == Decision(reason="off")
+
+
+def test_priority_then_creation_date_decide_simultaneous_starts_and_missing_values_have_defaults():
+    old = rule_prog("old", [rule_slot("s", "08:00", label="comfort")], priority=DEFAULT_PRIORITY)
+    del old["created_at"]
+    young = rule_prog("young", [rule_slot("s", "08:00", label="night")], created="2026-05-01")
+    young["priority"] = DEFAULT_PRIORITY
+    for order in ([old, young], [young, old]):
+        assert rule_decide(order, at(9)).expected.program_id == "old"
+    no_priority = rule_prog("none", [rule_slot("s", "08:00", label="comfort")])
+    del no_priority["priority"]
+    other = rule_prog("other", [rule_slot("s", "08:00", label="night")], priority=DEFAULT_PRIORITY)
+    assert rule_decide([no_priority, other], at(9)).expected is not None
+    urgent = rule_prog("urgent", [rule_slot("s", "08:00", label="comfort")], priority=1)
+    late = rule_prog("late", [rule_slot("s", "08:00", label="night")], priority=2)
+    assert rule_decide([late, urgent], at(9)).expected.program_id == "urgent"
+
+
+def test_the_last_fired_wins_among_equal_programs_and_among_one_shots_of_one_program():
+    a = rule_prog("a", [rule_slot("s", "08:00", label="comfort")])
+    b = rule_prog("b", [rule_slot("s", "08:00", label="night")], created="2026-01-01")
+    assert rule_decide([a, b], at(9)).expected.program_id == "b"
+    twin = rule_prog("t", [rule_slot("first", "08:00", label="comfort"), rule_slot("second", "08:00", label="night")])
+    best = rule_decide([twin], at(9)).expected
+    assert (best.slot_id, decided_label(Decision(expected=best))) == ("second", "night")
+
+
+def test_a_running_slot_and_a_one_shot_of_an_equal_program_starting_together_pick_the_one_shot():
+    running = rule_prog("run", [rule_slot("long", "08:00", "12:00", label="comfort")])
+    shot = rule_prog("shot", [rule_slot("once", "08:00", label="night")])
+    got = rule_decide([running, shot], at(9)).expected
+    assert (got.kind, got.program_id) == ("one_shot", "shot")
+
+
+def test_a_running_slot_is_expected_with_its_ids_label_and_start():
+    got = rule_decide([rule_prog("a", [rule_slot("long", "08:00", "12:00", label="comfort")])], at(9)).expected
+    assert (got.kind, got.program_id, got.slot_id, got.label, got.start) == ("slot", "a", "long", "comfort", at(8))
+    assert got.action["data"] == {"preset_mode": "comfort"}
+
+
+def test_a_one_shot_carries_its_slot_id_label_and_start():
+    got = rule_decide([rule_prog("a", [rule_slot("once", "08:00", label="night")])], at(9)).expected
+    assert (got.kind, got.slot_id, got.label, got.start) == ("one_shot", "once", "night", at(8))
+
+
+# -- the one-shot window ----------------------------------------------------------------------
+
+
+def test_a_one_shot_starting_exactly_now_counts_and_one_exactly_24_hours_old_is_too_old():
+    programs = [rule_prog("a", [rule_slot("once", "08:00", label="night")])]
+    assert rule_decide(programs, at(8)).expected.kind == "one_shot"
+    assert rule_decide(programs, at(7, 59)).expected.kind == "one_shot"  # yesterday's 08:00 is 23 h 59 old
+    week = [[], [], [], [], [], [], []]
+    week[2] = [rule_slot("once", "08:00", label="night")]  # Wednesday only
+    only_wed = [rule_prog("a", [], week=week, default="eco")]
+    assert rule_decide(only_wed, at(8, 0, 29)).expected.kind == "default"  # a day later, exactly 24 h
+    week_tue = [[], [], [], [], [], [], []]
+    week_tue[1] = [rule_slot("once", "08:00", label="night")]
+    none = rule_prog("a", [], week=week_tue, default=None)
+    assert rule_decide([none], at(8, 0, 28)) == Decision(reason="too_old")
+    assert rule_decide([none], at(7, 59, 28)).expected.kind == "one_shot"
+
+
+def test_nothing_to_do_is_no_action_or_too_old():
+    assert rule_decide([rule_prog("a", [], default=None)], at(9)) == Decision(reason="no_action")
+
+
+# -- the default and where it starts --------------------------------------------------------------
+
+
+def test_the_default_starts_when_the_last_schedule_ended_even_two_days_ago():
+    week = [[rule_slot("mon", "08:00", "09:00")], [], [], [], [], [], []]  # Monday only; now is Wednesday
+    got = rule_decide([rule_prog("a", [], week=week)], at(10)).expected
+    assert (got.kind, got.program_id, got.label, got.start) == ("default", "a", "eco", at(9, 0, 26))
+    assert got.slot_id is None
+
+
+def test_a_schedule_ending_exactly_now_starts_the_default_now_and_a_later_one_does_not_count():
+    got = rule_decide([rule_prog("a", [rule_slot("s", "07:00", "08:00")])], at(8)).expected
+    assert (got.kind, got.start) == ("default", at(8))
+    later = rule_prog("a", [rule_slot("s", "17:00", "18:00")], week=[[rule_slot("s", "17:00", "18:00")] if i == 2 else [] for i in range(7)])
+    got = rule_decide([later], at(10)).expected
+    assert (got.kind, got.start) == ("default", None)
+
+
+def test_a_one_shot_at_the_exact_end_of_the_last_schedule_does_not_beat_the_default():
+    p = rule_prog("a", [rule_slot("t", "07:00", "08:00"), rule_slot("o", "08:00", label="night")])
+    # at 08:30 the one-shot is running: it competes (it started after... exactly at the end: the default stays)
+    got = rule_decide([p], at(8, 30)).expected
+    assert got.kind == "default"
+
+
+def test_the_end_of_an_earlier_schedule_of_the_same_program_does_not_hide_a_later_one_shot():
+    p = rule_prog("a", [rule_slot("t", "06:00", "07:00"), rule_slot("o", "08:00", label="night")])
+    got = rule_decide([p], at(9)).expected
+    assert (got.kind, got.slot_id) == ("one_shot", "o")
+
+
+def test_a_slot_listed_after_a_future_one_is_still_read():
+    p = rule_prog("a", [rule_slot("future", "17:00", label="night"), rule_slot("past", "08:00", label="comfort")])
+    assert rule_decide([p], at(9)).expected.slot_id == "past"
+
+
+def test_a_slot_whose_label_has_no_action_is_skipped_not_the_rest():
+    p = rule_prog("a", [rule_slot("bad", "06:00", label="unknown"), rule_slot("good", "07:00", label="night")])
+    assert rule_decide([p], at(9)).expected.slot_id == "good"
+
+
+def test_conditions_of_the_program_and_of_the_slot_are_asked_and_skip_only_what_fails():
+    asked = []
+
+    def conditions(conds):
+        asked.append(list(conds))
+        return "no" not in conds
+
+    blocked = rule_prog("blocked", [rule_slot("s", "08:00", label="night")], conditions=["no"], priority=1)
+    fine = rule_prog("fine", [rule_slot("s", "07:00", label="comfort")], priority=2)
+    assert rule_decide([blocked, fine], at(9), conditions_ok=conditions).expected.program_id == "fine"
+    shot = rule_prog("a", [rule_slot("a1", "08:00", label="night", conditions=["no"]), rule_slot("a2", "07:00", label="comfort")])
+    assert rule_decide([shot], at(9), conditions_ok=conditions).expected.slot_id == "a2"
+    assert ["no"] in asked
+
+
+def test_a_program_or_slot_without_conditions_is_asked_with_an_empty_list():
+    def strict(conds):
+        assert conds == []
+        return True
+
+    bare = rule_prog("a", [{"id": "s", "start": {"time": "08:00"}, "label": "night"}])
+    del bare["conditions"]
+    assert rule_decide([bare], at(9), conditions_ok=strict).expected.slot_id == "s"
+
+
+def test_a_one_shot_under_a_higher_priority_running_slot_is_skipped_but_an_equal_priority_one_is_not():
+    top = rule_prog("top", [rule_slot("long", "07:00", "12:00", label="comfort")], priority=1)
+    low = rule_prog("low", [rule_slot("once", "08:00", label="night")], priority=5)
+    assert rule_decide([top, low], at(9)).expected.program_id == "top"
+    same = rule_prog("same", [rule_slot("once", "08:00", label="night")], priority=1, created="2026-02-01")
+    assert rule_decide([top, same], at(9)).expected.program_id == "same"
+
+
+def test_a_slot_that_does_not_apply_to_the_device_is_ignored_and_one_that_does_is_kept():
+    other = rule_prog("a", [rule_slot("o", "08:00", label="night", entities=["climate.other"])])
+    assert rule_decide([other], at(9)).expected.kind == "default"
+    mine = rule_prog("a", [rule_slot("o", "08:00", label="night", entities=[E])])
+    assert rule_decide([mine], at(9)).expected.slot_id == "o"
+
+
+def test_other_entities_programs_are_not_considered():
+    other = rule_prog("a", [rule_slot("o", "08:00", label="night")], entities=("climate.other",))
+    assert rule_decide([other], at(9)) == Decision(reason="off")
+
+
+def test_the_time_zone_and_the_sun_reach_the_placement():
+    p = rule_prog("a", [{"id": "s", "start": {"sun": "sunset"}, "label": "night"}])
+
+    def sun(event, day):
+        return datetime(day.year, day.month, day.day, 16, 0, tzinfo=UTC) if event == "sunset" else None
+
+    got = rule_decide([p], at(18), sun=sun).expected  # 17:00 local is 16:00 UTC
+    assert (got.kind, got.start) == ("one_shot", datetime(2026, 10, 28, 16, 0, tzinfo=UTC))
+    fixed = rule_decide([rule_prog("a", [rule_slot("s", "08:00", "12:00")])], at(9)).expected
+    assert fixed.start == datetime(2026, 10, 28, 7, 0, tzinfo=UTC)  # 08:00 local, not 08:00 UTC
+
+
+def test_an_own_cache_is_used_and_filled():
+    cache = OccurrenceCache()
+    rule_decide([rule_prog("a", [rule_slot("s", "08:00")])], at(9), cache=cache)
+    assert cache._days
+
+
+def test_a_profile_chosen_by_the_active_profiles_is_the_one_read():
+    p = rule_prog("a", [rule_slot("base", "08:00", label="night")])
+    p["profiles"].append({"id": "alt", "name": "Alt", "days": [[rule_slot("alt", "08:30", label="comfort")] for _ in range(7)]})
+    assert rule_decide([p], at(9), active_profiles={"a": "alt"}).expected.slot_id == "alt"
+    assert rule_decide([p], at(9)).expected.slot_id == "base"
+
+
+def test_the_holiday_reaches_the_placement():
+    from custom_components.weekly_planner.resolver import Holiday
+
+    p = rule_prog("a", [rule_slot("normal", "08:00", label="night")])
+    p["profiles"][0]["holiday"] = {"day": [rule_slot("off", "08:30", label="comfort")]}
+    assert rule_decide([p], at(9), holiday=Holiday(day=datetime(2026, 10, 28).date())).expected.slot_id == "off"
+    assert rule_decide([p], at(9)).expected.slot_id == "normal"
+    timed = rule_prog("a", [rule_slot("normal", "08:00", "12:00", label="night")])
+    timed["profiles"][0]["holiday"] = {"day": [rule_slot("off", "08:30", "12:00", label="comfort")]}
+    assert rule_decide([timed], at(9), holiday=Holiday(day=datetime(2026, 10, 28).date())).expected.slot_id == "off"
+    assert rule_decide([timed], at(9)).expected.slot_id == "normal"
+
+
+# -- the history check --------------------------------------------------------------------------
+
+
+class _History:
+    def __init__(self):
+        self.asked = []
+
+    async def async_changed_by_person(self, entity_id, since, until):
+        self.asked.append(entity_id)
+        return True
+
+
+async def test_a_one_shot_is_checked_against_the_device_the_action_targets():
+    history = _History()
+    got = rule_decide([rule_prog("a", [rule_slot("o", "08:00", label="night")])], at(9)).expected
+    got.action["target_entity_id"] = "climate.target"
+    result = await settle_manual_change(Decision(expected=got), E, at(9), history)
+    assert result == Decision(reason="manual_change") and history.asked == ["climate.target"]
+    got.action.pop("target_entity_id")
+    await settle_manual_change(Decision(expected=got), E, at(9), history)
+    assert history.asked[-1] == E
+
+
+# -- the recorder query ---------------------------------------------------------------------------
+
+
+def test_the_recorder_query_is_read_only_inclusive_at_the_end_and_ignores_unavailable(monkeypatch):
+    import homeassistant.helpers.recorder as recorder_helpers
+
+    seen = {}
+
+    class Session:
+        def execute(self, statement):
+            seen["sql"] = str(statement.compile(compile_kwargs={"literal_binds": False}))
+            return SimpleNamespace(all=lambda: seen["rows"])
+
+    class Scope:
+        def __init__(self, **kwargs):
+            seen["kwargs"] = kwargs
+
+        def __enter__(self):
+            return Session()
+
+        def __exit__(self, *_):
+            return False
+
+    monkeypatch.setattr(recorder_helpers, "session_scope", Scope)
+    changes = resync.RecorderManualChanges(SimpleNamespace(config=SimpleNamespace(components={"recorder"})))
+    seen["rows"] = [("unavailable", b"u"), ("unknown", b"u"), ("on", None)]
+    assert changes._query(E, 1.0, 2.0) is False
+    assert seen["kwargs"]["read_only"] is True and seen["kwargs"]["hass"] is changes._hass
+    sql = " ".join(seen["sql"].split())
+    assert "states.last_updated_ts > :last_updated_ts_1" in sql
+    assert "states.last_updated_ts <= :last_updated_ts_2" in sql
+    assert "ORDER BY states.last_updated_ts" in sql
+    assert "JOIN states_meta ON states.metadata_id = states_meta.metadata_id" in sql
+    assert sql.startswith("SELECT states.state, states.context_user_id_bin")
+    seen["rows"] = [("on", b"u")]
+    assert changes._query(E, 1.0, 2.0) is True
+    seen["rows"] = [("unknown", b"u"), ("unavailable", b"u")]
+    assert changes._query(E, 1.0, 2.0) is False
+    seen["rows"] = [("on", None)]
+    assert changes._query(E, 1.0, 2.0) is False
+
+
+def test_a_zone_other_than_the_system_one_places_the_slots_in_that_zone():
+    new_york = ZoneInfo("America/New_York")
+    p = rule_prog("a", [rule_slot("s", "08:00", "12:00")], week=None)
+    now = datetime(2026, 10, 28, 15, 0, tzinfo=UTC)  # 11:00 in New York (EDT)
+    got = rule_decide([p], now, tz=new_york).expected
+    assert got.start == datetime(2026, 10, 28, 12, 0, tzinfo=UTC)
+    nothing_before = rule_decide([rule_prog("a", [rule_slot("s", "08:00", "12:00")])], datetime(2026, 10, 28, 10, 0, tzinfo=UTC), tz=new_york).expected
+    assert nothing_before.kind == "default"
+    one_shot = rule_decide([rule_prog("a", [rule_slot("o", "08:00", label="night")])], now, tz=new_york).expected
+    assert (one_shot.kind, one_shot.start) == ("one_shot", datetime(2026, 10, 28, 12, 0, tzinfo=UTC))
+
+
+def test_a_running_slot_without_action_gives_no_action():
+    p = rule_prog("a", [rule_slot("long", "08:00", "12:00", label="unknown")], default=None)
+    assert rule_decide([p], at(9)) == Decision(reason="no_action")
+
+
+def test_the_program_and_device_identity_reach_the_placement():
+    from custom_components.weekly_planner.resolver import occurrences_around
+
+    start = {"time": "08:00", "random_minutes": 90}
+    shot = {"id": "s", "start": start, "label": "night"}
+    p = rule_prog("alpha", [shot])
+    p["profiles"][0]["days"] = [[shot] for _ in range(7)]
+    want = next(o.start for o, _ in occurrences_around(p["profiles"][0], at(23), TZ, no_sun, days=(0,), program_id="alpha"))
+    got = rule_decide([p], at(23)).expected
+    assert got.start == want
+    twin = rule_prog("beta", [shot])
+    other = next(o.start for o, _ in occurrences_around(twin["profiles"][0], at(23), TZ, no_sun, days=(0,), program_id="beta"))
+    assert rule_decide([twin], at(23)).expected.start == other
+
+
+def test_a_device_timeline_is_not_trimmed_by_slots_of_other_devices():
+    a = rule_slot("mine", "08:00", "12:00", entities=[E], label="comfort")
+    b = rule_slot("theirs", "09:00", "10:00", entities=["climate.other"], label="night")
+    p = rule_prog("a", [a, b], entities=(E, "climate.other"))
+    got = rule_decide([p], at(13)).expected
+    assert (got.kind, got.start) == ("default", at(12))
+
+
+def test_an_ignored_occurrence_does_not_hide_the_ones_after_it():
+    # 2026-03-29: 02:30 does not exist in Europe/Brussels (clocks jump from 02:00 to 03:00)
+    shots = [rule_slot("gap", "02:30", label="night"), rule_slot("late", "08:00", label="comfort")]
+    p = rule_prog("a", shots)
+    got = rule_decide([p], datetime(2026, 3, 29, 12, 0, tzinfo=TZ).astimezone(UTC)).expected
+    assert got.slot_id == "late"
+
+
+def test_a_slot_hidden_by_an_overlap_does_not_hide_the_ones_after_it():
+    p = rule_prog("a", [rule_slot("long", "06:00", "10:00"), rule_slot("inside", "07:00", label="night"), rule_slot("after", "11:00", label="night")])
+    got = rule_decide([p], at(12)).expected
+    assert (got.kind, got.slot_id) == ("one_shot", "after")
+
+
+def test_a_one_shot_is_not_hidden_by_a_slot_of_another_device_only_by_its_own_device_timeline():
+    mine = rule_slot("mine", "08:30", label="night", entities=[E])
+    theirs = rule_slot("theirs", "07:00", "09:30", entities=["climate.other"])
+    p = rule_prog("a", [theirs, mine], entities=(E, "climate.other"))
+    got = rule_decide([p], at(9)).expected
+    assert (got.kind, got.slot_id) == ("one_shot", "mine")

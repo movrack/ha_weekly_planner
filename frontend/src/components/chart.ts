@@ -55,7 +55,7 @@ export function dayBounds(dateIso: string, timeZone: string): { startMs: number;
   return { startMs: midnightMs(dateIso, timeZone), endMs: midnightMs(addDaysIso(dateIso, 1), timeZone) };
 }
 
-export function weekdayOf(dateIso: string): number {
+function weekdayOf(dateIso: string): number {
   const [y, m, d] = dateIso.split("-").map(Number);
   return localWeekday(new Date(Date.UTC(y, m - 1, d, 12)), "UTC");
 }

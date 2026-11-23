@@ -1,29 +1,17 @@
 // Choice of a label for a slot (or for "the rest of the time"): the labels that suit the devices, as coloured
 // chips; "+ New label" opens a small inline form; the value of the chosen label can be set for one device.
 
+import { ariaDisabled, describedBy, whyNote, whyStyles } from "../reason";
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "./action-picker";
-import { actionSummary, actionText, allowedOf, entityAction, hasOverride, labelName, labelOf, labelsFor, labelUsers, nextColor, PALETTE, PALETTE_NAMES } from "../labels";
+import { actionSummary, actionText, allowedOf, entityAction, hasOverride, labelName, labelOf, labelsFor, labelUsers, nextColor, PALETTE, PALETTE_NAMES, replaceLabel, usesLabel } from "../labels";
 import { t } from "../i18n";
 import { friendlyName } from "../planner";
 import { loadServiceNames, missingFields } from "../services";
 import { editorStyles, langOf } from "../editors/shared";
 import { callout } from "../styles";
 import type { Action, HomeAssistant, Label, PlannerData, Program } from "../types";
-
-/** The label form as a draft, for a parent that saves it together with its own form (`embedded`). */
-export interface LabelDraft {
-  /** null: a new label. */
-  id: string | null;
-  name: string;
-  color: string;
-  action: Action | null;
-  /** Values for a device changed in the form (null: back to the common value). */
-  overrides: { entityId: string; action: Action | null }[];
-  /** Why it cannot be saved yet ("" when it can). */
-  problem: string;
-}
 
 @customElement("wp-label-picker")
 export class WpLabelPicker extends LitElement {
@@ -39,8 +27,12 @@ export class WpLabelPicker extends LitElement {
   @property({ type: Boolean }) compact = false;
   /** Settings can be chosen but not configured: no pencil, no "new setting", no form (the strip under a bar). */
   @property({ type: Boolean, attribute: "readonly-settings" }) readonlySettings = false;
-  /** Inside a form that has its own Save / Cancel: the label form has no buttons and reports `label-draft`. */
-  @property({ type: Boolean }) embedded = false;
+
+  /** The empty screen's "Create a setting": the form for a new setting opens as soon as the picker is first shown. */
+  @property({ type: Boolean, attribute: "start-new" }) startNew = false;
+
+  /** What the form held when it opened, to tell whether anything changed. */
+  private _initialForm = "";
 
   /** The label form is open (edit of the chosen label, or a new one). */
   @state() private _form = false;
@@ -48,6 +40,7 @@ export class WpLabelPicker extends LitElement {
   @state() private _editId: string | null = null;
   @state() private _name = "";
   @state() private _color = "";
+  @state() private _showValue = false;
   @state() private _action: Action | null = null;
   /** Values for a device changed in the form. */
   @state() private _ov: Record<string, Action | null> = {};
@@ -56,6 +49,7 @@ export class WpLabelPicker extends LitElement {
   @state() private _valueFor: string | null = null;
   /** The delete confirmation (or the refusal) is shown for the chosen label. */
   @state() private _confirmDel = false;
+  @state() private _replaceBy: string | null = null;
   @state() private _delError = "";
   private _loaded = "";
 
@@ -81,31 +75,37 @@ export class WpLabelPicker extends LitElement {
     this._editId = label?.id ?? null;
     this._name = label?.name ?? "";
     this._color = label?.color ?? nextColor(this.data.labels);
+    this._showValue = Boolean(label?.show_value);
     this._action = label ? structuredClone(label.action) : null;
     this._ov = {};
     this._valueFor = null;
     this._error = "";
-    this._changed();
+    this._initialForm = this._snapshot();
+  }
+
+  private _snapshot(): string {
+    return JSON.stringify([this._name, this._color, this._showValue, this._action, this._ov]);
+  }
+
+  /** The form is open and differs from what it was opened with (asked before the dialog closes). */
+  get dirty(): boolean {
+    return this._form && this._snapshot() !== this._initialForm;
+  }
+
+  firstUpdated(): void {
+    if (this.startNew && !this.readonlySettings && !this.disabled && !this._form) this._open(false);
   }
 
   private _close(): void {
     this._form = false;
     this._error = "";
-    this._changed();
   }
 
-  /** The form changed: an embedding form is told. */
-  private _changed(): void {
-    if (!this.embedded) return;
-    this._emit("label-draft", this._form ? this._draft() : null);
-  }
-
-  private _draft(): LabelDraft {
-    return {
-      id: this._editId, name: this._name.trim(), color: this._color, action: this._action,
-      overrides: Object.entries(this._ov).map(([entityId, action]) => ({ entityId, action })),
-      problem: this._formProblem,
-    };
+  /** Closes the form and the delete question without saving (the window leaves the Settings panel). */
+  discard(): void {
+    this._close();
+    this._confirmDel = false;
+    this._delError = "";
   }
 
   private get _formProblem(): string {
@@ -119,12 +119,12 @@ export class WpLabelPicker extends LitElement {
     return "";
   }
 
-  private _set(patch: { name?: string; color?: string; action?: Action | null }): void {
+  private _set(patch: { name?: string; color?: string; action?: Action | null; showValue?: boolean }): void {
+    if (patch.showValue !== undefined) this._showValue = patch.showValue;
     if (patch.name !== undefined) this._name = patch.name;
     if (patch.color !== undefined) this._color = patch.color;
     if (patch.action !== undefined) this._action = patch.action;
     this._error = "";
-    this._changed();
   }
 
   /** The value of the label for a device as the form shows it: changed in the form, else the saved one. */
@@ -173,7 +173,7 @@ export class WpLabelPicker extends LitElement {
     try {
       const res = await this.hass.callWS<{ label: { id: string } }>({
         type: "weekly_planner/label/save",
-        label: { ...(this._editId ? { id: this._editId } : {}), name: this._name.trim(), color: this._color, action: this._action },
+        label: { ...(this._editId ? { id: this._editId } : {}), name: this._name.trim(), color: this._color, action: this._action, show_value: this._canShowValue ? this._showValue : false },
       });
       await this._saveOverrides(res.label.id);
       this._form = false;
@@ -194,7 +194,6 @@ export class WpLabelPicker extends LitElement {
       this._confirmDel = false;
       this._delError = "";
       this._form = false;
-      this._changed();
       this._emit("label-change", null);
     } catch (err) {
       const e = err as { code?: string; message?: string };
@@ -206,18 +205,62 @@ export class WpLabelPicker extends LitElement {
     }
   }
 
+  /**
+   * A setting still in use cannot be deleted as is: the programs that use it get another setting first, then it goes.
+   * Every program is saved with its own check (revision, admin rights); the first one refused stops everything and the
+   * setting stays, so nothing is half deleted.
+   */
+  private async _replaceAndDelete(label: Label): Promise<void> {
+    const to = this._replaceBy;
+    if (!to || this._saving) return;
+    this._saving = true;
+    this._delError = "";
+    try {
+      for (const program of this.data.programs.filter((p) => usesLabel(p, label.id))) {
+        await this.hass.callWS({ type: "weekly_planner/program/save", program: replaceLabel(program, label.id, to) });
+      }
+      await this.hass.callWS({ type: "weekly_planner/label/delete", label_id: label.id });
+      this._confirmDel = false;
+      this._replaceBy = null;
+      this._form = false;
+      this._emit("label-change", to);
+    } catch (err) {
+      const e = err as { code?: string };
+      this._delError = e?.code === "unauthorized" ? t(this._lang, "err_unauthorized") : e?.code === "conflict" ? t(this._lang, "lb_replace_conflict") : t(this._lang, "lb_err_delete");
+    } finally {
+      this._saving = false;
+    }
+  }
+
   private _renderDelete(chosen: Label) {
     const lang = this._lang;
     const name = labelName(this.hass, chosen);
     const users = labelUsers(this.data, chosen.id);
+    if (users.length && !this.disabled) {
+      const others = labelsFor(this.hass, this.data, this.entityIds, this.program).filter((l) => l.id !== chosen.id);
+      return html`<div class="delbox" role="alert">
+        ${callout("warning", "", this._delError || t(lang, "lb_delete_used", { name, programs: users.join(", ") }))}
+        ${others.length ? html`<p class="label" id="lb-repl">${t(lang, "lb_replace_with")}</p>
+          <div class="chips" role="radiogroup" aria-labelledby="lb-repl">
+            ${others.map((l) => html`<button class="chip ${l.id === this._replaceBy ? "on" : ""}" role="radio" aria-checked=${l.id === this._replaceBy}
+              @click=${() => { this._replaceBy = l.id; }}><i class="dot" style="background:${l.color}"></i><span>${labelName(this.hass, l, this.entityIds[0])}</span></button>`)}
+          </div>` : nothing}
+        <div class="btns">
+          ${others.length ? html`<button class="btn danger-line" ?disabled=${this._saving || !this._replaceBy} @click=${() => void this._replaceAndDelete(chosen)}>
+            <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "lb_replace_go")}</button>` : nothing}
+          <button class="btn" @click=${() => { this._confirmDel = false; this._delError = ""; this._replaceBy = null; }}>${t(lang, "cancel")}</button>
+        </div>
+      </div>`;
+    }
     const used = users.length > 0 || !!this._delError;
     const msg = this._delError
       || (users.length ? t(lang, "lb_delete_used", { name, programs: users.join(", ") }) : t(lang, "lb_delete_ask", { name }));
     return html`<div class="delbox" role="alert">
-      ${used ? callout("error", "", msg) : html`<p>${msg}</p>`}
+      ${used ? html`<div id="why-del">${callout("error", "", msg)}</div>` : html`<p>${msg}</p>`}
       <div class="btns">
-        ${used ? nothing : html`<button class="btn danger-line" ?disabled=${this._saving || this.disabled} @click=${() => void this._delete(chosen)}>
-          <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete")}</button>`}
+        <button class="btn danger-line" ?disabled=${this._saving || this.disabled || used} aria-disabled=${ariaDisabled(used)}
+          aria-describedby=${describedBy(used, "why-del")} @click=${() => void this._delete(chosen)}>
+          <ha-icon icon="mdi:delete-outline"></ha-icon>${t(lang, "delete")}</button>
         <button class="btn" @click=${() => { this._confirmDel = false; this._delError = ""; }}>${t(lang, used ? "close" : "cancel")}</button>
       </div>
     </div>`;
@@ -226,10 +269,7 @@ export class WpLabelPicker extends LitElement {
   private _choose(id: string | null): void {
     this._confirmDel = false;
     this._delError = "";
-    if (this._form) {
-      this._form = false;
-      this._changed();
-    }
+    this._form = false;
     this._emit("label-change", id);
   }
 
@@ -241,12 +281,12 @@ export class WpLabelPicker extends LitElement {
     return html`<div class="dev">
       <button class="link ${own ? "own" : ""}" ?disabled=${this.disabled} aria-expanded=${shown}
         @click=${() => (this._valueFor = shown ? null : entityId)}>${t(lang, "lb_value_here")}${this.entityIds.length > 1 ? ` · ${friendlyName(this.hass, entityId)}` : ""}</button>
-      ${shown ? html`<div class="valbox">
+      ${shown ? html`<div class="valbox wp-appear">
         <wp-action-picker no-fold .hass=${this.hass} entity-id=${entityId} .allowed=${allowedOf(this.program, entityId)}
           .action=${own ?? this._action} ?disabled=${this.disabled}
-          @action-change=${(e: CustomEvent<Action>) => { e.stopPropagation(); this._ov = { ...this._ov, [entityId]: e.detail }; this._error = ""; this._changed(); }}></wp-action-picker>
+          @action-change=${(e: CustomEvent<Action>) => { e.stopPropagation(); this._ov = { ...this._ov, [entityId]: e.detail }; this._error = ""; }}></wp-action-picker>
         ${own ? html`<button class="btn" ?disabled=${this.disabled}
-          @click=${() => { this._ov = { ...this._ov, [entityId]: null }; this._changed(); }}>
+          @click=${() => { this._ov = { ...this._ov, [entityId]: null }; }}>
           <ha-icon icon="mdi:undo"></ha-icon>${t(lang, "lb_common_value")}</button>` : nothing}
       </div>` : nothing}
     </div>`;
@@ -269,7 +309,7 @@ export class WpLabelPicker extends LitElement {
       this._set({ color: PALETTE[next] });
       (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>("button.sw:not(.custom)")[next]?.focus();
     };
-    return html`<div class="swatches" role="radiogroup" aria-label=${t(lang, "lb_color")} @keydown=${key}>
+    return html`<div class="label" id="lb-color-label">${t(lang, "lb_color")}</div><div class="swatches" role="radiogroup" aria-labelledby="lb-color-label" @keydown=${key}>
       ${PALETTE.map((c, i) => html`<button class="sw" role="radio" aria-checked=${i === current} tabindex=${i === stop ? 0 : -1}
         aria-label=${t(lang, PALETTE_NAMES[i])} @click=${() => this._set({ color: c })}><i class=${i === current ? "on" : ""} style="background:${c}"></i></button>`)}
       ${custom ? html`<button class="sw custom" role="radio" aria-checked="true" tabindex="0" aria-label=${t(lang, "color_custom")}
@@ -277,12 +317,21 @@ export class WpLabelPicker extends LitElement {
     </div>`;
   }
 
+  /** A value to show: one the action reads from an entity, or the temperature of a preset mode. */
+  private get _canShowValue(): boolean {
+    const a = this._action;
+    return a?.kind === "service" && (Object.keys(a.data_sources ?? {}).length > 0 || a.service === "climate.set_preset_mode");
+  }
+
   private _renderForm() {
     const lang = this._lang;
+    const problem = this._formProblem; // greyed Save, with this as its visible reason
     return html`<div class="form">
       <div class="field"><label for="lb-name">${t(lang, "lb_name")}</label>
         <input id="lb-name" type="text" maxlength="30" .value=${this._name} ?disabled=${this.disabled}
-          @input=${(e: Event) => this._set({ name: (e.target as HTMLInputElement).value })} /></div>
+          @input=${(e: Event) => this._set({ name: (e.target as HTMLInputElement).value })} />
+        ${this._canShowValue ? html`<label class="check"><input type="checkbox" .checked=${this._showValue} ?disabled=${this.disabled}
+          @change=${(e: Event) => this._set({ showValue: (e.target as HTMLInputElement).checked })} /> ${t(lang, "lb_show_value")}</label>` : nothing}</div>
       ${this._swatches()}
       <wp-action-picker .hass=${this.hass} entity-id=${this.entityIds[0] ?? ""} .allowed=${allowedOf(this.program, this.entityIds[0] ?? "")}
         .action=${this._action} ?disabled=${this.disabled} ?advanced-open=${Boolean(this._editId) && this.entityIds.some((eid) => this._ownValue(eid, this._editId!))}
@@ -290,12 +339,17 @@ export class WpLabelPicker extends LitElement {
         ${this._editId ? html`<div slot="advanced">${this.entityIds.map((eid) => this._valueEditor(eid, this._editId!))}</div>` : nothing}
       </wp-action-picker>
       ${this._error ? html`${callout("error", "", this._error, { role: "alert" })}` : nothing}
-      ${this.embedded ? nothing : html`<div class="btns">
-        <button class="btn primary" ?disabled=${this._saving || this.disabled} @click=${() => void this._save()}>${t(lang, "save")}</button>
+      ${whyNote("why-save-setting", problem, Boolean(problem))}
+      <div class="btns">
+        <button class="btn primary" ?disabled=${this._saving || this.disabled || Boolean(problem)} aria-disabled=${ariaDisabled(Boolean(problem))}
+          aria-describedby=${describedBy(Boolean(problem), "why-save-setting")} @click=${() => void this._save()}>${t(lang, "save")}</button>
         <button class="btn" @click=${() => this._close()}>${t(lang, "cancel")}</button>
-      </div>`}
+      </div>
     </div>`;
   }
+
+  /** The compact bars strip never manages settings (they live in the Settings box): no pencil, bin or "+" there, not even greyed. */
+  private get _noSettings() { return this.compact && this.readonlySettings; }
 
   /** The chosen label, read-only: colour, name, what it does, the value for a device when there is one. */
   private _renderDetails(chosen: Label) {
@@ -304,13 +358,17 @@ export class WpLabelPicker extends LitElement {
       <!-- framed in the label's colour so it clearly belongs to it -->
       <div class="details" style="--lc:${chosen.color}">
         <div class="dhead">
-          <i class="dot" style="background:${chosen.color}"></i><b>${labelName(this.hass, chosen)}</b>
-          ${this.readonlySettings ? nothing : html`<button class="pen ${this._form ? "on" : ""}" aria-label=${t(lang, "rename_label")} title=${t(lang, "rename_label")}
-            aria-pressed=${this._form} ?disabled=${this.disabled}
-            @click=${() => (this._form && this._editId ? this._close() : this._open(true))}><ha-icon icon="mdi:pencil"></ha-icon></button>
+          <i class="dot" style="background:${chosen.color}"></i><b>${labelName(this.hass, this._form && this._editId === chosen.id && this._action ? { ...chosen, action: this._action, show_value: this._canShowValue && this._showValue } : chosen, this.entityIds[0])}</b>
+          ${this._noSettings ? nothing : html`
+          <button class="pen ${this._form ? "on" : ""}" aria-label=${t(lang, "rename_label")} title=${t(lang, "rename_label")}
+            aria-pressed=${this._form} ?disabled=${this.disabled || this.readonlySettings} aria-disabled=${ariaDisabled(this.readonlySettings)}
+            aria-describedby=${describedBy(this.readonlySettings, "why-manage")}
+            @click=${() => (this._form && this._editId ? this._close() : this._open(true))}><ha-icon icon="mdi:pencil"></ha-icon><span>${t(lang, "lb_edit_short")}</span></button>
           <button class="pen ${this._confirmDel ? "on" : ""}" aria-label=${t(lang, "lb_delete")} title=${t(lang, "lb_delete")}
-            aria-expanded=${this._confirmDel} ?disabled=${this.disabled}
-            @click=${() => { this._confirmDel = !this._confirmDel; this._delError = ""; }}><ha-icon icon="mdi:delete-outline"></ha-icon></button>`}
+            aria-expanded=${this._confirmDel} ?disabled=${this.disabled || this.readonlySettings} aria-disabled=${ariaDisabled(this.readonlySettings)}
+            aria-describedby=${describedBy(this.readonlySettings, "why-manage")}
+            @click=${() => { this._confirmDel = !this._confirmDel; this._delError = ""; }}><ha-icon icon="mdi:delete-outline"></ha-icon><span>${t(lang, "lb_delete")}</span></button>
+          `}
         </div>
         ${(() => {
           // the other programs that use this setting too (a change here changes them as well), on its own line
@@ -338,48 +396,53 @@ export class WpLabelPicker extends LitElement {
       .sort((a, b) => labelName(this.hass, a).localeCompare(labelName(this.hass, b), lang, { numeric: true, sensitivity: "base" }));
     const chosen = labelOf(this.data, this.value);
     const chip = (name: string, on: boolean, click: () => void, color?: string) => html`
-      <button class="chip ${on ? "on" : ""}" role="radio" aria-checked=${on} ?disabled=${this.disabled} @click=${click}>
+      <button class="chip ${on ? "on" : ""}" role="radio" aria-checked=${on} aria-label=${name} ?disabled=${this.disabled} @click=${click}>
         ${color ? html`<i class="dot" style="background:${color}"></i>` : nothing}<span>${name}</span></button>`;
     return html`
       <div class="chips" role="radiogroup" aria-label=${t(lang, "action")}>
         ${this.allowNone ? chip(t(lang, "rest_none"), this.value === null, () => this._choose(null)) : nothing}
-        ${labels.map((l) => chip(labelName(this.hass, l), l.id === this.value, () => this._choose(l.id), l.color))}
+        ${labels.map((l) => chip(labelName(this.hass, l, this.entityIds[0]), l.id === this.value, () => this._choose(l.id), l.color))}
         ${this.value && !chosen ? chip("?", true, () => undefined) : nothing}
-        ${this.compact || this.readonlySettings ? nothing : html`<button class="chip add ${this._form && !this._editId ? "on" : ""}" ?disabled=${this.disabled}
+        ${this._noSettings ? nothing : html`
+        <button class="chip add ${this._form && !this._editId ? "on" : ""}" ?disabled=${this.disabled || this.readonlySettings}
+          aria-disabled=${ariaDisabled(this.readonlySettings)} aria-describedby=${describedBy(this.readonlySettings, "why-manage")}
           @click=${() => (this._form && !this._editId ? this._close() : this._open(false))}>
           <ha-icon icon="mdi:plus"></ha-icon><span>${t(lang, "lb_new")}</span></button>`}
       </div>
+      ${whyNote("why-manage", t(lang, "lb_manage_above"), this.readonlySettings && !this._noSettings)}
       ${this._form && !this._editId && !this.readonlySettings ? this._renderForm() : nothing}
       ${chosen && !(this._form && !this._editId && !this.readonlySettings) ? this._renderDetails(chosen) : nothing}`;
   }
 
-  static styles = [editorStyles, css`
+  static styles = [editorStyles, whyStyles, css`
     :host { display: block; }
-    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .check { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 0.9em; font-weight: normal; cursor: pointer; }
+    .check input { width: auto; min-height: 0; margin: 0; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; max-width: 100%; }
     .details {
       margin-top: 10px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--lc);
       border-left-width: 4px; background: color-mix(in srgb, var(--lc) 10%, transparent);
     }
-    .dhead { display: flex; align-items: center; gap: 8px; min-height: 40px; }
-    .dhead b { flex: 1; min-width: 0; }
+    .dhead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 40px; }
+    .dhead b { flex: 1; min-width: 0; overflow-wrap: anywhere; }
     .details .k { color: var(--secondary-text-color); }
     .chip {
       display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 16px; border-radius: 24px;
       border: 1px solid var(--wp-field-border); background: none; color: var(--primary-text-color); font: inherit; font-size: 0.9375rem;
-      cursor: pointer; --mdc-icon-size: 20px; max-width: 100%;
+      cursor: pointer; --mdc-icon-size: 20px; max-width: 100%; min-width: 0; box-sizing: border-box;
     }
-    .chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chip span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .chip.on { border: 2px solid var(--wp-primary-text); font-weight: 600; }
     .chip.add { border-style: dashed; color: var(--wp-primary-text); }
     .chip:disabled { opacity: 0.5; cursor: default; }
     .edit { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
     .pen {
-      width: 48px; height: 48px; border: none; border-radius: 24px; background: none; color: var(--secondary-text-color);
-      cursor: pointer; --mdc-icon-size: 20px; display: inline-flex; align-items: center; justify-content: center;
+      min-width: 48px; height: 48px; padding: 0 12px; gap: 6px; border: none; border-radius: 24px; background: none; color: var(--secondary-text-color);
+      cursor: pointer; --mdc-icon-size: 20px; display: inline-flex; align-items: center; justify-content: center; font: inherit; font-size: 0.875rem;
     }
     .pen.on { background: var(--secondary-background-color); color: var(--wp-primary-text); }
     .pen:hover { background: var(--secondary-background-color); }
-    .shared { display: block; margin: -4px 0 4px; font-size: 0.75rem; color: var(--secondary-text-color); overflow-wrap: anywhere; }
+    .shared { display: block; margin: -4px 0 4px; font-size: 0.875rem; color: var(--secondary-text-color); overflow-wrap: anywhere; }
     .dot { width: 14px; height: 14px; border-radius: 7px; flex: none; }
     .form { margin-top: 12px; padding: 12px; border: 1px solid var(--divider-color); border-radius: 12px; }
     .swatches { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }

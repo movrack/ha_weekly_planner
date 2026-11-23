@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WpBarEditor } from "../components/bar-editor";
 import { WpLabelPicker } from "../components/label-picker";
@@ -28,19 +29,23 @@ describe("setting picker: choose versus configure", () => {
     expect(html).toContain("mdi:pencil");
     expect(html).toContain("mdi:plus");
   });
-  it("inline picker (readonly) can choose but has no pencil, no new, no form", () => {
+  it("compact bars strip (readonly) can choose; no pencil, bin or new chip at all (never usable there); no form", () => {
     const html = picker({ compact: true, readonlySettings: true });
     expect(html).toContain("Comfort");
     expect(html).not.toContain("mdi:pencil");
     expect(html).not.toContain("mdi:plus");
+    expect(html).not.toContain("mdi:delete-outline");
+    expect(html).not.toContain("why-manage");
     expect(html).not.toContain("class=\"form");
   });
   it("readonly closes a form that was open", () => {
     const html = picker({ readonlySettings: true, _form: true, _editId: "t21" });
     expect(html).toContain("Comfort");
-    expect(html).not.toContain("mdi:pencil");
+    // the pencil and the plus stay, greyed, with the reason; the form is closed
+    expect(html).toContain("mdi:pencil");
+    expect(html).toContain("mdi:plus");
+    expect(html).toContain(t("en", "lb_manage_above"));
     expect(html).not.toContain("<input");
-    expect(html).not.toContain("mdi:plus");
   });
 });
 
@@ -72,8 +77,8 @@ describe("bar panel", () => {
     Object.defineProperty(el, "_sel", { get: () => ({ target: { kind: "slot", id: "1" }, slot: { id: "1", label: "t21" }, start: 480, end: 720 }) });
     el._ctx = () => ({ defaultLabel: "t21", at: () => 0 });
     const html = flat(el._strip());
-    expect(html.indexOf("class=\"copy\"")).toBeGreaterThan(-1);
-    expect(html.indexOf("class=\"copy\"")).toBeLessThan(html.indexOf("<wp-label-picker"));
+    expect(html.indexOf("class=\"copy wp-appear\"")).toBeGreaterThan(-1);
+    expect(html.indexOf("class=\"copy wp-appear\"")).toBeLessThan(html.indexOf("<wp-label-picker"));
   });
   it("hands the settings picker as choose-only", () => {
     expect(strip(true)).toContain("readonly-settings");
@@ -89,7 +94,7 @@ describe("setting picker behaviour in the modal", () => {
     return el;
   };
   it("opens the form on the chosen setting, then on a new one, and closes it", () => {
-    const el = make({ embedded: true });
+    const el = make();
     el._open(true);
     expect(el._form).toBe(true);
     expect(el._name).toBe("Comfort");
@@ -101,9 +106,6 @@ describe("setting picker behaviour in the modal", () => {
     expect(el._name).toBe("");
     el._close();
     expect(el._form).toBe(false);
-    const drafts = el.dispatchEvent.mock.calls.map((c: any[]) => c[0].detail);
-    expect(drafts.at(-1)).toBeNull();
-    expect(drafts[0].id).toBe("t21");
   });
   it("keeps the per-device value in the action picker's advanced slot, open only when a device value is set", () => {
     const flag = (v: any): boolean[] => {
@@ -114,7 +116,7 @@ describe("setting picker behaviour in the modal", () => {
         return (str.endsWith("?advanced-open=") ? [Boolean(val)] : []).concat(flag(val));
       });
     };
-    const el = make({ embedded: true });
+    const el = make();
     el._open(true);
     const html = flat(el.render());
     expect(html).toContain('slot="advanced"');
@@ -131,11 +133,11 @@ describe("setting picker behaviour in the modal", () => {
   it("reports why the form cannot be saved yet", () => {
     const el = make();
     el._open(false);
-    expect(el._draft().problem).toBeTruthy();
+    expect(el._formProblem).toBeTruthy();
     el._set({ name: "Eco", action: { kind: "service", service: "climate.set_temperature", data: { temperature: 16 } } });
-    expect(el._draft().problem).toBe("");
+    expect(el._formProblem).toBe("");
     el._set({ action: { kind: "service", service: "" } });
-    expect(el._draft().problem).toBeTruthy();
+    expect(el._formProblem).toBeTruthy();
   });
   it("choosing a setting closes the form and reports the choice", () => {
     const el = make();
@@ -155,6 +157,6 @@ describe("setting picker behaviour in the modal", () => {
   });
   it("marks a setting shared with another program", () => {
     const shared = { ...data, programs: [program, { id: "q", name: "Hall", profiles: [{ id: "x", name: "x", days: [[{ id: "s", label: "t21" }], [], [], [], [], [], []] }], entities: [{ entity_id: "climate.a", default_label: null }] }] } as unknown as PlannerData;
-    expect(flat(make({ data: shared }).render())).toContain("Also used by: Hall"); // names the other programs, no technical word
+    expect(flat(make({ data: shared }).render())).toContain("Careful: changing this setting also changes Hall."); // names the other programs, no technical word
   });
 });

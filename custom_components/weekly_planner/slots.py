@@ -24,22 +24,6 @@ def applicable_ids(slot: Mapping, entity_ids: Iterable[str]) -> tuple[str, ...]:
     return tuple(eid for eid in entity_ids if eid in wanted)
 
 
-def subsets(day_slots: Iterable[Mapping], entity_ids: Iterable[str]) -> list[tuple[str, ...]]:
-    """Distinct non-empty groups of devices sharing the same slots on a day.
-
-    Devices are grouped by the exact set of slots that apply to them, so one trimmed timeline
-    per group serves every device in it. Without any list, there is one group: all devices.
-    Groups follow program order (first device of each group), devices inside follow program order.
-    """
-    ids = list(dict.fromkeys(entity_ids))
-    slots = list(day_slots)
-    groups: dict[tuple[int, ...], list[str]] = {}
-    for eid in ids:
-        key = tuple(i for i, slot in enumerate(slots) if applies(slot, eid))
-        groups.setdefault(key, []).append(eid)
-    return [tuple(group) for group in groups.values()]
-
-
 def _rewrite_slots(program: Mapping, rewrite) -> dict:
     """Copy of ``program`` where ``rewrite(slot)`` returns the new slot, or None to delete it.
 

@@ -14,7 +14,7 @@ The visual editor has two sections:
   view, and chart visibility. Save these changes with the Lovelace editor.
 - **Program settings** changes integration data shared by every card displaying
   that program. **Apply to program** persists immediately. Cancelling the outer
-  Lovelace editor does not roll it back. This settings section is administrator-only.
+  Lovelace editor does not roll it back. This section lives in the **Programs** sidebar panel, open to everyone who may edit.
 
 Program-setting drafts and their local undo/redo history survive navigation
 between tabs and programs within the editor. Closing the editor discards unapplied
@@ -28,21 +28,25 @@ Card examples are in the [README](../README.md#examples).
 | `type` | `custom:weekly-planner-card`. |
 | `program` | Existing internal program ID, or a program name (see below). A nonempty value selects one program instead of applying filters. |
 | `filter.types` | Entity domains found in programs. Missing or empty means all domains. Unknown domains remain usable. |
-| `filter.area` | Exact match against the program’s `area`, assigned in General settings. The editor offers existing program areas and retains missing selections. Device rooms are not inferred. |
+| `filter.area` | One room (a text) or several rooms (a list of texts); a program is shown when its `area` matches any of them. The room of a program is assigned in General settings. Spellings of the same room are merged (case, accents, `_` and `-` are ignored), and a text that is the id or the name of a Home Assistant area shows that area’s name: `bureau`, `Bureau` and `chambre_celine_manu` appear as **Bureau** and **Chambre Céline Manu**. Choosing such a room stores the area id, otherwise the text; an older value still selects the right room. The editor retains missing selections. Nothing stored in the programs changes, and device rooms are not inferred. |
 | `filter.programs` | Optional list of program IDs or names (see below), intersected with type/area filters. Missing means all programs, including future ones; `[]` means none. |
 | `title` | Optional card title. |
-| `schedule_view` | `bars` (default), `list`, `radial` (24-hour dial), `radial_12h` (concentric 12-hour dials), or `times` (**Daily times**: today as a plain list, one row per stretch with its setting, until when, and a “Now” mark; the calendar icon in the header, or a tap on a row, opens today in the schedule window). All work with single-program and filtered cards. |
+| `schedule_view` | `bars` (default), `list`, `radial` (24-hour dial), `radial_12h` (concentric 12-hour dials), `compare` (**Comparison**: one day at a time for the whole card (a row of day chips, today by default, one choice only), one bar per device, every program mixed in the order of `sort` and `order`; a bar or a day title opens that day in the schedule window by a long press (mouse too) or Enter or Space, never by a plain click; an icon at the top right opens the choice of the program to edit; the bars of a paused program are greyed and say “paused”; a **Day off** chip after Sunday, greyed when no program of the card has a day off), or `times` (**Daily times**: today as a plain list, one row per stretch with its setting, until when, and a “Now” mark; the calendar icon in the header opens today in the schedule window). All work with single-program and filtered cards. |
 | `sort` | Order of the list: `type` (default: by type A→Z, then name; types are named by Home Assistant, with a small heading each), `area` (by room A→Z with headings, programs without a room under “Others”), `name` (A→Z) or `custom` (the `order` list). The first device of a program gives its type. |
 | `order` | With `sort: custom`: program IDs in the wanted order. Set in the editor (drag handle or up/down buttons). A program missing from the list goes last (by type, then name); an unknown ID is ignored. |
 | Time format | No option: the card follows the 12 h or 24 h setting of your Home Assistant profile (12 h shows am/pm, “midnight” and “noon”; the time fields of the slot editor show the chosen time, such as “= 10:30 pm”, under them). |
 | `show_chart` | Boolean, default `true`. On: a **Today’s chart** button under each device on the card, and the chart in the schedule window. Off: no button and no chart anywhere on this card. In the editor: “Chart button under each device”. |
+| `show_group_labels` | Boolean, default `true`. Comparison view sorted by `type` or `area` with two groups or more: the type (or room) name is shown above each group. Off: only a small gap separates the groups. Has no effect with one group, with the other views or with the sort by name or custom. In the editor: “Show the type names” (greyed with its reason when it has no effect). |
+| `show_schedule_list` | Boolean, default `false`. On: under the bars, the 24 h dial and the 12 h dials of each program (and device), a **Schedules** list shows today like **Daily times**, between the main graphic and the Week and Today’s chart buttons. Always visible, no collapse. A row opens its own schedule by a long press (mouse too) or Enter or Space, never by a plain click (it only reminds “Keep your finger down to edit”), and only when editing is allowed. Not on the compact list, **Daily times** or the comparison. In the editor: “Show the schedules”. |
+| `show_week_button` | Boolean, default `true`. On: a **Week** button under each device on the card. Off: no Week button on the card; the schedule window keeps its week. In the editor: “Week button”. The deprecated `show_week` key is still ignored. |
+| `week_collapsed` | Boolean, default `true`: the week bars under each device start folded (`false`: start open). Only matters when `show_week_button` is on. In the editor: the switch “Week open by default” (the inverse). A click on the Week button opens or folds it; the browser remembers that choice per card and device. |
 | `chart_collapsed` | Boolean, default `true`: the chart under each device starts closed (`false`: starts open). Only matters when `show_chart` is on. In the editor: the switch “Chart open by default” (the inverse). A choice made with the chart button is remembered per browser, per card and per device, and wins afterwards. |
 
 **YAML reference.** Every option of the visual editor can be set in the YAML code editor, with the same
 effect, and switching between both keeps all keys (including keys this card does not know). Types:
-`title`, `program`, `filter.area` are strings; `filter.types` and `filter.programs` are lists of strings
+`title` and `program` are strings; `filter.area`, `filter.types` and `filter.programs` are lists of strings
 (a single string is accepted as a one-item list); `schedule_view` is one of `bars`, `list`, `radial`,
-`radial_12h`, `times`; `sort` is one of `type`, `area`, `name`, `custom`; `order` is a list of strings; `show_chart` and `chart_collapsed` are booleans. A value of the wrong type is ignored and
+`radial_12h`, `times`, `compare`; `sort` is one of `type`, `area`, `name`, `custom`; `order` is a list of strings; `show_chart` and `chart_collapsed` are booleans. A value of the wrong type is ignored and
 the default applies; a configuration that is not a YAML mapping shows a clear error card. In the visual
 editor, the type and program switches write `filter.programs` (and only ever widen or, for an empty type,
 remove an entry of `filter.types`), so a YAML `filter.types`-only configuration keeps working.
@@ -58,14 +62,18 @@ list; the visual editor rewrites the selection as IDs (stable) on the first chan
 ```yaml
 type: custom:weekly-planner-card
 title: Schedules                # default: none
-schedule_view: bars             # bars | list | radial | radial_12h | times
+schedule_view: bars             # bars | list | radial | radial_12h | times | compare
 sort: type                      # type | area | name | custom (default type)
 order: []                       # program IDs, used when sort is custom
 show_chart: true                # default true
+show_week_button: true          # default true
+show_group_labels: true         # default true
+show_schedule_list: false       # default false
 chart_collapsed: true           # default true (collapsed)
+week_collapsed: true            # default true (folded)
 filter:                         # ignored when `program` is set
   types: [climate, cover]       # default: all
-  area: Living room             # default: all areas
+  area: Living room             # default: all rooms; one text or a list: [Living room, Office]
   programs: [ID1, Bureau]       # IDs or names; default: all (future ones included)
 ```
 
@@ -79,8 +87,8 @@ used to group programs; it is independent of HA device rooms.
 The dial displays the same resolved schedule data as the bars and opens the
 existing editor. The inner 12-hour ring covers midnight–noon and the outer ring noon–midnight.
 Both dial variants use the bars’ colours, hourly marks and solar markers.
-Click or long-press a dial to edit its arcs with the handles. In a compact list,
-clicking a row expands its bar inline. The week unfolds on demand. A dialog has an **Enlarge / reduce** button
+A single click never edits: long-press a dial or a bar (finger or mouse) to edit its arcs with the handles. In a compact list,
+clicking a row expands its bar inline. Each device takes two lines (its name, then the next action and its time in small type); the leading word shared by every device of a group is dropped. The week unfolds on demand. A dialog has an **Enlarge / reduce** button
 (arrows, next to the close cross) to widen it on desktop. Mobile dialogs already occupy
 the full screen; a downward swipe on the header closes them.
 
@@ -153,6 +161,12 @@ The engine recalculates desired segments and acts on transitions. It does not
 continuously enforce observed device state or detect manual overrides. Manual
 changes may be shown in the chart; that display does not change engine behavior.
 
+So an outside change (user, another automation) stays until the next segment boundary, where the
+engine sends the new segment's action without reading the device state, even if its value is the
+same; after the last schedule, the default is sent if there is one, otherwise nothing. Example:
+18 °C from 10:00 to 20:00, then 17 °C from 20:00 to 21:00; a change to 20 °C at 12:00 stays until
+20:00, then 17 °C is sent.
+
 - **Bounded slot:** apply its setting at the start. At its end, apply the eligible
   default or the action of another program taking ownership.
 - **One-shot slot:** no end, no end/default event, and no replay after its time has
@@ -212,7 +226,7 @@ data:
   option: Away
 ```
 
-See the [mode reference](MODES.md) and [native-action examples](GENERIC_ACTIONS.md).
+See the mode selector ([CONFIGURATION.fr.md](CONFIGURATION.fr.md#le-sélecteur-de-mode), in French) and the setting actions ([REGLAGES.fr.md](REGLAGES.fr.md#ce-que-peut-faire-un-réglage), in French).
 
 ### Day off
 
@@ -251,13 +265,14 @@ is saved.
 | `admin_only` | `false` | Restricts program/setting mutations. Program/vacation switches remain separate controls; choosing the mode is done on the selector entity, not in Weekly Planner. |
 | `mode_selector` | none | In the **Mode and day off** sub-section of the options form. Optional `input_select` or `select` entity whose state is the active mode, then a default mode among its options. Changing them is reserved to administrators. |
 | `holiday_entity`, `holiday_invert` | none, `false` | In the same **Mode and day off** sub-section (the mode has priority over the day off, which only applies to the current mode). Optional day-off entity of the house and the box “This entity is on during working days, not on days off”. Reserved to administrators; stored with the mode selector, not in the entry options. |
-| `reapply_default` | `true` | Starting value of **Re-apply** for every new program (card, WebSocket, or a YAML file program without `reapply`). |
+| `reapply_default` | `true` | Starting value of **Send the current setting again** for every new program (card, WebSocket, or a YAML file program without `reapply`). |
 | `notify_delay_min` | `30` | Unavailable-entity notification delay, 1–1440 minutes. |
 | `debounce_min` | `2` | Condition stability delay, 0–60 minutes. |
 
-Sensitive-action authorization is enforced server-side independently of
-`admin_only`; see [actions.py](../custom_components/weekly_planner/actions.py).
-Shared program settings are only shown to HA administrators. Schedule editing and
+Independently of `admin_only`, a user can save an action only if their own Home Assistant
+rights allow that call (entity control, administrator-only services); see
+[rights.py](../custom_components/weekly_planner/rights.py).
+Shared program settings are shown to everyone who may edit. Schedule editing and
 contextual setting editing also depend on `can_edit` and storage state. The reload
 action requires administrator permission for user-originated calls.
 
@@ -339,7 +354,7 @@ programs:
 - The slot model supports conditions, but the slot form does not expose a slot-condition
   builder (program conditions are edited in **General**).
 - Validation limits: program name 60 characters, setting name 30, mode name 40; 20 modes per
-  program, 50 schedules per day, 100 devices per program, 10 conditions per schedule; priority 1–100;
+  program, 50 schedules per day, 100 devices per program, 10 conditions per schedule;
   sun offset −240 to +240 minutes; random delay 0–240 minutes; 100 highlighted states and a 60-character
   alias per chart source.
 - History/manual-change display depends on Recorder/logbook data and attribution;

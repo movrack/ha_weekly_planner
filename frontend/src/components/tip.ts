@@ -5,7 +5,7 @@ import { tokenStyles } from "../styles";
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 
-const SHOWN_MS = 2000;
+const SHOWN_MS = 6000;
 
 @customElement("wp-tip")
 export class WpTip extends LitElement {
@@ -83,12 +83,13 @@ export class WpTip extends LitElement {
     :host([passive]) { pointer-events: none; }
     .hit {
       min-width: 32px; min-height: 32px; display: inline-flex; align-items: center; justify-content: center;
-      outline: none; border-radius: 16px; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+      outline: none; border-radius: 16px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; position: relative;
     }
+    .hit::before { content: ""; position: absolute; inset: -6px; } /* 32 px icon, 44 px tap area, layout unchanged */
     .hit:focus-visible { outline: 2px solid var(--wp-primary-text); }
     .bubble {
       position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(calc(-50% + var(--shift, 0px)));
-      z-index: 10; padding: 4px 8px; border-radius: 6px; white-space: nowrap; pointer-events: none;
+      z-index: 10; padding: 4px 8px; border-radius: 6px; white-space: pre; text-align: center; pointer-events: none;
       background: var(--primary-text-color); color: var(--card-background-color, #fff); font-size: 0.75rem; font-weight: 500;
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
     }

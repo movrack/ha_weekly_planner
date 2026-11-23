@@ -82,7 +82,7 @@ describe("timed pause (card)", () => {
     expect(out).toContain("Paused"); expect(out).not.toContain("Paused until");
   });
   it("formats the end in French and picks the earliest end", () => {
-    expect(formatPauseEnd("2026-11-09T21:30:00+00:00", "Europe/Paris", "fr")).toBe("lun. 9 nov., 22 h 30");
+    expect(formatPauseEnd("2026-11-09T21:30:00+00:00", "Europe/Paris", "fr")).toBe("lun. 9 nov. à 22 h 30");
     expect(pauseEnd([{ enabled: false, paused_until: "2026-11-10T00:00:00+00:00" }, { enabled: false, paused_until: "2026-11-09T00:00:00+00:00" }, { enabled: true }]))
       .toBe("2026-11-09T00:00:00+00:00");
     expect(pauseEnd([{ enabled: true, paused_until: "2026-11-10T00:00:00+00:00" }])).toBeNull();

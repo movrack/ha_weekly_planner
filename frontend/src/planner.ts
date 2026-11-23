@@ -1,6 +1,7 @@
 // Shared data access: one subscription per page, helpers to read programs and labels.
 
 import { syncPreviewCache } from "./preview-cache";
+import { roomKey, roomKeys } from "./program-areas";
 import type { HomeAssistant, PlannerData, Profile, Program, Slot } from "./types";
 
 type Listener = (data: PlannerData) => void;
@@ -109,14 +110,14 @@ export function selectedProgramIds(programs: Pick<Program, "id" | "name">[], ref
   return ids;
 }
 
-export function filterPrograms(data: PlannerData, config: { program?: string; filter?: { types?: string[]; area?: string; programs?: string[] } }): Program[] {
+export function filterPrograms(data: PlannerData, config: { program?: string; filter?: { types?: string[]; area?: string | string[]; programs?: string[] } }, hass?: Pick<HomeAssistant, "areas">): Program[] {
   if (config.program) { const one = selectedProgramIds(data.programs, [config.program]); return data.programs.filter((p) => one.has(p.id)); }
   const types = config.filter?.types;
-  const area = config.filter?.area;
+  const rooms = roomKeys(hass, config.filter?.area);
   const chosen = config.filter?.programs === undefined ? undefined : selectedProgramIds(data.programs, config.filter.programs);
   return data.programs
     .filter((p) => !types?.length || p.entities.some((e) => types.includes(entityDomain(e.entity_id))))
-    .filter((p) => !area || p.area === area)
+    .filter((p) => !rooms.size || rooms.has(roomKey(hass, p.area)))
     .filter((p) => !chosen || chosen.has(p.id))
     .sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
 }

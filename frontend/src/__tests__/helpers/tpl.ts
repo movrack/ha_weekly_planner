@@ -11,9 +11,9 @@ export const flat = (v: any): string => {
   return "";
 };
 
-export interface Handler { event: string; fn: (...args: any[]) => any; before: string }
+export interface Handler { event: string; fn: (...args: any[]) => any; before: string; readonly after: string }
 
-/** Every `@event=${fn}` of a template tree in document order, with the markup that precedes it. */
+/** Every `@event=${fn}` of a template tree in document order, with the markup that precedes it (`before`) and follows it (`after`). */
 export function handlers(v: any, out: Handler[] = [], acc = { text: "" }): Handler[] {
   if (Array.isArray(v)) { v.forEach((x) => handlers(x, out, acc)); return out; }
   if (v && v.strings) {
@@ -22,7 +22,10 @@ export function handlers(v: any, out: Handler[] = [], acc = { text: "" }): Handl
       if (i >= v.values.length) return;
       const val = v.values[i];
       const m = /@([\w-]+)=$/.exec(s);
-      if (m && typeof val === "function") out.push({ event: m[1], fn: val, before: acc.text });
+      if (m && typeof val === "function") {
+        const pos = acc.text.length;
+        out.push({ event: m[1], fn: val, before: acc.text, get after() { return acc.text.slice(pos); } });
+      }
       else handlers(val, out, acc);
     });
   } else if (v && v._$litDirective$ && Array.isArray(v.values)) handlers(v.values, out, acc);
@@ -39,3 +42,19 @@ export const find = (v: any, event: string, mark: string): Handler => {
 };
 
 export const target = (props: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({ target: props, currentTarget: props, stopPropagation() {}, preventDefault() {}, ...extra });
+
+/** Values bound to a Lit attribute/property, in template order, without depending on whitespace. */
+export const bindings = (tpl: any, name: string): any[] => {
+  if (Array.isArray(tpl)) return tpl.flatMap((v) => bindings(v, name));
+  if (!tpl?.strings) return [];
+  return tpl.values.flatMap((value: any, i: number) =>
+    tpl.strings[i].trimEnd().endsWith(` ${name}=`) ? [value] : bindings(value, name));
+};
+
+/** Every value bound right after a static fragment of the template (for example `class="btn primary" ?disabled=`). */
+export const valuesAfter = (tpl: any, fragment: string): unknown[] => {
+  if (Array.isArray(tpl)) return tpl.flatMap((v) => valuesAfter(v, fragment));
+  if (tpl?._$litDirective$ && Array.isArray(tpl.values)) return valuesAfter(tpl.values, fragment);
+  if (!tpl?.strings) return [];
+  return tpl.values.flatMap((value: unknown, i: number) => (tpl.strings[i].trimEnd().endsWith(fragment) ? [value] : valuesAfter(value, fragment)));
+};

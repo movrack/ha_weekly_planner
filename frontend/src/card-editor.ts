@@ -3,18 +3,18 @@
 import { repeat } from "lit/directives/repeat.js";
 import { LitElement, css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import "./editors/program-editor";
-import type { WpProgramEditor } from "./editors/program-editor";
 import { entityDomain, filterPrograms, friendlyName, subscribePlanner } from "./planner";
 import { syncSelectValues } from "./select-value";
-import { programAreas } from "./program-areas";
+import { areaList, areaValue, roomKey, roomKeys, roomOptions } from "./program-areas";
 import { domainIcon, programDomains, type DomainLocalize } from "./domains";
 import { normalizeConfig, withDefaults } from "./config";
-import { allPrograms, isOn, selectCreated, toggleAllOff, toggleProgram, programRows, toggleType, typeGroups, typeState, type FilterConfig, type FilterPatch } from "./filter-editor";
+import { allPrograms, isOn, toggleAllOff, toggleProgram, programRows, toggleType, typeGroups, typeState, type FilterConfig, type FilterPatch, type ProgramRow, type TypeGroup } from "./filter-editor";
 import { t } from "./i18n";
+import { collapse, collapseStyles } from "./styles";
+import { ariaDisabled, whyNote, whyStyles } from "./reason";
 import { moveId, sortItems, sortMode, SORTS } from "./list-order";
 import { setTimeFormat } from "./time";
-import { callout } from "./styles";
+import { defaultViewFor, usesScheduleList, viewAllowed, viewsFor, type View } from "./view-choice";
 import type { CardConfig, HomeAssistant, PlannerData, Program } from "./types";
 import { editorStyles, langOf } from "./editors/shared";
 import type { K } from "./editors/shared";
@@ -30,21 +30,10 @@ const configKey = (c: CardConfig): string => JSON.stringify(c, (_k, v: unknown) 
 export class WeeklyPlannerCardEditor extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @state() private _config: CardConfig = { type: "custom:weekly-planner-card" };
-  @state() private _programs: { id: string; name: string }[] = [];
   @state() private _data?: PlannerData;
-  @state() private _section: "display" | "programs" = "display";
-  @state() private _editing: string | null = null;
-  /** The person turned something off while "All programs" was on: tell them what changes (until they go back). */
-  @state() private _leftAll = false;
   /** Icon Home Assistant gives each domain (a type header shows it). */
   @state() private _typeIcons = new Map<string, string>();
   private _iconKey = "";
-  @state() private _createdName = "";
-  @state() private _createdProgramId: string | null = null;
-  @state() private _scheduleProgramId: string | null = null;
-  // Retain the editor itself, including its origin, pending name form and focused tab.
-  // Switching sections/programs must not discard an unapplied shared-settings draft.
-  private _editors = new Map<string, WpProgramEditor>();
   private _unsub?: () => void;
   private _domainLoadKey = "";
   private _domainLocalize?: DomainLocalize;
@@ -55,7 +44,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
   setConfig(config: CardConfig): void {
     const next = normalizeConfig(config);
     // Home Assistant's edit dialog re-renders with the config it stored *before* our config-changed when a hass
-    // update lands in the same WebSocket frame (e.g. right after creating a program): hui-card-element-editor then
+    // update lands in the same WebSocket frame (e.g. during a display change): hui-card-element-editor then
     // hands us that stale config. Keep our choice and send it again, so HA stores the new one.
     const sent = this._sent;
     if (sent && Date.now() < sent.until) {
@@ -68,7 +57,6 @@ export class WeeklyPlannerCardEditor extends LitElement {
       }
     }
     this._sent = undefined;
-    if (this._config.program !== next.program) { this._editing = null; this._createdName = ""; this._createdProgramId = null; }
     this._config = { ...next };
   }
 
@@ -92,18 +80,8 @@ export class WeeklyPlannerCardEditor extends LitElement {
     }
   }
 
-  /** The program just created, until a pushed snapshot includes it (a snapshot sent before the save would drop it
-   *  and the card would fall back to another program). */
-  private _justCreated?: Program;
-
   private _setData(data: PlannerData): void {
-    const created = this._justCreated;
-    if (created) {
-      if (data.programs.some((p) => p.id === created.id)) this._justCreated = undefined;
-      else data = { ...data, programs: [...data.programs, created] };
-    }
     this._data = data;
-    this._programs = data.programs.map((p) => ({ id: p.id, name: p.name }));
   }
 
   /** HA owns domain names and their translations, including domains unknown to this card. */
@@ -140,93 +118,19 @@ export class WeeklyPlannerCardEditor extends LitElement {
     this._unsub = undefined;
   }
 
-  private _saved(e: CustomEvent<Program>): void {
-    e.stopPropagation();
-    const program = e.detail;
-    const editor = e.currentTarget as WpProgramEditor;
-    const previous = [...this._editors].find(([, candidate]) => candidate === editor)?.[0];
-    const selected = this._editing ?? this._config.program ?? "";
-    const wasSelected = previous === selected;
-    if (previous !== undefined) {
-      this._editors.delete(previous);
-      this._editors.set(program.id, editor);
-    }
-    const creating = wasSelected && selected === "new";
-    if (this._data) this._setData({ ...this._data, programs: [...this._data.programs.filter((p) => p.id !== program.id), program] });
-    if (creating) this._justCreated = program;
-    if (creating) {
-      // The new program is known locally before the next push: select it now, in the mode the card is in.
-      this._emit(selectCreated(this._config, this._data?.programs ?? [program], program));
-    } else if (wasSelected && selected !== program.id) {
-      const config = { ...this._config, program: program.id };
-      delete config.filter;
-      this._emit(config);
-    }
-    if (wasSelected) this._editing = program.id;
-    if (wasSelected && selected === "new") {
-      this._createdName = program.name;
-      this._createdProgramId = program.id;
-      this._section = "display";
-    }
-  }
-
-  private _programEditor(selected: string, program?: Program) {
-    let editor = this._editors.get(selected);
-    if (!editor) {
-      editor = document.createElement("wp-program-editor") as WpProgramEditor;
-      editor.embedded = true;
-      editor.addEventListener("program-saved", (e) => this._saved(e as CustomEvent<Program>));
-      editor.addEventListener("program-deleted", (e) => {
-        e.stopPropagation();
-        const id = (e as CustomEvent<string>).detail;
-        this._editors.delete(id);
-        if (this._justCreated?.id === id) this._justCreated = undefined;
-        this._editing = "";
-        if (this._config.program === id) this._setMode(false);
-      });
-      this._editors.set(selected, editor);
-    }
-    editor.hass = this.hass!;
-    editor.data = this._data!;
-    editor.program = program;
-    return editor;
-  }
-
-  private _settings() {
-    const data = this._data;
-    if (!data || !this.hass?.user?.is_admin || !data.can_edit || data.read_only) return nothing;
-    const programs = data.programs;
-    const selected = this._editing ?? (this._isProgram && this._config.program ? this._config.program : "");
-    const program = data.programs.find((p) => p.id === selected);
-    return html`<section class="program-settings">
-      <h3>${this._tr(selected === "new" ? "new_program" : "ce_program_settings")}</h3>
-      <div class="field"><label for="ce-settings-program">${this._tr("ce_edit_program")}</label>
-        <select id="ce-settings-program" data-value=${selected} @change=${(e: Event) => {
-          const value = (e.target as HTMLSelectElement).value;
-          if (value === "new") this._newProgram();
-          else this._editing = value;
-        }}>
-          <option value="" ?selected=${!selected}>${this._tr("ce_choose_program")}</option>
-          <hr />
-          <option value="new" ?selected=${selected === "new"}>${this._tr(this._editors.has("new") && selected !== "new" ? "ce_resume_creation" : "new_program")}</option>
-          <hr />
-          ${programs.map((p) => html`<option value=${p.id} ?selected=${selected === p.id}>${p.name}</option>`)}
-        </select>
-      </div>
-      ${selected === "new" || program ? this._programEditor(selected, program) : nothing}
-    </section>`;
-  }
-
   private get _canManage(): boolean {
-    return Boolean(this.hass?.user?.is_admin && this._data?.can_edit && !this._data?.read_only);
+    return Boolean(this._data?.can_edit && !this._data?.read_only);
   }
 
-  private _newProgram(): void {
-    this._createdName = "";
-    this._createdProgramId = null;
-    this._editing = "new";
-    this._section = "programs";
-    void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>("#ce-settings-program")?.focus());
+  /**
+   * The filter the editor shows. A saved `program: <id or name>` (the former "one program" choice) is read as the
+   * selection of that single program: the card gives the same programs for `program: x` and `filter: {programs: [x]}`.
+   * `program: ""` meant no restriction (the card falls back to its filter, which is empty).
+   */
+  private get _filter(): NonNullable<CardConfig["filter"]> {
+    const c = this._config;
+    if (c.program !== undefined) return c.program ? { programs: [c.program] } : {};
+    return c.filter ?? {};
   }
 
   private _emit(input: CardConfig): void {
@@ -242,37 +146,45 @@ export class WeeklyPlannerCardEditor extends LitElement {
   }
 
   private _set(key: keyof CardConfig, value: unknown): void {
+    if (key === "schedule_view") this._viewChanged = undefined;
     const next = { ...this._config } as Record<string, unknown>;
     if (value === undefined || value === "" || value === null) delete next[key];
     else next[key] = value;
-    if (key === "program") { this._editing = null; this._createdName = ""; this._createdProgramId = null; }
     this._emit(next as unknown as CardConfig);
   }
 
-  private get _isProgram(): boolean {
-    return this._config.program !== undefined;
+  /** "Chart / Week open by default": also raises the epoch, so saved browser choices no longer override the new default. */
+  private _setOpenDefault(part: "chart" | "week", on: boolean): void {
+    const epoch = `${part}_epoch` as "chart_epoch" | "week_epoch";
+    this._emit({ ...this._config, [`${part}_collapsed`]: !on, [epoch]: (this._config[epoch] ?? 0) + 1 } as CardConfig);
   }
 
-  private _setMode(program: boolean): void {
-    this._editing = null;
-    this._leftAll = false;
-    const next = { ...this._config } as CardConfig;
-    if (program) {
-      delete next.filter;
-      next.program = this._programs[0]?.id ?? "";
-    } else {
-      delete next.program;
-      next.filter = { ...next.filter, types: next.filter?.types ?? [] };
-    }
-    this._emit(next);
+  /** How many programs the card shows with this configuration (what the selection gives); unknown before the data arrives. */
+  private get _shown(): number | undefined {
+    return this._data ? filterPrograms(this._data, { ...this._config, filter: this._filter, program: undefined }, this.hass).length : undefined;
   }
 
-  private _setFilter(patch: { types?: string[]; area?: string; programs?: string[] }): void {
-    const filter = { ...(this._config.filter ?? {}), ...patch };
+  /** The display that was replaced by the last change of the selection (the card showed a view that no longer fits). */
+  @state() private _viewChanged?: { from: View; to: View };
+
+  private _viewLabel(view: View): string {
+    return this._tr(({ bars: "ce_bars", radial: "ce_radial", radial_12h: "ce_radial_12h", list: "ce_list", times: "ce_times", compare: "ce_compare" } as const)[view]);
+  }
+
+  private _setFilter(patch: { types?: string[]; area?: string | string[]; programs?: string[] }): void {
+    const filter = { ...this._filter, ...patch };
     for (const k of ["types", "programs"] as const) if (filter[k] === undefined) delete filter[k];
     if (!filter.types?.length) delete filter.types;
-    if (!filter.area) delete filter.area;
+    if (!areaList(filter.area).length) delete filter.area;
     const next = { ...this._config, filter } as CardConfig;
+    // the views depend on how many programs are shown: a view that no longer fits is replaced, and the user is told
+    const count = this._data ? filterPrograms(this._data, { ...next, program: undefined }, this.hass).length : undefined;
+    const from = next.schedule_view ?? "bars";
+    if (!viewAllowed(from, count)) {
+      next.schedule_view = defaultViewFor(count);
+      this._viewChanged = { from, to: next.schedule_view };
+    } else this._viewChanged = undefined;
+    delete next.program; // a saved `program` becomes its filter only when the selection changes; other edits leave it as it is
     this._emit(next);
   }
 
@@ -280,58 +192,108 @@ export class WeeklyPlannerCardEditor extends LitElement {
     return this.hass?.localize?.(`component.${type}.title`) || this._domainLocalize?.(`component.${type}.title`) || type;
   }
 
-  private _switch(checked: boolean, label: string, onChange: (on: boolean) => void, partial = false, disabled = false) {
-    return html`<ha-switch class=${partial ? "partial" : ""} .checked=${checked} .disabled=${disabled} aria-label=${label}
-      @change=${(e: Event) => onChange((e.target as HTMLInputElement).checked)}></ha-switch>`;
+  private _switch(checked: boolean, label: string, onChange: (on: boolean) => void, partial = false, disabled = false, describing = "", fold?: { expanded: boolean; controls: string }) {
+    return html`<ha-switch class=${partial ? "partial" : ""} .checked=${checked} .disabled=${disabled} aria-disabled=${ariaDisabled(disabled)} aria-describedby=${describing || nothing}
+      aria-expanded=${fold ? String(fold.expanded) : nothing} aria-controls=${fold?.controls ?? nothing}
+      @change=${(e: Event) => onChange((e.target as HTMLInputElement).checked)}><span class="sr-only">${label}</span></ha-switch>`;
   }
 
-  /** A change in the "programs to display" tree; leaving "All programs" is flagged so the card can say what it means. */
+  /** A change in the "programs to display" tree (the help under "All programs" says what the switch means in each state). */
   private _treeChange(patch: FilterPatch | { types: undefined; programs: undefined }): void {
-    const filter = this._config.filter;
-    const wasAll = filter?.programs === undefined && !filter?.types?.length;
-    if (patch.programs === undefined) this._leftAll = false;
-    else if (wasAll) this._leftAll = true;
     this._setFilter(patch);
   }
 
+  /** The "All <category>" chip of a filter category: on while the category restricts nothing; the same everywhere. */
+  private _allChip(text: string, on: boolean, click: () => void) {
+    return html`<button class="chip ${on ? "on" : "off"}" aria-pressed=${on ? "true" : "false"}
+      @click=${click}>${on ? html`<ha-icon class="check-on" icon="mdi:check"></ha-icon>` : nothing}${text}</button>`;
+  }
+
+  /** The room filter as single-choice chips, like the types (owner, 2026-11-14): "All rooms" first, one chip per room. */
+  private _roomField() {
+    const areas = roomOptions(this.hass, this._data?.programs ?? [], this._filter.area);
+    const chosen = roomKeys(this.hass, this._filter.area);
+    // several rooms can be chosen: a chip adds or removes its room; "All rooms" (no room chosen) clears them
+    const toggle = (key: string) => {
+      const kept = areas.filter((a) => chosen.has(a.key) && a.key !== key);
+      const values = chosen.has(key) ? kept : [...kept, areas.find((a) => a.key === key)!];
+      this._setFilter({ area: areaValue(values.map((a) => a.value)) });
+    };
+    const chip = (text: string, on: boolean, click: () => void) => this._allChip(text, on, click);
+    return html`<div class="quick" role="group" aria-labelledby="ce-area-label" aria-describedby="ce-area-help">
+      <div class="label" id="ce-area-label">${this._tr("ce_area")}</div>
+      <div class="chips">${chip(this._tr("ce_all_areas"), chosen.size === 0, () => this._setFilter({ area: undefined }))}${areas.map((a) => chip(a.label, chosen.has(a.key), () => toggle(a.key)))}</div>
+      <p id="ce-area-help" class="hint">${this._tr("ce_area_hint")}</p></div>`;
+  }
+
+  /** Fold state of the type groups in the program list: what the user chose; absent = the default (see `_typeGroup`). */
+  @state() private _typeFolds = new Map<string, boolean>();
+
+  /**
+   * One fold per program type in the "programs to display" list: header (type icon, name, selected of total) and,
+   * under it, one row per program of that type. A program with devices of several types is listed under each of them
+   * (same grouping as the type chips). Default: folded, except when a selection exists and the type holds selected
+   * programs; with "All programs" nothing is chosen yet, so every group starts folded.
+   */
+  private _typeGroup(g: TypeGroup, rows: ProgramRow[], byId: Map<string, Program>, programs: Program[], filter: FilterConfig | undefined, all: boolean) {
+    const members = new Set(g.programs.map((x) => x.id));
+    const on = g.programs.filter((x) => isOn(byId.get(x.id)!, filter, programs)).length;
+    const open = this._typeFolds.get(g.type) ?? (!all && on > 0);
+    const id = `ce-type-${g.type}`;
+    const counter = this._tr("ce_type_count", { on: String(on), total: String(g.programs.length) });
+    return html`<div class="type-group" data-type=${g.type}>
+      <button type="button" class="type-head" id=${`${id}-btn`} aria-expanded=${String(open)} aria-controls=${`${id}-body`}
+        @click=${() => { this._typeFolds = new Map(this._typeFolds).set(g.type, !open); }}>
+        <ha-icon class="type-icon" icon=${this._typeIcons.get(g.type) ?? "mdi:shape-outline"}></ha-icon>
+        <span class="grow type-title">${g.label}</span><span class="count">${counter}</span>
+        <ha-icon icon=${open ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></button>
+      ${collapse(open, html`<div role="group" aria-labelledby=${`${id}-btn`}>${rows.filter((p) => members.has(p.id)).map((p) => html`<div class="switch-row program-row" data-program=${p.id}>
+          <span class="grow titles"><span class="type-title">${p.name}</span>
+            <span class="type-names">${p.domains.map((d) => html`<ha-icon class="mini" icon=${this._typeIcons.get(d) ?? "mdi:shape-outline"}></ha-icon>`)}${p.devices.length ? p.devices.join(", ") : this._tr("ce_no_device")}</span></span>
+          ${this._switch(isOn(byId.get(p.id)!, filter, programs), p.name, (v) => this._treeChange(toggleProgram(programs, filter, p.id, v)))}</div>`)}</div>`, `${id}-body`)}
+    </div>`;
+  }
+
   private _displayPrograms() {
-    const filter = this._config.filter;
+    const filter = this._filter;
     const programs = this._data?.programs ?? [];
     const all = filter?.programs === undefined && !filter?.types?.length;
-    const { groups, orphans } = typeGroups(programs, filter, (ty) => this._typeLabel(ty), this._lang);
+    // a room is chosen: the list below only offers the programs of that room (the others keep their state)
+    const rooms = roomKeys(this.hass, filter?.area);
+    const room = rooms.size ? rooms : null;
+    const visible = room === null ? programs : programs.filter((p) => room.has(roomKey(this.hass, p.area)));
+    const { groups } = typeGroups(visible, filter, (ty) => this._typeLabel(ty), this._lang);
+    const { orphans } = typeGroups(programs, filter, (ty) => this._typeLabel(ty), this._lang);
     const byId = new Map(programs.map((p) => [p.id, p]));
-    const rows = programRows(programs, (id) => (this.hass ? friendlyName(this.hass, id) : id), this._lang);
-    const count = all ? this._tr("ce_all_programs")
-      : this._tr("ce_of_total", { on: String(programs.filter((p) => isOn(p, filter, programs)).length + orphans.length), total: String(programs.length + orphans.length) });
+    const rows = programRows(visible, (id) => (this.hass ? friendlyName(this.hass, id) : id), this._lang);
+    const count = all && room === null ? this._tr("ce_all_programs")
+      : this._tr("ce_of_total", { on: String(visible.filter((p) => isOn(p, filter, programs)).length + orphans.length), total: String(visible.length + orphans.length) });
     return html`<details class="display-programs">
       <summary>${this._tr("ce_display_programs")} · ${count}</summary>
       <p class="hint">${this._tr("ce_display_programs_hint")}</p>
-      <div class="switch-row"><span class="grow">${this._tr("ce_all_programs")}</span>
-        ${this._switch(all, this._tr("ce_all_programs"), (on) => this._treeChange(on ? allPrograms() : toggleAllOff(programs, filter)))}</div>
-      ${!all && this._leftAll ? callout("info", "", this._tr("ce_left_all"), { role: "status", extra: html`<div class="btns">
-          <button class="btn" @click=${() => this._treeChange(allPrograms())}><ha-icon icon="mdi:restore"></ha-icon>${this._tr("ce_back_all")}</button></div>` }) : nothing}
-      ${!rows.length && !orphans.length ? html`<p class="hint">${this._tr("ce_no_types")}</p>` : nothing}
-      ${groups.length ? html`<div class="quick" role="group" aria-label=${this._tr("ce_quick_types")}>
-        <div class="label">${this._tr("ce_quick_types")}</div>
-        <p class="hint">${this._tr("ce_quick_types_hint")}</p>
-        <div class="chips">${groups.map((g) => {
+      ${this._roomField()}
+      ${!rows.length && !orphans.length ? html`<p class="hint">${this._tr(room !== null && programs.length ? "ce_room_empty" : "ce_no_types")}</p>` : nothing}
+      <div class="quick" role="group" aria-labelledby="ce-types-label" aria-describedby="ce-types-hint">
+        <div class="label" id="ce-types-label">${this._tr("ce_quick_types")}</div>
+        <div class="chips">${this._allChip(this._tr("ce_all_types"), all, () => this._treeChange(allPrograms()))}${groups.map((g) => {
           const state = typeState(g, programs, filter);
           const on = g.programs.filter((x) => isOn(byId.get(x.id)!, filter, programs)).length;
           const counter = g.programs.length ? String(this._tr("ce_type_count", { on: String(on), total: String(g.programs.length) })) : "";
           const label = this._tr("ce_type_chip", { type: g.label });
           return html`<button class="chip ${state}" data-type=${g.type} aria-pressed=${state === "on" ? "true" : state === "partial" ? "mixed" : "false"}
             aria-label=${counter ? `${label} (${counter})` : label}
-            @click=${() => this._treeChange(toggleType(programs, filter, g.type, state === "off"))}>
+            @click=${() => this._treeChange(toggleType(programs, filter, g.type, state === "off" || all, visible, all))}>
             ${state === "on" ? html`<ha-icon class="check-on" icon="mdi:check"></ha-icon>` : nothing}
             <ha-icon icon=${this._typeIcons.get(g.type) ?? "mdi:shape-outline"}></ha-icon>${g.label}${counter ? html` <span class="count">${counter}</span>` : nothing}</button>`;
         })}</div>
-      </div>` : nothing}
-      <div class="label">${this._tr("ce_programs_list")}</div>
-      <div class="program-list" role="group" aria-label=${this._tr("ce_display_programs")}>
-        ${rows.map((p) => html`<div class="switch-row program-row" data-program=${p.id}>
-          <span class="grow titles"><span class="type-title">${p.name}</span>
-            <span class="type-names">${p.domains.map((d) => html`<ha-icon class="mini" icon=${this._typeIcons.get(d) ?? "mdi:shape-outline"}></ha-icon>`)}${p.devices.length ? p.devices.join(", ") : this._tr("ce_no_device")}</span></span>
-          ${this._switch(isOn(byId.get(p.id)!, filter, programs), p.name, (v) => this._treeChange(toggleProgram(programs, filter, p.id, v)))}</div>`)}
+        <p id="ce-types-hint" class="hint">${this._tr("ce_quick_types_hint")}</p>
+      </div>
+      <div class="label" id="ce-programs-label">${this._tr("ce_programs_list")}</div>
+      <div class="program-list" role="group" aria-labelledby="ce-programs-label">
+        <div class="switch-row"><span class="grow">${this._tr("ce_all_programs")}</span>
+          ${this._switch(all, this._tr("ce_all_programs"), (on) => this._treeChange(on ? allPrograms() : toggleAllOff(programs, filter, visible)), false, false, "ce-all-hint")}</div>
+        <p id="ce-all-hint" class="hint" role="status">${this._tr(all ? "ce_all_programs_hint" : "ce_all_programs_hint_off")}</p>
+        ${groups.filter((g) => g.programs.length).map((g) => this._typeGroup(g, rows, byId, programs, filter, all))}
         ${orphans.length ? html`<div class="label">${this._tr("ce_other_programs")}</div>${orphans.map((id) => html`<div class="switch-row"><span class="grow">${id}</span>
           ${this._switch(true, id, () => this._treeChange({ programs: (filter?.programs ?? []).filter((x) => x !== id) }))}</div>`)}` : nothing}
       </div>
@@ -340,8 +302,8 @@ export class WeeklyPlannerCardEditor extends LitElement {
 
   /** Programs the card shows, in the personal order (`order`; missing ones last, unknown ids ignored). */
   private _customRows() {
-    const programs = this._data ? filterPrograms(this._data, this._config) : [];
-    const items = programs.map((p) => ({ id: p.id, name: p.name, type: entityDomain(p.entities[0]?.entity_id ?? ""), area: p.area }));
+    const programs = this._data ? filterPrograms(this._data, this._config, this.hass) : [];
+    const items = programs.map((p) => ({ id: p.id, name: p.name, type: entityDomain(p.entities[0]?.entity_id ?? ""), area: roomKey(this.hass, p.area) }));
     return sortItems(items, "custom", { order: this._config.order, typeLabel: (ty) => this._typeLabel(ty), lang: this._lang });
   }
 
@@ -397,92 +359,81 @@ export class WeeklyPlannerCardEditor extends LitElement {
     const sort = sortMode(this._config.sort);
     const rows = sort === "custom" ? this._customRows() : [];
     const ids = rows.map((r) => r.id);
-    return html`<div class="field"><label class="big" for="ce-sort">${this._tr("ce_sort")}</label>
+    // an order needs at least two programs to mean anything: with fewer the field folds (owner: a collapse is not a disappearance)
+    const open = (this._shown ?? 2) >= 2;
+    return collapse(open, html`<div class="field"><label for="ce-sort">${this._tr("ce_sort")}</label>
         <select id="ce-sort" data-value=${sort} @change=${(e: Event) => this._set("sort", (e.target as HTMLSelectElement).value)}>
           ${SORTS.map((v) => html`<option value=${v} ?selected=${v === sort}>${this._tr(`ce_sort_${v}`)}</option>`)}
         </select></div>
-      ${sort === "custom" ? html`<p class="hint">${this._tr("ce_sort_custom_hint")}</p><ol class="order-list" aria-label=${this._tr("ce_order_list")}>
+      ${sort === "custom" ? html`<ol class="order-list" aria-label=${this._tr("ce_order_list")} aria-describedby="ce-order-hint">
         ${repeat(rows, (r) => r.id, (r, i) => html`<li class="order-row ${r.id === this._moved ? "moved" : ""}" data-order=${r.id}>
           <button class="handle" tabindex="-1" aria-hidden="true" aria-label=${this._tr("ce_drag", { name: r.name })} @pointerdown=${(e: PointerEvent) => this._drag(e, ids, i)}><ha-icon icon="mdi:drag"></ha-icon></button>
           <span class="grow titles"><span class="type-title">${r.name}</span>
             <span class="type-names"><ha-icon class="mini" icon=${this._typeIcons.get(r.type) ?? "mdi:shape-outline"}></ha-icon>${r.type ? this._typeLabel(r.type) : this._tr("sort_other")}</span></span>
           <button class="move up" aria-label=${this._tr("ce_move_up", { name: r.name })} ?disabled=${i === 0} @click=${() => this._move(ids, i, i - 1)}><ha-icon icon="mdi:arrow-up"></ha-icon></button>
           <button class="move down" aria-label=${this._tr("ce_move_down", { name: r.name })} ?disabled=${i === ids.length - 1} @click=${() => this._move(ids, i, i + 1)}><ha-icon icon="mdi:arrow-down"></ha-icon></button></li>`)}
-      </ol><p class="sr-only" role="status">${this._announce}</p>` : nothing}`;
+      </ol><p id="ce-order-hint" class="hint">${this._tr("ce_sort_custom_hint")}</p><p class="sr-only" role="status">${this._announce}</p>` : nothing}`, "ce-sort-fold");
   }
 
-  private _tabKey = (event: KeyboardEvent): void => {
-    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-    event.preventDefault();
-    this._section = event.key === "Home" ? "display" : event.key === "End" ? "programs" : this._section === "display" ? "programs" : "display";
-    void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(`#ce-tab-${this._section}`)?.focus());
-  };
+  /** The display choice: only the views that fit the number of shown programs; a saved view that does not fit stays, with a note. */
+  private _viewField() {
+    const saved = this._config.schedule_view ?? "bars";
+    const offered = viewsFor(this._shown);
+    const options = viewAllowed(saved, this._shown) ? offered : [...offered, saved];
+    const note = this._viewChanged
+      ? this._tr("ce_view_changed", { from: this._viewLabel(this._viewChanged.from), to: this._viewLabel(this._viewChanged.to) })
+      : viewAllowed(saved, this._shown) ? "" : this._tr("ce_view_unavailable", { view: this._viewLabel(saved) });
+    return html`<div class="field"><label for="ce-view">${this._tr(this._shown === 1 ? "ce_schedule_view_one" : (this._shown ?? 0) >= 2 ? "ce_schedule_view_many" : "ce_schedule_view")}</label>
+        <select id="ce-view" data-value=${saved} aria-describedby=${note ? "ce-view-note" : nothing} @change=${(e: Event) => this._set("schedule_view", (e.target as HTMLSelectElement).value)}>
+          ${options.map((v) => html`<option value=${v} ?selected=${v === saved}>${this._viewLabel(v)}</option>`)}
+        </select></div>
+      ${whyNote("ce-view-note", note, note !== "")}`;
+  }
 
   render() {
     const c = this._config;
-    const areas = programAreas(this._data?.programs ?? [], c.filter?.area);
-    const display = html`
-      ${this._createdName ? html`<div class="created-next-step"><p class="hint" role="status">${this._tr("ce_created", { name: this._createdName })}</p>
-        <button class="btn primary" @click=${() => { this._scheduleProgramId = this._createdProgramId; }}><ha-icon icon="mdi:calendar-edit"></ha-icon>${this._tr("ce_define_schedule")}</button></div>` : nothing}
-      <p class="hint">${this._tr("admin_zone_hint")}</p>
-      ${this._editors.has("new") ? html`<p class="hint" role="status">${this._tr("ce_draft_kept")}</p>` : nothing}
+    const listUsed = usesScheduleList(c.schedule_view);
+    const labelsUsed = c.schedule_view === "compare" && !["name", "custom"].includes(sortMode(c.sort));
+    const chartOn = c.show_chart !== false;
+    const weekOn = c.show_week_button !== false;
+    return html`
+      ${this._canManage ? html`<a class="btn manage-programs" href="/weekly-planner"><ha-icon icon="mdi:calendar-edit"></ha-icon>${this._tr("ce_manage_programs")}</a>`
+        : !this._data ? nothing : html`<button type="button" class="btn manage-programs" disabled aria-disabled="true" aria-describedby="why-manage"><ha-icon icon="mdi:calendar-edit"></ha-icon>${this._tr("ce_manage_programs")}</button>
+          ${whyNote("why-manage", this._tr("read_only"))}`}
       <div class="field"><label for="ce-title">${this._tr("ce_title")}</label>
         <input id="ce-title" type="text" .value=${c.title ?? ""} @input=${(e: Event) => this._set("title", (e.target as HTMLInputElement).value)} /></div>
 
-      <div class="row" role="radiogroup" aria-label=${this._tr("ce_mode")}>
-        <label class="check"><input type="radio" name="ce-mode" .checked=${this._isProgram} @change=${() => this._setMode(true)} /> ${this._tr("ce_one_program")}</label>
-        <label class="check"><input type="radio" name="ce-mode" .checked=${!this._isProgram} @change=${() => this._setMode(false)} /> ${this._tr("ce_filtered")}</label>
-      </div>
+      ${this._displayPrograms()}
 
-      ${this._isProgram
-        ? html`<div class="field"><label for="ce-program">${this._tr("ce_program")}</label>
-            <select id="ce-program" data-value=${c.program ?? ""} @change=${(e: Event) => this._set("program", (e.target as HTMLSelectElement).value)}>
-              ${this._programs.length === 0 ? html`<option value="">${this._tr("no_program")}</option>` : nothing}
-              ${!this._programs.some((p) => p.id === c.program) && c.program ? html`<option value=${c.program} selected>${c.program}</option>` : nothing}
-              ${this._programs.map((p) => html`<option value=${p.id} ?selected=${p.id === c.program}>${p.name}</option>`)}
-            </select>
-            ${this._canManage ? html`<div class="program-actions">
-              <button class="btn" @click=${this._newProgram}><ha-icon icon="mdi:plus"></ha-icon>${this._tr(this._editors.has("new") ? "ce_resume_creation" : "new_program")}</button>
-              ${c.program ? html`<button class="btn" @click=${() => { this._editing = c.program!; this._section = "programs"; }}><ha-icon icon="mdi:pencil"></ha-icon>${this._tr("ce_edit_selected")}</button>` : nothing}
-            </div>` : nothing}</div>`
-        : html`
-            <div class="field"><label for="ce-area">${this._tr("ce_area")}</label>
-              <select id="ce-area" data-value=${c.filter?.area ?? ""} aria-describedby="ce-area-help"
-                @change=${(e: Event) => this._setFilter({ area: (e.target as HTMLSelectElement).value })}>
-                <option value="">${this._tr("ce_all_areas")}</option>
-                ${areas.map((area) => html`<option value=${area}>${area}</option>`)}
-              </select><p id="ce-area-help" class="hint">${this._tr("ce_area_hint")}</p></div>
-            ${this._displayPrograms()}`}
-
-      ${this._isProgram ? nothing : this._sortField()}
-      <div class="field"><label for="ce-view">${this._tr("ce_schedule_view")}</label>
-        <select id="ce-view" data-value=${c.schedule_view ?? "bars"} @change=${(e: Event) => this._set("schedule_view", (e.target as HTMLSelectElement).value)}>
-          <option value="bars">${this._tr("ce_bars")}</option>
-          <option value="radial">${this._tr("ce_radial")}</option>
-          <option value="radial_12h">${this._tr("ce_radial_12h")}</option>
-          <option value="list">${this._tr("ce_list")}</option>
-          <option value="times">${this._tr("ce_times")}</option>
-        </select>
-      </div>
-      <div class="switch-row"><span class="grow">${this._tr("ce_show_chart")}</span>
-        ${this._switch(c.show_chart !== false, this._tr("ce_show_chart"), (on) => this._set("show_chart", on))}</div>
-      <p class="hint">${this._tr("ce_show_chart_hint")}</p>
-      <div class="switch-row"><span class="grow">${this._tr("ce_chart_open")}</span>
-        ${this._switch(c.chart_collapsed === false, this._tr("ce_chart_open"), (on) => this._set("chart_collapsed", !on), false, c.show_chart === false)}</div>
-      <p class="hint">${this._tr("ce_chart_open_hint")}</p>
+      ${this._sortField()}
+      ${this._viewField()}
+      <div class="switch-row"><span class="grow">${this._tr("ce_show_schedule_list")}</span>
+        ${this._switch(c.show_schedule_list === true, this._tr("ce_show_schedule_list"), (on) => this._set("show_schedule_list", on), false, !listUsed, listUsed ? "" : "why-schedule-list")}</div>
+      ${whyNote("why-schedule-list", this._tr("ce_show_schedule_list_why"), !listUsed)}
+      <div class="switch-row"><span class="grow">${this._tr("ce_show_group_labels")}</span>
+        ${this._switch(c.show_group_labels !== false, this._tr("ce_show_group_labels"), (on) => this._set("show_group_labels", on), false, !labelsUsed, labelsUsed ? "" : "why-group-labels")}</div>
+      ${whyNote("why-group-labels", this._tr("ce_show_group_labels_why"), !labelsUsed)}
+      <fieldset class="group"><legend>${this._tr("ce_week_group")}</legend>
+        <div class="switch-row"><span class="grow">${this._tr("ce_show_week")}</span>
+          ${this._switch(weekOn, this._tr("ce_show_week"), (on) => this._set("show_week_button", on), false, false, "ce-show-week-hint", { expanded: weekOn, controls: "ce-week-more" })}</div>
+        <p id="ce-show-week-hint" class="hint">${this._tr("ce_show_week_hint")}</p>
+        ${collapse(weekOn, html`<div class="switch-row"><span class="grow">${this._tr("ce_week_open")}</span>
+          ${this._switch(c.week_collapsed === false, this._tr("ce_week_open"), (on) => this._setOpenDefault("week", on), false, false, "ce-week-open-hint")}</div>
+        <p id="ce-week-open-hint" class="hint">${this._tr("ce_week_open_hint")}</p>`, "ce-week-more")}
+      </fieldset>
+      <fieldset class="group"><legend>${this._tr("ce_chart_group")}</legend>
+        <div class="switch-row"><span class="grow">${this._tr("ce_show_chart")}</span>
+          ${this._switch(chartOn, this._tr("ce_show_chart"), (on) => this._set("show_chart", on), false, false, "ce-show-chart-hint", { expanded: chartOn, controls: "ce-chart-more" })}</div>
+        <p id="ce-show-chart-hint" class="hint">${this._tr("ce_show_chart_hint")}</p>
+        ${collapse(chartOn, html`<div class="switch-row"><span class="grow">${this._tr("ce_chart_open")}</span>
+          ${this._switch(c.chart_collapsed === false, this._tr("ce_chart_open"), (on) => this._setOpenDefault("chart", on), false, false, "ce-chart-open-hint")}</div>
+        <p id="ce-chart-open-hint" class="hint">${this._tr("ce_chart_open_hint")}</p>`, "ce-chart-more")}
+      </fieldset>
     `;
-    const admin = this._canManage;
-    return html`
-      ${admin ? html`<nav role="tablist" aria-label=${this._tr("settings")}>
-        <button id="ce-tab-display" role="tab" aria-controls="ce-panel" tabindex=${this._section === "display" ? 0 : -1} @keydown=${this._tabKey} aria-selected=${this._section === "display"} @click=${() => { this._section = "display"; }}>${this._tr("ce_display")}</button>
-        <button id="ce-tab-programs" role="tab" aria-controls="ce-panel" tabindex=${this._section === "programs" ? 0 : -1} @keydown=${this._tabKey} aria-selected=${this._section === "programs"} @click=${() => { this._section = "programs"; }}>${this._tr("ce_program_settings")}</button>
-      </nav>` : nothing}
-      <div id="ce-panel" role="tabpanel" aria-labelledby=${admin ? `ce-tab-${this._section}` : nothing}>${admin && this._section === "programs" ? this._settings() : display}</div>
-      ${this._scheduleProgramId && this._data?.programs.some((p) => p.id === this._scheduleProgramId) ? html`<wp-schedule .hass=${this.hass} .data=${this._data} .scope=${{ kind: "program", programId: this._scheduleProgramId }} .chart=${false}
-        @closed=${(e: Event) => { e.stopPropagation(); this._scheduleProgramId = null; }}></wp-schedule>` : nothing}`;
+
   }
 
-  static styles = [editorStyles, css`:host { display: block; padding: 4px 0; } h3 { margin: 12px 0; font-size: 1rem; } .program-settings { padding-top: 4px; } nav { display: flex; border-bottom: 1px solid var(--divider-color); margin-bottom: 12px; } nav button { flex: 1; min-height: 48px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--secondary-text-color); cursor: pointer; } nav button[aria-selected="true"] { color: var(--wp-primary-text); border-bottom-color: var(--wp-primary-text); font-weight: 600; } .hint { line-height: 1.5; } .display-programs { margin: 12px 0; border: 1px solid var(--wp-field-border); border-radius: 8px; padding: 8px 12px; } summary { min-height: 44px; align-content: center; cursor: pointer; } .display-programs .check { min-height: 44px; overflow-wrap: anywhere; } .switch-row { display: flex; align-items: center; gap: 8px; min-height: 48px; overflow-wrap: anywhere; } .type-head { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; min-height: 48px; border: 0; background: none; color: inherit; text-align: start; cursor: pointer; } .type-body[hidden] { display: none; } ha-switch { padding: 12px 8px; margin: -12px -8px; flex: none; } ha-switch.partial { --mdc-theme-secondary: var(--warning-color, #ffa600); } .type-icon { flex: none; color: var(--secondary-text-color); } .titles { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; } .type-title { font-size: 1rem; overflow-wrap: normal; word-break: keep-all; } .type-names { font-size: 0.875rem; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .mini { --mdc-icon-size: 16px; vertical-align: -3px; margin-inline-end: 4px; } .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; } .chip { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 12px; border: 1px solid var(--wp-field-border); border-radius: 22px; background: none; color: var(--primary-text-color); font: inherit; cursor: pointer; } .chip.on { background: var(--wp-primary-fill); border-color: var(--wp-primary-fill); color: #fff; } .chip.partial { border: 2px dashed var(--wp-primary-text); } .chip .count { font-size: 0.8125rem; opacity: .85; color: inherit; } .chip.on .count { opacity: 1; color: #fff; } .quick .hint { margin: 0; } .count { font-size: 0.875rem; color: var(--secondary-text-color); } .count b { color: var(--primary-text-color); } .type-head.static { cursor: default; } .chev-space { flex: none; width: 24px; } .order-list { list-style: none; margin: 0 0 12px; padding: 0; } .order-row { display: flex; align-items: center; gap: 4px; min-height: 56px; border-bottom: 1px solid var(--divider-color); } .order-row.target { border-top: 2px solid var(--wp-primary-text); } .field > label.big { font-size: 1rem; } .order-row.moved { background: var(--wp-field-border); box-shadow: inset 4px 0 0 var(--wp-primary-text); } .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } .order-row button.move { width: 48px; height: 48px; } .order-row button { flex: none; width: 44px; height: 48px; display: inline-flex; align-items: center; justify-content: center; border: 0; background: none; color: var(--primary-text-color); cursor: pointer; } .order-row button[disabled] { opacity: .35; cursor: default; } .order-row .handle { touch-action: none; cursor: grab; } .order-row .grow { flex: 1 1 0; min-width: 0; } .program-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }`];
+  static styles = [editorStyles, whyStyles, collapseStyles, css`:host { display: block; padding: 4px 0; } .hint { line-height: 1.5; } .display-programs { margin: 12px 0; border: 1px solid var(--wp-field-border); border-radius: 8px; padding: 8px 12px; } summary { min-height: 44px; align-content: center; cursor: pointer; } .display-programs .check { min-height: 44px; overflow-wrap: anywhere; } .switch-row { display: flex; align-items: center; gap: 8px; min-height: 48px; overflow-wrap: anywhere; } .type-head { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; min-height: 48px; border: 0; background: none; color: inherit; text-align: start; cursor: pointer; } .type-group { border-top: 1px solid var(--divider-color); } .type-head { width: 100%; padding: 0; } .type-head .count { flex: none; } ha-switch { flex: none; } ha-switch::part(base) { box-sizing: border-box; min-width: 48px; min-height: 48px; align-items: center; justify-content: center; } ha-switch.partial { --mdc-theme-secondary: var(--warning-color, #ffa600); } .type-icon { flex: none; color: var(--secondary-text-color); } .titles { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; } .type-title { font-size: 1rem; overflow-wrap: normal; word-break: keep-all; } .type-names { font-size: 0.875rem; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .mini { --mdc-icon-size: 16px; vertical-align: -3px; margin-inline-end: 4px; } .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; } .chip { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 12px; border: 1px solid var(--wp-field-border); border-radius: 22px; background: none; color: var(--primary-text-color); font: inherit; cursor: pointer; } .chip.on { background: var(--wp-primary-fill); border-color: var(--wp-primary-fill); color: #fff; } .chip.partial { border: 2px dashed var(--wp-primary-text); } .chip .count { font-size: 0.8125rem; opacity: .85; color: inherit; } .chip.on .count { opacity: 1; color: #fff; } .quick .hint { margin: 4px 0 0; } .count { font-size: 0.875rem; color: var(--secondary-text-color); } .count b { color: var(--primary-text-color); } .type-head.static { cursor: default; } .chev-space { flex: none; width: 24px; } .order-list { list-style: none; margin: 0 0 12px; padding: 0; } .order-row { display: flex; align-items: center; gap: 4px; min-height: 56px; border-bottom: 1px solid var(--divider-color); } .order-row.target { border-top: 2px solid var(--wp-primary-text); } .order-row.moved { background: var(--wp-field-border); box-shadow: inset 4px 0 0 var(--wp-primary-text); } .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } .order-row button.move { width: 48px; height: 48px; } .order-row button { flex: none; width: 44px; height: 48px; display: inline-flex; align-items: center; justify-content: center; border: 0; background: none; color: var(--primary-text-color); cursor: pointer; } .order-row button[disabled] { opacity: .35; cursor: default; } .order-row .handle { touch-action: none; cursor: grab; } .order-row .grow { flex: 1 1 0; min-width: 0; } .manage-programs { margin-bottom: 12px; text-decoration: none; } button.manage-programs[disabled] { opacity: .5; cursor: default; margin-bottom: 0; }`];
 }
 
 declare global {

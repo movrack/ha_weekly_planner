@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import timedelta
 
+import pytest
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
@@ -12,7 +14,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.weekly_planner.const import DOMAIN
 from custom_components.weekly_planner.store import PlannerStore
 
-from .helpers import CLIMATE, Recorder, go_to, local, program, setup, slot, temp, tick
+from .helpers import CLIMATE, Recorder, act, go_to, local, program, scene, setup, slot, temp, tick
 
 VACUUM = "vacuum.rocky"
 
@@ -189,3 +191,81 @@ async def test_stop_after_startup_event_removes_no_fired_listener(hass, hass_sto
         await entry.runtime_data.async_stop()
     assert "Unable to remove unknown job listener" not in caplog.text
     assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+
+
+async def test_a_scene_and_a_matching_service_suit_the_entity(hass, hass_storage, freezer):
+    Recorder(hass)
+    engine = await setup(hass, hass_storage, freezer, [program()], local(26, 9, 0))
+    assert engine.accepts(CLIMATE, scene("scene.work"))
+    assert engine.accepts(CLIMATE, act("climate.set_temperature", temperature=20))
+
+
+_HOME = {"entity_id": "input_boolean.home", "op": "eq", "value": "on"}
+
+
+@pytest.mark.parametrize(("reapply", "expected"), [(True, [21]), (False, [])])
+async def test_a_condition_turning_true_inside_a_slot_applies_it_unless_reapply_is_off(
+        hass, hass_storage, freezer, reapply, expected):
+    rec = Recorder(hass)
+    hass.states.async_set("input_boolean.home", "off")
+    prog = program(slots=[slot("s1", "08:00", "12:00", "t21", [_HOME])], reapply=reapply)
+    await setup(hass, hass_storage, freezer, [prog], local(26, 9, 0), debounce_min=0)
+    rec.calls.clear()
+    hass.states.async_set("input_boolean.home", "on")
+    await hass.async_block_till_done()
+    assert [data["temperature"] for _, data in rec.calls] == expected
+
+
+async def test_state_changes_arriving_during_a_pass_are_handled_after_it_in_arrival_order(
+        hass, hass_storage, freezer):
+    rec = Recorder(hass)
+    hass.states.async_set("input_boolean.home", "on")
+    prog = program(slots=[slot("s1", "08:00", "12:00", "t21", [_HOME])])
+    engine = await setup(hass, hass_storage, freezer, [prog], local(26, 9, 0), debounce_min=0)
+    rec.calls.clear()
+    async with engine._lock:  # a pass in progress (private: the only way to hold one open)
+        hass.states.async_set("input_boolean.home", "off")
+        hass.states.async_set("input_boolean.home", "on")
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert rec.calls == []  # nothing decided while the pass holds the engine
+    await hass.async_block_till_done()
+    assert [data["temperature"] for _, data in rec.calls] == [15, 21]  # off then on, in that order
+
+
+@pytest.mark.parametrize(("keeps_going", "expected"), [(True, [21]), (False, [])])
+async def test_a_stopped_engine_ends_the_pass_before_sending(hass, hass_storage, freezer, monkeypatch,
+                                                              keeps_going, expected):
+    rec = Recorder(hass)
+    engine = await setup(hass, hass_storage, freezer, [program()], local(26, 7, 0))
+    rec.calls.clear()
+    freezer.move_to(local(26, 9, 0))
+
+    async def pause() -> bool:  # the engine stops while the pass is between two entities
+        return keeps_going
+
+    monkeypatch.setattr(engine, "_pause", pause)
+    await engine.async_recompute("modification")
+    assert [data["temperature"] for _, data in rec.calls] == expected
+
+
+async def test_a_consumed_skip_is_forgotten_and_the_next_start_applies(hass, hass_storage, freezer):
+    rec = Recorder(hass)
+    engine = await setup(hass, hass_storage, freezer, [program()], local(26, 7, 0))
+    rec.calls.clear()
+    engine.skip_next("office")
+    await go_to(hass, freezer, local(26, 8, 0))
+    assert rec.calls == []  # the skipped start
+    await engine.async_recompute("modification")  # the next full pass forgets the consumed skip
+    assert "skip_at" not in engine.store.runtime["programs"]["office"]  # runtime: not exposed elsewhere
+    await go_to(hass, freezer, local(27, 8, 0))
+    assert [data["temperature"] for _, data in rec.calls][-1] == 21  # the skip did not outlive its start
+
+
+async def test_vacation_enters_an_entity_that_has_no_action_without_sending(hass, hass_storage, freezer):
+    rec = Recorder(hass)
+    engine = await setup(hass, hass_storage, freezer, [program(default=None)], local(26, 7, 0))
+    rec.calls.clear()
+    await engine.async_set_vacation(True)
+    assert rec.calls == []  # no default, nothing to send
+    assert engine.store.runtime["entities"][CLIMATE]["segment"] == list(engine.segment(CLIMATE).key)  # entered

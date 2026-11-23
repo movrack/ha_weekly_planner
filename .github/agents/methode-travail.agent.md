@@ -25,7 +25,8 @@ le suit à l'identique. En cas de doute ou de conflit, `AGENTS.md` et `docs/DECI
 - Avant tout commit, lancer les vérifications :
   - Python : `uv run --group test pytest -q`
   - Carte : `cd frontend && npx tsc --noEmit && npx vitest run && npm run build`
-    (le bundle `custom_components/weekly_planner/frontend/weekly-planner-card.js` est commité).
+    (le bundle `custom_components/weekly_planner/frontend/weekly-planner-card.js` n'est pas commité : la release le
+    construit dans `weekly_planner.zip` ; pour faire tester avant une version, publier une pré-release bêta).
 - Changement d'interface : l'essayer dans un navigateur sur l'instance de test (`scripts/dev_ha.sh`, port 8124,
   puis `scripts/dev_onboard.py` ; après un build, service `weekly_planner.reload`).
 - Tâche terminée : la cocher aussitôt (SPEC, `docs/quick_todo.md`, toute liste). Issue terminée : la commenter « fait » avec le hash du commit associé.
@@ -62,8 +63,9 @@ le suit à l'identique. En cas de doute ou de conflit, `AGENTS.md` et `docs/DECI
 
 Une version change **ensemble** : `custom_components/weekly_planner/manifest.json`, `pyproject.toml`,
 `frontend/package.json` (+ son lock), `uv.lock`, une section datée du `CHANGELOG.md` (Keep a Changelog :
-Added / Changed / Fixed…), et le bundle de la carte reconstruit et commité. Lancer ensuite les deux jeux
-de vérifications.
+Added / Changed / Fixed…). Le bundle de la carte n'est pas commité. Lancer ensuite les deux jeux
+de vérifications. Pré-release bêta (`0.30.0-beta.1`, même texte dans les trois fichiers) : lancée à la main
+depuis n'importe quelle branche (workflow `Release`) ; version finale : seulement depuis `main`.
 
 ## Sous-agents
 Si l'outil permet de déléguer, agir en **coordinateur** pour tout travail non trivial (sinon faire les
@@ -92,7 +94,7 @@ Agents en parallèle qui modifient des fichiers : chacun dans son worktree git, 
 - Premier geste de chaque agent : `git log --oneline -1` dans le worktree doit donner le commit `develop` attendu, et un fichier récent connu doit exister ; sinon, arrêter et signaler.
 - Un worktree ne contient que le travail commité : commiter d'abord (si autorisé) ou remettre un patch.
 - L'arbre principal n'est jamais modifié par des agents en parallèle. Les agents en lecture seule peuvent le partager.
-- Chaque worktree a ses dépendances (`uv sync --group test`, `cd frontend && npm ci`) et son port d'instance de test. Seul l'arbre d'intégration reconstruit le bundle de la carte.
+- Chaque worktree a ses dépendances (`uv sync --group test`, `cd frontend && npm ci`) et son port d'instance de test. Chacun construit son propre bundle de la carte (non commité).
 - Le coordinateur fusionne les branches une à une (rebase sur `develop`, toutes les vérifications, conflits), puis supprime worktrees et branches (`git worktree remove`, `git branch -d`).
 - Worktree ou branche mal basé ou obsolète : le supprimer (`git worktree remove --force`, `git branch -D`) avant de relancer.
 - Aucun push depuis un worktree sans accord du propriétaire.

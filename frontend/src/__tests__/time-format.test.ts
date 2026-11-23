@@ -56,6 +56,28 @@ describe("time format (hass.locale.time_format)", () => {
     expect(fmtClock("en", 720)).toBe("12:00");
   });
 
+  it("a French variant keeps the French style only when French leads", () => {
+    expect(fmtClock("fr-CA", 1320, "24")).toBe("22 h");
+  });
+
+  it("'language' lets a 24-hour locale stay 24-hour", () => {
+    expect(fmtClock("en-GB", 1320, "language")).toBe("22");
+  });
+
+  it("formatWhen gives the weekday alone up to six days ahead, then the date", () => {
+    const now6 = new Date("2026-10-28T10:00:00Z");
+    const soon = plain(formatWhen("2026-11-02T10:00:00Z", "UTC", "en", now6));
+    const far = plain(formatWhen("2026-11-05T10:00:00Z", "UTC", "en", now6));
+    expect(soon).toMatch(/^Mon /);
+    expect(soon).not.toMatch(/Nov/);
+    expect(far).toMatch(/Nov/);
+    const now = new Date(Date.UTC(2026, 10, 2, 12, 0));
+    const at = (ms: number) => formatWhen(new Date(ms).toISOString(), "UTC", "en", now);
+    const six = now.getTime() + 6 * 86_400_000;
+    expect(at(six)).not.toMatch(/Nov/);
+    expect(at(six + 60_000)).toMatch(/Nov/);
+  });
+
   it("formatWhen and formatPauseEnd follow it", () => {
     const now = new Date("2026-11-02T08:00:00Z");
     setTimeFormat(hass("24"));
@@ -83,6 +105,12 @@ describe("time format (hass.locale.time_format)", () => {
     expect(fmtTick12(0, 30, true)).toBe("12:30 am");
     expect(fmtTick12(12, 0)).toBe("noon");
     expect(fmtTick12(19, 30, true)).toBe("7:30 pm");
+    expect(fmtTick12(24, 0)).toBe("midnight");
+    expect(fmtTick12(19, 0)).toBe("7 pm");
+    expect(fmtTick12(12, 30, true)).toBe("12:30 pm");
+    expect(fmtTick12(7, 30)).toBe("7 am");
+    expect(fmtTick12(7, 30, true)).toBe("7:30 am");
+    expect(fmtTick12(7, 5, true)).toBe("7:05 am");
     expect(tickStep(240)).toBe(30);
     expect(tickStep(240, 6)).toBe(60);
   });
@@ -118,7 +146,7 @@ describe("12 h helpers on the card and in the slot editor", () => {
     expect(flat(f._hint("start", "22:30"))).toBe("");
     expect(typeof f._hintId("start", "22:30")).not.toBe("string");
   });
-  it("'at' only before a time of today, in 12 h", async () => {
+  it("'at' only before a time of today, in 12 h and in 24 h", async () => {
     const { WeeklyPlannerCard } = await import("../weekly-planner-card");
     const c = new WeeklyPlannerCard() as any;
     c.hass = { language: "en", config: { time_zone: "UTC" } };
@@ -127,6 +155,7 @@ describe("12 h helpers on the card and in the slot editor", () => {
     expect(plain(c._whenText("2026-11-02T19:00:00Z"))).toBe("at 7 pm");
     expect(plain(c._whenText("2026-11-03T19:00:00Z"))).toBe("tomorrow 7 pm");
     setTimeFormat(hass("24"));
-    expect(c._whenText("2026-11-02T19:00:00Z")).toBe("19:00");
+    expect(plain(c._whenText("2026-11-02T19:00:00Z"))).toBe("at 19:00");
+    expect(plain(c._whenText("2026-11-03T19:00:00Z"))).toBe("tomorrow 19:00");
   });
 });

@@ -6,7 +6,7 @@
 import { entityDomain, selectedProgramIds } from "./planner";
 import type { Program } from "./types";
 
-export interface FilterConfig { types?: string[]; area?: string; programs?: string[] }
+export interface FilterConfig { types?: string[]; area?: string | string[]; programs?: string[] }
 export type FilterPatch = { types?: string[]; programs?: string[] };
 export interface TypeGroup { type: string; label: string; programs: { id: string; name: string }[] }
 
@@ -70,9 +70,12 @@ export function toggleProgram(programs: Program[], filter: FilterConfig | undefi
   return build(programs, filter, ids, on && p ? domainsOf(p) : []);
 }
 
-export function toggleType(programs: Program[], filter: FilterConfig | undefined, type: string, on: boolean): FilterPatch {
+/** `fromAll` = nothing is restricted yet: the chip selects only this type. `visible` = the programs the editor lists (a room is chosen): only those change, the others keep their state. */
+export function toggleType(programs: Program[], filter: FilterConfig | undefined, type: string, on: boolean, visible: Program[] = programs, fromAll = false): FilterPatch {
   const ids = currentIds(programs, filter);
-  const members = programs.filter((p) => domainsOf(p).includes(type));
+  // from "All types" a type chip selects only that type (like a room chip from "All rooms"), it does not exclude it
+  if (fromAll) for (const p of visible) ids.delete(p.id);
+  const members = visible.filter((p) => domainsOf(p).includes(type));
   for (const p of members) { if (on) ids.add(p.id); else ids.delete(p.id); }
   const patch = build(programs, filter, ids, on ? [type] : []);
   if (!on && !members.length && patch.types) patch.types = patch.types.filter((t) => t !== type);
@@ -83,20 +86,8 @@ export function toggleType(programs: Program[], filter: FilterConfig | undefined
 export const allPrograms = (): { types: undefined; programs: undefined } => ({ types: undefined, programs: undefined });
 
 /** Master switch turned off: nothing selected yet (configured types stay), refine with the type/program switches. */
-export function toggleAllOff(programs: Program[], filter?: FilterConfig): FilterPatch {
-  return build(programs, filter, new Set(), []);
-}
-
-/** Card config after creating `created`: it must be what the card shows. Single-program mode points to it; list
- *  mode keeps its mode and only widens the filter (id list, types, area) when it would otherwise hide the new program. */
-export function selectCreated<T extends { program?: string; filter?: FilterConfig }>(config: T, programs: Program[], created: Program): T {
-  if (config.program !== undefined) {
-    const { filter: _drop, ...rest } = config;
-    return { ...rest, program: created.id } as T;
-  }
-  const all = programs.some((p) => p.id === created.id) ? programs : [...programs, created];
-  let filter: FilterConfig = { ...(config.filter ?? {}) };
-  if (filter.area && created.area !== filter.area) delete filter.area;
-  if (!isOn(created, filter, all)) filter = { ...filter, ...toggleProgram(all, filter, created.id, true) };
-  return { ...config, filter } as T;
+export function toggleAllOff(programs: Program[], filter?: FilterConfig, visible: Program[] = programs): FilterPatch {
+  const keep = currentIds(programs, filter);
+  for (const p of visible) keep.delete(p.id); // with a room chosen, the programs of other rooms keep their state
+  return build(programs, filter, keep, []);
 }

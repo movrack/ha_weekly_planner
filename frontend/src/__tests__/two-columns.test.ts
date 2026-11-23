@@ -32,8 +32,8 @@ function screen() {
 
 describe("two-column schedule modal (CSS only)", () => {
   const text = css(WpSchedule);
-  it("switches to a grid from 768 px and keeps the phone layout below", () => {
-    const at = text.indexOf("@media (min-width: 768px)");
+  it("switches to a grid when the dialog box is 736 px wide and keeps the phone layout below", () => {
+    const at = text.indexOf("@container wpdlg (min-width: 736px)");
     expect(at).toBeGreaterThan(0);
     expect(text.slice(0, at)).toMatch(/\.cols, \.params \{ display: block/);
     expect(text.slice(at)).toMatch(/\.cols \{[^}]*display: grid/);
@@ -46,9 +46,11 @@ describe("two-column schedule modal (CSS only)", () => {
     expect(text).toMatch(/\.area-options \{ grid-area: options/);
     expect(text).toMatch(/\.area-delete \{ grid-area: delete/);
   });
-  it("widens only the schedule dialog, only from 768 px, and keeps the phone sheet", () => {
+  it("widens only the schedule dialog, to its own container (a pop-up bubble), and keeps the phone sheet", () => {
     const d = css(WpDialog);
-    expect(d).toMatch(/@media \(min-width: 768px\) \{ \.panel\.columns \{ width: min\(960px/);
+    expect(d).toMatch(/\.panel\.columns \{ width: min\(960px, calc\(100% - 32px\)\)/);
+    expect(d).toContain("container: wpdlg / inline-size");
+    expect(d).not.toContain("100vw");
     expect(d).toContain("@media (max-width: 600px)");
     const html = flat(screen().render());
     expect(html).toContain("<wp-dialog open columns");
@@ -72,8 +74,9 @@ describe("two-column schedule modal (CSS only)", () => {
     const params = html.indexOf('class="params"');
     expect(html.indexOf("[EDITOR]")).toBeGreaterThan(params);
     expect(html.indexOf("[EDITOR]")).toBeLessThan(html.indexOf('class="area-week"'));
-    expect(html).not.toContain("[CHART]");
-    expect(html).not.toContain("danger-line alone");
+    // chart and Delete stay shown (inert and greyed), they never disappear
+    expect(html).toContain("[CHART]");
+    expect(html).toContain("danger-line alone");
   });
 });
 
@@ -83,8 +86,8 @@ describe("slot editor open in two columns", () => {
     const scroll = vi.fn();
     const editor = { scrollIntoView: scroll, getBoundingClientRect: () => ({ top: 300 }) };
     const content: any = { scrollTop: 0, getBoundingClientRect: () => ({ top: 100, bottom: 700 }) };
-    view.renderRoot = { querySelector: (q: string) => (q === ".editor" ? editor : { shadowRoot: { querySelector: () => content } }) };
-    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+    const panel = { getBoundingClientRect: () => ({ width: 800 }) };
+    view.renderRoot = { querySelector: (q: string) => (q === ".editor" ? editor : { shadowRoot: { querySelector: (x: string) => (x === ".panel" ? panel : content) } }) };
     view._revealEditor();
     expect(scroll).not.toHaveBeenCalled();
     expect(content.scrollTop).toBe(0);
@@ -97,19 +100,21 @@ describe("slot editor open in two columns", () => {
   it("keeps the phone behaviour: scroll the editor to the top", () => {
     const view = screen() as any;
     const scroll = vi.fn();
-    view.renderRoot = { querySelector: () => ({ scrollIntoView: scroll }) };
-    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    const panel = { getBoundingClientRect: () => ({ width: 700 }) };
+    view.renderRoot = { querySelector: (q: string) => (q === ".editor" ? { scrollIntoView: scroll } : { shadowRoot: { querySelector: (x: string) => (x === ".panel" ? panel : {}) } }) };
     view._revealEditor();
     expect(scroll).toHaveBeenCalledWith({ block: "start" });
     vi.unstubAllGlobals();
   });
-  it("renders no empty grid cell for the hidden chart and Delete", () => {
+  it("keeps the chart and Delete in their grid cells, inert, while a slot is open", () => {
     expect(css(WpSchedule)).toMatch(/\.area-chart:empty, \.area-options:empty, \.area-delete:empty \{ display: none/);
     const view = screen() as any;
     view._open = "new";
     const html = flat(view.render());
-    expect(html).not.toContain("[CHART]");
-    expect(html).not.toContain("danger-line alone");
+    expect(html).toContain("[CHART]");
+    expect(html).toContain("danger-line alone");
+    expect(html).toContain('class="area-chart" aria-disabled=');
+    expect(html).toContain('class="dim" ?inert=');
     expect(html).toContain('class="area-week"');
   });
 });

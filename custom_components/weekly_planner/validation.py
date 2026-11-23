@@ -9,7 +9,6 @@ from zoneinfo import ZoneInfo
 import voluptuous as vol
 from homeassistant.helpers import config_validation as cv
 
-from .actions import needs_admin
 from .const import (
     DEFAULT_PRIORITY,
     DEFAULT_REAPPLY,
@@ -110,6 +109,7 @@ LABEL = vol.Schema({
     vol.Required("name"): vol.All(str, vol.Length(min=1, max=30)),
     vol.Optional("color", default="#9e9e9e"): vol.Match(r"^#[0-9a-fA-F]{6}$"),
     vol.Required("action"): ACTION,
+    vol.Optional("show_value"): bool,  # the card adds the preset's temperature to the name (display only)
 })
 
 CONDITION = vol.Schema({
@@ -203,7 +203,7 @@ PROGRAM = vol.Schema({
     vol.Required("name"): vol.All(str, vol.Length(min=1, max=60)),
     vol.Optional("icon"): vol.Any(None, str),
     vol.Optional("area"): vol.Any(None, str),
-    vol.Optional("priority", default=DEFAULT_PRIORITY): vol.All(int, vol.Range(min=1, max=100)),
+    vol.Optional("priority", default=DEFAULT_PRIORITY): vol.All(int, vol.Range(min=1)),
     vol.Optional("enabled", default=True): bool,
     vol.Optional("paused_until"): vol.Any(None, _utc_datetime),
     vol.Optional("reapply", default=True): bool,
@@ -459,11 +459,6 @@ def _reject_overlaps(intervals: list[tuple]) -> None:
         latest_end = end
 
 
-def _check_overlaps(day_slots: list[dict]) -> None:
-    """Validate a standalone day's fixed windows (solar intervals trim at runtime)."""
-    _reject_overlaps(_fixed_intervals(day_slots, date(2026, 1, 5)))
-
-
 def _check_day_overlaps(day_slots: list[dict], entity_ids: list[str] | None) -> None:
     """One day on its own (a day off): fixed windows, random delays included; scoped by device with lists."""
     day = date(2026, 1, 5)
@@ -519,15 +514,6 @@ def _check_week_overlaps_scoped(days: list[list[dict]], entity_ids: list[str]) -
                 shared = _shared_device(ids, other_ids, entity_ids)
                 if shared:
                     raise ProgramError(f"overlapping_slots:{shared}")
-
-
-def admin_required(program: dict, labels: dict[str, dict]) -> bool:
-    """Does the program use actions only an administrator may schedule (through a label or an override)?"""
-    if any(needs_admin(a) for e in program["entities"] for a in e["label_overrides"].values()):
-        return True
-    used = {e["default_label"] for e in program["entities"]}
-    used |= {s["label"] for p in program["profiles"] for s in profile_slots(p)}
-    return any(needs_admin((labels.get(label_id) or {}).get("action")) for label_id in used)
 
 
 def label_users(programs: list[dict], label_id: str) -> list[str]:

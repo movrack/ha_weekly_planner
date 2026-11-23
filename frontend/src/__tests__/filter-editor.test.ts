@@ -3,10 +3,11 @@ import { allPrograms, isOn, programRows, toggleAllOff, toggleProgram, toggleType
 import { filterPrograms } from "../planner";
 import type { PlannerData, Program } from "../types";
 
-const prog = (id: string, ...ents: string[]): Program => ({
-  id, name: id.toUpperCase(), revision: 1, area: "", priority: 0, enabled: true, reapply: true, conditions: [], profiles: [],
+const progOf = (id: string, name: string, ents: string[], area = ""): Program => ({
+  id, name, revision: 1, area, priority: 0, enabled: true, reapply: true, conditions: [], profiles: [],
   entities: ents.map((entity_id) => ({ entity_id, default_label: null, label_overrides: {} })),
-});
+} as any);
+const prog = (id: string, ...ents: string[]): Program => progOf(id, id.toUpperCase(), ents);
 const programs = [prog("a", "cover.x"), prog("b", "cover.y"), prog("c", "vacuum.z"), prog("d", "future.q")];
 const data = { programs } as unknown as PlannerData;
 const shown = (filter: any) => filterPrograms(data, { filter }).map((p) => p.id).sort();
@@ -41,6 +42,10 @@ describe("editor type groups and switches", () => {
     expect(shown(off)).toEqual(["c", "d"]);
     const on = apply(off, toggleType(programs, off, "cover", true));
     expect(shown(on)).toEqual(["a", "b", "c", "d"]);
+  });
+  it("from nothing restricted, a type chip selects only that type (fromAll)", () => {
+    const f = apply({}, toggleType(programs, {}, "cover", true, programs, true));
+    expect(shown(f)).toEqual(["a", "b"]);
   });
   it("enabling a program outside a legacy type filter widens types without revealing its siblings", () => {
     const f0 = { types: ["cover"] };
@@ -130,5 +135,92 @@ describe("multi-type programs: one row, quick type helper", () => {
     const on = apply(off, toggleType(multi, off, "cover", true));
     expect(filterPrograms({ programs: multi } as unknown as PlannerData, { filter: on }).map((p) => p.id).sort()).toEqual(["t", "u", "v"]);
     expect(on.programs).toEqual(["t", "u", "v"]);
+  });
+});
+
+describe("a room is chosen: only the listed programs change", () => {
+  const visible = [programs[0], programs[1]]; // a, b (both covers); c and d are in another room
+  it("master switch off deselects the listed programs only", () => {
+    const f = apply({}, toggleAllOff(programs, {}, visible));
+    expect(f.programs.sort()).toEqual(["c", "d"]);
+  });
+  it("master switch off without a room still selects nothing", () => {
+    expect(apply({}, toggleAllOff(programs, {})).programs).toEqual([]);
+  });
+  it("a type switch only touches the listed members of that type", () => {
+    const off = apply({}, toggleType(programs, {}, "cover", false, visible));
+    expect(off.programs.sort()).toEqual(["c", "d"]);
+    const on = apply(off, toggleType(programs, off, "cover", true, [programs[0]]));
+    expect(on.programs.sort()).toEqual(["a", "c", "d"]);
+  });
+});
+
+// The "programs to display" logic: edge cases of switches, groups, rows and the program just created.
+
+describe("isOn", () => {
+  it("without a filter everything is on; a program name selects when no list of programs is given", () => {
+    const p = progOf("a", "Alpha", ["cover.x"]);
+    expect(isOn(p)).toBe(true);
+    expect(isOn(p, undefined)).toBe(true);
+    expect(isOn(p, { programs: ["a"] })).toBe(true);
+    expect(isOn(p, { programs: ["b"] })).toBe(false);
+    expect(isOn(p, { programs: [] })).toBe(false);
+    expect(isOn(p, { types: [] })).toBe(true);
+  });
+  it("one matching domain is enough", () => {
+    const two = progOf("m", "M", ["cover.x", "light.y"]);
+    expect(isOn(two, { types: ["cover"] })).toBe(true);
+    expect(isOn(two, { types: ["fan"] })).toBe(false);
+    expect(isOn(two, { types: ["fan", "light"], programs: ["m"] })).toBe(true);
+  });
+});
+
+describe("groups and rows", () => {
+  const label = (t: string) => (t === "x" ? "Same" : t === "y" ? "Same" : "");
+  it("groups with the same label are ordered by type; programs with the same name by id; empty types are ignored", () => {
+    const programs = [progOf("b", "Same", ["y.1"]), progOf("a", "Same", ["x.1"]), progOf("c", "Same", ["x.2"]), progOf("d", "Same", ["x.3"])];
+    const { groups } = typeGroups(programs, { types: ["", "z"] }, label, "en");
+    expect(groups.map((g) => g.type)).toEqual(["x", "y", "z"]);
+    expect(groups[0].programs.map((p) => p.id)).toEqual(["a", "c", "d"]);
+    expect(groups.find((g) => g.type === "z")!.label).toBe("z");
+    expect(groups.map((g) => g.type)).not.toContain("");
+  });
+  it("names sort by language, then ids; rows carry the domains and the device names", () => {
+    const programs = [progOf("2", "Zed", ["light.a", "light.b", "cover.c"]), progOf("1", "Zed", ["cover.d"]), progOf("0", "alpha", ["fan.e"])];
+    const rows = programRows(programs, (e) => e.toUpperCase(), "en");
+    expect(rows.map((r) => r.id)).toEqual(["0", "1", "2"]);
+    expect(rows[2]).toEqual({ id: "2", name: "Zed", domains: ["light", "cover"], devices: ["LIGHT.A", "LIGHT.B", "COVER.C"] });
+  });
+});
+
+describe("type state", () => {
+  it("an empty type is on without a type filter or when listed, off otherwise", () => {
+    const g = { type: "retired", label: "r", programs: [] };
+    expect(typeState(g, [])).toBe("on");
+    expect(typeState(g, [], { types: [] })).toBe("on");
+    expect(typeState(g, [], { types: ["retired"] })).toBe("on");
+    expect(typeState(g, [], { types: ["other"] })).toBe("off");
+  });
+});
+
+describe("switches", () => {
+  const programs = [progOf("a", "A", ["cover.x"]), progOf("c", "C", ["vacuum.z"])];
+  it("a program switched on widens the types to its domains; switched off it never does; unknown ids widen nothing", () => {
+    expect(toggleProgram(programs, { types: ["cover"] }, "c", true)).toEqual({ programs: ["a", "c"], types: ["cover", "vacuum"] });
+    expect(toggleProgram(programs, { types: ["cover"] }, "c", false)).toEqual({ programs: ["a"], types: ["cover"] });
+    expect(toggleProgram(programs, { types: ["cover"] }, "zz", true)).toEqual({ programs: ["a"], types: ["cover"] });
+    expect(toggleProgram(programs, undefined, "a", false)).toEqual({ programs: ["c"] });
+  });
+  it("a type switched on widens the types with it; off with members keeps the type; off without members removes it", () => {
+    expect(toggleType(programs, { types: ["cover"] }, "vacuum", true)).toEqual({ programs: ["a", "c"], types: ["cover", "vacuum"] });
+    expect(toggleType(programs, { types: ["cover", "vacuum"] }, "vacuum", false)).toEqual({ programs: ["a"], types: ["cover", "vacuum"] });
+    expect(toggleType(programs, { types: ["cover", "retired"] }, "retired", false).types).toEqual(["cover"]);
+    expect(toggleType(programs, { types: ["cover", "retired"] }, "retired", true).types).toEqual(["cover", "retired"]);
+    expect(toggleType(programs, { types: ["cover"] }, "vacuum", false).types).toEqual(["cover"]);
+    expect(toggleType(programs, undefined, "vacuum", false)).toEqual({ programs: ["a"] });
+    expect(toggleType(programs, { types: ["cover"] }, "cover", false, [programs[1]]).programs).toEqual(["a"]); // only visible programs change (a is not visible, so it keeps its state)
+  });
+  it("orphan references are kept as they are", () => {
+    expect(toggleProgram(programs, { programs: ["gone", "a"] }, "c", true)).toEqual({ programs: ["a", "c", "gone"] });
   });
 });
