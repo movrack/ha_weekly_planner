@@ -54,8 +54,9 @@ La carte montre maintenant une barre colorée de 6 h 30 à 8 h 30. Le bouton **S
 
 ## Et ensuite
 
-- Un réglage pour le reste de la journée, d’autres horaires, des copies sur d’autres jours :
-  [Guide utilisateur](GUIDE.fr.md).
+- Un réglage pour le reste de la journée, d’autres horaires : [Régler le matin et le soir](GUIDE_MATIN_ET_SOIR.fr.md).
+  Des copies sur d’autres jours : [Modifier ou copier un horaire](GUIDE_MODIFIER_COPIER.fr.md). Tout le reste :
+  [Guide : je veux…](GUIDE.fr.md).
 - Un exemple complet à recopier : [Recettes](RECETTES.fr.md).
 - Si une liste d’actions est vide, ou si une action manque : voir **Appareils → Actions proposées** dans la
   **Fiche du programme**, ouverte depuis la **Liste des programmes** du panneau.

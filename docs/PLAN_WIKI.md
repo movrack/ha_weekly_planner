@@ -62,6 +62,11 @@ suspendre tous les programmes. 2.9 Changer la présentation, l'ordre de la liste
 Comprendre ce qui s'est passé (journal, historique de 14 jours, comparer avec une autre entité). 2.11 Après une
 panne (resynchroniser, `apply_now`).
 
+Pages de la section 2 (fichier, entrée du plan) : `GUIDE_VOIR_PREVU` 2.1, `GUIDE_MATIN_ET_SOIR` 2.2,
+`GUIDE_MODIFIER_COPIER` 2.3, `GUIDE_PLUSIEURS_APPAREILS` 2.4, `GUIDE_SOLEIL` 2.5, `GUIDE_MODES` 2.6 (avec
+« mêmes horaires que »), `GUIDE_JOUR_FERIE` 2.7, `GUIDE_PAUSE_SAUT` 2.8, `GUIDE_PRESENTATION` 2.9, `GUIDE_COMPRENDRE`
+2.10, `GUIDE_APRES_PANNE` 2.11 (tous en `.fr.md`).
+
 ### 3. Vocabulaire
 Page « Lexique » (générée du glossaire) ; 3.1 Programme, appareil, réglage. 3.2 Horaire, fin d'horaire, le reste du
 temps. 3.3 Priorité. 3.4 Mode et mode qui en suit un autre. 3.5 Jour férié (une entité pour la maison, un jour réglé
@@ -113,7 +118,7 @@ Belgique doivent être présentés comme « à adapter ».
 | RECETTE_VACANCES_SCOLAIRES | Horaires de vacances quand un calendrier scolaire est `on` | **Garder**, préciser une source réelle de calendrier (le nom `binary_sensor.vacances_scolaires` est inventé : dire que l'utilisateur le crée ou l'adapte) |
 | RECETTE_PLUSIEURS_CAPTEURS | Un seul ordre de priorité quand plusieurs capteurs décident du mode | **Garder**, fusionner les « pièges des modes » dans cette page |
 | RECETTE_ABSENT | Maison vide : baisser chauffage et lumières | **Garder** (`zone.home` à 0 : cas réel) ; ajouter l'avertissement « entités `person` » déjà présent |
-| RECETTE_MEMES_HORAIRES | Deux modes presque identiques partagent une semaine | **Réécrire** : 4 phrases, c'est une fonction, pas un besoin ; la déplacer dans le guide 2.6 (« mêmes horaires que ») et retirer la recette |
+| RECETTE_MEMES_HORAIRES | Deux modes presque identiques partagent une semaine | **Fait** : fusionnée dans `GUIDE_MODES.fr.md` (2.6, « Utiliser les mêmes horaires qu’un autre mode »), fichier supprimé |
 | RECETTE_INTERRUPTEUR_JOUR_FERIE | Un jour de congé décidé à la main (pont, congé posé) | **Garder, publier avec #54** (dépend de l'entité jour férié) |
 | RECETTE_CAPTEUR_JOUR_FERIE | Jours fériés officiels et congés scolaires dans un seul capteur modèle | **Garder, publier avec #54** ; dire que le calendrier dépend du pays |
 | RECETTE_GARDE_ALTERNEE | Chauffer les chambres des enfants seulement les semaines de garde | **Garder** (priorités, `input_boolean` ou calendrier) |
@@ -147,7 +152,7 @@ Chaque nouvelle recette est vérifiée contre la carte publiée (menus, noms de 
 | Existant | Place |
 |---|---|
 | Home | 0 Accueil |
-| Guide utilisateur (`GUIDE.fr.md`) | 2 (à découper), 4, 5 ; la fin « Pour la personne qui installe » va en 1 |
+| Guide utilisateur (`GUIDE.fr.md`) | **Section 2 faite** : `GUIDE.fr.md` est l'index « Je veux… » et les 11 tâches sont les pages `GUIDE_*.fr.md` (liste en fin de section 2). Le reste (4, 5, 6, 7, « Pour la personne qui installe ») attend dans `GUIDE_A_REPARTIR.fr.md`, à vider puis supprimer |
 | Atlas des écrans (`SCREENS.fr.md` + `images/guide/`) | Annexe A |
 | Modes (`MODES.md`, anglais) | 3.4, 5.6, 6.3, 2.6 ; texte repris en français, fichier sans suffixe supprimé du wiki |
 | Recettes (`RECETTES.fr.md`) et 9 `RECETTE_*.fr.md` | 8 (voir revue ci-dessus) |
