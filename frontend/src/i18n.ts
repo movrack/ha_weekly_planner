@@ -186,6 +186,7 @@ const en = {
   action_target_entity: "Entity to control",
   action_target_hint: "This setting acts on the selected entity, for example a favorite-position button or a script.",
   action_choose: "What should this setting do?",
+  action_command: "Action",
   action_no_description: "This integration provides no description for this action.",
   action_scene_description: "Activate this Home Assistant scene and apply its saved settings.",
   edited: "Saved",
@@ -761,6 +762,7 @@ const fr: typeof en = {
   action_target_entity: "Entité à commander",
   action_target_hint: "Ce réglage agit sur l’entité choisie, par exemple un bouton de position favorite ou un script.",
   action_choose: "Que doit faire ce réglage ?",
+  action_command: "Action",
   action_no_description: "Cette intégration ne fournit pas de description pour cette action.",
   action_scene_description: "Activer cette scène Home Assistant et appliquer ses réglages enregistrés.",
   // --- réglages (0.6) ---
