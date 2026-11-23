@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Weekly Planner",
-        "description": "Ajouter Weekly Planner. Les programmes se créent ensuite depuis la carte Weekly Planner."
+        "description": "Ajouter Weekly Planner. Les programmes se créent ensuite dans le panneau Weekly Planner."
       }
     },
     "abort": {
@@ -149,7 +149,7 @@
   "issues": {
     "missing_entities": {
       "title": "Weekly Planner : entités supprimées",
-      "description": "Des programmes utilisent des entités qui n'existent plus : {details}. Modifiez ces programmes dans la carte Weekly Planner."
+      "description": "Des programmes utilisent des entités qui n'existent plus : {details}. Modifiez ces programmes dans le panneau Weekly Planner."
     },
     "yaml_invalid": {
       "title": "Weekly Planner : fichier YAML ignoré",

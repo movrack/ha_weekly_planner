@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Weekly Planner",
-        "description": "Add the Weekly Planner. Programs are then created from the Weekly Planner card."
+        "description": "Add the Weekly Planner. Programs are then created in the Weekly Planner panel."
       }
     },
     "abort": {
@@ -149,7 +149,7 @@
   "issues": {
     "missing_entities": {
       "title": "Weekly Planner: entities removed",
-      "description": "Some programs use entities that no longer exist: {details}. Edit these programs in the Weekly Planner card."
+      "description": "Some programs use entities that no longer exist: {details}. Edit these programs in the Weekly Planner panel."
     },
     "yaml_invalid": {
       "title": "Weekly Planner: YAML file ignored",
