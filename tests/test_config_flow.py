@@ -405,7 +405,7 @@ def test_reapply_option_is_worded_like_the_checkbox_of_the_program_sheet() -> No
     from pathlib import Path
     root = Path(__file__).parents[1]
     card = (root / "frontend" / "src" / "i18n.ts").read_text(encoding="utf-8")
-    labels = re.findall(r'^  pe_reapply: "([^"]+)",$', card, flags=re.M)  # the English block first, then the French one
+    labels = re.findall(r'^  pe_reapply: "([^"]+)",$', card, flags=re.MULTILINE)  # the English block first, then the French one
     assert len(labels) == 2
     folder = root / "custom_components" / "weekly_planner" / "translations"
     for name, checkbox in zip(("en", "fr"), labels):
