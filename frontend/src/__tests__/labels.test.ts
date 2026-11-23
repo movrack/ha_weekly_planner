@@ -45,6 +45,24 @@ describe("labels offered for a device", () => {
     expect(allowedOf(p, "light.a")).toBeUndefined();
   });
 
+  it("hides a label aimed at a device the program does not have, unless the program already uses it", () => {
+    const hass2 = { ...hass, services: { ...hass.services, button: { press: { target: { entity: { domain: "button" } } } } } } as unknown as HomeAssistant;
+    const aimed = (target?: string): Label => label("fav", { kind: "service", service: "button.press", ...(target ? { target_entity_id: target } : {}) });
+    const rocky = (): Program => ({ ...program(), entities: [{ entity_id: "button.rocky", default_label: null, label_overrides: {} }] });
+    const ids = (l: Label, p: Program) => labelsFor(hass2, { labels: [l] } as PlannerData, ["button.rocky"], p).map((x) => x.id);
+    expect(ids(aimed("button.blind"), rocky())).toEqual([]); // another device: hidden
+    expect(ids(aimed("button.rocky"), rocky())).toEqual(["fav"]); // its own device
+    expect(ids(aimed(), rocky())).toEqual(["fav"]); // no target: the old rule
+    const used = rocky();
+    used.entities[0].label_overrides = { fav: { kind: "service", service: "button.press" } };
+    expect(ids(aimed("button.blind"), used)).toEqual(["fav"]); // already used: stays
+    const inSlot = rocky();
+    inSlot.profiles[0].days[0][0].label = "fav";
+    expect(ids(aimed("button.blind"), inSlot)).toEqual(["fav"]);
+    const other = { ...rocky(), entities: [...rocky().entities, { entity_id: "button.blind", default_label: null, label_overrides: {} }] };
+    expect(ids(aimed("button.blind"), other)).toEqual(["fav"]); // a device of the program
+  });
+
   it("accepts a scene only when it contains the device", () => {
     expect(compatible(hass, "climate.a", { kind: "scene", scene: "scene.soir" })).toBe(true);
     expect(compatible(hass, "light.a", { kind: "scene", scene: "scene.soir" })).toBe(false);

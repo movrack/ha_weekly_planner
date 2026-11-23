@@ -142,9 +142,19 @@ export function compatible(hass: HomeAssistant, entityId: string, action: Action
   return servicesFor(hass, target).some((s) => s.id === action.service);
 }
 
-/** Labels offered for devices: compatible with at least one of them. */
+/**
+ * Labels offered for devices: compatible with at least one of them. A service label aimed at another entity
+ * (`target_entity_id`) is offered only when that entity belongs to the program (or is one of the devices);
+ * a label the program already uses always stays.
+ */
 export function labelsFor(hass: HomeAssistant, data: PlannerData, entityIds: string[], program?: Program | null): Label[] {
-  return data.labels.filter((l) => entityIds.some((e) => compatible(hass, e, l.action, allowedOf(program, e))));
+  const mine = new Set([...entityIds, ...(program?.entities.map((e) => e.entity_id) ?? [])]);
+  return data.labels.filter((l) => {
+    const a = l.action;
+    const elsewhere = a.kind === "service" && a.target_entity_id !== undefined && a.target_entity_id !== "" && !mine.has(a.target_entity_id);
+    if (elsewhere && !(program && usesLabel(program, l.id))) return false;
+    return entityIds.some((e) => compatible(hass, e, a, allowedOf(program, e)));
+  });
 }
 
 /** What a label does to an entity of a program: its own value for the device, else the label's. */
