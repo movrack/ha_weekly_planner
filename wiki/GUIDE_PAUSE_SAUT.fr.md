@@ -34,7 +34,7 @@ Le programme affiche alors un badge **En pause jusqu’au** suivi de la date et 
 **Reprendre plus tôt :** toucher l’interrupteur de nouveau. Il n’y a pas de confirmation ; le message
 « … est remis en marche. » le dit.
 
-Mettre un programme en pause arrête ses horaires. Cela ne veut pas forcément dire éteindre l’appareil.
+Mettre un programme en pause arrête ses horaires. À ce moment, le réglage de **Le reste du temps** du programme est envoyé une fois aux appareils qu’aucun autre programme en marche ne commande ; ensuite plus rien n’est envoyé. Cela ne veut pas forcément dire éteindre l’appareil.
 
 ## Sauter le prochain changement
 
