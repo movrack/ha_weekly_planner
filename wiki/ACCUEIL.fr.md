@@ -26,7 +26,7 @@ Tout est calculé dans votre Home Assistant : aucun service en ligne n’est uti
 |---|---|
 | Installer Weekly Planner | [Installer et mettre à jour](INSTALLER_METTRE_A_JOUR.fr.md) |
 | Créer mon premier programme | [Premier programme](PREMIER_PROGRAMME.fr.md) |
-| Régler un horaire, un réglage, un mode, un jour férié… | [Guide utilisateur](GUIDE.fr.md) |
+| Régler un horaire, un réglage, un mode, un jour férié, une pause… | [Guide : je veux…](GUIDE.fr.md) |
 | Copier un exemple qui marche | [Recettes](RECETTES.fr.md) |
 | Comprendre quel programme commande un appareil | [Priorités](PRIORITES.fr.md) |
 | Voir tous les écrans | [Atlas des écrans](SCREENS.fr.md) |

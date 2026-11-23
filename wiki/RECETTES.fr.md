@@ -13,7 +13,6 @@ sélecteur.
 - [Vacances scolaires](RECETTE_VACANCES_SCOLAIRES.fr.md)
 - [Plusieurs capteurs, un seul ordre de priorité](RECETTE_PLUSIEURS_CAPTEURS.fr.md)
 - [Absent quand personne n'est à la maison](RECETTE_ABSENT.fr.md)
-- [Ne pas écrire deux fois la même semaine](RECETTE_MEMES_HORAIRES.fr.md)
 
 ## Jours fériés et congés
 
