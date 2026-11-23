@@ -21,7 +21,7 @@ sélecteur.
 
 ## Plusieurs programmes sur le même appareil
 
-- [Superposer deux programmes : les priorités](PRIORITES.fr.md)
+- [Les priorités : quel programme commande l’appareil](PRIORITES.fr.md)
 - [Garde alternée des enfants](RECETTE_GARDE_ALTERNEE.fr.md)
 - [Réduire le chauffage pendant les heures de pointe](RECETTE_HEURES_DE_POINTE.fr.md)
 

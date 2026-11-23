@@ -91,7 +91,7 @@
   "services": {
     "apply_now": {
       "name": "Appliquer maintenant",
-      "description": "Envoie tout de suite ce que les appareils du programme doivent faire, même s'ils sont déjà dans cet état ; envoie aussi le dernier ponctuel commencé il y a moins de 24 heures, sauf si une personne a modifié l'appareil depuis. Renvoie les appareils envoyés et laissés tels quels.",
+      "description": "Envoie tout de suite ce que les appareils du programme doivent faire, même s'ils sont déjà dans cet état ; envoie aussi le dernier horaire « À cette heure seulement » commencé il y a moins de 24 heures, sauf si une personne a modifié l'appareil depuis. Renvoie les appareils envoyés et laissés tels quels.",
       "fields": {
         "program_id": {
           "name": "Programme",

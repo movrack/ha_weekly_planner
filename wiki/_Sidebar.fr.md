@@ -21,7 +21,11 @@
 - [Comprendre ce qui s’est passé](GUIDE_COMPRENDRE.fr.md)
 - [Après une panne](GUIDE_APRES_PANNE.fr.md)
 
-**Utiliser**
+**Comprendre**
+- [Lexique](LEXIQUE.fr.md)
 - [Priorités](PRIORITES.fr.md)
+- [La carte](CARTE.fr.md)
+
+**Utiliser**
 - [Recettes](RECETTES.fr.md)
 - [Atlas des écrans](SCREENS.fr.md)

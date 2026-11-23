@@ -185,7 +185,7 @@ export class WpActionPicker extends LitElement {
       <slot name="advanced"></slot>`;
     return html`
       ${this.allowed?.length === 0 ? html`<p class="hint" role="status">${t(lang, "action_none_allowed")}</p>` : nothing}
-      <label class="action-label" for="action">${t(lang, "action")}</label>
+      <label class="action-label" for="action">${t(lang, "action_command")}</label>
       <select id="action" data-value=${selected || ""} aria-describedby="action-description" ?disabled=${this.disabled || !target}
         @change=${(e: Event) => {
           const id = (e.target as HTMLSelectElement).value;

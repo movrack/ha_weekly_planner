@@ -91,6 +91,9 @@ describe("slot action bar wording", () => {
     expect(t("fr", "cut_hint")).not.toBe(t("fr", "copy_hint"));
     for (const lang of ["fr", "en"]) for (const k of ["grp_time", "grp_days", "move_err_wrap", "move_err_oneshot", "move_err_sunbound"] as const) expect(t(lang, k)).not.toBe(k);
   });
+  it("names an end-less schedule as the card does (the option), not with another word", () => {
+    for (const lang of ["fr", "en"]) expect(t(lang, "move_err_oneshot")).toContain(t(lang, "no_end"));
+  });
 });
 
 describe("bar gesture", () => {

@@ -25,6 +25,7 @@ Choisissez ce que vous voulez faire. Chaque page se lit seule, en quelques étap
 
 Pour créer un premier programme, voir [Premier programme](PREMIER_PROGRAMME.fr.md). Pour copier un exemple
 complet, voir les [Recettes](RECETTES.fr.md). Pour comprendre quel programme commande un appareil quand
-plusieurs le visent, voir les [Priorités](PRIORITES.fr.md).
+plusieurs le visent, voir les [Priorités](PRIORITES.fr.md). Pour le sens d’un mot, voir le [Lexique](LEXIQUE.fr.md) ;
+pour tout savoir de la carte (affichages, gestes, boutons), voir [La carte](CARTE.fr.md).
 
 [Accueil](ACCUEIL.fr.md)

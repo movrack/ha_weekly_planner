@@ -31,6 +31,13 @@ const picker = (props: Record<string, unknown> = {}) => {
   return { el, seen };
 };
 
+describe("wp-action-picker label", () => {
+  it("calls the field that chooses the command \"Action\", not \"Setting\" (a setting is the named thing being edited)", () => {
+    expect(flat(picker().el.render())).toContain(">Action</label>");
+    expect(flat(picker({ hass: { ...hass, language: "fr" } }).el.render())).toContain(">Action</label>");
+  });
+});
+
 describe("wp-action-picker advanced options", () => {
   const rich = { ...hass, services: { climate: { set_temperature: { name: "Set temperature", target: { entity: { domain: "climate" } },
     fields: { temperature: { required: true, selector: { number: {} } }, target_temp_high: { selector: { number: {} } }, target_temp_low: { selector: { number: {} } } } } } } };
