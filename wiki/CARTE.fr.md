@@ -108,7 +108,7 @@ Un jour à la fois pour toute la carte : chaque appareil a sa barre, tous les pr
   le jour d’aujourd’hui est repéré. La puce **Jour férié** est grisée, avec **Aucun jour férié réglé.** écrit
   dessous, quand aucun programme n’a de jour férié.
 - Le nom du jour est en titre (aujourd’hui en gras, avec le repère **Maintenant**). Une barre de programme en pause
-  est grisée avec la mention **en pause**.
+  garde ses couleurs, mais hachurées, avec la mention **en pause**. Avec le tri par type, un programme qui commande des appareils de plusieurs types (par exemple un thermostat et un volet) est listé sous chaque type, avec les appareils de ce type.
 - Le bouton **Modifier**, en haut, ouvre la fenêtre des horaires ; avec plusieurs programmes, la question
   **Que voulez-vous modifier ?** demande lequel.
 
@@ -198,7 +198,7 @@ De haut en bas :
    - **Mode** (seulement si un sélecteur de mode est choisi) : choisir le mode dont on règle les horaires ;
      **Options avancées** : **Mêmes horaires que :** et **Reprendre les horaires d’un autre mode**
      ([Des horaires selon le mode](GUIDE_MODES.fr.md)).
-   - **Réglages** : créer, modifier, supprimer les réglages (**Nouveau réglage**).
+   - **Réglages** : créer, modifier, supprimer les réglages (**Nouveau réglage**). La liste ne montre que les réglages qui concernent les appareils du programme : un réglage qui commande une autre entité (par exemple la position favorite d’un volet) n’apparaît pas pour un programme qui n’a pas cet appareil, sauf s’il y est déjà utilisé.
    - **Horaires** : pour un programme à plusieurs appareils, une pastille par appareil ; la ligne **Le reste du
      temps : Éco** ; la liste des horaires avec **Ajouter un horaire** ; la partie **Jour férié**
      ([Les jours fériés](GUIDE_JOUR_FERIE.fr.md)). Toucher **Toute la semaine** revient de « un jour » à toute la

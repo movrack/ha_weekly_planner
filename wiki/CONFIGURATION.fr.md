@@ -32,6 +32,7 @@ sont ignorées mais conservées.
 | `schedule_view` | **Affichage d’un programme** / **Affichage de plusieurs programmes** | `bars` | `bars` (Barres), `radial` (Cadran 24 heures), `radial_12h` (Double cadran 12 heures), `times` (Horaires du jour), `list` (Liste compacte), `compare` (Comparateur) : [La carte](CARTE.fr.md#les-affichages). |
 | `sort` | **Ordre de la liste** | `type` | `type` (Type puis A→Z), `area` (Pièce puis A→Z), `name` (Nom A→Z) ou `custom` (Personnalisé). |
 | `order` | **Ordre personnalisé** | vide | Avec `sort: custom` : les identifiants des programmes dans l’ordre voulu. Un programme qui n’y est pas passe à la fin ; un identifiant inconnu est ignoré. |
+| `show_group_labels` | **Afficher les noms de type** | `true` | Vue Comparaison triée par type ou par pièce : le nom du type au-dessus de chaque groupe d’appareils. Sans effet s’il n’y a qu’un groupe. |
 | `show_schedule_list` | **Afficher les horaires** | `false` | Ajoute sous les barres, le cadran 24 heures et le double cadran la liste des horaires d’aujourd’hui. Sans effet pour les autres affichages. |
 | `show_week_button` | **Bouton Semaine** | `true` | Le bouton **Semaine** sous chaque appareil. Éteint, la semaine reste dans la fenêtre des horaires. |
 | `week_collapsed` | **Semaine ouverte par défaut** (l’inverse) | `true` | `true` : la semaine démarre repliée ; `false` : ouverte. Sans effet si le bouton Semaine est éteint. |

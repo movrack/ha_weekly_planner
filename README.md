@@ -132,6 +132,7 @@ Every option can be set in the visual editor or in YAML. The main ones:
 | `sort`, `order` | Order of the list: by `type` (default), `area`, `name`, or your own order. |
 | `show_chart`, `chart_collapsed` | Chart button under each device, and whether the chart starts closed. |
 | `show_week_button` | Week button under each device (on by default). |
+| `show_group_labels` | Comparison view sorted by type or room: the type name above each group (on by default). |
 | `show_schedule_list` | Lists today’s schedules under the bars or the dials (default off). |
 | `title` | Card title. |
 

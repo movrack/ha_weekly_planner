@@ -34,6 +34,7 @@ Les exemples de cartes sont dans le [README](../README.fr.md#exemples).
 | `order` | Avec `sort: custom` : identifiants de programmes dans l’ordre voulu. Réglé dans l’éditeur (poignée ou boutons monter/descendre). Un programme absent de la liste passe à la fin (par type puis nom) ; un identifiant inconnu est ignoré. |
 | Format de l’heure | Pas d’option : la carte suit le réglage 12 h ou 24 h de votre profil Home Assistant (12 h affiche am/pm, « minuit » et « midi » ; les champs d’heure de l’éditeur d’horaire affichent l’heure choisie, par exemple « = 10:30 pm », en dessous). |
 | `show_chart` | Booléen, `true` par défaut. Actif : un bouton **Graphique du jour** sous chaque appareil sur la carte, et le graphique dans la fenêtre des horaires. Éteint : ni bouton ni graphique nulle part sur cette carte. Dans l’éditeur : « Bouton Graphique sous chaque appareil ». |
+| `show_group_labels` | Booléen, `true` par défaut. Vue Comparaison triée par `type` ou `area` avec deux groupes ou plus : le nom du type (ou de la pièce) est affiché au-dessus de chaque groupe. Éteint : seul un petit espace sépare les groupes. Sans effet avec un seul groupe, avec les autres vues ou avec le tri par nom ou personnalisé. Dans l’éditeur : « Afficher les noms de type » (grisé avec sa raison quand il n’a pas d’effet). |
 | `show_schedule_list` | Booléen, `false` par défaut. Actif : sous les barres, le cadran 24 h et le double cadran 12 h de chaque programme (et appareil), une liste **Horaires** montre la journée d’aujourd’hui comme **Horaires du jour**, entre le graphique principal et les boutons Semaine et Graphique du jour. Toujours visible, sans repli. Une ligne ouvre son horaire par un appui long (souris aussi) ou Entrée ou Espace, jamais par un simple clic (un rappel dit comment faire), et seulement quand la modification est permise. Absente de la liste compacte, de **Comparateur** et de **Horaires du jour**. Dans l’éditeur : « Afficher les horaires ». |
 | `show_week_button` | Booléen, `true` par défaut. Actif : un bouton **Semaine** sous chaque appareil sur la carte. Éteint : plus de bouton Semaine sur la carte ; la fenêtre des horaires garde sa semaine. Dans l’éditeur : « Bouton Semaine ». L’ancienne clé `show_week` reste ignorée. |
 | `week_collapsed` | Booléen, `true` par défaut : la semaine sous chaque appareil démarre repliée (`false` : ouverte). N’a d’effet que si `show_week_button` est actif. Dans l’éditeur : l’interrupteur « Semaine ouverte par défaut » (l’inverse). Un clic sur le bouton Semaine l’ouvre ou la replie ; le navigateur mémorise ce choix par carte et par appareil, et il prime ensuite. |
@@ -65,6 +66,7 @@ sort: type                      # type | area | name | custom (défaut type)
 order: []                       # identifiants de programmes, si sort vaut custom
 show_chart: true                # défaut true
 show_week_button: true          # défaut true
+show_group_labels: true         # défaut true
 show_schedule_list: false       # défaut false
 chart_collapsed: true           # défaut true (replié)
 week_collapsed: true            # défaut true (replié)

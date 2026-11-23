@@ -105,6 +105,7 @@ ignored by Git; it holds notes and the inter-AI channel shared by all AI tools (
 
 ## User interface
 - Reference screen: 360 × 780 px CSS (a common phone), then ≥ 1400 px; light and dark themes.
+- Screenshots (`parker`, evidence, docs): dark theme by default; light theme only for one or two screens that show the difference, never every screen in both themes, unless a check needs it (for example `ally` verifying contrasts, or `iris` on the themes) (owner rule, 2026-11-23).
 - Keep text to the minimum; a non-technical person must understand every screen. No duplicate or
   ambiguous buttons; never more than one "Save / Cancel" pair visible at a time.
 - General owner rule (2026-11-12): every new text is the **shortest wording that stays clear** to a

@@ -135,6 +135,7 @@ Chaque option se règle dans l’éditeur visuel ou en YAML. Les principales :
 | `sort`, `order` | Ordre de la liste : par `type` (par défaut), `area`, `name`, ou votre propre ordre. |
 | `show_chart`, `chart_collapsed` | Bouton du graphique sous chaque appareil, et graphique fermé ou ouvert au départ. |
 | `show_week_button` | Bouton Semaine sous chaque appareil (actif par défaut). |
+| `show_group_labels` | Vue Comparaison triée par type ou par pièce : le nom du type au-dessus de chaque groupe (actif par défaut). |
 | `show_schedule_list` | Liste des horaires d’aujourd’hui sous les barres ou les cadrans (désactivée par défaut). |
 | `title` | Titre de la carte. |
 
