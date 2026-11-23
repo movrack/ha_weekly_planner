@@ -653,7 +653,7 @@ describe("a locked day", () => {
   it("shows the reason under today's bar only when a day off replaces the day", () => {
     const p = program();
     const on = card({ programs: [p], holiday_today: true, status: { p: { holiday: { own: true } } } });
-    expect(flat(on._lockedNote(p))).toContain("To change this schedule, open Schedule (calendar icon), then “Day off”.");
+    expect(flat(on._lockedNote(p))).toContain("To change this schedule, tap Edit (calendar icon), then “Day off”.");
     expect(flat(card({ programs: [p], status: { p: {} } })._lockedNote(p))).toBe("");
   });
   it("the note names the copied day for a copy and keeps the generic text for an own day, in both languages", () => {
@@ -821,8 +821,8 @@ describe("keyboard and screen reader", () => {
     const p = program();
     const c = card({ programs: [p], holiday_today: true, status: { p: { holiday: { own: true } } } });
     c._preview = {};
-    const reason = (offset: number) => c._bar("cover.b", p, offset, "today", () => {}).values.find((v: unknown) => v === "To change this schedule, open Schedule (calendar icon), then “Day off”." || v === "");
-    expect(reason(0)).toBe("To change this schedule, open Schedule (calendar icon), then “Day off”.");
+    const reason = (offset: number) => c._bar("cover.b", p, offset, "today", () => {}).values.find((v: unknown) => v === "To change this schedule, tap Edit (calendar icon), then “Day off”." || v === "");
+    expect(reason(0)).toBe("To change this schedule, tap Edit (calendar icon), then “Day off”.");
     expect(reason(1)).toBe("");
   });
 });

@@ -61,7 +61,7 @@ quand c’est le cas. Les jours de la veille et du lendemain restent des jours n
 - Le mode l’emporte sur le jour férié, et un jour férié ne s’applique qu’au mode actif : quand le mode change, le
   nouveau mode applique son propre réglage de jour férié.
 - Un jour férié, la barre d’aujourd’hui ne se modifie pas directement sur la carte si ses horaires sont remplacés :
-  l’écran dit « Pour changer ces horaires, ouvrez Horaires (icône du calendrier), puis « Jour férié ». »
+  l’écran dit « Pour changer ces horaires, touchez Modifier (icône du calendrier), puis « Jour férié ». »
 - Un horaire de jour férié qui passe minuit s’arrête à 24 h ; l’écran le dit.
 - Un mode qui prend les mêmes horaires qu’un autre mode suit aussi son jour férié : dans ce cas, la section dit
   **Ce mode a les mêmes horaires que …, jour férié compris.**
