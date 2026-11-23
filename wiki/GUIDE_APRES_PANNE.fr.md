@@ -51,7 +51,7 @@ Les appareils laissés tels quels, et pourquoi :
 ## Renvoyer un seul programme
 
 Le service **Appliquer maintenant** envoie tout de suite ce que les appareils d’un programme doivent faire, même
-s’ils sont déjà dans cet état. Il envoie aussi le dernier ponctuel commencé il y a moins de 24 heures, sauf si une
+s’ils sont déjà dans cet état. Il envoie aussi le dernier horaire **À cette heure seulement** commencé il y a moins de 24 heures, sauf si une
 personne a modifié l’appareil depuis.
 
 1. Trouver l’identifiant du programme : voir [Sauter le prochain changement](GUIDE_PAUSE_SAUT.fr.md#sauter-le-prochain-changement).

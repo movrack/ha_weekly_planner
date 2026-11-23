@@ -91,7 +91,7 @@
   "services": {
     "apply_now": {
       "name": "Apply now",
-      "description": "Sends right now what the devices of the program should be doing, even if they are already in that state; also the last one-shot started less than 24 hours ago, unless a person changed the device since. Returns the devices sent and left alone.",
+      "description": "Sends right now what the devices of the program should be doing, even if they are already in that state; also the last schedule set to “At this time only” that started less than 24 hours ago, unless a person changed the device since. Returns the devices sent and left alone.",
       "fields": {
         "program_id": {
           "name": "Program",
