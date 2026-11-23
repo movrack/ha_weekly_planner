@@ -35,6 +35,8 @@ Tout est calculé dans votre Home Assistant : aucun service en ligne n’est uti
 | Comprendre la carte, ses affichages et ses gestes | [La carte](CARTE.fr.md) |
 | Comprendre quel programme commande un appareil | [Priorités](PRIORITES.fr.md) |
 | Voir tous les écrans | [Atlas des écrans](SCREENS.fr.md) |
+| Savoir ce que veut dire un message ou une réparation | [Messages et réparations](ANNEXE_MESSAGES.fr.md) |
+| Savoir si mon type d’appareil convient | [Compatibilité par type d’appareil](ANNEXE_COMPATIBILITE.fr.md) |
 | Retirer Weekly Planner | [Désinstaller](DESINSTALLER.fr.md) |
 
 ## Version décrite et compatibilité

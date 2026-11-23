@@ -31,6 +31,25 @@
 - [Configuration](CONFIGURATION.fr.md)
 - [Entités, services et automatisations](ENTITES_SERVICES.fr.md)
 
-**Utiliser**
-- [Recettes](RECETTES.fr.md)
+**Recettes**
+- [Toutes les recettes](RECETTES.fr.md)
+- [Chauffage semaine et week-end](RECETTE_CHAUFFAGE_SEMAINE_WEEKEND.fr.md)
+- [Volets et soleil](RECETTE_VOLETS_SOLEIL.fr.md)
+- [Volets d’été](RECETTE_VOLETS_ETE.fr.md)
+- [Chauffe-eau](RECETTE_CHAUFFE_EAU.fr.md)
+- [Arrosage](RECETTE_ARROSAGE.fr.md)
+- [Veilleuse](RECETTE_VEILLEUSE_ENFANT.fr.md)
+- [Vacances : maison en veille](RECETTE_VACANCES_VEILLE.fr.md)
+- [Jour travaillé ou congé](RECETTE_JOUR_TRAVAILLE.fr.md)
+- [Vacances scolaires](RECETTE_VACANCES_SCOLAIRES.fr.md)
+- [Plusieurs capteurs](RECETTE_PLUSIEURS_CAPTEURS.fr.md)
+- [Absent](RECETTE_ABSENT.fr.md)
+- [Jour férié : interrupteur](RECETTE_INTERRUPTEUR_JOUR_FERIE.fr.md)
+- [Jour férié : capteur](RECETTE_CAPTEUR_JOUR_FERIE.fr.md)
+- [Garde alternée](RECETTE_GARDE_ALTERNEE.fr.md)
+- [Heures de pointe](RECETTE_HEURES_DE_POINTE.fr.md)
+
+**Annexes**
 - [Atlas des écrans](SCREENS.fr.md)
+- [Messages et réparations](ANNEXE_MESSAGES.fr.md)
+- [Compatibilité par type d’appareil](ANNEXE_COMPATIBILITE.fr.md)
