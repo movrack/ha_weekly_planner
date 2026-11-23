@@ -6,7 +6,6 @@ English | [Français](https://github.com/movrack/ha_weekly_planner/blob/main/REA
 [![Release](https://img.shields.io/github/v/release/movrack/ha_weekly_planner)](https://github.com/movrack/ha_weekly_planner/releases/latest)
 [![Validate](https://github.com/movrack/ha_weekly_planner/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/movrack/ha_weekly_planner/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/movrack/ha_weekly_planner/blob/main/LICENSE)
-[![Quality scale: Bronze (self-declared)](https://img.shields.io/badge/Quality%20scale-Bronze%20(self--declared)-cd7f32.svg)](https://github.com/movrack/ha_weekly_planner/blob/main/custom_components/weekly_planner/quality_scale.yaml)
 
 A weekly scheduler for Home Assistant with its own dashboard card. Give each device a week of
 schedules (shutters, heating, lights, or anything a Home Assistant action or scene can drive) and see
@@ -14,8 +13,6 @@ on one card what is planned and what happened.
 
 ![Weekly Planner overview](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s01-overview.png)
 ![Single-program 24-hour dial](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s03-radial.png)
-
-Quality level: self-declared Bronze on the Home Assistant Integration Quality Scale (custom integration, no official badge); see [`quality_scale.yaml`](https://github.com/movrack/ha_weekly_planner/blob/main/custom_components/weekly_planner/quality_scale.yaml).
 
 This project was developed with the assistance of AI agents.
 

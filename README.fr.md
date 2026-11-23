@@ -6,7 +6,6 @@
 [![Version](https://img.shields.io/github/v/release/movrack/ha_weekly_planner?label=version)](https://github.com/movrack/ha_weekly_planner/releases/latest)
 [![Validation](https://github.com/movrack/ha_weekly_planner/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/movrack/ha_weekly_planner/actions/workflows/validate.yml)
 [![Licence : MIT](https://img.shields.io/badge/Licence-MIT-yellow.svg)](https://github.com/movrack/ha_weekly_planner/blob/main/LICENSE)
-[![Échelle de qualité : Bronze (auto-déclaré)](https://img.shields.io/badge/Échelle%20de%20qualité-Bronze%20(auto--déclaré)-cd7f32.svg)](https://github.com/movrack/ha_weekly_planner/blob/main/custom_components/weekly_planner/quality_scale.yaml)
 
 Un planificateur hebdomadaire pour Home Assistant, avec sa propre carte de tableau de bord. Donnez à
 chaque appareil une semaine d’horaires (volets, chauffage, lumières, ou tout ce qu’une action ou une
@@ -14,8 +13,6 @@ scène Home Assistant peut commander) et voyez sur une seule carte ce qui est pr
 
 ![Vue d’ensemble de Weekly Planner](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s01-overview.png)
 ![Cadran de 24 heures d’un programme](https://raw.githubusercontent.com/movrack/ha_weekly_planner/main/wiki/images/guide/s03-radial.png)
-
-Niveau de qualité : Bronze auto-déclaré sur l’échelle de qualité des intégrations Home Assistant (intégration personnalisée, sans badge officiel) ; voir [`quality_scale.yaml`](https://github.com/movrack/ha_weekly_planner/blob/main/custom_components/weekly_planner/quality_scale.yaml).
 
 Ce projet a été réalisé avec l’aide d’agents d’intelligence artificielle.
 
