@@ -218,6 +218,8 @@ export interface CardConfig {
   show_week_button?: boolean;
   /** Optional: list today's schedules (Daily times rows) under the bars / circular graphic. Default false. */
   show_schedule_list?: boolean;
+  /** Comparison view sorted by type or room, with several groups: show the type or room name above each group. Default true. */
+  show_group_labels?: boolean;
   /** Optional: start with the day chart collapsed. */
   chart_collapsed?: boolean;
   /** Raised by the editor each time `chart_collapsed` changes, so devices drop their saved open/closed choice. Do not edit by hand. */

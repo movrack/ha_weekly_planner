@@ -119,3 +119,33 @@ describe("show_schedule_list: the card", () => {
     expect(css).toMatch(/\.row \{[^}]*min-height: 48px/);
   });
 });
+
+describe("show_group_labels: type names in the comparison", () => {
+  const heads = (config: any, entities = ["switch.a", "cover.b"]) => {
+    const c = card({ schedule_view: "compare", sort: "type", ...config });
+    c._data.programs = entities.map((e, i) => program(`p${i}`, [e]));
+    return flat(c._list(c._data.programs));
+  };
+  it("keeps a boolean and drops any other type", () => {
+    expect(normalizeConfig({ type: "x", show_group_labels: false }).show_group_labels).toBe(false);
+    expect(normalizeConfig({ type: "x", show_group_labels: "no" }).show_group_labels).toBeUndefined();
+  });
+  it("shows a heading per type when there are several, unless switched off", () => {
+    expect(heads({}).match(/class="chead"/g)).toHaveLength(2);
+    expect(heads({ show_group_labels: false })).not.toContain("chead");
+  });
+  it("shows none with a single type", () => {
+    expect(heads({}, ["switch.a", "switch.b"])).not.toContain("chead");
+  });
+  it("is in both languages", () => {
+    expect(strings("en").ce_show_group_labels).toBe("Show the type names");
+    expect(strings("fr").ce_show_group_labels).toBe("Afficher les noms de type");
+  });
+  it("lists a program with devices of two types under each type, with the devices of that type", () => {
+    const c = card({ schedule_view: "compare", sort: "type" });
+    c._data.programs = [program("mix", ["switch.a", "cover.b"])];
+    const html = flat(c._list(c._data.programs));
+    expect(html.match(/class="chead"/g)).toHaveLength(2);
+    expect(html.match(/class=crow/g)).toHaveLength(2); // one device row per type
+  });
+});

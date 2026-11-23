@@ -85,8 +85,8 @@ describe("compare: structure", () => {
     const h = flat(render(card([B(), multi, A()], { sort: "name" })));
     expect(firstDay(h)).toEqual(["Alpha", "light.y, Multi", "light.x, Multi", "Zeta"]);
   });
-  it("extra gap between two types only in type / area mode", () => {
-    const gaps = (cfg: any, ps = [A(), B(), C()]) => (flat(week(card(ps, cfg))).match(/class=crow gap/g) ?? []).length;
+  it("extra gap between two types only in type / area mode (when the type names are hidden)", () => {
+    const gaps = (cfg: any, ps = [A(), B(), C()]) => (flat(week(card(ps, { show_group_labels: false, ...cfg }))).match(/class=crow gap/g) ?? []).length;
     expect(gaps({})).toBe(7); // cover | light: one gap per day
     expect(gaps({ sort: "type" })).toBe(7);
     expect(gaps({ sort: "name" })).toBe(0);

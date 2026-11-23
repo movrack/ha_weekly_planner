@@ -393,6 +393,7 @@ export class WeeklyPlannerCardEditor extends LitElement {
   render() {
     const c = this._config;
     const listUsed = usesScheduleList(c.schedule_view);
+    const labelsUsed = c.schedule_view === "compare" && !["name", "custom"].includes(sortMode(c.sort));
     const chartOn = c.show_chart !== false;
     const weekOn = c.show_week_button !== false;
     return html`
@@ -409,6 +410,9 @@ export class WeeklyPlannerCardEditor extends LitElement {
       <div class="switch-row"><span class="grow">${this._tr("ce_show_schedule_list")}</span>
         ${this._switch(c.show_schedule_list === true, this._tr("ce_show_schedule_list"), (on) => this._set("show_schedule_list", on), false, !listUsed, listUsed ? "" : "why-schedule-list")}</div>
       ${whyNote("why-schedule-list", this._tr("ce_show_schedule_list_why"), !listUsed)}
+      <div class="switch-row"><span class="grow">${this._tr("ce_show_group_labels")}</span>
+        ${this._switch(c.show_group_labels !== false, this._tr("ce_show_group_labels"), (on) => this._set("show_group_labels", on), false, !labelsUsed, labelsUsed ? "" : "why-group-labels")}</div>
+      ${whyNote("why-group-labels", this._tr("ce_show_group_labels_why"), !labelsUsed)}
       <fieldset class="group"><legend>${this._tr("ce_week_group")}</legend>
         <div class="switch-row"><span class="grow">${this._tr("ce_show_week")}</span>
           ${this._switch(weekOn, this._tr("ce_show_week"), (on) => this._set("show_week_button", on), false, false, "ce-show-week-hint", { expanded: weekOn, controls: "ce-week-more" })}</div>

@@ -144,8 +144,21 @@ export class WeeklyPlannerCard extends LitElement {
     const items = programs.map((p) => ({ id: p.id, name: p.name, type: entityDomain(p.entities[0]?.entity_id ?? ""), area: roomKey(this.hass, p.area), p }));
     const grouped = mode === "type" || mode === "area";
     if (this._config.schedule_view === "compare") {
-      return this._compare(groupItems(items, mode, { order: this._config.order, typeLabel: this._typeLabel, lang: this._lang })
-        .map((g) => g.items.map((i) => i.p)), grouped);
+      // sorted by type, a program with devices of several types is listed under each type, with the devices of that type
+      const split = mode === "type"
+        ? programs.flatMap((p) => {
+          const types = [...new Set(p.entities.map((e) => entityDomain(e.entity_id)))];
+          return (types.length > 1 ? types : [entityDomain(p.entities[0]?.entity_id ?? "")]).map((type) => ({
+            id: p.id, name: p.name, type, area: roomKey(this.hass, p.area),
+            p: types.length > 1 ? { ...p, entities: p.entities.filter((e) => entityDomain(e.entity_id) === type) } : p }));
+        })
+        : items;
+      const gs = groupItems(split, mode, { order: this._config.order, typeLabel: this._typeLabel, lang: this._lang });
+      // a heading per type or room, only when there are several and the card setting allows it
+      const heads = this._config.show_group_labels !== false && gs.length > 1
+        ? gs.map((g) => (g.key === "" ? t(this._lang, "sort_other") : mode === "type" ? this._typeLabel(g.key) : roomLabel(this.hass, g.key, g.items.map((i) => i.p.area))))
+        : [];
+      return this._compare(gs.map((g) => g.items.map((i) => i.p)), grouped, heads);
     }
     const view = (ps: Program[]) => (this._config.schedule_view === "list" ? this._compactList(ps) : this._bySchedule(ps, grouped));
     return groupItems(items, mode, { order: this._config.order, typeLabel: this._typeLabel, lang: this._lang }).map((g) => {
@@ -320,10 +333,11 @@ export class WeeklyPlannerCard extends LitElement {
   }
 
   /** One comparison for the whole card: a chip per day (and the day off), a bar per device for the chosen day. */
-  private _compare(groups: Program[][], grouped: boolean) {
+  private _compare(groups: Program[][], grouped: boolean, heads: string[] = []) {
     const lang = this._lang;
     const rows = groups.flatMap((ps, gi) => ps.flatMap((program) => program.entities.map((e, ei) => ({
-      program, entityId: e.entity_id, gap: grouped && gi > 0 && ei === 0 && program === ps[0] }))));
+      program, entityId: e.entity_id, gap: grouped && gi > 0 && ei === 0 && program === ps[0] && !heads[gi],
+      head: ei === 0 && program === ps[0] ? heads[gi] ?? "" : "" }))));
     if (!rows.length) return nothing;
     const days = strings(lang).days;
     const todayDay = localWeekday(this._now, this._tz);
@@ -339,6 +353,7 @@ export class WeeklyPlannerCard extends LitElement {
       s.marker ? `${s.label} ${fmtClock(lang, s.start)}` : `${s.label} ${fmtClock(lang, s.start)}–${s.end >= DAY ? fmtDayEnd(lang) : fmtClock(lang, s.end)}`).join(", ");
     const said = (r: { program: Program; entityId: string }, what: string) =>
       `${name(r)}${this._notRunning(r.program) ? ` ${paused}` : ""}, ${what}`;
+    const head = (r: { head: string }) => (r.head ? html`<h3 class="chead">${r.head}</h3>` : nothing);
     const rowClass = (r: { program: Program; gap: boolean }) => ["crow", r.gap ? "gap" : "", this._notRunning(r.program) ? "off" : ""].filter(Boolean).join(" ");
     // a row (and a day title) opens by a long press or Enter / Space, never by a plain click; inert when editing is not allowed
     const hold = this._hold;
@@ -360,7 +375,7 @@ export class WeeklyPlannerCard extends LitElement {
       const first = rows.find((r) => opener(r, day));
       return html`<div class="cday ${o === 0 ? "is-today" : ""}" role="group" aria-label=${days[weekday]}>
         ${press("ctitle", days[weekday], reach(first ? opener(first, day) : null), days[weekday], true)}
-        ${rows.map((r, ri) => { const spans = this._spans(r.entityId, [r.program], o); return html`<div class=${rowClass(r)}>
+        ${rows.map((r, ri) => { const spans = this._spans(r.entityId, [r.program], o); return html`${head(r)}<div class=${rowClass(r)}>
           ${label(r)}
           ${press("cbar", said(r, [days[weekday], spoken(spans)].filter(Boolean).join(": ")), reach(opener(r, day)),
             html`<wp-day-bar lang=${lang} notches no-tab ?no-clock=${ri > 0} device-name=${name(r)} .now=${o === 0 ? nowMin : null}
@@ -374,14 +389,14 @@ export class WeeklyPlannerCard extends LitElement {
         // a copied weekday: its bar and "like <day>"; an own day: the bar alone; no day off: "not configured"
         const note = copy !== null ? t(lang, "holiday_what_copy", { day: dayInText(lang, copy) }) : "";
         const what = spans ? [t(lang, "holiday_title"), note, spoken(spans)].filter(Boolean).join(", ") : `${t(lang, "holiday_title")}, ${t(lang, "compare_not_set")}`;
-        return html`<div class="${rowClass(r)} ${note ? "note" : ""}">
+        return html`${head(r)}<div class="${rowClass(r)} ${note ? "note" : ""}">
           ${label(r)}
           ${press("cbar", said(r, what), reach(opener(r)), html`<wp-day-bar lang=${lang} notches no-tab device-name=${name(r)} .spans=${spans ?? []}></wp-day-bar>
             ${spans ? nothing : html`<span class="cnone">${t(lang, "compare_not_set")}</span>`}
             ${note ? html`<span class="ccopy">${note}</span>` : nothing}`)}</div>`;
       })}
     </div>`;
-    const programs = groups.flat();
+    const programs = [...new Map(groups.flat().map((p) => [p.id, this._data?.programs.find((x) => x.id === p.id) ?? p] as const)).values()]; // once each, whole
     // one day at a time: a chip per day and one for the day off (greyed with its reason when there is none), a single choice
     const holidayOn = Boolean(this._data?.holiday_entity && off.some((x) => x.spans));
     const ids = [0, 1, 2, 3, 4, 5, 6, 7];
@@ -443,7 +458,7 @@ export class WeeklyPlannerCard extends LitElement {
     const today = localWeekday(at, this._tz);
     const spans: BarSpan[] = [];
     for (const program of [...programs].reverse()) {
-      if (!program.enabled) continue;
+      // a paused program is drawn too (hatched), the engine applies nothing while it is paused
       const profile = activeProfile(program, data);
       // only the slots of this device with an action it can take (`applies` + compatibility, never a domain test)
       const of = (slot: Slot) => appliedAction(this.hass, program, entityId, labelOf(data, slot.label), slot);
@@ -452,7 +467,8 @@ export class WeeklyPlannerCard extends LitElement {
         return { start, end, color: label.color, label: labelName(this.hass, label), labelId: label.id, slotId: slot.id, startSun: sunDir(slot.start),
           endSun: slot.end ? sunDir(slot.end) : null, startSpec: slot.start, endSpec: slot.end ?? null, marker: !slot.end,
           startBase: slot.start.random_minutes ? specMinutes(this.hass, { ...slot.start, random_minutes: 0 }) : null,
-          endBase: slot.end?.random_minutes ? specMinutes(this.hass, { ...slot.end, random_minutes: 0 }) : null, ...extra };
+          endBase: slot.end?.random_minutes ? specMinutes(this.hass, { ...slot.end, random_minutes: 0 }) : null,
+          ...(program.enabled ? {} : { paused: true }), ...extra };
       };
       const date = localDateIso(at, this._tz);
       const { today: resolved, previous } = this._deviceDays(program.id, date, entityId);
@@ -510,7 +526,8 @@ export class WeeklyPlannerCard extends LitElement {
       const cut = passesMidnight(this.hass, slot);
       const end = slot.end ? (cut ? DAY : specMinutes(this.hass, slot.end)) : null;
       spans.push({ start, end: end ?? Math.min(DAY, start + 10), color: label.color, label: labelName(this.hass, label), labelId: label.id, slotId: slot.id,
-        startSun: sunDir(slot.start), endSun: cut ? null : sunDir(slot.end), startSpec: slot.start, endSpec: slot.end ?? null, marker: !slot.end });
+        startSun: sunDir(slot.start), endSun: cut ? null : sunDir(slot.end), startSpec: slot.start, endSpec: slot.end ?? null, marker: !slot.end,
+        ...(program.enabled ? {} : { paused: true }) });
     }
     return spans;
   }
@@ -1127,6 +1144,7 @@ export class WeeklyPlannerCard extends LitElement {
     .cday.is-today .ctitle + .crow { margin-top: 14px; } /* room for the "now" clock above the first bar */
     .crow { display: flex; align-items: center; gap: ${TIMELINE.gap}px; min-height: 28px; } /* 28 px bars, 4 px apart (a two-line name makes its row taller) */
     .crow.gap { margin-top: 8px; }
+    .chead { margin: 8px 0 0; font-size: 0.8125rem; font-weight: 700; color: var(--primary-text-color); overflow-wrap: anywhere; }
     .crow.off wp-day-bar { opacity: 0.7; }
     .cname { flex: none; width: 5.5rem; min-width: 76px; min-width: 0; display: flex; flex-direction: column; justify-content: center; font-size: 0.8125rem; line-height: 1.25; color: var(--secondary-text-color); }
     .cn, .cp { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

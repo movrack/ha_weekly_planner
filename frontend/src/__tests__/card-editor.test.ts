@@ -460,7 +460,8 @@ describe("Show the schedules switch follows the display view", () => {
     const out = flat(mk({ ...(view ? { schedule_view: view } : {}) }).render());
     expect(out.includes(t("en", "ce_show_schedule_list_why"))).toBe(greyed);
     expect(out.includes("aria-describedby=why-schedule-list")).toBe(greyed);
-    expect(out.includes("aria-disabled=true")).toBe(greyed);
+    // the type-names switch is greyed on every view but the comparison
+    expect(out.split("aria-disabled=true").length - 1).toBe((greyed ? 1 : 0) + (view === "compare" ? 0 : 1));
     expect(out.includes(t("en", "ce_show_schedule_list"))).toBe(true); // never removed
   });
 });
