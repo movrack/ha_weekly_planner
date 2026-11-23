@@ -1421,7 +1421,7 @@ export class WpSchedule extends LitElement {
             start, end: end ?? start + 10,
             color: label.color, label: labelName(this.hass, label), marker: end === null,
             startSun: sunDir(slot.start), endSun: cut ? null : sunDir(slot.end),
-            startSpec: slot.start, endSpec: slot.end,
+            startSpec: slot.start, endSpec: slot.end, ...(program.enabled ? {} : { paused: true }),
           });
         }
         continue;
@@ -1450,7 +1450,7 @@ export class WpSchedule extends LitElement {
             color: label.color, label: labelName(this.hass, label), marker: end === null,
             startSun: d === day ? sunDir(slot.start) : null,
             endSun: overnight && d === day ? null : sunDir(slot.end),
-            startSpec: slot.start, endSpec: slot.end,
+            startSpec: slot.start, endSpec: slot.end, ...(program.enabled ? {} : { paused: true }),
           });
         }
       }

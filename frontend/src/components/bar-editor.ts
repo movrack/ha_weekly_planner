@@ -939,7 +939,7 @@ export class WpBarEditor extends LitElement {
       out.push({
         start: e.start, end: e.end ?? e.start + 10, color: label.color, label: labelName(this.hass, label), slotId: slot.id,
         marker: e.end === null, startSun: sunDir(slot.start), endSun: slot.end ? sunDir(slot.end) : null,
-        startSpec: slot.start, endSpec: slot.end ?? null,
+        startSpec: slot.start, endSpec: slot.end ?? null, ...(this.program.enabled ? {} : { paused: true }),
       });
     }
     return out;

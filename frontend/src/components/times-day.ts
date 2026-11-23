@@ -99,6 +99,7 @@ export class WpTimesDay extends LitElement {
       return html`<p class="msg"><strong>${t(this.lang, "times_none")}</strong>
         ${this.rest ? html`<span>${t(this.lang, "times_rest", { name: this.rest })}</span>` : nothing}</p>`;
     }
+    if (this.paused) return html`<p class="msg"><strong>${t(this.lang, "times_paused")}</strong></p>`;
     return nothing;
   }
 

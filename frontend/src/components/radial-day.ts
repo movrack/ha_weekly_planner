@@ -78,14 +78,21 @@ export class WpRadialDay extends LitElement {
     const nowTurn = now === null ? 0 : (now - nowRing * period) / period;
     return html`<div class="dial"><button tabindex=${this.passive ? -1 : 0} @click=${this._open} aria-label=${t(this.lang, "hours")}>
       <svg viewBox="0 0 320 320" aria-hidden="true">
+        ${this.spans.some((x) => x.paused) ? svg`<defs><pattern id="wp-paused-stripes" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width="5" height="10" fill="#fff" /></pattern><mask id="wp-paused-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="320" height="320">
+          <rect width="320" height="320" fill="url(#wp-paused-stripes)" /></mask></defs>` : nothing}
         ${(this.double ? [0, 1] : [0]).map((ring) => svg`<circle class="track" cx="160" cy="160" r=${radius(ring)} fill="none" stroke=${TRACK} stroke-width=${width} />`)}
         ${segments.map((s) => {
           if (s.source.marker) {
             const p = point(s.offset, radius(s.ring));
             return svg`<circle cx=${p.x} cy=${p.y} r="7" fill=${s.source.color} stroke="var(--primary-text-color)" stroke-width="2" />`;
           }
-          return svg`<circle cx="160" cy="160" r=${radius(s.ring)} fill="none" stroke=${s.source.color} stroke-width=${width}
+          if (!s.source.paused) return svg`<circle cx="160" cy="160" r=${radius(s.ring)} fill="none" stroke=${s.source.color} stroke-width=${width}
             pathLength="100" stroke-dasharray="${s.fraction * 100} ${100 - s.fraction * 100}" stroke-dashoffset=${-s.offset * 100} transform="rotate(-90 160 160)" />`;
+          // paused: planned, not applied: a faint ground of the colour under 45° stripes of it
+          const arc = (cls: string, mask?: string) => svg`<circle class=${cls} cx="160" cy="160" r=${radius(s.ring)} fill="none" stroke=${s.source.color} stroke-width=${width}
+            mask=${mask ?? nothing} pathLength="100" stroke-dasharray="${s.fraction * 100} ${100 - s.fraction * 100}" stroke-dashoffset=${-s.offset * 100} transform="rotate(-90 160 160)" />`;
+          return svg`${arc("paused-ground")}${arc("paused", "url(#wp-paused-mask)")}`;
         })}
         ${(this.double ? [0, 1] : [0]).map((ring) => Array.from({ length: period / 60 }, (_, h) => {
           const major = h % (this.double ? 3 : 6) === 0;
@@ -134,6 +141,7 @@ export class WpRadialDay extends LitElement {
       </div>`;
   }
   static styles = css`
+    .paused-ground { opacity: 0.2; }
     ${tokenStyles}
     :host { display: block; }
     .dial { position: relative; max-width: 360px; margin: auto; }

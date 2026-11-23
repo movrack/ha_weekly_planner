@@ -30,6 +30,8 @@ export interface BarSpan {
   /** Setting (label id) of the span. */
   labelId?: string;
   spill?: boolean;
+  /** The program is paused: planned but not applied, drawn hatched (same colours, diagonal stripes). */
+  paused?: boolean;
   /** A one-shot (no end): drawn as a small marker. */
   marker?: boolean;
   /** Real instants (ms) of the resolved start / end, when the span comes from a resolved preview (absent from the fallbacks). */
@@ -201,7 +203,8 @@ export class WpDayBar extends LitElement {
 
   /** What a screen reader says of the bar: every span with its times (WCAG 1.1.1, as the name of the bar button does). */
   private _name(): string {
-    return this.spans.map((s) => `${s.label} · ${selectedTimeText(this.lang, s.start, s.marker ? null : s.end, s.startSpec ?? undefined, s.endSpec)}`).join(", ");
+    const text = this.spans.map((s) => `${s.label} · ${selectedTimeText(this.lang, s.start, s.marker ? null : s.end, s.startSpec ?? undefined, s.endSpec)}`).join(", ");
+    return text && this.spans.some((s) => s.paused) ? `${text} (${t(this.lang, "compare_paused")})` : text;
   }
 
   render() {
@@ -215,7 +218,7 @@ export class WpDayBar extends LitElement {
           ${this.spans.map((s) => {
             const box = this._labelBox(s);
             return html`<div
-              class="span ${s.ignored ? "ignored" : ""}"
+              class="span ${s.ignored ? "ignored" : s.paused ? "paused" : ""}"
               style="left:${pct(s.start)};width:${pct(Math.max(s.end - s.start, 5))};--c:${s.color};--fg:${readableOn(s.color).fg};--sh:${readableOn(s.color).shadow}"
               title=${s.label}
             >${box ? html`<span class="name" style="left:${box.left}%;width:${box.width}%">${box.text}</span>` : nothing}</div>`;
@@ -254,6 +257,10 @@ export class WpDayBar extends LitElement {
     .span.ignored {
       background: repeating-linear-gradient(135deg, var(--c) 0 4px, transparent 4px 8px);
       opacity: 0.5;
+    }
+    /* paused: planned, not applied. 45° stripes of the setting's colour on a pale ground: the pattern, not the colour, says "paused" */
+    .span.paused {
+      background: repeating-linear-gradient(45deg, var(--c) 0 5px, color-mix(in srgb, var(--c) 18%, var(--card-background-color, #fff)) 5px 10px);
     }
     .span span {
       display: inline-flex; align-items: center; gap: 4px; --mdc-icon-size: 14px;

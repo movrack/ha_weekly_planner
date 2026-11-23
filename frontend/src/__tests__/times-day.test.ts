@@ -167,9 +167,9 @@ describe("the card with schedule_view times", () => {
     expect(flat(c._bySchedule(c._data.programs))).toContain("switch.b");
   });
 
-  it("hides a disabled program's spans (nothing to list)", () => {
+  it("lists a disabled program's planned times and says it is paused", () => {
     const c = card([program("p", ["switch.a"], { enabled: false })]);
-    expect(c._todayBlock("switch.a", c._data.programs[0], () => {}).values[0]).toEqual([]);
+    expect(c._todayBlock("switch.a", c._data.programs[0], () => {}).values[0]).not.toEqual([]);
   });
 
   it("opens the editor on the program when a row is tapped", () => {

@@ -24,6 +24,20 @@ describe("radial day: sun icons, now icon, open", () => {
     const swapped = flat(el.render());
     expect(swapped.indexOf("mdi:weather-sunset-down")).toBeLessThan(swapped.indexOf("mdi:weather-sunset-up"));
   });
+  it("a paused span is drawn as a faint arc under a striped (masked) one; a running one is a single plain arc", async () => {
+    const WpRadialDay = await mk();
+    const el = new WpRadialDay() as any;
+    el.lang = "en";
+    el.spans = [span({ paused: true })];
+    const html = flat(el.render()).replace(/\s+/g, " ");
+    expect(html).toContain("wp-paused-stripes");
+    expect(html).toContain('class=paused-ground');
+    expect(html).toContain("mask=url(#wp-paused-mask)");
+    el.spans = [span()];
+    const plain = flat(el.render());
+    expect(plain).not.toContain("wp-paused-mask");
+    expect(plain).not.toContain("paused-ground");
+  });
   it("no end icon at 24:00 or for a one-shot; no start icon without a sun start", async () => {
     const WpRadialDay = await mk();
     const el = new WpRadialDay() as any;

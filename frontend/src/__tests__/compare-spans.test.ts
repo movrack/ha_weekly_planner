@@ -32,7 +32,10 @@ describe("spans of a day", () => {
     const c = wednesdayCard([a, b]);
     expect(c._computeSpans("cover.a", [a, b], 0).map((s: any) => s.slotId)).toEqual(["b", "a"]);
     b.enabled = false;
-    expect(c._computeSpans("cover.a", [a, b], 0).map((s: any) => s.slotId)).toEqual(["a"]);
+    // a paused program is still drawn (hatched): same spans, flagged `paused`
+    const spans = c._computeSpans("cover.a", [a, b], 0) as any[];
+    expect(spans.map((s) => s.slotId)).toEqual(["b", "a"]);
+    expect(spans.map((s) => Boolean(s.paused))).toEqual([true, false]);
   });
   it("resolved rows: the day limits are exact (start at the end excluded, end at the start excluded, marker at midnight kept)", () => {
     const slots = ["a", "b", "c", "d", "e", "f"].map((id) => slot(id, { time: "08:00" }, { time: "09:00" }));

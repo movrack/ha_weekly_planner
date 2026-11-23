@@ -34,6 +34,15 @@ describe("sun tip and day bar", () => {
     return el;
   };
   const base = { start: 480, end: 600, color: "#00f", label: "Open" };
+  it("a paused span is drawn hatched (class paused, 45 degrees) and the bar says it is paused", () => {
+    const el = bar([{ ...base, paused: true }, { start: 700, end: 760, color: "#0f0", label: "Run" }]);
+    const html = flat(el.render()).replace(/\s+/g, " ");
+    expect(html).toContain('class="span paused"');
+    expect(html.match(/class="span /g)).toHaveLength(2);
+    expect(el._name()).toBe(`Open · 8 am – 10 am, Run · 11:40 am – 12:40 pm (${t("en", "compare_paused")})`);
+    expect(bar([base])._name()).not.toContain(t("en", "compare_paused"));
+    expect(String((WpDayBar as any).styles.cssText ?? (WpDayBar as any).styles)).toMatch(/\.span\.paused[^}]*repeating-linear-gradient\(45deg/);
+  });
   it("sun icons: start and end sides, positions, tip text with the base and the label of a one-shot", () => {
     const el = bar([{ ...base, startSun: "up", startSpec: { sun: "sunrise", random_minutes: 10 }, startBase: 470, endSun: "down", endSpec: { sun: "sunset" } },
       { start: 720, end: 730, color: "#0f0", label: "Shot", marker: true, startSun: "down", startSpec: { sun: "sunset" } }]);
