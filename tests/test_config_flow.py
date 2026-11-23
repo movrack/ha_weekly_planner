@@ -396,3 +396,19 @@ async def test_the_day_off_entity_cannot_be_one_a_program_a_label_or_a_scene_dri
         bad = await flow._progress[result["flow_id"]].async_step_settings({**BASE, "mode_and_day_off": {"holiday_entity": driven}})
         assert bad["errors"] == {"base": "driven_holiday_entity"}, driven
         flow.async_abort(result["flow_id"])
+
+
+def test_reapply_option_is_worded_like_the_checkbox_of_the_program_sheet() -> None:
+    """The integration option is the default of the program checkbox: both name it the same way, in EN and FR."""
+    import json
+    import re
+    from pathlib import Path
+    root = Path(__file__).parents[1]
+    card = (root / "frontend" / "src" / "i18n.ts").read_text(encoding="utf-8")
+    labels = re.findall(r'^  pe_reapply: "([^"]+)",$', card, flags=re.M)  # the English block first, then the French one
+    assert len(labels) == 2
+    folder = root / "custom_components" / "weekly_planner" / "translations"
+    for name, checkbox in zip(("en", "fr"), labels):
+        option = json.loads((folder / f"{name}.json").read_text(encoding="utf-8"))[
+            "options"]["step"]["settings"]["data"]["reapply_default"]
+        assert option.startswith(checkbox)

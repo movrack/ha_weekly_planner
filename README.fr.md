@@ -108,7 +108,8 @@ Le [guide illustré](https://github.com/movrack/ha_weekly_planner/wiki/Guide-uti
 | Option | Défaut | Effet |
 |---|---|---|
 | Seuls les administrateurs peuvent modifier les programmes | non | Réserve aux administrateurs les modifications des programmes et des réglages. |
-| Refaire le réglage en cours après un redémarrage ou une modification | oui | Valeur de départ de la case **Renvoyer le réglage en cours après un redémarrage ou un changement** pour chaque nouveau programme. |
+| Renvoyer le réglage en cours après un redémarrage ou un changement | oui | Valeur de départ de la case **Renvoyer le réglage en cours après un redémarrage ou un changement** pour chaque nouveau programme. |
+| Afficher le lien Weekly Planner dans la barre latérale | oui | Éteint, le lien de la barre latérale disparaît ; le panneau reste ouvert depuis le menu des options. |
 | Alerte si un appareil est indisponible depuis | 30 min | Délai avant la notification, de 1 à 1440 minutes. |
 | Attendre avant d’appliquer un changement de condition | 2 min | Délai de stabilité des conditions du programme, de 0 à 60 minutes. |
 | Sélecteur de mode (facultatif) | aucun | Une entité `input_select` ou `select` dont l’état est le mode de la maison ; un mode par défaut est demandé ensuite. |
@@ -116,7 +117,7 @@ Le [guide illustré](https://github.com/movrack/ha_weekly_planner/wiki/Guide-uti
 | Cette entité est allumée les jours travaillés, pas les jours fériés | non | À cocher seulement pour une entité allumée les jours travaillés, comme un capteur Workday. |
 
 Le mode a priorité sur le jour férié, qui ne s’applique qu’au mode en cours. Les options proposent
-aussi **Resynchroniser les appareils** (administrateurs seulement) : la liste de ce qui serait envoyé
+aussi **Renvoyer l’état aux appareils** (administrateurs seulement) : la liste de ce qui serait envoyé
 s’affiche, et rien n’est envoyé avant votre confirmation.
 Détails : [permissions et options](https://github.com/movrack/ha_weekly_planner/blob/main/wiki/REFERENCE.fr.md#permissions-et-options),
 [modes](https://github.com/movrack/ha_weekly_planner/blob/main/wiki/REFERENCE.fr.md#modes-et-sélecteur-de-mode),

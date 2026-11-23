@@ -106,6 +106,7 @@ shows every step with screenshots.
 |---|---|---|
 | Only administrators can edit programs | off | Reserves program and setting changes to administrators. |
 | Send the current setting again after a restart or a change | on | Starting value of the **Send the current setting again after a restart or a change** box for every new program. |
+| Show the Weekly Planner link in the sidebar | on | Off hides the sidebar link; the panel stays reachable from the options menu. |
 | Alert when a device has been unavailable for | 30 min | Delay before the notification, 1 to 1440 minutes. |
 | Wait before applying a change of condition | 2 min | Stability delay of the program conditions, 0 to 60 minutes. |
 | Mode selector (optional) | none | An `input_select` or `select` entity whose state is the mode of the house; a default mode is asked next. |
@@ -113,7 +114,7 @@ shows every step with screenshots.
 | This entity is on during working days, not on days off | off | Tick it only for an entity that is on on working days, such as a Workday sensor. |
 
 The mode has priority over the day off, which only applies to the current mode. The options also offer
-**Resynchronise the devices** (administrators only): it lists what would be sent and sends nothing
+**Send the state to the devices again** (administrators only): it lists what would be sent and sends nothing
 before you confirm.
 Details: [permissions and options](https://github.com/movrack/ha_weekly_planner/blob/main/wiki/REFERENCE.md#permissions-and-integration-options),
 [modes](https://github.com/movrack/ha_weekly_planner/blob/main/wiki/REFERENCE.md#modes-and-the-mode-selector),
