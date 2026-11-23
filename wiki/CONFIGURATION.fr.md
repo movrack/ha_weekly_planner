@@ -175,14 +175,14 @@ Weekly Planner garde une copie lisible de ses réglages dans **`/config/www/week
 férié, les réglages et les programmes avec leurs horaires par mode (pas l’état en cours). Pendant que Home Assistant
 tourne, ce sont ses propres données qui font foi ; le fichier est une copie que vous pouvez aussi modifier.
 
-Exemple réel : passer le confort de 21 °C à 20 °C pour tous les programmes, en un seul endroit. Dans le fichier :
+Exemple réel : régler le confort à 20 °C pour tous les programmes en un seul endroit. Dans le fichier :
 
 ```yaml
 labels:
   - id: comfort
     name: Confort
     color: "#ff9800"
-    action: {kind: service, service: climate.set_temperature, data: {temperature: 20}}   # était 21
+    action: {kind: service, service: climate.set_temperature, data: {temperature: 20}}
 ```
 
 - **Quand le fichier est écrit.** Environ 2 secondes après chaque enregistrement dans l’interface, et à
