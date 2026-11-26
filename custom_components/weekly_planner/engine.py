@@ -71,6 +71,7 @@ from .resolver import (
     default_label,
     has_holiday,
     holiday_setting,
+    is_start_stop,
     next_transition,
     occurrences_around,
     resolve_entity,
@@ -511,6 +512,7 @@ class PlannerEngine:
             **({"paused_until": program["paused_until"]} if program.get("paused_until") else {}),
             **({"holiday": {"copy": setting["copy"]} if "copy" in setting else {"own": True}} if setting else {}),
             "current_slots": current,
+            "committed_ends": self.committed_ends(program_id),
             "next_change": nxt.isoformat() if nxt else None,
             "skip_next": skip_at,
             "skip_next_targets": self._skip_targets(ctx, program, skip_at),
@@ -564,12 +566,23 @@ class PlannerEngine:
                 if not occ.runs:
                     continue
                 action = ctx.resolve(program, entity_id, slot.get("label"))
+                if is_start_stop(slot):  # two events (issue #93): its setting, then the end setting
+                    end_action = ctx.resolve(program, entity_id, slot["end_label"])
+                    if action is not None and occ.start > now:
+                        edges[occ.start] = {"oneshot": True, "action": action, "label": slot.get("label")}
+                    if end_action is not None and occ.end > now:
+                        edges.setdefault(occ.end, {"oneshot": True, "action": end_action, "label": slot["end_label"]})
+                    continue
                 if action is None:
                     continue
                 if occ.start > now:
                     edges[occ.start] = {"oneshot": occ.end is None, "action": action, "label": slot.get("label")}
                 if occ.end is not None and occ.end > now:
                     edges.setdefault(occ.end, {"oneshot": False, "action": None, "label": None})
+        for end in self.store.runtime.get("ends") or []:  # committed ends (issue #93), whatever the mode
+            moment = self.store.parse(end.get("at"))
+            if end["entity_id"] == entity_id and moment is not None and moment > now:
+                edges[moment] = {"oneshot": True, "action": end["action"], "label": end["label"]}
         for moment in sorted(edges):
             seg = self._segment_in(ctx, entity_id, moment)
             edge = edges[moment]
@@ -839,37 +852,69 @@ class PlannerEngine:
     async def _fire_one_shots(self, now: datetime, excluded: set[str] | None = None, *,
                               ctx: _Pass | None = None, segments: dict[str, Segment] | None = None,
                               since: dict[str, datetime] | None = None) -> None:
-        """Run the slots without an end whose time came since the last tick (spec § 5.2).
+        """Run the slots without an end whose time came since the last tick (spec § 5.2), and both events of
+        the start / stop slots (issue #93).
 
         ``segments`` are the segments of this recompute at ``now`` (the same values a fresh
         lookup gives: sending an action changes none of their inputs). ``since``: programs whose
         one-shots waited (day-off settle, issue #54) and the tick they wait from.
+
+        Start / stop slots: conditions, a pause and a disabled program block the start only; the end goes
+        out at its time in a timed pause too. Once a start went out, its end is committed in the runtime
+        (``ends``) and goes out at its time whatever happens meanwhile (mode change, edit, program disabled,
+        global suspension, restart).
         """
         last = self.store.parse(self.store.runtime.get("last_tick"))
         ctx = ctx or _Pass(self)
-        if last is None or ctx.vacation:
+        if last is None:
             return
         excluded = excluded or set()
         since = since or {}
-        due: list[tuple[str, dict]] = []
+        # (moment, device, action, end to commit or None); sorted by time before sending (stable)
+        due: list[tuple[datetime, str, dict, dict | None]] = []
+        committed = self._due_ends(now)
+        sent_ends = {(c["program_id"], c["slot_id"], c["at"], c["entity_id"]) for c in committed}
+        due += [(self.store.parse(c["at"]) or now, c["entity_id"], c["action"], None) for c in committed]
+        if ctx.vacation:
+            await self._send_due(due)
+            return
 
-        def due_for(program: dict, eid: str, slot: dict) -> None:
-            action = ctx.resolve(program, eid, slot.get("label"))
+        def due_for(program: dict, eid: str, slot: dict, moment: datetime, event: str, occ) -> None:
+            label_id = slot.get("end_label") if event == "end" else slot.get("label")
+            if event == "end" and (program["id"], slot["id"], occ.end.isoformat(), eid) in sent_ends:
+                return  # its committed copy just went out
+            action = ctx.resolve(program, eid, label_id)
             if action is None:
                 return
             seg = segments[eid] if segments is not None else self._segment_in(ctx, eid, now)
             higher = seg.in_slot and seg.program_id != program["id"] and self._priority(seg.program_id, ctx.by_id) < program.get("priority", DEFAULT_PRIORITY)
-            if not higher:  # skipped under a higher priority slot (Q-L)
-                due.append((eid, action))
+            if higher:  # skipped under a higher priority slot (Q-L)
+                return
+            end = None
+            if event == "start" and is_start_stop(slot) and occ.end > now:
+                end_action = ctx.resolve(program, eid, slot["end_label"])
+                if end_action is not None:
+                    end = {"program_id": program["id"], "slot_id": slot["id"], "entity_id": eid,
+                           "at": occ.end.isoformat(), "label": slot["end_label"], "action": end_action}
+            due.append((moment, eid, action, end))
 
-        def fires(occ, slot: dict, after: datetime) -> bool:
-            return (occ.end is None and occ.runs and after < occ.start <= now
-                    and ctx.check(slot.get("conditions", [])))
+        def events(occ, slot: dict, after: datetime, starts: bool) -> list[tuple[datetime, str]]:
+            if not occ.runs:
+                return []
+            found = []
+            if (starts and (occ.end is None or is_start_stop(slot)) and after < occ.start <= now
+                    and ctx.check(slot.get("conditions", []))):
+                found.append((occ.start, "start"))
+            if is_start_stop(slot) and after < occ.end <= now:
+                found.append((occ.end, "end"))
+            return found
 
         local_day = now.astimezone(ctx.tz).date()
         for program in ctx.programs:
-            if program["id"] in excluded or not program.get("enabled", True) or not ctx.check(program.get("conditions", [])):
+            enabled = program.get("enabled", True)
+            if program["id"] in excluded or not (enabled or program.get("paused_until")):
                 continue
+            starts = enabled and ctx.check(program.get("conditions", []))
             profile = active_profile(program, ctx.profiles)
             eids = [entity["entity_id"] for entity in program["entities"]]
             after = min(since.get(program["id"], last), last)
@@ -878,22 +923,41 @@ class PlannerEngine:
                                             ctx.holiday)
                 if not day.lists:  # one timeline for every device: same order as before lists existed
                     for occ, slot in day.all():
-                        if fires(occ, slot, after):
+                        for moment, event in events(occ, slot, after, starts):
                             for eid in eids:
-                                due_for(program, eid, slot)
+                                due_for(program, eid, slot, moment, event, occ)
                     continue
                 # Per-device timelines (#34): a one-shot of the cover inside a thermostat slot runs for
                 # the cover, a one-shot never reaches a device it does not apply to.
-                found = [(occ.start, index, eid, slot) for index, eid in enumerate(eids)
-                         for occ, slot in day.device(eid) if fires(occ, slot, after)]
+                found = [(moment, index, eid, slot, event, occ) for index, eid in enumerate(eids)
+                         for occ, slot in day.device(eid) for moment, event in events(occ, slot, after, starts)]
                 found.sort(key=lambda item: (item[0], item[1]))  # by time, then program order of devices
-                for _start, _index, eid, slot in found:
-                    due_for(program, eid, slot)
-        for eid, action in due:
-            await self._async_send(eid, action, "one_shot", oneshot=True)
+                for moment, _index, eid, slot, event, occ in found:
+                    due_for(program, eid, slot, moment, event, occ)
+        await self._send_due(due)
         for prt in self.store.runtime["programs"].values():
             if prt.pop("skip_consumed", False):
                 prt.pop("skip_at", None)
+
+    async def _send_due(self, due: list[tuple[datetime, str, dict, dict | None]]) -> None:
+        """Send the events of a tick in time order; a start / stop start commits its end once sent."""
+        for _moment, eid, action, end in sorted(due, key=lambda item: item[0]):
+            if end is not None:
+                self.store.runtime.setdefault("ends", []).append(end)
+            await self._async_send(eid, action, "one_shot", oneshot=True)
+
+    def _due_ends(self, now: datetime) -> list[dict]:
+        """Committed ends (issue #93) whose time came: taken out of the runtime, to be sent now."""
+        ends = self.store.runtime.get("ends") or []
+        due = [end for end in ends if (self.store.parse(end.get("at")) or now) <= now]
+        if due:
+            self.store.runtime["ends"] = [end for end in ends if end not in due]
+        return due
+
+    def committed_ends(self, program_id: str | None = None) -> list[dict]:
+        """Ends waiting to go out (issue #93), without their action: ``{entity_id, at, label, slot_id}``."""
+        return [{"entity_id": e["entity_id"], "at": e["at"], "label": e["label"], "slot_id": e["slot_id"]}
+                for e in self.store.runtime.get("ends") or [] if program_id is None or e["program_id"] == program_id]
 
     def _priority(self, program_id: str | None, programs: dict[str, dict] | None = None) -> int:
         if programs is not None:
@@ -919,6 +983,7 @@ class PlannerEngine:
             self._next_local_midnight(now),
             self._holiday_settles_at(now),
         ]
+        candidates += [self.store.parse(end.get("at")) for end in self.store.runtime.get("ends") or []]
         for rt in self.store.runtime["entities"].values():
             candidates.append(self.store.parse(rt.get("retry_at")))
             candidates.append(self.store.parse(rt.get("notify_at")))

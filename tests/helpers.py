@@ -55,9 +55,14 @@ def label(name: str, action: dict, color: str = "#ff9800") -> dict:
     return {"id": name, "name": name, "color": color, "action": action}
 
 
-def slot(sid: str, start: str, end: str | None, label_id: str | None = "t21", conditions: list | None = None) -> dict:
-    return {"id": sid, "start": {"time": start}, "end": {"time": end} if end else None,
-            "label": label_id, "conditions": conditions or []}
+def slot(sid: str, start: str, end: str | None, label_id: str | None = "t21", conditions: list | None = None,
+         end_label: str | None = None) -> dict:
+    """A slot; ``end_label`` makes it a start / stop slot (another setting at its end, issue #93)."""
+    found = {"id": sid, "start": {"time": start}, "end": {"time": end} if end else None,
+             "label": label_id, "conditions": conditions or []}
+    if end_label is not None:
+        found["end_label"] = end_label
+    return found
 
 
 def program(pid: str = "office", slots: list | None = None, priority: int = 10, reapply: bool = True,

@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+- Third kind of schedule, **With an end setting** (#93), after "At this time only" and "Until a time": one setting is sent at the start and another one at the end (for example start, then stop, a car's climatization), instead of the rest of the time. Same time rules as a schedule with an end (fixed or sun time, random delay, next day, minimum length, no overlap). Conditions and a pause block the start only; once the start went out, the end is committed, stored (it survives a restart) and goes out at its time even after a mode change, an edit or switching the program off. The bar shows one segment in the two colours, named "Start → End". New optional slot key `end_label`; existing schedules are unchanged. EN and FR.
+
 ## [0.30.0] - 2026-11-23
 
 ### Added

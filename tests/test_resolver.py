@@ -494,3 +494,18 @@ def test_next_transition_and_groups_use_the_day_of_the_zone_not_the_one_of_the_m
     assert next_transition([prog], moment, AKL, _no_sun) == _at(9, day=29)
     got = device_groups_around(prog, prog["profiles"][0], moment, AKL, _no_sun, (0,))
     assert [[s["id"] for _o, s in g] for g in got] == [["thu"], []]
+
+
+def test_a_start_stop_slot_holds_no_state_between_its_two_events():
+    """Issue #93: the device keeps the rest of the time; the engine sends the two settings as events."""
+    car = program("car", 10, [{**slot("s", "08:00", "12:00"), "end_label": "eco"}])
+    assert resolve([car], 9).key == ("default", "car")
+
+
+def test_a_timed_pause_still_wakes_for_the_end_of_a_start_stop_slot_only():
+    paused = program("car", 10, [{**slot("s", "08:00", "12:00"), "end_label": "eco"}, slot("d", "14:00", "15:00")],
+                     enabled=False)
+    assert next_transition([paused], local(7), TZ, no_sun) is None  # disabled: nothing at all
+    paused["paused_until"] = "2026-10-30T00:00:00+00:00"
+    assert next_transition([paused], local(7), TZ, no_sun) == local(12)
+    assert next_transition([paused], local(12), TZ, no_sun) == datetime(2026, 10, 29, 12, tzinfo=TZ).astimezone(UTC)

@@ -155,6 +155,32 @@ def test_watering_runs_three_days_and_stops_when_it_rains():
     assert now([prog], "switch.arrosage_jardin", at(TUE, 6, 10), ok=dry) == "switch.turn_off"
 
 
+def test_car_preheating_saturday_before_the_club_below_ten_degrees():
+    cold = [{"entity_id": "sensor.temperature_exterieure", "op": "lt", "value": 10}]
+    press = label("Préchauffer", svc("button.press"))
+    labels = {**LABELS, "Préchauffer": press}
+    prog = check_program({
+        "id": "voiture", "name": "voiture", "priority": 1, "created_at": "2026-01-01", "conditions": cold,
+        "entities": [{"entity_id": "button.volvo_start_climatization", "default_label": None}],
+        "profiles": [{"id": "p", "name": "Maison", "days": [
+            [slot("c", "10:30", None, "Préchauffer")] if d == SAT else [] for d in range(7)]}]}, labels)
+    # a one-shot is an event: it fires at 10:30 on Saturdays only, and never makes a segment of its own
+    sat = date(2026, 10, 31)
+    fired = occurrence(prog["profiles"][0]["days"][SAT][0], sat, TZ, no_sun)
+    assert fired.start.astimezone(TZ).strftime("%H:%M") == "10:30" and fired.end is None
+    assert prog["profiles"][0]["days"][SUN] == []
+    assert prog["conditions"] == cold
+    assert now([prog], "button.volvo_start_climatization", at(SAT, 10, 45)) is None
+    # the stop is its own program on the stop button: same event shape at 11:00, no condition
+    stop = check_program({
+        "id": "stop", "name": "stop", "priority": 1, "created_at": "2026-01-01", "conditions": [],
+        "entities": [{"entity_id": "button.volvo_stop_climatization", "default_label": None}],
+        "profiles": [{"id": "p", "name": "Maison", "days": [
+            [slot("s", "11:00", None, "Préchauffer")] if d == SAT else [] for d in range(7)]}]}, labels)
+    off = occurrence(stop["profiles"][0]["days"][SAT][0], sat, TZ, no_sun)
+    assert off.start.astimezone(TZ).strftime("%H:%M") == "11:00" and stop["conditions"] == []
+
+
 def test_water_heater_off_peak_nights_and_whole_weekend():
     prog = program("chauffe-eau", {"switch.chauffe_eau": "Arrêt"}, merge(
         days(ALL, slot("n", "22:00", "06:00", "Marche")),

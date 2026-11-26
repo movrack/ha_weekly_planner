@@ -229,6 +229,13 @@ describe("device-edits: copy-on-write (D1, D7)", () => {
     expect(copy.id).not.toBe("s");
     expect(r.id).toBe(copy.id);
   });
+  it("an end setting is set by a patch and removed by null (start / stop slot, issue #93)", () => {
+    const days = week([slot("s", "07:00", "09:00", "on", [B])]);
+    const set = editForDevice(days, "s", B, { end_label: "off" }, opts())!;
+    expect(set.days[0][0]).toMatchObject({ id: "s", end_label: "off" });
+    const back = editForDevice(set.days, "s", B, { end_label: null }, opts())!;
+    expect("end_label" in back.days[0][0]).toBe(false);
+  });
   it("a copy edited back to the original is re-merged into it", () => {
     const days = week([slot("s", "07:00", "09:00", "on")]);
     const r1 = editForDevice(days, "s", B, { label: "off" }, opts())!;

@@ -249,9 +249,22 @@ export function actionSummary(hass: HomeAssistant, lang: string, action: Action 
 }
 
 /** Does the program use the label (slots of any profile, defaults, values for a device)? */
+const slotUses = (s: Slot, labelId: string): boolean => s.label === labelId || s.end_label === labelId;
+
 export const usesLabel = (p: Program, labelId: string): boolean =>
   p.entities.some((e) => e.default_label === labelId || labelId in (e.label_overrides ?? {}))
-  || p.profiles.some((profile) => profile.days.some((day) => day.some((s: Slot) => s.label === labelId)) || holidayOwnSlots(profile).some((s: Slot) => s.label === labelId));
+  || p.profiles.some((profile) => profile.days.some((day) => day.some((s: Slot) => slotUses(s, labelId))) || holidayOwnSlots(profile).some((s: Slot) => slotUses(s, labelId)));
+
+/**
+ * What a start / stop slot (issue #93) adds to its bar span: both setting names ("Start → Stop") and the end colour, so
+ * the one segment is drawn in the two colours. Nothing for another slot.
+ */
+export function startStopSpan(hass: HomeAssistant, data: PlannerData, slot: Pick<Slot, "end" | "end_label">, start: Label):
+  { label?: string; endColor?: string; endLabelId?: string } {
+  const end = slot.end && slot.end_label ? labelOf(data, slot.end_label) : undefined;
+  if (!end) return {};
+  return { label: `${labelName(hass, start)} → ${labelName(hass, end)}`, endColor: end.color, endLabelId: end.id };
+}
 
 /** Names of the programs using a label (slots of any profile, defaults, values for a device). */
 export const labelUsers = (data: PlannerData, labelId: string): string[] => data.programs.filter((p) => usesLabel(p, labelId)).map((p) => p.name);

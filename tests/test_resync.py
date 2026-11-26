@@ -804,3 +804,13 @@ def test_a_one_shot_is_not_hidden_by_a_slot_of_another_device_only_by_its_own_de
     p = rule_prog("a", [theirs, mine], entities=(E, "climate.other"))
     got = rule_decide([p], at(9)).expected
     assert (got.kind, got.slot_id) == ("one_shot", "mine")
+
+
+def test_start_stop_slot_expects_its_start_setting_then_its_end_setting():
+    """Issue #93: the start counts as a one-shot, then its end setting; the condition only blocks the start."""
+    car = rule_prog("car", [rule_slot("s", "08:00", "10:00", label="comfort", end_label="night",
+                                      conditions=[{"entity_id": "sensor.x", "value": 1}])], default=None)
+    assert decided_label(rule_decide([car], at(9))) == "comfort"
+    assert decided_label(rule_decide([car], at(11))) == "night"
+    blocked = rule_decide([car], at(9), conditions_ok=lambda conds: not conds)
+    assert decided_label(blocked) == "night" and blocked.expected.start == at(10, day=27)  # yesterday's end

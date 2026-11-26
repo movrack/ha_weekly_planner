@@ -91,7 +91,7 @@ export function timesRows(spans: readonly BarSpan[], ctx: TimesContext): TimesRo
     items.push({
       span: s,
       row: {
-        key, startMin, startMs: s.startMs, endMs: s.endMs, labelId: s.labelId, color: s.color, label: s.label, slotId: s.slotId, carry, until,
+        key, startMin, startMs: s.startMs, endMs: s.endMs, labelId: s.endLabelId ? undefined : s.labelId, color: s.color, label: s.label, slotId: s.slotId, carry, until,
         oneShot: Boolean(s.marker), sun: carry ? null : s.startSun ?? null,
         rule: !carry && s.startSun && spec && "sun" in spec ? spec : null,
         random: Boolean(spec?.random_minutes), now: false, done: false,

@@ -315,3 +315,41 @@ describe("week list touch targets", () => {
     expect(css).toMatch(/\.wnamebtn \{[^}]*width: 44px/);
   });
 });
+
+describe("start / stop slots on the card bars (issue #93)", () => {
+  const hass: any = { language: "en", config: { time_zone: "UTC" }, states: { "climate.a": { entity_id: "climate.a", state: "heat", attributes: {} } },
+    services: { climate: { set_temperature: { fields: {} } } } };
+  const go = { id: "go", name: "Go", color: "#00ff00", action: { kind: "service", service: "climate.set_temperature", data: { temperature: 21 } } };
+  const stop = { id: "stop", name: "Stop", color: "#ff0000", action: { kind: "service", service: "climate.set_temperature", data: { temperature: 15 } } };
+  const setup = (slots: any[], status: any = {}) => {
+    const program = { id: "p", name: "p", revision: 1, priority: 10, enabled: true, reapply: true, conditions: [],
+      entities: [{ entity_id: "climate.a", default_label: null, label_overrides: {} }],
+      profiles: [{ id: "a", name: "A", days: Array.from({ length: 7 }, () => slots) }] };
+    const c = new WeeklyPlannerCard() as any;
+    c.hass = hass;
+    c._config = {};
+    c._data = { programs: [program], labels: [go, stop], status, can_edit: true, read_only: false };
+    return { c, program };
+  };
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("draws one span with both names and the end colour", () => {
+    const { c, program } = setup([{ id: "car", start: { time: "10:30" }, end: { time: "11:00" }, label: "go", end_label: "stop" }]);
+    const spans = c._spans("climate.a", [program]);
+    expect(spans).toHaveLength(1);
+    expect(spans[0]).toMatchObject({ start: 630, end: 660, color: "#00ff00", endColor: "#ff0000", label: "Go → Stop", endLabelId: "stop" });
+  });
+
+  it("adds a marker for an end still committed that today's schedule does not draw (the mode changed)", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-11T10:45:00Z"));
+    const at = "2026-11-11T11:00:00+00:00";
+    const { c, program } = setup([], { p: { committed_ends: [{ entity_id: "climate.a", at, label: "stop", slot_id: "car" }] } });
+    c._now = new Date();
+    const spans = c._spans("climate.a", [program]);
+    expect(spans).toEqual([expect.objectContaining({ start: 660, marker: true, color: "#ff0000", label: "Stop", slotId: "car" })]);
+    const other = setup([], { p: { committed_ends: [{ entity_id: "climate.b", at, label: "stop", slot_id: "car" }] } });
+    other.c._now = new Date();
+    expect(other.c._spans("climate.a", [other.program])).toEqual([]);
+  });
+});

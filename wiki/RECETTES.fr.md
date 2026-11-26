@@ -16,6 +16,7 @@ Des exemples de maison réelle, à recopier : une recette par page, avec ses ét
 - [Chauffe-eau en heures creuses](RECETTE_CHAUFFE_EAU.fr.md)
 - [Arrosage du jardin](RECETTE_ARROSAGE.fr.md) : trois matins par semaine, pas les jours de pluie.
 - [Chambre d’enfant : une veilleuse la nuit](RECETTE_VEILLEUSE_ENFANT.fr.md)
+- [Voiture préchauffée le samedi avant le club](RECETTE_VOITURE_CHAUFFEE.fr.md) : à 10 h 30, sous 10 °C dehors.
 
 ## Le mode de la maison
 

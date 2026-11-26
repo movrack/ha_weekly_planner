@@ -40,6 +40,10 @@ _Avoid_: mode orphelin, mode supprimé
 Une règle « de telle heure à telle heure, tels jours, tel réglage » d'un programme pour un mode. Sans heure de fin, c'est une action unique.
 _Avoid_: créneau, plage, slot, planning
 
+**Réglage de fin**:
+Le réglage qu’un horaire envoie à son heure de fin, à la place du « reste du temps » (choix « Avec un réglage de fin »). Le début et la fin sont deux ordres ; une fois le début parti, la fin partira à son heure quoi qu’il arrive.
+_Avoid_: action d’arrêt, stop, fin d’horaire
+
 **Horaires du jour**:
 La vue de lecture de la journée d'aujourd'hui : une ligne par tronçon (heure, réglage, jusqu'à quand). Distincte de la « Liste compacte », qui liste les programmes.
 _Avoid_: créneau, planning

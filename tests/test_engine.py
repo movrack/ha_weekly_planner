@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+from homeassistant.util import dt as dt_util
+
 from custom_components.weekly_planner.const import DOMAIN
 
 from .helpers import (
@@ -187,3 +189,113 @@ async def test_cover_close_open_one_shots(hass, hass_storage, freezer):
     await go_to(hass, freezer, local(26, 8, 0))
     await go_to(hass, freezer, local(26, 20, 0))
     assert rec.services == ["cover.open_cover", "cover.close_cover"]
+
+
+# -- start / stop slots (issue #93): one setting at the start, another one at the end ----------------------------
+
+CAR_ON = [{"entity_id": "sensor.outside", "op": "lt", "value": 10}]
+
+
+def _car(conditions: list | None = None) -> dict:
+    """Saturday-like slot every day: 10:30 start (21 degrees), 11:00 stop (19 degrees); no rest-of-the-time."""
+    return program(slots=[slot("car", "10:30", "11:00", "t21", conditions, end_label="t19")], default=None)
+
+
+def _temps(rec: Recorder) -> list:
+    return [data["temperature"] for name, data in rec.calls if name == "climate.set_temperature"]
+
+
+async def test_start_stop_slot_sends_its_start_setting_then_its_end_setting(hass, hass_storage, freezer):
+    rec = Recorder(hass)
+    engine = await setup(hass, hass_storage, freezer, [_car()], local(26, 10, 0))
+    await go_to(hass, freezer, local(26, 10, 30))
+    assert _temps(rec) == [21]
+    assert engine.segment(CLIMATE).key == ("default", "office")  # no lasting state: nothing restored at the end
+    await go_to(hass, freezer, local(26, 11, 0))
+    assert _temps(rec) == [21, 19]
+    await go_to(hass, freezer, local(26, 12, 0))
+    assert _temps(rec) == [21, 19]
+
+
+async def test_start_stop_condition_blocks_the_start_only(hass, hass_storage, freezer):
+    rec = Recorder(hass)
+    hass.states.async_set("sensor.outside", "15")
+    await setup(hass, hass_storage, freezer, [_car(CAR_ON)], local(26, 10, 0))
+    await go_to(hass, freezer, local(26, 11, 0))
+    assert _temps(rec) == [19]  # too warm: no start, the stop still goes out
+
+
+async def test_start_stop_program_condition_blocks_the_start_only(hass, hass_storage, freezer):
+    rec = Recorder(hass)
+    hass.states.async_set("sensor.outside", "15")
+    prog = _car()
+    prog["conditions"] = CAR_ON
+    await setup(hass, hass_storage, freezer, [prog], local(26, 10, 0))
+    await go_to(hass, freezer, local(26, 11, 0))
+    assert _temps(rec) == [19]
+
+
+async def test_start_stop_timed_pause_blocks_the_start_not_the_end(hass, hass_storage, freezer):
+    rec = Recorder(hass)
+    engine = await setup(hass, hass_storage, freezer, [_car()], local(26, 10, 0))
+    await engine.async_pause("office", 1)
+    await go_to(hass, freezer, local(26, 11, 0))
+    assert _temps(rec) == [19]
+
+
+async def test_start_stop_disabled_program_sends_nothing(hass, hass_storage, freezer):
+    rec = Recorder(hass)
+    engine = await setup(hass, hass_storage, freezer, [_car()], local(26, 10, 0))
+    await engine.async_set_enabled("office", False)
+    await go_to(hass, freezer, local(26, 11, 30))
+    assert _temps(rec) == []
+
+
+async def test_start_stop_committed_end_goes_out_after_the_program_is_disabled(hass, hass_storage, freezer):
+    rec = Recorder(hass)
+    engine = await setup(hass, hass_storage, freezer, [_car()], local(26, 10, 0))
+    await go_to(hass, freezer, local(26, 10, 30))
+    assert engine.store.runtime["ends"][0]["at"] == local(26, 11, 0).astimezone(dt_util.UTC).isoformat()
+    await engine.async_set_enabled("office", False)
+    await go_to(hass, freezer, local(26, 11, 0))
+    assert _temps(rec) == [21, 19]
+    assert engine.store.runtime["ends"] == []
+
+
+async def test_start_stop_committed_end_goes_out_after_the_slot_is_deleted(hass, hass_storage, freezer):
+    rec = Recorder(hass)
+    engine = await setup(hass, hass_storage, freezer, [_car()], local(26, 10, 0))
+    await go_to(hass, freezer, local(26, 10, 30))
+    for day in engine.store.program("office")["profiles"][0]["days"]:
+        day.clear()
+    await engine.async_config_changed()
+    await go_to(hass, freezer, local(26, 11, 0))
+    assert _temps(rec) == [21, 19]
+
+
+async def test_start_stop_committed_end_survives_a_restart(hass, hass_storage, freezer):
+    rec = Recorder(hass)
+    engine = await setup(hass, hass_storage, freezer, [_car()], local(26, 10, 0))
+    await go_to(hass, freezer, local(26, 10, 30))
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    for day in engine.store.program("office")["profiles"][0]["days"]:
+        day.clear()  # the restarted engine no longer knows the slot: only the stored end can send the stop
+    engine.store.save_config()
+    await tick(hass, freezer, timedelta(seconds=2))  # the delayed writes reach the storage, as on a shutdown
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    await tick(hass, freezer, timedelta(seconds=31))
+    assert hass.config_entries.async_entries(DOMAIN)[0].runtime_data.store.runtime["ends"]
+    await go_to(hass, freezer, local(26, 11, 0))
+    assert _temps(rec) == [21, 19]
+
+
+async def test_start_stop_end_is_the_next_action_after_the_start(hass, hass_storage, freezer):
+    Recorder(hass)
+    engine = await setup(hass, hass_storage, freezer, [_car()], local(26, 10, 0))
+    assert engine.program_status("office")["next_actions"][CLIMATE]["label"] == "t21"
+    await go_to(hass, freezer, local(26, 10, 30))
+    status = engine.program_status("office")
+    assert status["next_actions"][CLIMATE]["label"] == "t19"
+    assert status["committed_ends"] == [{"entity_id": CLIMATE, "at": local(26, 11, 0).astimezone(dt_util.UTC).isoformat(),
+                                         "label": "t19", "slot_id": "car"}]

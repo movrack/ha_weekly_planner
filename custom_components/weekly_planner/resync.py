@@ -27,6 +27,7 @@ from .resolver import (
     OccurrenceCache,
     Resolve,
     active_profile,
+    is_start_stop,
     occurrences_around,
     resolve_entity,
 )
@@ -123,25 +124,30 @@ def expected_state(
                                             cache=cache, entity_id=entity_id, holiday=holiday):
             if not occ.runs or not applies(slot, entity_id):
                 continue
-            if occ.end is not None:
+            if occ.end is not None and not is_start_stop(slot):
                 if occ.end <= now and (last_end is None or occ.end > last_end):
                     last_end = occ.end
                 continue
-            if occ.start > now:
-                continue
-            if now - occ.start >= ONE_SHOT_WINDOW:
-                old_one_shot = True
-                continue
-            if not conditions_ok(slot.get("conditions", [])):
-                continue
-            action = resolve(program, entity_id, slot.get("label"))
-            if action is None:
-                continue
-            if running_rank is not None and running != program["id"] and running_rank < _rank(program)[0]:
-                continue  # skipped under a higher priority schedule, as the automatic run does
-            order += 1
-            pool.append((occ.start, _rank(program), order,
-                         Expected("one_shot", program["id"], slot["id"], slot.get("label"), action, occ.start)))
+            # a one-shot, or the two events of a start / stop slot (issue #93; only the start has conditions)
+            events = [(occ.start, slot.get("label"), True)]
+            if occ.end is not None:
+                events.append((occ.end, slot["end_label"], False))
+            for moment, label_id, gated in events:
+                if moment > now:
+                    continue
+                if now - moment >= ONE_SHOT_WINDOW:
+                    old_one_shot = True
+                    continue
+                if gated and not conditions_ok(slot.get("conditions", [])):
+                    continue
+                action = resolve(program, entity_id, label_id)
+                if action is None:
+                    continue
+                if running_rank is not None and running != program["id"] and running_rank < _rank(program)[0]:
+                    continue  # skipped under a higher priority schedule, as the automatic run does
+                order += 1
+                pool.append((moment, _rank(program), order,
+                             Expected("one_shot", program["id"], slot["id"], label_id, action, moment)))
     if not seg.in_slot:  # the default only competes with what started after the last schedule ended
         pool = [item for item in pool if last_end is None or item[0] > last_end]
     if pool:

@@ -344,8 +344,9 @@ function sortByStart(slots: Slot[], ctx: DayCtx): Slot[] {
   return [...slots].sort((a, b) => ctx.at(a.start) - ctx.at(b.start));
 }
 
+// a start / stop slot (issue #93) is never merged: joining two would drop a stop and a start
 const sameKind = (a: Slot, b: Slot): boolean =>
-  a.label === b.label && sameEntities(a, b) && stableJson(a.conditions ?? []) === stableJson(b.conditions ?? []) && (a.color ?? null) === (b.color ?? null);
+  !a.end_label && !b.end_label && a.label === b.label && sameEntities(a, b) && stableJson(a.conditions ?? []) === stableJson(b.conditions ?? []) && (a.color ?? null) === (b.color ?? null);
 const stableJson = (v: unknown): string => JSON.stringify(v);
 
 /**

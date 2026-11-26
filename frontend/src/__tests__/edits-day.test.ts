@@ -308,6 +308,12 @@ describe("merging neighbours", () => {
     expect(brief(mergeAdjacent([sl("c", "07:00", "08:00", { label: "x" }), a], ctx()))).toEqual(["c:07:00-09:00:x"]);
   });
 
+  it("never merges a start / stop slot: joining two would drop a stop and a start (issue #93)", () => {
+    const stop = sl("a", "08:00", "09:00", { label: "x", end_label: "y" });
+    expect(brief(mergeAdjacent([stop, sl("b", "09:00", "10:00", { label: "x" })], ctx()))).toHaveLength(2);
+    expect(brief(mergeAdjacent([stop, sl("b", "09:00", "10:00", { label: "x", end_label: "y" })], ctx()))).toHaveLength(2);
+  });
+
   it("merges a chain, ignores one-shots and a slot crossing midnight", () => {
     expect(show(mergeAdjacent([sl("1", "08:00", "09:00"), sl("2", "09:00", "10:00"), sl("3", "10:00", "11:00")], ctx()))).toEqual(["08:00-11:00:t18"]);
     expect(mergeAdjacent([sl("1", "10:00", null), sl("2", "10:00", "11:00")], ctx())).toHaveLength(2);

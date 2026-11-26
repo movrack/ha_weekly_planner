@@ -46,6 +46,14 @@ class Segment:
         return self.key[0] == "slot"
 
 
+def is_start_stop(slot: dict) -> bool:
+    """A start / stop slot (issue #93): two events, its setting at the start and ``end_label`` at the end.
+
+    It holds no state between them (no segment): the end sends its own setting, never the rest of the time.
+    """
+    return slot.get("end_label") is not None
+
+
 def active_profile(program: dict, active_profiles: dict[str, str]) -> dict:
     """Profile the program follows now: ``active_profiles[id]`` (a profile id, ``NO_PROFILE`` for none), else its default."""
     profiles = program["profiles"]
@@ -293,8 +301,8 @@ def running_slot(
     """
     for occ, slot in occurrences_around(profile, moment, tz, sun, program_id=program["id"], cache=cache,
                                         entity_id=entity_id, holiday=holiday):
-        if not occ.runs or occ.end is None:
-            continue  # one-shot slots (no end) are events, handled by the engine
+        if not occ.runs or occ.end is None or is_start_stop(slot):
+            continue  # one-shot and start / stop slots are events, handled by the engine
         if (occ.start <= moment < occ.end and applies(slot, entity_id) and conditions_ok(slot.get("conditions", []))
                 and resolve(program, entity_id, slot.get("label")) is not None):
             return occ, slot
@@ -371,19 +379,21 @@ def next_transition(
 
     With per-device lists, the edges of every distinct device timeline (union of the subsets): an
     extra wake-up is harmless, a missed one is not. Without lists, the one program timeline.
+    A program in a timed pause still sends the ends of its start / stop slots (issue #93): only those wake.
     """
     active_profiles = active_profiles or {}
     best: datetime | None = None
     for program in programs:
-        if not program.get("enabled", True):
+        enabled = program.get("enabled", True)
+        if not enabled and not program.get("paused_until"):
             continue
         profile = active_profile(program, active_profiles)
         for timeline in device_groups_around(program, profile, moment, tz, sun, (-1, 0, 1, 2), cache=cache,
                                              holiday=holiday):
-            for occ, _slot in timeline:
-                if not occ.runs:
+            for occ, slot in timeline:
+                if not occ.runs or not (enabled or is_start_stop(slot)):
                     continue
-                for edge in (occ.start, occ.end):
+                for edge in (occ.start, occ.end) if enabled else (occ.end,):
                     if edge is not None and edge > moment and (best is None or edge < best):
                         best = edge
     return best

@@ -69,6 +69,8 @@ export interface Slot {
   color?: string | null;
   /** Id of the label this slot applies. */
   label: string;
+  /** Start / stop slot (issue #93): the label sent at the end instead of the rest of the time (needs an end). */
+  end_label?: string | null;
   /** Devices this slot targets (absent: every device of the program, also added later; never empty). */
   entities?: string[];
   /** Random-delay seed (default: the slot id); kept when a slot is split so its delay is not redrawn. */
@@ -136,6 +138,8 @@ interface ProgramStatus {
   skip_next: string | null;
   /** Devices whose own timeline changes at the skipped moment, and what they would have received then. */
   skip_next_targets?: { entity_id: string; action: Action | null; label: string | null }[];
+  /** Ends committed by a start that went out (issue #93): they go out at their time whatever the mode. */
+  committed_ends?: { entity_id: string; at: string; label: string; slot_id: string }[];
   next_actions?: Record<string, { at: string; action: Action; label: string | null }>;
 }
 

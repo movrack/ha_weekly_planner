@@ -24,7 +24,7 @@ import { callout } from "../styles";
 import { devicesOf, isShared, isolateForDevice, remergeIdentical, undoSlots } from "../device-edits";
 import { HOLD_HINT_MS, LONG_PRESS_MS, MOVE_PX } from "../hold-hint";
 import { slotDeviceError, strings, t } from "../i18n";
-import { appliedAction, labelName, labelOf, labelsFor } from "../labels";
+import { appliedAction, labelName, labelOf, labelsFor, startStopSpan } from "../labels";
 import { onServiceNames } from "../services";
 import { activeProfile, newId } from "../planner";
 import { applicable, applies, normaliseEntities, shiftTimeSpec, specMinutes } from "../slots";
@@ -939,7 +939,8 @@ export class WpBarEditor extends LitElement {
       out.push({
         start: e.start, end: e.end ?? e.start + 10, color: label.color, label: labelName(this.hass, label), slotId: slot.id,
         marker: e.end === null, startSun: sunDir(slot.start), endSun: slot.end ? sunDir(slot.end) : null,
-        startSpec: slot.start, endSpec: slot.end ?? null, ...(this.program.enabled ? {} : { paused: true }),
+        startSpec: slot.start, endSpec: slot.end ?? null, ...startStopSpan(this.hass, this.data, slot, label),
+        ...(this.program.enabled ? {} : { paused: true }),
       });
     }
     return out;

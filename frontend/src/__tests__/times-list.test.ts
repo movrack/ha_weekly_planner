@@ -154,6 +154,11 @@ describe("daily times: neighbours of the same setting", () => {
     expect(timesRows([sp(60, 120, "a"), sp(120, 180, "b")], ctx)).toHaveLength(2);
   });
 
+  it("never merges a start / stop row with its neighbour of the same start setting (issue #93)", () => {
+    expect(timesRows([sp(60, 120, "a", { endLabelId: "b" }), sp(120, 180, "a")], ctx)).toHaveLength(2);
+    expect(timesRows([sp(60, 120, "a"), sp(120, 180, "a", { endLabelId: "b" })], ctx)).toHaveLength(2);
+  });
+
   it("does not merge when there is a gap, or when the id is unknown", () => {
     expect(timesRows([sp(60, 120, "a"), sp(121, 180, "a")], ctx)).toHaveLength(2);
     expect(timesRows([span(60, 120), span(120, 180)], ctx)).toHaveLength(2);

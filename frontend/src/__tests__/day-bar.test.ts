@@ -43,6 +43,13 @@ describe("sun tip and day bar", () => {
     expect(bar([base])._name()).not.toContain(t("en", "compare_paused"));
     expect(String((WpDayBar as any).styles.cssText ?? (WpDayBar as any).styles)).toMatch(/\.span\.paused[^}]*repeating-linear-gradient\(45deg/);
   });
+  it("a start / stop span is one segment in two colours, the start setting's then the end setting's (issue #93)", () => {
+    const html = flat(bar([{ ...base, endColor: "#f00" }]).render()).replace(/\s+/g, " ");
+    expect(html).toContain('class="span pair"');
+    expect(html).toContain("--c2:#f00");
+    expect(html.match(/class="span /g)).toHaveLength(1);
+    expect(String((WpDayBar as any).styles.cssText ?? (WpDayBar as any).styles)).toMatch(/\.span\.pair::after[^}]*right: 0[^}]*background: var\(--c2\)/);
+  });
   it("sun icons: start and end sides, positions, tip text with the base and the label of a one-shot", () => {
     const el = bar([{ ...base, startSun: "up", startSpec: { sun: "sunrise", random_minutes: 10 }, startBase: 470, endSun: "down", endSpec: { sun: "sunset" } },
       { start: 720, end: 730, color: "#0f0", label: "Shot", marker: true, startSun: "down", startSpec: { sun: "sunset" } }]);

@@ -869,3 +869,41 @@ def test_a_fixed_slot_and_a_slot_with_a_random_delay_that_touch_only_at_their_ed
     second = _listed("b", "08:00", "09:00", [CLIMATE], "t19")
     second["start"] = {"time": "08:00", "random_minutes": 0}
     _check(program(entities=_devices(CLIMATE, COVER), slots=[first, second]))
+
+
+# -- start / stop slots (issue #93) ----------------------------------------------------------------------------------
+
+
+def test_start_stop_slot_is_valid_and_keeps_its_end_label():
+    checked = _check(program(slots=[slot("car", "10:30", "11:00", "t21", end_label="t19")]))
+    assert checked["profiles"][0]["days"][0][0]["end_label"] == "t19"
+
+
+def test_start_stop_slot_may_use_the_same_label_at_both_ends():
+    assert _check(program(slots=[slot("car", "10:30", "11:00", "t21", end_label="t21")]))
+
+
+def test_an_empty_end_label_is_dropped_from_a_plain_slot():
+    prog = program(slots=[slot("s", "10:30", "11:00", "t21")])
+    prog["profiles"][0]["days"][0][0]["end_label"] = None
+    assert "end_label" not in _check(prog)["profiles"][0]["days"][0][0]
+
+
+@pytest.mark.parametrize(("change", "code"), [
+    ({"end_label": "nope"}, "unknown_label:nope"),
+    ({"end": None, "end_label": "t19"}, "end_label_without_end:car"),
+])
+def test_start_stop_slot_errors(change, code):
+    prog = program(slots=[{**slot("car", "10:30", "11:00", "t21"), **change}])
+    assert _error(_check, prog) == code
+
+
+def test_start_stop_slots_may_not_overlap():
+    prog = program(slots=[slot("a", "10:30", "11:00", "t21", end_label="t19"),
+                          slot("b", "10:45", "11:15", "t21", end_label="t19")])
+    assert _error(_check, prog) == "overlapping_slots"
+
+
+def test_an_end_label_counts_as_a_use_of_the_label():
+    prog = program(slots=[slot("car", "10:30", "11:00", "t21", end_label="boost")], default=None)
+    assert v.label_users([prog], "boost") == ["office"]

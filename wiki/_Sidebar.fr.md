@@ -39,6 +39,7 @@
 - [Chauffe-eau](RECETTE_CHAUFFE_EAU.fr.md)
 - [Arrosage](RECETTE_ARROSAGE.fr.md)
 - [Veilleuse](RECETTE_VEILLEUSE_ENFANT.fr.md)
+- [Voiture préchauffée](RECETTE_VOITURE_CHAUFFEE.fr.md)
 - [Vacances : maison en veille](RECETTE_VACANCES_VEILLE.fr.md)
 - [Jour travaillé ou congé](RECETTE_JOUR_TRAVAILLE.fr.md)
 - [Vacances scolaires](RECETTE_VACANCES_SCOLAIRES.fr.md)

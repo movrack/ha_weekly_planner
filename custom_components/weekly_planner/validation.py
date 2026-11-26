@@ -126,6 +126,8 @@ SLOT = vol.Schema({
     vol.Optional("conditions", default=list): vol.All([CONDITION], vol.Length(max=10)),
     vol.Optional("color"): vol.Any(None, str),
     vol.Required("label"): str,
+    # Start / stop slot (issue #93): another setting sent at the end instead of the rest of the time.
+    vol.Optional("end_label"): vol.Any(None, str),
     vol.Optional("entities"): [cv.entity_id],
     vol.Optional("seed"): vol.All(str, vol.Length(min=1, max=255)),
 })
@@ -397,6 +399,7 @@ def check_program(program: dict, labels: dict[str, dict], hass: Any = None, desc
         for slot in profile_slots(profile):
             if slot["label"] not in labels:
                 raise ProgramError(f"unknown_label:{slot['label']}")
+            _check_end_label(slot, labels)
             _check_slot_entities(slot, device_ids)
         if has_lists:
             _check_week_overlaps_scoped(profile["days"], list(device_ids))
@@ -407,6 +410,17 @@ def check_program(program: dict, labels: dict[str, dict], hass: Any = None, desc
             # A day off is a whole day (issue #54): it is checked alone, never against its neighbours.
             _check_day_overlaps(own, list(device_ids) if has_lists else None)
     return program
+
+
+def _check_end_label(slot: dict, labels: dict[str, dict]) -> None:
+    """A start / stop slot (issue #93) names a known label and has an end; an empty one is dropped."""
+    if slot.get("end_label") is None:
+        slot.pop("end_label", None)
+        return
+    if not slot.get("end"):
+        raise ProgramError(f"end_label_without_end:{slot['id']}")
+    if slot["end_label"] not in labels:
+        raise ProgramError(f"unknown_label:{slot['end_label']}")
 
 
 def _check_slot_entities(slot: dict, device_ids: dict) -> None:
@@ -522,7 +536,8 @@ def label_users(programs: list[dict], label_id: str) -> list[str]:
     for program in programs:
         used = any(e.get("default_label") == label_id or label_id in (e.get("label_overrides") or {})
                    for e in program["entities"])
-        used = used or any(s.get("label") == label_id for p in program["profiles"] for s in profile_slots(p))
+        used = used or any(label_id in (s.get("label"), s.get("end_label"))
+                           for p in program["profiles"] for s in profile_slots(p))
         if used:
             users.append(program["name"])
     return users

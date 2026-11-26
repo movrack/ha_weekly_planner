@@ -29,6 +29,9 @@ export interface BarSpan {
   slotId?: string;
   /** Setting (label id) of the span. */
   labelId?: string;
+  /** Start / stop slot (issue #93): colour and id of the setting sent at the end; the span is drawn half and half. */
+  endColor?: string;
+  endLabelId?: string;
   spill?: boolean;
   /** The program is paused: planned but not applied, drawn hatched (same colours, diagonal stripes). */
   paused?: boolean;
@@ -218,8 +221,8 @@ export class WpDayBar extends LitElement {
           ${this.spans.map((s) => {
             const box = this._labelBox(s);
             return html`<div
-              class="span ${s.ignored ? "ignored" : s.paused ? "paused" : ""}"
-              style="left:${pct(s.start)};width:${pct(Math.max(s.end - s.start, 5))};--c:${s.color};--fg:${readableOn(s.color).fg};--sh:${readableOn(s.color).shadow}"
+              class="span ${s.ignored ? "ignored" : s.paused ? "paused" : ""}${s.endColor ? " pair" : ""}"
+              style="left:${pct(s.start)};width:${pct(Math.max(s.end - s.start, 5))};--c:${s.color};--c2:${s.endColor ?? s.color};--fg:${readableOn(s.color).fg};--sh:${readableOn(s.color).shadow}"
               title=${s.label}
             >${box ? html`<span class="name" style="left:${box.left}%;width:${box.width}%">${box.text}</span>` : nothing}</div>`;
           })}
@@ -250,6 +253,9 @@ export class WpDayBar extends LitElement {
       position: absolute; top: 0; bottom: 0; background: var(--c);
       display: flex; align-items: center; justify-content: center; overflow: hidden;
     }
+    /* start / stop slot (issue #93): the whole segment in the start setting's colour, a vertical bar in the end setting's colour at its end */
+    .span.pair { position: absolute; }
+    .span.pair::after { content: ""; position: absolute; top: 0; bottom: 0; right: 0; width: 4px; background: var(--c2); }
     .schedule-boundary {
       position: absolute; top: 4px; bottom: 4px; width: 2px; margin-left: -1px;
       background: var(--c); pointer-events: none;

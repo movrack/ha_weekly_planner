@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { WpSlotForm } from "../components/slot-form";
+import { t } from "../i18n";
 import { flat, handlers, find } from "./helpers/tpl";
 import { form } from "./helpers/slot-form";
 
@@ -149,8 +150,38 @@ describe("slot form", () => {
     const chips = clicks.slice(fold + 3, fold + 5);
     chips[0].fn(); expect(seen[0].slot.end).toBeNull();
     chips[1].fn(); expect(seen[1].slot.end).toEqual({ time: "09:00" });
-    form({ start: { sun: "sunrise" }, end: null }).el._toggleEnd(true);
-    const late = form({ start: { time: "23:59" } }); late.el._toggleEnd(true); expect(late.seen[0].slot.end.time).toBe("23:55");
+    const endChip = (f: ReturnType<typeof form>, i: number) => {
+      const all = handlers(f.el.render()).filter((h) => h.event === "click");
+      return all.slice(all.findIndex((h) => h.before.includes('class="row opts"')) + 3)[i];
+    };
+    const sun = form({ start: { sun: "sunrise" }, end: null }); endChip(sun, 1).fn(); expect(sun.seen[0].slot.end).toEqual({ time: "13:00" });
+    const late = form({ start: { time: "23:59" }, end: null }); endChip(late, 1).fn(); expect(late.seen[0].slot.end.time).toBe("23:55");
+  });
+  it("offers a third kind, with an end setting (issue #93): the end setting starts as the start setting, then has its own picker", () => {
+    const f = form({ end: null });
+    const chips = flat(f.el.render());
+    expect(chips).toContain(t("en", "with_stop"));
+    const all = handlers(f.el.render()).filter((h) => h.event === "click");
+    all.slice(all.findIndex((h) => h.before.includes('class="row opts"')) + 3)[2].fn();
+    const stop = f.seen[0].slot;
+    expect(stop.end).toEqual({ time: "09:00" });
+    expect(stop.end_label).toBe(f.el.group.slot.label);
+    const shown = form({ end: { time: "09:00" }, end_label: "night" });
+    const html = flat(shown.el.render());
+    expect(html).toContain(t("en", "end_action"));
+    expect([...html.matchAll(/<wp-label-picker/g)]).toHaveLength(2);
+    const pickers = handlers(shown.el.render()).filter((h) => h.event === "label-change");
+    pickers[1].fn({ detail: "comfort", stopPropagation() {} });
+    expect(shown.seen[0].slot).toMatchObject({ label: shown.el.group.slot.label, end_label: "comfort" });
+  });
+  it("leaves the end setting when going back to a plain end or to no end", () => {
+    for (const [i, end] of [[0, null], [1, { time: "09:00" }]] as const) {
+      const f = form({ end: { time: "09:00" }, end_label: "night" });
+      const all = handlers(f.el.render()).filter((h) => h.event === "click");
+      all.slice(all.findIndex((h) => h.before.includes('class="row opts"')) + 3)[i].fn();
+      expect(f.seen[0].slot.end).toEqual(end);
+      expect("end_label" in f.seen[0].slot).toBe(false);
+    }
   });
   it("toggles days and uses the all / weekdays / weekend shortcuts", () => {
     const { el, seen } = form({}, [0, 1]);

@@ -8,7 +8,7 @@ import { applicable, applies, findOverlap, normaliseEntities, sharesDevice } fro
 import type { Program, Slot } from "./types";
 
 /** What an edit changes in a slot (never its id, devices or seed). */
-export type SlotPatch = Partial<Pick<Slot, "start" | "end" | "label" | "conditions" | "color">>;
+export type SlotPatch = Partial<Pick<Slot, "start" | "end" | "label" | "end_label" | "conditions" | "color">>;
 /** A patch, or null: the slot stops running (for the device, or for every device). */
 export type SlotChange = SlotPatch | null;
 
@@ -26,7 +26,9 @@ function setEntities(slot: Slot, list: string[] | undefined): Slot {
 
 function patched(slot: Slot, change: SlotPatch): Slot {
   const clean = Object.fromEntries(Object.entries(change).filter(([, v]) => v !== undefined));
-  return { ...slot, ...structuredClone(clean) };
+  const out: Slot = { ...slot, ...structuredClone(clean) };
+  if (change.end_label === null) delete out.end_label; // null: no longer a start / stop slot (issue #93)
+  return out;
 }
 
 /** The slot for exactly these devices, normalised (D5). Null: no device left, the slot must be deleted. */

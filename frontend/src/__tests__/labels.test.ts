@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  PALETTE, actionText, allowedOf, actionValue, compatible, entityAction, hasOverride, labelDomains, labelName, labelUsers, labelsFor, nextColor,
+  PALETTE, actionText, allowedOf, actionValue, compatible, entityAction, hasOverride, labelDomains, labelName, labelUsers, labelsFor, nextColor, startStopSpan,
 } from "../labels";
 import type { Action, HomeAssistant, Label, PlannerData, Program } from "../types";
 
@@ -107,6 +107,21 @@ describe("colours and use", () => {
     expect(labelUsers(data, "t21")).toEqual(["Bureau"]);
     expect(labelUsers(data, "t15")).toEqual(["Bureau"]);
     expect(labelUsers(data, "unused")).toEqual([]);
+  });
+
+  it("counts the end setting of a start / stop slot as a use (issue #93)", () => {
+    const p = program();
+    p.profiles[0].days[0][0].end_label = "stop";
+    expect(labelUsers({ programs: [p] } as unknown as PlannerData, "stop")).toEqual(["Bureau"]);
+  });
+
+  it("names both settings of a start / stop span and gives the end colour, nothing for another slot", () => {
+    const data = { labels: [label("go", temp(21), "#00ff00"), label("stop", temp(15), "#ff0000")] } as PlannerData;
+    const go = data.labels[0];
+    expect(startStopSpan(hass, data, { end: { time: "11:00" }, end_label: "stop" }, go)).toEqual({ label: "go → stop", endColor: "#ff0000", endLabelId: "stop" });
+    expect(startStopSpan(hass, data, { end: { time: "11:00" } }, go)).toEqual({});
+    expect(startStopSpan(hass, data, { end: null, end_label: "stop" }, go)).toEqual({});
+    expect(startStopSpan(hass, data, { end: { time: "11:00" }, end_label: "gone" }, go)).toEqual({});
   });
 });
 

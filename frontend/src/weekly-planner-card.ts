@@ -20,7 +20,7 @@ import { scopeKey } from "./components/schedule-dialog";
 import type { Scope } from "./components/schedule-dialog";
 import { nb } from "./actions";
 import { cardIdentity, chartKey, isChartOpen, loadChartChoices, openHistory, saveChartChoices, WEEK_KEY } from "./chart-state";
-import { actionText, appliedAction, labelDomains, labelName, labelOf } from "./labels";
+import { actionText, appliedAction, labelDomains, labelName, labelOf, startStopSpan } from "./labels";
 import { errorText, strings, t } from "./i18n";
 import { loadServiceNames, onServiceNames, serviceNamesVersion } from "./services";
 import { reloadIfOutdated } from "./update";
@@ -468,7 +468,7 @@ export class WeeklyPlannerCard extends LitElement {
           endSun: slot.end ? sunDir(slot.end) : null, startSpec: slot.start, endSpec: slot.end ?? null, marker: !slot.end,
           startBase: slot.start.random_minutes ? specMinutes(this.hass, { ...slot.start, random_minutes: 0 }) : null,
           endBase: slot.end?.random_minutes ? specMinutes(this.hass, { ...slot.end, random_minutes: 0 }) : null,
-          ...(program.enabled ? {} : { paused: true }), ...extra };
+          ...startStopSpan(this.hass, data, slot, label), ...(program.enabled ? {} : { paused: true }), ...extra };
       };
       const date = localDateIso(at, this._tz);
       const { today: resolved, previous } = this._deviceDays(program.id, date, entityId);
@@ -503,8 +503,27 @@ export class WeeklyPlannerCard extends LitElement {
         const start = nominal(slot.start), end = nominal(slot.end ?? null);
         if (start !== null) spans.push(mk(slot, start, end === null ? start + 10 : end > start ? end : DAY));
       }
+      if (offset === 0) spans.push(...this._committedEnds(program, entityId, bounds, spans));
     }
     return spans;
+  }
+
+  /**
+   * Ends committed by a start that went out (issue #93) and not drawn by today's schedule (the mode changed, or the
+   * schedule was edited): a marker at their time, in the colour of their setting, since they still go out.
+   */
+  private _committedEnds(program: Program, entityId: string, bounds: { startMs: number; endMs: number }, drawn: BarSpan[]): BarSpan[] {
+    const out: BarSpan[] = [];
+    for (const end of this._data!.status?.[program.id]?.committed_ends ?? []) {
+      const at = Date.parse(end.at);
+      const label = labelOf(this._data!, end.label);
+      if (end.entity_id !== entityId || !label || at < bounds.startMs || at >= bounds.endMs) continue;
+      if (drawn.some((s) => s.slotId === end.slot_id && s.endMs === at)) continue;
+      const start = localMinutes(end.at, this._tz);
+      out.push({ start, end: Math.min(DAY, start + 10), color: label.color, label: labelName(this.hass, label), labelId: label.id,
+        slotId: end.slot_id, marker: true, startMs: at, endMs: null });
+    }
+    return out;
   }
 
   /**
@@ -527,7 +546,7 @@ export class WeeklyPlannerCard extends LitElement {
       const end = slot.end ? (cut ? DAY : specMinutes(this.hass, slot.end)) : null;
       spans.push({ start, end: end ?? Math.min(DAY, start + 10), color: label.color, label: labelName(this.hass, label), labelId: label.id, slotId: slot.id,
         startSun: sunDir(slot.start), endSun: cut ? null : sunDir(slot.end), startSpec: slot.start, endSpec: slot.end ?? null, marker: !slot.end,
-        ...(program.enabled ? {} : { paused: true }) });
+        ...startStopSpan(this.hass, data, slot, label), ...(program.enabled ? {} : { paused: true }) });
     }
     return spans;
   }

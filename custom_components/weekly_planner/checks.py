@@ -42,7 +42,8 @@ def program_warnings(
         if engine is not None:
             labels = engine.labels
             # only the slots that apply to this device (#34): a cover slot never warns the thermostat
-            used = ({s["label"] for p in program["profiles"] for s in profile_slots(p) if applies(s, eid)}
+            used = ({lid for p in program["profiles"] for s in profile_slots(p) if applies(s, eid)
+                     for lid in (s["label"], s.get("end_label")) if lid}
                     | {entity.get("default_label")})
             skipped = sorted(
                 labels[lid]["name"] for lid in used

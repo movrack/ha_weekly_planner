@@ -60,6 +60,8 @@ def program_actions(program: dict, labels: dict[str, dict],
             for entity_id in slot.get("entities") or every:
                 if entity_id in used:
                     used[entity_id].add(slot["label"])
+                    if slot.get("end_label"):  # start / stop slot (issue #93)
+                        used[entity_id].add(slot["end_label"])
     for entity_id, label_ids in used.items():
         for label_id in label_ids:
             if only_label is None or label_id == only_label:

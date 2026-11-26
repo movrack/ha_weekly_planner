@@ -334,3 +334,18 @@ async def test_stale_select_registry_entries_are_removed_at_setup(hass, hass_sto
     await hass.async_block_till_done()
     assert registry.async_get(stale.entity_id) is None
     assert registry.async_get(other.entity_id) is not None
+
+
+async def test_start_stop_end_of_the_former_mode_goes_out_after_a_mode_change(hass, hass_storage, freezer):
+    """Issue #93: the stop committed by the start of the Home mode still goes out once the house is Away."""
+    rec = Recorder(hass)
+    choose(hass, "Home")
+    prog = moded(away=[])
+    prog["profiles"][0]["days"] = [[slot("car", "10:30", "11:00", "t21", end_label="t19")] for _ in range(7)]
+    await setup(hass, hass_storage, freezer, [prog], local(26, 10), config=CONFIG)
+    rec.calls.clear()
+    await tick(hass, freezer, local(26, 10, 30) - local(26, 10))
+    choose(hass, "Away")
+    await hass.async_block_till_done()
+    await tick(hass, freezer, local(26, 11, 0) - local(26, 10, 30))
+    assert temperatures(rec) == [21, 15, 19]

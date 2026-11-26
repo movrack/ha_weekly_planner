@@ -21,7 +21,7 @@ import { applyEdit, compareOrigin, dayView, findGroup, freshGroup, groupId, next
 import { devicesOf, dropDeviceSlots, editForDevice, isShared, remergeIdentical } from "../device-edits";
 import type { SlotPatch } from "../device-edits";
 import type { RowEdit } from "../edits";
-import { appliedAction, labelDomains, labelName, labelOf, labelsFor } from "../labels";
+import { appliedAction, labelDomains, labelName, labelOf, labelsFor, startStopSpan } from "../labels";
 import { addDaysIso } from "./chart";
 import { chooseAction, confirmAction, pauseChoice } from "./confirm";
 import { errorText, slotDeviceError, strings, t } from "../i18n";
@@ -592,6 +592,7 @@ export class WpSchedule extends LitElement {
     if (sunBoundsInvalid(g.slot.start) || sunBoundsInvalid(g.slot.end)) return t(lang, "err_sun_bounds");
     if (g.slot.end && JSON.stringify(g.slot.start) === JSON.stringify(g.slot.end)) return t(lang, "w_err_same");
     if (!labelOf(this.data, g.slot.label)) return t(lang, "err_action");
+    if (g.slot.end_label != null && !labelOf(this.data, g.slot.end_label)) return t(lang, "err_end_action");
     if (this._shared && this._who === null && this._contentChanged()) return t(lang, "who_pick");
     return "";
   }
@@ -623,7 +624,7 @@ export class WpSchedule extends LitElement {
    * field stays undefined: `editForDevice` drops undefined fields, so it keeps the slot's own value.
    */
   private _patch(slot: Slot): SlotPatch {
-    return { start: slot.start, end: slot.end ?? null, label: slot.label, conditions: slot.conditions, color: slot.color };
+    return { start: slot.start, end: slot.end ?? null, label: slot.label, end_label: slot.end_label ?? null, conditions: slot.conditions, color: slot.color };
   }
 
   /**
@@ -951,7 +952,7 @@ export class WpSchedule extends LitElement {
     // the other devices this slot also runs for (names from Home Assistant)
     const others = program ? applicable(group.slot, devicesOf(program)).filter((d) => d !== this._eid) : [];
     return {
-      text: [label ? labelName(this.hass, label) : "", this._when(group.slot)].filter(Boolean).join(" · "),
+      text: [label ? startStopSpan(this.hass, this.data, group.slot, label).label ?? labelName(this.hass, label) : "", this._when(group.slot)].filter(Boolean).join(" · "),
       days,
       color: label?.color ?? "var(--disabled-text-color)",
       also: others.length ? t(lang, "also_short", { names: others.map((d) => friendlyName(this.hass, d)).join(", ") }) : "",
@@ -1419,7 +1420,7 @@ export class WpSchedule extends LitElement {
           const end = slot.end ? (cut ? DAY : this._minutes(slot.end)) : null;
           spans.push({
             start, end: end ?? start + 10,
-            color: label.color, label: labelName(this.hass, label), marker: end === null,
+            color: label.color, label: labelName(this.hass, label), marker: end === null, ...startStopSpan(this.hass, this.data, slot, label),
             startSun: sunDir(slot.start), endSun: cut ? null : sunDir(slot.end),
             startSpec: slot.start, endSpec: slot.end, ...(program.enabled ? {} : { paused: true }),
           });
@@ -1447,7 +1448,7 @@ export class WpSchedule extends LitElement {
           spans.push({
             start: d === day ? start : 0,
             end: d !== day ? end! : overnight ? DAY : end ?? start + 10,
-            color: label.color, label: labelName(this.hass, label), marker: end === null,
+            color: label.color, label: labelName(this.hass, label), marker: end === null, ...startStopSpan(this.hass, this.data, slot, label),
             startSun: d === day ? sunDir(slot.start) : null,
             endSun: overnight && d === day ? null : sunDir(slot.end),
             startSpec: slot.start, endSpec: slot.end, ...(program.enabled ? {} : { paused: true }),

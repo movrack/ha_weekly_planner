@@ -12,7 +12,7 @@ import { friendlyName } from "../planner";
 import { compatibleDevices, labelOf } from "../labels";
 import { DAY, clockToMinutes, currentTimeFormat, fmtClock, fmtDayEnd, localDateIso, localMinutes, minutesToClock } from "../time";
 import { editorStyles, foldSection, langOf } from "../editors/shared";
-import type { HomeAssistant, PlannerData, Program, TimeSpec } from "../types";
+import type { HomeAssistant, PlannerData, Program, Slot, TimeSpec } from "../types";
 
 type Which = "start" | "end";
 const SUNS = ["sunrise", "sunset"] as const;
@@ -302,11 +302,20 @@ export class WpSlotForm extends LitElement {
       ${sunBoundsInvalid(spec) ? html`<small class="bad" role="alert">${t(lang, "err_sun_bounds")}</small>` : nothing}`;
   }
 
-  private _toggleEnd(withEnd: boolean): void {
-    if (!withEnd) return this._update("end", null);
-    const start = this.group.slot.start;
+  /**
+   * The three kinds of schedule: at this time only (no end), until a time (the rest of the time comes back), or with an
+   * end setting (issue #93: `end_label` is sent at the end). Switching keeps the end time and the end setting it can.
+   */
+  private _setKind(kind: "once" | "until" | "stop"): void {
+    const slot = this.group.slot;
+    if (kind === "once") this._limitOpen = { ...this._limitOpen, end: false };
+    const start = slot.start;
     const m = "time" in start ? clockToMinutes(start.time) : 12 * 60;
-    this._update("end", { time: minutesToClock(Math.min(DAY - 5, m + 60)) });
+    const end = kind === "once" ? null : slot.end ?? { time: minutesToClock(Math.min(DAY - 5, m + 60)) };
+    const next: Slot = { ...slot, end };
+    if (kind === "stop") next.end_label = slot.end_label || slot.label;
+    else delete next.end_label;
+    this.dispatchEvent(new CustomEvent("group-change", { detail: { ...this.group, slot: next }, bubbles: true, composed: true }));
   }
 
   /* ---- devices ---- */
@@ -374,10 +383,11 @@ export class WpSlotForm extends LitElement {
       <section>
         <h4>${t(lang, "end_section")}</h4>
         <div class="chips">
-          <button class="chip ${slot.end ? "" : "on"}" aria-pressed=${!slot.end} ?disabled=${this.disabled}
-            @click=${() => this._toggleEnd(false)}>${t(lang, "no_end")}</button>
-          <button class="chip ${slot.end ? "on" : ""}" aria-pressed=${Boolean(slot.end)} ?disabled=${this.disabled}
-            @click=${() => this._toggleEnd(true)}>${t(lang, "with_end")}</button>
+          ${([["once", "no_end"], ["until", "with_end"], ["stop", "with_stop"]] as const).map(([kind, key]) => {
+            const on = kind === (!slot.end ? "once" : slot.end_label ? "stop" : "until");
+            return html`<button class="chip ${on ? "on" : ""}" aria-pressed=${on} ?disabled=${this.disabled}
+              @click=${() => this._setKind(kind)}>${t(lang, key)}</button>`;
+          })}
         </div>
         ${slot.end ? html`${this._timeBlock("end", t(lang, "end"))}${this._advFold("end", t(lang, "end"))}` : nothing}
       </section>
@@ -387,6 +397,12 @@ export class WpSlotForm extends LitElement {
           .value=${slot.label || null} ?disabled=${this.disabled}
           @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._set({ label: e.detail ?? "" }); }}></wp-label-picker>
       </section>
+      ${slot.end && slot.end_label != null ? html`<section class="end-action">
+        <h4>${t(lang, "end_action")}</h4>
+        <wp-label-picker readonly-settings .hass=${this.hass} .data=${this.data} .program=${this.program} .entityIds=${this.entityIds}
+          .value=${slot.end_label || null} ?disabled=${this.disabled}
+          @label-change=${(e: CustomEvent<string | null>) => { e.stopPropagation(); this._set({ end_label: e.detail ?? "" }); }}></wp-label-picker>
+      </section>` : nothing}
       ${this._alsoFor()}`;
   }
 
